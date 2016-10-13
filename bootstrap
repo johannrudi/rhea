@@ -1,0 +1,110 @@
+#! /bin/sh
+
+function print_usage()
+{
+  echo "Usage: ./bootstrap [<SC_CONFIG_DIRECTORY> <P4EST_CONFIG_DIRECTORY> 
+                            <MANGLL_CONFIG_DIRECTORY> <YMIR_CONFIG_DIRECTORY>]"
+  echo "Call bootstrap without arguments if rhea is the toplevel package." \
+       "If you just called bootstrap from a fresh clone of rhea," \
+       "you may need to checkout the submodules:"
+  echo "  \$ git submodule init && git submodule update"
+}
+
+########################################
+# Process options
+########################################
+
+# check option flags
+while getopts ":h" opt; do
+  case $opt in
+    h) # help
+      print_usage; exit 1
+      ;;
+    \?) # invalid option
+      echo "Invalid option: -$OPTARG" >&2; exit 1
+      ;;
+    :) # option requires argument
+      echo "Option -$OPTARG requires an argument" >&2; exit 1
+      ;;
+  esac
+done
+
+# override sc config directory by option argument `$1`
+SC_CONFIG="${1:-sc/config}"
+# check if path exists
+if test ! -d "$SC_CONFIG" ; then
+  echo "Error: Cannot find directory $SC_CONFIG" >&2
+  print_usage; exit 1
+fi
+# convert into an absolute path
+SC_CONFIG=`cd "$SC_CONFIG" && pwd`
+
+# override p4est config directory by option argument `$2`
+P4EST_CONFIG="${2:-p4est/config}"
+# check if path exists
+if test ! -d "$P4EST_CONFIG" ; then
+  echo "Error: Cannot find directory $P4EST_CONFIG" >&2
+  print_usage; exit 1
+fi
+# convert into an absolute path
+P4EST_CONFIG=`cd "$P4EST_CONFIG" && pwd`
+
+# override mangll config directory by option argument `$3`
+MANGLL_CONFIG="${3:-mangll/config}"
+# check if path exists
+if test ! -d "$MANGLL_CONFIG" ; then
+  echo "Error: Cannot find directory $MANGLL_CONFIG" >&2
+  print_usage; exit 1
+fi
+# convert into an absolute path
+MANGLL_CONFIG=`cd "$MANGLL_CONFIG" && pwd`
+
+# override ymir config directory by option argument `$4`
+YMIR_CONFIG="${4:-ymir/config}"
+# check if path exists
+if test ! -d "$YMIR_CONFIG" ; then
+  echo "Error: Cannot find directory $YMIR_CONFIG" >&2
+  print_usage; exit 1
+fi
+# convert into an absolute path
+YMIR_CONFIG=`cd "$YMIR_CONFIG" && pwd`
+
+########################################
+# Run Autotools
+########################################
+
+# call bootstrap in subpackages
+if test -x "sc/bootstrap" ; then
+  echo "Running bootstrap in directory sc"
+  (cd sc && ./bootstrap)
+fi
+
+if test -x "p4est/bootstrap" ; then
+  echo "Running bootstrap in directory p4est"
+  (cd p4est && ./bootstrap "$SC_CONFIG")
+fi
+
+if test -x "mangll/bootstrap" ; then
+  echo "Running bootstrap in directory mangll"
+  (cd mangll && ./bootstrap "$SC_CONFIG" "$P4EST_CONFIG")
+fi
+
+if test -x "ymir/bootstrap" ; then
+  echo "Running bootstrap in directory ymir"
+  (cd ymir && ./bootstrap "$SC_CONFIG" "$P4EST_CONFIG" "$MANGLL_CONFIG")
+fi
+
+# run bootstrap
+echo "--- This is the bootstrap script for rhea ---"
+echo "Current directory is $PWD"
+
+LIBTOOLIZE=${LIBTOOLIZE:-`which glibtoolize 2>/dev/null`}
+LIBTOOLIZE=${LIBTOOLIZE:-`which libtoolize 2>/dev/null`}
+LIBTOOLIZE=${LIBTOOLIZE:?bootstrap requires libtoolize}
+
+aclocal -Wall -I config \
+    -I "$SC_CONFIG" -I "$P4EST_CONFIG" -I "$MANGLL_CONFIG" -I "$YMIR_CONFIG"
+autoconf -Wall --force
+autoheader -Wall --force
+"$LIBTOOLIZE" --install --copy
+automake -Wall --add-missing --copy
