@@ -1,0 +1,16 @@
+[submodule "sc"]
+	path = sc
+	url = https://github.com/cburstedde/libsc.git
+  ignore = untracked
+[submodule "p4est"]
+	path = p4est
+	url = https://github.com/cburstedde/p4est.git
+  ignore = untracked
+[submodule "mangll"]
+	path = mangll
+	url = nordend.ices.utexas.edu:/h1/johann/repos/mangll.git
+  ignore = untracked
+[submodule "ymir"]
+	path = ymir
+	url = nordend.ices.utexas.edu:/h1/johann/repos/ymir.git
+  ignore = untracked
