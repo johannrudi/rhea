@@ -12,6 +12,10 @@ librhea_compiled_sources =
 RHEA_CPPFLAGS =
 RHEA_LDADD = @top_builddir@/src/librhea.la @RHEA_YMIR_LDADD@ \
              @RHEA_MANGLL_LDADD@ @RHEA_P4EST_LDADD@ @RHEA_SC_LDADD@
+if RHEA_WITH_PETSC
+RHEA_CPPFLAGS += @RHEA_PETSC_INCLUDES@
+RHEA_LDADD += @RHEA_PETSC_LINK_LIBS@
+endif
 
 lib_LTLIBRARIES += src/librhea.la
 src_librhea_la_SOURCES = \

@@ -1,0 +1,235 @@
+###### Global ######
+
+ #-info
+ #-info_exclude null
+ #-on_error_attach_debugger
+ #-log_summary  # summarize the program’s performance
+  -malloc_dump  # dumps unfreed memory during call to PetscFinalize
+ #-malloc_log   # activate logging of memory usage
+ #-memory_info  # print memory usage at end of run
+
+###### Stress KSP ######
+
+  ### KSP type
+
+    # multigrid preconditioner
+   #-stress_ksp_type preonly
+
+    # CG
+   #-stress_ksp_type cg
+   #-stress_ksp_cg_single_reduction  # combine both inner prod into 1 allreduce
+
+    # GMRES
+    -stress_ksp_type gmres
+    -stress_ksp_gmres_restart 150
+    -stress_ksp_pc_side right
+
+  ### KSP tolerances
+  -stress_ksp_rtol 1.0e-6
+  -stress_ksp_atol 0.0
+  -stress_ksp_max_it 10
+
+  ### KSP monitoring
+  -stress_ksp_view                    # show all the options in use
+  -stress_ksp_monitor                 # show residual norm at each iteration
+ #-stress_ksp_monitor_range           # show #residual elem's >20% of max res
+ #-stress_ksp_monitor_singular_value  # show singular value est at each iter
+ #-stress_ksp_compute_eigenvalues     # show eigvals computed during Krylov iter
+
+###### Stress PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -stress_pc_use_amat true
+
+  ### AMG algorithmic options
+  -stress_pc_mg_type multiplicative      # multiplicative,additive,full,cascade
+ #-stress_pc_mg_cycles 1                 # 1: V-cycle, 2: W-cycle (ignored)
+  -stress_pc_mg_multiplicative_cycles 1  # number of MG-cycles
+ #-stress_pc_mg_smoothup 1               # number of smoothing steps (ignored)
+ #-stress_pc_mg_smoothdown 1             # number of smoothing steps (ignored)
+
+  ### AMG monitoring
+ #-stress_pc_mg_log          # log time spent on each level of the solver
+ #-stress_pc_mg_dump_matlab  # dump all the multigrid matrices to Matlab
+
+  ### AMG Galerkin coarse grid generation
+
+    # GAMG
+    -stress_pc_type gamg
+    -stress_pc_gamg_verbose 10
+    -stress_pc_gamg_threshold 0.01   # rel thresh for dropping edges
+    -stress_pc_gamg_process_eq_limit 100  # #eqn's/proc on coarse grid (goal)
+    -stress_pc_gamg_coarse_eq_limit 1000  # #eqn's for coarse grid
+   #-stress_pc_gamg_eigtarget  # target eigval as fraction of est. max
+   #-stress_pc_gamg_reuse_interpolation
+   #-stress_pc_gamg_use_agg_gasm
+    -stress_pc_gamg_agg_nsmooths 1  # smoothing steps for smoothed aggregation
+   #-stress_pc_gamg_sym_graph     # asymmetric matrices
+   #-stress_pc_gamg_square_graph  # faster coarsening & lower coarse grid compl
+   #-stress_pc_gamg_repartition
+   #-stress_pc_gamg_mat_partitioning_type parmetis
+
+    # ML
+#   -stress_pc_type ml
+#   -stress_pc_ml_PrintLevel 10
+#  #-stress_pc_ml_maxNlevels 10
+#   -stress_pc_ml_maxCoarseSize 1000
+#   -stress_pc_ml_CoarsenScheme Uncoupled  # Uncoupled (Coupled) MIS (METIS)
+#   -stress_pc_ml_Threshold 0.01  # Dropping threshold in aggregation
+   #-stress_pc_ml_BlockScaling  # Scale DOFs at each node together (bug!)
+   #-stress_pc_ml_EnergyMinimization 3
+   #-stress_pc_ml_EnergyMinimizationDropTol 0.001
+   #-stress_pc_ml_Reusable
+   #-stress_pc_ml_KeepAggInfo
+   #-stress_pc_ml_repartition                 # repartition levels of hierarchy
+   #-stress_pc_ml_repartitionMaxMinRatio 1.3  # ratio of repartitioned sizes
+   #-stress_pc_ml_repartitionMinPerProc 512   # smallest repartitioned size
+   #-stress_pc_ml_repartitionPutOnSingleProc 5000  # repart. to one processor
+   #-stress_pc_ml_repartitionType Zoltan      # Zoltan or ParMETIS
+   #-stress_pc_ml_Aux
+   #-stress_pc_ml_AuxThreshold 0.001
+
+  ### AMG coarse grid KSP
+
+    ### KSP type
+    -stress_mg_coarse_ksp_type preonly  # (others don't seem to work here)
+
+    ### KSP tolerances
+    -stress_mg_coarse_ksp_max_it 1
+
+    ### KSP monitoring
+   #-stress_mg_coarse_ksp_view
+
+  ### AMG coarse grid PC
+
+    ### PC type
+
+      # Block Jacobi (has sub solver)
+      -stress_mg_coarse_pc_type bjacobi
+
+      # Additive Schwarz (has sub solver)
+     #-stress_mg_coarse_pc_type asm
+     #-stress_mg_coarse_pc_asm_overlap 0
+     #-stress_mg_coarse_pc_asm_type restrict
+
+    ### Sub KSP type
+
+      # none
+      -stress_mg_coarse_sub_ksp_type preonly
+
+      # CG
+     #-stress_mg_coarse_sub_ksp_type cg
+     #-stress_mg_coarse_sub_ksp_rtol 1.0e-16
+     #-stress_mg_coarse_sub_ksp_atol 1.0e-40
+     #-stress_mg_coarse_sub_ksp_max_it 5
+     #-stress_mg_coarse_sub_ksp_monitor_singular_value
+
+    ### Sub PC type
+
+      # Cholesky factorization
+      -stress_mg_coarse_sub_pc_type cholesky
+     #-stress_mg_coarse_sub_pc_factor_fill 2
+
+      # ICC(k) factorization
+     #-stress_mg_coarse_sub_pc_type icc
+     #-stress_mg_coarse_sub_pc_factor_levels 0
+
+      # additional factorization options
+
+        # shift matrix diagonal to get nonzero pivots
+        # (none, nonzero, positive_definite, inblocks)
+       #-stress_mg_coarse_sub_pc_factor_shift_type positive_definite
+
+      # SSOR
+     #-stress_mg_coarse_sub_pc_type sor
+     #-stress_mg_coarse_sub_pc_sor_symmetric
+
+  ### AMG smoothing KSP
+
+    ### KSP type
+
+      # none
+     #-stress_mg_levels_ksp_type preonly
+
+      # CG
+     #-stress_mg_levels_ksp_type cg
+
+      # Chebyshev smoother
+      -stress_mg_levels_ksp_type chebyshev
+      -stress_mg_levels_ksp_chebyshev_estimate_eigenvalues
+      -stress_mg_levels_ksp_chebyshev_estimate_eigenvalues_random
+      -stress_mg_levels_est_ksp_type gmres
+      -stress_mg_levels_est_ksp_max_it 10
+
+     #-stress_mg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -stress_mg_levels_ksp_rtol 1.0e-16
+    -stress_mg_levels_ksp_atol 0.0
+    -stress_mg_levels_ksp_max_it 3
+
+    ### KSP monitoring
+   #-stress_mg_levels_ksp_view
+   #-stress_mg_levels_ksp_monitor
+   #-stress_mg_levels_ksp_monitor_singular_value
+   #-stress_mg_levels_ksp_compute_eigenvalues
+
+  ### AMG smoothing PC
+
+    ### PC type
+
+      # Block jacobi (has sub solver)
+      -stress_mg_levels_pc_type bjacobi
+
+      # Additive Schwarz (has sub solver)
+     #-stress_mg_levels_pc_type asm
+     #-stress_mg_levels_pc_asm_overlap 0
+     #-stress_mg_levels_pc_asm_type restrict
+
+      # SOR
+     #-stress_mg_levels_pc_type sor
+     #-stress_mg_levels_pc_sor_slow_richardson
+
+    ### Sub KSP type
+
+      # none
+      -stress_mg_levels_sub_ksp_type preonly
+
+    ### Sub PC type
+
+      # Cholesky factorization
+     #-stress_mg_levels_sub_pc_type cholesky
+     #-stress_mg_levels_sub_pc_factor_fill 50
+
+      # ICC(k) factorization
+     #-stress_mg_levels_sub_pc_type icc
+     #-stress_mg_levels_sub_pc_factor_levels 0
+     #-stress_mg_levels_sub_pc_factor_in_place
+
+      # SSOR
+      -stress_mg_levels_sub_pc_type sor
+     #-stress_mg_levels_sub_pc_sor_omega 1.0
+      -stress_mg_levels_sub_pc_sor_symmetric
+     #-stress_mg_levels_sub_pc_sor_its 1
+     #-stress_mg_levels_sub_pc_sor_local_symmetric
+     #-stress_mg_levels_sub_pc_sor_lits 1
+
+      # SSOR with Eisenstat's trick to reduce amount of computation
+     #-stress_mg_levels_sub_pc_type eisenstat
+     #-stress_mg_levels_sub_pc_eisenstat_omega 1.0
+     #-stress_mg_levels_sub_pc_eisenstat_no_diagonal_scaling
+
+  ### PC type (instead of AMG)
+
+    # ICC(k)
+   #-stress_pc_type icc
+   #-stress_pc_factor_levels 1
+   #-stress_pc_factor_shift_type positive_definite
+
+    # SOR
+   #-stress_pc_type sor
+   #-stress_pc_sor_slow_richardson
+
+    # Point Block Jacobi
+   #-stress_pc_type pbjacobi
+

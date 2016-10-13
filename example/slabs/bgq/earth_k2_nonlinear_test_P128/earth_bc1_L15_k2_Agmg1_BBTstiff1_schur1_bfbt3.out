@@ -1,0 +1,2695 @@
+/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3
+/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3.sh
+========================================
+commit cdf07a4686a6ffb1bb7c83d80481dbbb246fc641 Merge: 40644a9 b513302 Author: Johann Rudi <johann@ices.utexas.edu> Date: Mon Apr 13 03:24:11 2015 -0500 Merge remote branch 'origin/gmg' into gmg commit b51330291782a04d6f4195eb9dd2e41d0766c814 Author: Johann Rudi <johann@ices.utexas.edu> Date: Mon Apr 13 03:23:53 2015 -0500 Mantle: Modify Stampede script. commit 40644a9ee93d377cd47d2c562e15e33b97f863a0 Merge: 2b45380 f6c5b1f Author: Johann Rudi <johann@ices.utexas.edu> Date: Mon Apr 13 03:16:57 2015 -0500 Merge remote branch 'origin/gmg' into gmg
+/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3
+========================================
+Job id:                   5105771
+Job name:                 earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2
+Number of nodes:          16
+Number of MPI tasks:      256
+Number of tasks per node: 16(x16)
+Number of OpenMP threads: 1
+Queue:                    development
+Allocation:               TG-DPP130002
+Directory of submission:  /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13
+========================================
+List of nodes: c557-[704,801-804,901-904],c558-[001-004,101,103-104]
+========================================
+Total memory per node: 32815324 kilobytes
+========================================
+Threshold for on-demand connection management set to 256
+Enable native InfiniBand Unreliable Datagram (UD) based asynchronous connection management
+/opt/apps/lmod/lmod/libexec/lmod bash list Currently Loaded Modules: 1) TACC-paths 5) cluster 9) cmake/2.8.9 2) Linux 6) TACC 10) intel/14.0.1.106 3) cluster-paths 7) papi/5.3.0 (m) 11) mvapich2/2.0b 4) xalt/0.4.6 8) valgrind/3.8.1 Where: (m): built for host and native MIC
+========================================
+Launch main executable
+TACC: Starting up job 5105771
+TACC: Setting up parallel environment for MVAPICH2+mpispawn.
+TACC: Starting parallel tasks...
+[libsc] This is libsc 0.5.0.622-3458
+[libsc] CC                       mpicc
+[libsc] C_VERSION                GNU ld version 2.20.51.0.2-5.42.el6 20100205
+[libsc] CFLAGS                   -Wall -w2 -diag-enable vec -g -O2 -xAVX -openmp -fimf-precision=high -prec-div -prec-sqrt -opt-report=2
+[libsc] CPP                      mpicc -E
+[libsc] CPPFLAGS                 -I/opt/apps/valgrind/3.8.1/include
+[libsc] F77                      mpif77
+[libsc] FFLAGS                   
+[libsc] LDFLAGS                  
+[libsc] BLAS_LIBS                -Wl,-rpath,/opt/apps/intel/13/composer_xe_2013_sp1.1.106/mkl/lib/intel64 -L/opt/apps/intel/13/composer_xe_2013_sp1.1.106/mkl/lib/intel64 -Wl,--start-group -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -Wl,--end-group -lpthread
+[libsc] LAPACK_LIBS              
+[libsc] LIBS                     -llua 
+[libsc] FLIBS                    
+[p4est] This is p4est 0.2.0.1121-79d7
+[p4est] CC                       mpicc
+[p4est] C_VERSION                GNU ld version 2.20.51.0.2-5.42.el6 20100205
+[p4est] CFLAGS                   -Wall -w2 -diag-enable vec -g -O2 -xAVX -openmp -fimf-precision=high -prec-div -prec-sqrt -opt-report=2
+[p4est] CPP                      mpicc -E
+[p4est] CPPFLAGS                 -I/opt/apps/valgrind/3.8.1/include
+[p4est] LDFLAGS                  
+[p4est] LIBS                     -llua 
+[mangll] This is mangll 0.1.0.1257-abed
+[mangll] Compiler ID: Intel
+[mangll] CC                       mpicc
+[mangll] C_VERSION                GNU ld version 2.20.51.0.2-5.42.el6 20100205
+[mangll] CFLAGS                   -Wall -w2 -diag-enable vec -g -O2 -xAVX -openmp -fimf-precision=high -prec-div -prec-sqrt -opt-report=2
+[mangll] CPP                      mpicc -E
+[mangll] CPPFLAGS                 -I/opt/apps/valgrind/3.8.1/include
+[mangll] F77                      mpif77
+[mangll] FFLAGS                   
+[mangll] LDFLAGS                  
+[mangll] BLAS_LIBS                -Wl,-rpath,/opt/apps/intel/13/composer_xe_2013_sp1.1.106/mkl/lib/intel64 -L/opt/apps/intel/13/composer_xe_2013_sp1.1.106/mkl/lib/intel64 -Wl,--start-group -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -Wl,--end-group -lpthread
+[mangll] LAPACK_LIBS              
+[mangll] LIBS                     -llua 
+[mangll] FLIBS                    
+[ymir] This is ymir UNKNOWN-dirty.
+[ymir] CC                       mpicc
+[ymir] C_VERSION                GNU ld version 2.20.51.0.2-5.42.el6 20100205
+[ymir] CFLAGS                   -Wall -w2 -diag-enable vec -g -O2 -xAVX -openmp -fimf-precision=high -prec-div -prec-sqrt -opt-report=2
+[ymir] CPP                      mpicc -E
+[ymir] CPPFLAGS                 -I/opt/apps/valgrind/3.8.1/include
+[ymir] LDFLAGS                  
+[ymir] LIBS                     -llua 
+[ymir] [Global]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    viscosity-override-const: 0
+[ymir]    weakzone-override-factor: 0
+[ymir]    monitor-performance: 1
+[ymir]    workload-out-file: <unspecified>
+[ymir]    bin-out: /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3
+[ymir]    bin-out-input: 1
+[ymir]    bin-out-nonlinear-iter: 1
+[ymir]    bin-out-solution: 1
+[ymir]    vtk-out: <unspecified>
+[ymir]    vtk-out-input-state: 0
+[ymir]    vtk-out-input: 0
+[ymir]    vtk-out-nonlinear-iter: 0
+[ymir]    vtk-out-p8est: 0
+[ymir]    exit-after-mesh-setup: 0
+[ymir]    test-strain-rate: 0
+[ymir]    test-stress: 0
+[ymir]    test-stiffness: 0
+[ymir]    test-norms: 0
+[ymir]    test-interpolation: 0
+[ymir] Arguments: none
+[ymir] [Mantle]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    domain-shape: shell
+[ymir]    domain-brick-dx: 1
+[ymir]    domain-brick-dy: 16
+[ymir]    domain-brick-dz: 16
+[ymir]    boundary-cond: 1
+[ymir]    boundary-set-default-dirichlet-scale: 0
+[ymir]    p4est-import: <unspecified>
+[ymir]    temperature: /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/input/shell_temp_k2_ll456.bin
+[ymir]    temp-fnc-tbl: 0.0785
+[ymir]    temp-import-min-plate-age: 1e+06
+[ymir]    temp-import-background-plate-age: 5e+07
+[ymir]    temp-import-read-textfile: <unspecified>
+[ymir]    temp-import-verification-out: <unspecified>
+[ymir]    temp-import-write-coordinates: <unspecified>
+[ymir]    temp-2plates-trench-longitude: 0.13
+[ymir]    temp-2plates-dip-angle: 5
+[ymir]    temp-2plates-subd-depth: 400000
+[ymir]    temp-2plates-subd-width: 300000
+[ymir]    temp-2plates-subd-edge-width: 1000
+[ymir]    temp-2plates-subd-edge-smoothwidth: 40000
+[ymir]    temp-2plates-subd-plate-velocity: 0.04
+[ymir]    temp-2plates-subd-plate-initial-age: 1e+06
+[ymir]    temp-2plates-over-plate-age: 4e+07
+[ymir]    weakzone: /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/input/shell_weakzone0324.bin
+[ymir]    weakzone-import-read-textfile: <unspecified>
+[ymir]    weakzone-import-verification-out: <unspecified>
+[ymir]    weakzone-import-pointcloud-size: 2541799
+[ymir]    weakzone-import-thickness: 100000
+[ymir]    weakzone-import-thickness-const: 10000
+[ymir]    weakzone-import-weak-factor: 0.1
+[ymir]    weakzone-2plates-subdu-longitude: -100
+[ymir]    weakzone-2plates-subdu-dip-angle: -1
+[ymir]    weakzone-2plates-subdu-depth: 80000
+[ymir]    weakzone-2plates-subdu-width: -1
+[ymir]    weakzone-2plates-subdu-thickness: 10000
+[ymir]    weakzone-2plates-subdu-thickness-const: 0
+[ymir]    weakzone-2plates-subdu-weak-factor: 1e-05
+[ymir]    weakzone-2plates-ridge-depth: 30000
+[ymir]    weakzone-2plates-ridge-width: 30000
+[ymir]    weakzone-2plates-ridge-smoothwidth: 10000
+[ymir]    weakzone-2plates-ridge-weak-factor: 1e-05
+[ymir]    weakzone-2plates-ridge-mesh-align: 0
+[ymir]    velocity-import: <unspecified>
+[ymir]    pressure-import: <unspecified>
+[ymir]    viscosity: 2
+[ymir]    viscosity-for-init-nl-stokes: 4
+[ymir]    viscosity-model: UWYL_SHIFT_LREG
+[ymir]    viscosity-IIe-regularization: 1e-10
+[ymir]    viscosity-min: 0.01
+[ymir]    viscosity-max: 10000
+[ymir]    viscosity-temp-max: -1
+[ymir]    viscosity-scaling: 1e+06
+[ymir]    viscosity-temp-decay: 7
+[ymir]    viscosity-lower-mantle: 1
+[ymir]    viscosity-lower-mantle-scaling: 400000
+[ymir]    viscosity-lower-mantle-temp-decay: -1
+[ymir]    viscosity-stress-exponent: 3
+[ymir]    viscosity-stress-yield: -1
+[ymir]    viscosity-coarsen-eval: 0
+[ymir]    viscosity-p-coarsen-eval: 0
+[ymir]    viscosity-coarsen-type: 0
+[ymir]    weakzone-coarsen-type: 0
+[ymir]    viscosity-lower-upper-transition-zone-incr: 0
+[ymir]    right-hand-side-scaling: 8e+07
+[ymir]    right-hand-side-random: 0
+[ymir]    plume-type: 0
+[ymir]    plume-center-x: 0
+[ymir]    plume-center-y: 0
+[ymir]    plume-center-z: 0
+[ymir]    plume-decay: -1
+[ymir]    plume-scaling: 0
+[ymir]    order: 2
+[ymir]    minlevel: 4
+[ymir]    maxlevel: 15
+[ymir]    refine: uniform
+[ymir]    refine-radius: 0.76, 0.96
+[ymir]    import-mesh-order: 2
+[ymir]    import-mesh-minlevel: 4
+[ymir]    refine-surface-max-dist: 0
+[ymir]    refine-surface-element-resolution: 16000
+[ymir]    refine-lower-upper-interface-max-dist: 0
+[ymir]    refine-lower-upper-interface-element-resolution: 16000
+[ymir]    enforce-refinement-lower-upper-interface: 0
+[ymir]    init-amr-max-steps: 0
+[ymir]    init-amr-rel-threshold: 0
+[ymir]    init-amr-num-elements-max: 1e+06
+[ymir]    init-amr-override-order: 2
+[ymir]    init-amr-lower-mantle: 0
+[ymir]    init-amr-visc-indicator: 5
+[ymir]    init-amr-visc-tol-min: 0
+[ymir]    init-amr-visc-tol-max: 0.002
+[ymir]    init-amr-visc-inside-plates-tol-min: 0
+[ymir]    init-amr-visc-inside-plates-tol-max: 0
+[ymir]    init-amr-weak-subdu-indicator: 0
+[ymir]    init-amr-weak-subdu-tol-min: 0
+[ymir]    init-amr-weak-subdu-tol-max: 0
+[ymir]    init-amr-weak-subdu-element-resolution: 0
+[ymir]    init-amr-weak-ridge-indicator: 0
+[ymir]    init-amr-weak-ridge-tol-min: 0
+[ymir]    init-amr-weak-ridge-tol-max: 0
+[ymir]    init-amr-weak-ridge-element-resolution: 0
+[ymir]    init-amr-weak-import-indicator: 15
+[ymir]    init-amr-weak-import-tol-min: 0
+[ymir]    init-amr-weak-import-tol-max: 0.5
+[ymir]    init-amr-weak-import-element-resolution: 100000
+[ymir]    init-amr-rhs-indicator: 0
+[ymir]    init-amr-rhs-tol-min: 0
+[ymir]    init-amr-rhs-tol-max: 1e-06
+[ymir]    init-amr-rhs-norm-shift: 1000
+[ymir]    amr-max-steps: 0
+[ymir]    amr-rel-threshold: 0.05
+[ymir]    amr-num-elements-max: 1e+06
+[ymir]    amr-lower-mantle: 0
+[ymir]    amr-visc-indicator: 5
+[ymir]    amr-visc-tol-min: 0
+[ymir]    amr-visc-tol-max: 0.002
+[ymir]    amr-visc-dr-indicator: 3
+[ymir]    amr-visc-dr-tol-min: 0
+[ymir]    amr-visc-dr-tol-max: 1e+06
+[ymir]    amr-strain-rate-indicator: 10
+[ymir]    amr-strain-rate-tol-min: 0
+[ymir]    amr-strain-rate-tol-max: 0.002
+[ymir]    amr-log-maxlevel: 1
+[ymir]    mesh-partitioning-type: 0
+[ymir]    nonlinear-type: 1
+[ymir]    nonlinear-primaldual-type: 0
+[ymir]    nonlinear-primaldual-scaling-type: 0
+[ymir]    nonlinear-maxiter: 3
+[ymir]    nonlinear-rtol: 1e-07
+[ymir]    nonlinear-resume-at-iter: 0
+[ymir]    nonlinear-resume-at-time: 0
+[ymir]    nonlinear-resume-prev-res: 0
+[ymir]    nonlinear-forcing-exponent: 1.618
+[ymir]    nonlinear-forcing-max: 0.0001
+[ymir]    nonlinear-forcing-max-progressive-iter: 20
+[ymir]    nonlinear-forcing-saveguard: 0
+[ymir]    nonlinear-forcing-saveguard-threshold: 1e-05
+[ymir]    nonlinear-step-length-reduction-type: 0
+[ymir]    nonlinear-step-length-reduction-min: 0.1
+[ymir]    nonlinear-step-length-reduction-max: 0.5
+[ymir]    nonlinear-step-length-descend-condition-relaxation: 0.0001
+[ymir]    nonlinear-step-length-min: -1
+[ymir]    nonlinear-switch-picard-step-length-min: 0.01
+[ymir]    nonlinear-switch-picard-after-amr: 0
+[ymir]    nonlinear-switch-picard-init: 1
+[ymir]    nonlinear-switch-picard-maxiter: 3
+[ymir]    nonlinear-switch-picard-rtol: 1e-06
+[ymir]    nonlinear-norm-type: 4
+[ymir]    nonlinear-norm-Hminus1-mass-scaling: 0
+[ymir]    nonlinear-initial-guess-type: 0
+[ymir]    nonlinear-schur-diag-type: 0
+[ymir]    nonlinear-scaling-type: 0
+[ymir]    nonlinear-project-out-nullspace: 0
+[ymir]    nonlinear-enforce-unscaled-reduction: 0
+[ymir]    nonlinear-grid-continuation-init-threshold: 0.005
+[ymir]    nonlinear-grid-continuation-init-forcing: 0
+[ymir]    nonlinear-grid-continuation-init-forcing-exp: 0
+[ymir]    nonlinear-grid-continuation-init-steps: 4
+[ymir]    nonlinear-grid-continuation-skipsteps: 0
+[ymir]    nonlinear-grid-continuation-maxsteps: 1
+[ymir]    nonlinear-viscosity-bounds-continuation-min: 1
+[ymir]    nonlinear-viscosity-bounds-continuation-max: 100
+[ymir]    nonlinear-viscosity-bounds-continuation-steps: 0
+[ymir]    nonlinear-log-physics-range: 1
+[ymir]    krylov-type: 1
+[ymir]    krylov-gmres-num-vecs: 50
+[ymir]    krylov-maxiter: 10
+[ymir]    krylov-atol: 1e-40
+[ymir]    krylov-rtol: 0.0001
+[ymir]    solve-stress-block-only: 0
+[ymir]    solve-press-bbt-only: 0
+[ymir]    solve-cnode-bbt-only: 0
+[ymir] Arguments:
+[ymir] [Mesh]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    unit-tol: 2.22045e-14
+[ymir]    ortho-tol: 2.22045e-14
+[ymir]    colin-tol: 2.22045e-14
+[ymir]    singu-tol: 2.22045e-13
+[ymir] Arguments:
+[ymir] [PETSc]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    file: <unspecified>
+[ymir]    options: <unspecified>
+[ymir] Arguments:
+[ymir] [Stiff]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir] Arguments:
+[ymir] [Stiff:Op]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    log-coeff-range: 1
+[ymir]    log-coeff-anisotropy: 1
+[ymir]    project-out-mean: 0
+[ymir]    log-nsp: 0
+[ymir] Arguments:
+[ymir] [Stiff:PC]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    ksp-setup-immediately: 1
+[ymir]    gmg: 1
+[ymir]    optimized-matvec: 1
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [Pressure]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir] Arguments:
+[ymir] [Pressure:Elem]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    default-space: 0
+[ymir]    eval-rtol: 0
+[ymir]    eval-atol: 2.22045e-13
+[ymir]    eval-iter: 0
+[ymir]    bad-basis: 0
+[ymir] Arguments:
+[ymir] [Stress]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir] Arguments:
+[ymir] [Stress:Op]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    coeff-add: 0
+[ymir]    set-dirichlet-scale: 1
+[ymir]    log-coeff-range: 1
+[ymir]    nsp-test: 0
+[ymir]    project-out-transl: 0
+[ymir]    project-out-rot: 2
+[ymir]    log-nsp: 0
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [Stress:PC]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    stats-setup: 0
+[ymir]    stats-apply: 0
+[ymir]    shell: 1
+[ymir]    zero-dir: 0
+[ymir]    picard: 0
+[ymir]    gmg: 1
+[ymir]    amg-rbm: 1
+[ymir]    amg-use-coordinates: 0
+[ymir]    amg-reblock: 0
+[ymir]    ksp-nsp-rot: 0
+[ymir]    ksp-setup-immediately: 1
+[ymir]    test-petsc: 0
+[ymir]    add-nsp-to-op-transl-u: 0
+[ymir]    add-nsp-to-op-transl-v: 0
+[ymir]    add-nsp-to-op-transl-w: 0
+[ymir]    add-nsp-to-op-rot-x: 0
+[ymir]    add-nsp-to-op-rot-y: 0
+[ymir]    add-nsp-to-op-rot-z: 0
+[ymir]    optimized-matvec: 1
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [Stokes]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir] Arguments:
+[ymir] [Stokes:Op]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    project-out-rot: 2
+[ymir]    project-out-mean: 0
+[ymir]    log-nsp: 0
+[ymir]    stats-apply: 1
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [Stokes:PC]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    stats-setup: 0
+[ymir]    stats-apply: 0
+[ymir]    schur-stats-setup: 0
+[ymir]    schur-stats-apply: 0
+[ymir]    block-type: 1
+[ymir]    schur-type: 1
+[ymir]    schur-lapl-inner-scaling: 2
+[ymir]    project-out-rot: 0
+[ymir]    project-out-mean: 0
+[ymir]    use-scaling: 0
+[ymir]    log-residual-comp: 0
+[ymir]    optimized-matvec: 1
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [Stokes:PC:BFBT]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    bfbt-type: 3
+[ymir]    inner-uscale-force-lumping: 0
+[ymir]    inner-uscale-force-submesh: 0
+[ymir]    project-out-stokes-nullspace: 0
+[ymir]    log-mean: 0
+[ymir] Arguments:
+[ymir] [Stokes:PC:BBT]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    stiffness-pc: 1
+[ymir]    stiffness-pc-mass-scaling: 0
+[ymir]    stiffness-pc-smoother-setup-random-rhs: 1
+[ymir]    stiffness-pc-project-out-mean: 1
+[ymir]    stiffness-pc-log-mean-dbg: 0
+[ymir]    stiffness-pc-coarsen-coeff-type: 0
+[ymir]    stiffness-pc-override-coeff-with-viscosity: 0
+[ymir]    stiffness-pc-num-cycles: 1
+[ymir]    inner-uscale-low-order: 0
+[ymir]    gmg: 0
+[ymir]    amg-reblock: 0
+[ymir]    ksp-setup-immediately: 1
+[ymir]    invert-project-out-mean: 1
+[ymir]    project-out-mean: 0
+[ymir]    log-mean: 0
+[ymir]    optimized-matvec: 1
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [Slab]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    L: 1
+[ymir]    H: 1
+[ymir]    pitch: 0
+[ymir]    coarse: 1
+[ymir]    prerefine: 0
+[ymir]    postrefine: 0
+[ymir]    refine: uniform
+[ymir]    depth: 2
+[ymir]    periodic-x: 1
+[ymir]    periodic-y: 1
+[ymir]    geom: 0
+[ymir]    modes: 10
+[ymir]    decay: 1
+[ymir]    amp: 1
+[ymir]    vert: 0
+[ymir] Arguments:
+[ymir] [Submesh]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    use-submesh: 0
+[ymir]    interp: 0
+[ymir]    use-gll: 1
+[ymir]    reweight: 0
+[ymir]    simple: 1
+[ymir] Arguments:
+[ymir] [GMG]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir] Arguments:
+[ymir] [GMG:HierarchyMesh]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    gmg-type: 1
+[ymir]    max-h-levels: 20
+[ymir]    coarsening-strategy: 0
+[ymir]    coarsening-strategy-coeff-jump: 1000
+[ymir]    coarsening-reduction-min: 0.75
+[ymir]    mesh-minlevel: 0
+[ymir]    num-procs-coarse: 0
+[ymir]    num-cnodes-coarse: 20000
+[ymir]    num-elements-coarse: 400
+[ymir]    partition-nodes-per-proc-min: 512
+[ymir]    partition-nodes-per-proc-max: 1024
+[ymir]    partition-fill-procs-backwards: 1
+[ymir]    reduce-mpi-comm: 1
+[ymir]    mesh-data-type: 4
+[ymir]    upstream-mesh-data-type: 0
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [GMG:HierarchyStress]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    coefficient-interp-linear: 0
+[ymir]    coefficient-min: 0.02
+[ymir]    coefficient-max: 20000
+[ymir]    coefficient-bound-min-linear-interp: 0
+[ymir]    coefficient-piecewise-constant: 0
+[ymir]    set-default-dirichlet-scale: 0
+[ymir]    smoother-matrix-type: 2
+[ymir]    smoother-matrix-positive-lumping: 0
+[ymir]    smoother-matrix-submesh: 0
+[ymir]    smooth-coarse-solve: 0
+[ymir]    setup-random-rhs: 1
+[ymir]    setup-coarse-random-rhs: 0
+[ymir]    setup-project-out-rot: 1
+[ymir]    cycle-project-out-rot: 3
+[ymir]    level-project-out-rot: 0
+[ymir]    cycle-type: 0
+[ymir]    num-cycles: 1
+[ymir]    projection-accurate: 0
+[ymir]    monitor-performance: 1
+[ymir]    workload-out-file: <unspecified>
+[ymir] Arguments:
+[ymir] [GMG:HierarchyStiff]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    coefficient-interp-linear: 0
+[ymir]    coefficient-min: -1.79769e+308
+[ymir]    coefficient-max: 1.79769e+308
+[ymir]    coefficient-bound-min-linear-interp: 0
+[ymir]    coefficient-piecewise-constant: 0
+[ymir]    smoother-matrix-type: 1
+[ymir]    smoother-matrix-positive-lumping: 0
+[ymir]    smoother-matrix-submesh: 0
+[ymir]    smooth-coarse-solve: 0
+[ymir]    coarse-force-mass-scaling: 0
+[ymir]    setup-random-rhs: 1
+[ymir]    setup-coarse-random-rhs: 0
+[ymir]    setup-project-out-mean: 1
+[ymir]    cycle-project-out-mean: 0
+[ymir]    level-project-out-mean: 0
+[ymir]    cycle-type: 0
+[ymir]    num-cycles: 1
+[ymir]    projection-accurate: 0
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] [GMG:HierarchyBBT]
+[ymir] Options:
+[ymir]    help: <unspecified>
+[ymir]    project-out-mean: 1
+[ymir]    restrict-inner-scaling: 0
+[ymir]    cycle-type: 0
+[ymir]    num-cycles: 1
+[ymir]    monitor-performance: 1
+[ymir] Arguments:
+[ymir] Parallel environment: MPI size 256, OpenMP size 1
+[ymir] Into example/slabs/main
+[ymir] slabs_setup_process_options: Overriding option ymir_nlstress_op_coeff_tensor_add = -0.02
+[ymir] slabs_setup_process_options: Depth of upper mantle set to 675.582 km
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 382672896, max 384249856, max/min 1.004e+00, mean 3.827e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 97974149120
+[ymir] Into slabs_setup_mesh
+[ymir] slabs_setup_mesh: Generate p4est mesh
+[p4est] Into p8est_new with min quadrants 0 level 4 uniform 1
+[p4est] New p8est with 24 trees on 256 processors
+[p4est] Initial level 4 potential global quadrants 98304 per tree 4096
+[p4est] Done p8est_new with 98304 total quadrants
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 387715072, max 389328896, max/min 1.004e+00, mean 3.879e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 99305533440
+[ymir] slabs_setup_mesh: Initialize temperature (polynomial order 2, min level 4)
+[p4est] Into p8est_refine with 98304 total quadrants, allowed level 18
+[p4est] Done p8est_refine with 399360 total quadrants
+[p4est] Into p8est_partition with 399360 total quadrants
+[p4est] Designated partition for coarsening 160 quadrants moved
+[p4est] Into p8est_partition_given with 399360 total quadrants
+[p4est] Done p8est_partition_given shipped 365184 quadrants 91.4%
+[p4est] Done p8est_partition shipped 365184 quadrants 91.4%
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 6144 faces, 24578 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 98304 faces, 393218 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: polynomials of degree 1
+[ymir] Into slabs_io_read_scatter_vector_short: Read & scatter vector from binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/input/shell_temp_k2_ll456.bin"
+[ymir 0] Into slabs_io_read_vector: Read vector from binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/input/shell_temp_k2_ll456.bin"
+[ymir 0] Done slabs_io_read_vector
+[ymir] Done slabs_io_read_scatter_vector_short
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 448614400, max 450863104, max/min 1.005e+00, mean 4.492e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 114998337536
+[ymir] slabs_setup_mesh: Initialize weak zone
+[ymir] Into slabs_io_read_bcast_vector_short: Read & bcast vector from binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/input/shell_weakzone0324.bin"
+[ymir 0] Into slabs_io_read_vector: Read vector from binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/input/shell_weakzone0324.bin"
+[ymir 0] Done slabs_io_read_vector
+[ymir] Done slabs_io_read_bcast_vector_short
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 570302464, max 578306048, max/min 1.014e+00, mean 5.709e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 146148175872
+[ymir] slabs_setup_mesh: Generate adaptively refined mesh (viscosity from data)
+[ymir] Into slabs_discr_amr
+[ymir] slabs_discr_amr: Into AMR step 0
+[ymir] ymir_monitor_print_global_mesh_stats: Number of elements per processor: min 1556, max 1564, max/min 1.005e+00, mean 1.560e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of elements: 399360
+[ymir] slabs_discr_amr: Step 0, indicator 5, tol [0,0.002], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 0, indicator 5: #quadrants marked for coarsening 0, refinement 3594
+[ymir] slabs_discr_amr: Step 0, indicator 5: #quadrants next 424518 (approx)
+[ymir] slabs_discr_amr: Step 0, indicator 15, tol [0,0.5], level bounds [4,6]
+[ymir] slabs_discr_amr: Step 0, indicator 15: #quadrants marked for coarsening 0, refinement 3594
+[ymir] slabs_discr_amr: Step 0, indicator 15: #quadrants next 424518 (approx)
+[ymir] slabs_discr_amr: Step 0, skipped indicator 0, tol [0,1e-06]
+[ymir] slabs_discr_amr: Step 0, skipped indicator 0, tol [0,0.5]
+[ymir] slabs_discr_amr: Step 0, skipped indicator 0, tol [0,0.5]
+[ymir] slabs_discr_amr: Step 0, 3594 quadrants (0.90 %) marked for AMR (threshold 0.00 %)
+[ymir] Into slabs_stokes_state_amr_prepare
+[ymir] Done slabs_stokes_state_amr_prepare
+[p4est] Into p8est_refine with 399360 total quadrants, allowed level 18
+[p4est] Done p8est_refine with 424518 total quadrants
+[p4est] Into p8est_balance CORNER with 424518 total quadrants
+[p4est] Done p8est_balance with 426471 total quadrants
+[ymir] Into slabs_stokes_state_project
+[ymir] Done slabs_stokes_state_project
+[p4est] Into p8est_partition with 426471 total quadrants
+[p4est] Designated partition for coarsening 461 quadrants moved
+[p4est] Into p8est_partition_given with 426471 total quadrants
+[p4est] Done p8est_partition_given shipped 305585 quadrants 71.7%
+[p4est] Done p8est_partition shipped 305585 quadrants 71.7%
+[p4est] Into p8est_ghost_new FACE
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[ymir] Into slabs_stokes_state_partition
+[ymir] Done slabs_stokes_state_partition
+[ymir] slabs_discr_amr: Done AMR step 0
+[ymir] slabs_discr_amr: Into AMR step 1
+[ymir] ymir_monitor_print_global_mesh_stats: Number of elements per processor: min 1659, max 1673, max/min 1.008e+00, mean 1.666e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of elements: 426471
+[ymir] slabs_discr_amr: Step 1, indicator 5, tol [0,0.002], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 1, indicator 5: #quadrants marked for coarsening 0, refinement 14
+[ymir] slabs_discr_amr: Step 1, indicator 5: #quadrants next 426569 (approx)
+[ymir] slabs_discr_amr: Step 1, indicator 15, tol [0,0.5], level bounds [4,6]
+[ymir] slabs_discr_amr: Step 1, indicator 15: #quadrants marked for coarsening 0, refinement 14
+[ymir] slabs_discr_amr: Step 1, indicator 15: #quadrants next 426569 (approx)
+[ymir] slabs_discr_amr: Step 1, skipped indicator 0, tol [0,1e-06]
+[ymir] slabs_discr_amr: Step 1, skipped indicator 0, tol [0,0.5]
+[ymir] slabs_discr_amr: Step 1, skipped indicator 0, tol [0,0.5]
+[ymir] slabs_discr_amr: Step 1, 14 quadrants (0.00 %) marked for AMR (threshold 0.01 %)
+[ymir] slabs_discr_amr: Done AMR step 1 since too few elements were marked
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 6144 faces, 24578 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 102729 faces, 407162 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: polynomials of degree 1
+[ymir] Into slabs_stokes_state_amr_finalize
+[ymir] Done slabs_stokes_state_amr_finalize
+[ymir] slabs_discr_amr: Max level 7
+[ymir] Done slabs_discr_amr (1 AMR steps)
+[ymir] ymir_monitor_print_global_mesh_stats: Number of elements per processor: min 1659, max 1673, max/min 1.008e+00, mean 1.666e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of elements: 426471
+[ymir] ymir_monitor_print_global_mesh_stats: Number of owned continuous nodes per processor: min 11922, max 15313, max/min 1.284e+00, mean 1.325e+04
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of owned continuous nodes: 3392998
+[ymir] ymir_monitor_print_global_mesh_stats: Number of velocity unknowns per processor: min 35766, max 45939, max/min 1.284e+00, mean 3.976e+04
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of velocity unknowns: 10178994
+[ymir] ymir_monitor_print_global_mesh_stats: Number of pressure unknowns per processor: min 6636, max 6692, max/min 1.008e+00, mean 6.664e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of pressure unknowns: 1705884
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of unknowns: 11884878
+[ymir] ymir_monitor_print_global_mesh_stats: Ratio of velocity/pressure DOF: 5.96699
+[ymir] slabs_setup_mesh: Initialize geometric multigrid
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 578826240, max 587509760, max/min 1.015e+00, mean 5.804e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 148594900992
+[ymir] Done slabs_setup_mesh
+[ymir] Into slabs_stokes_state_save: "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_input"
+[p4est] Into p8est_save /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_input_p4est.bin
+[p4est] Done p8est_save
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_input_temperature.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 3392998 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Done slabs_stokes_state_save
+[ymir] Into slabs_setup_stokes
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 578842624, max 587509760, max/min 1.015e+00, mean 5.805e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 148597821440
+[ymir] Done slabs_setup_stokes
+[ymir] Into slabs_solve_stokes
+[ymir] Into slabs_nonlinear_solver_picard_newton: rtol 1.000e-07, maxiter 3
+[ymir] Into slabs_nonlinear_stokes_op_new
+[ymir] Into ymir_stokes_op_new_ext
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e+03, max 2.000e+04, max/min 1.000e+01
+[ymir] Done ymir_stokes_op_new_ext
+[ymir] ymir_stress_op_set_usol: Stress Op dvisc/dIIe range: min 0.000e+00, max 0.000e+00, min/max -nan
+[ymir] Done slabs_nonlinear_stokes_op_new
+[ymir] Into slabs_nonlinear_stokes_pc_new
+[ymir] Into ymir_stokes_pc_new_ext_int (nl 1, block 1, schur 1, scale 0)
+[ymir] Into ymir_stress_pc_new_gmg (nl 1)
+[ymir] Into ymir_gmg_hierarchy_mesh_new
+[ymir] Pressure element space: polynomials of degree 1
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: #elements 426471, #DG-nodes 11514717, #CG-nodes 3392998
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: #elements/proc 1665.9, #DG-nodes/proc 44979.4
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: Reduce polynomial order to 1
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: Create coarse mesh data
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 6144 faces, 6146 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 102729 faces, 100853 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: stabilized trilinear element
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: #elements 426471, #DG-nodes 3411768, #CG-nodes 422379
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Coarsen mesh
+[p4est] Into p8est_coarsen with 426471 total quadrants
+[p4est] Done p8est_coarsen with 84577 total quadrants
+[p4est] Into p8est_balance CORNER with 84577 total quadrants
+[p4est] Done p8est_balance with 84577 total quadrants
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Coarse mesh #elements 84577, #DG-nodes 676616
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Partition coarse mesh
+[p4est] Into p8est_partition with 84577 total quadrants
+[p4est] Designated partition for coarsening 436 quadrants moved
+[p4est] Into p8est_partition_given with 84577 total quadrants
+[p4est] Done p8est_partition_given shipped 57129 quadrants 67.5%
+[p4est] Done p8est_partition shipped 57129 quadrants 67.5%
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Coarse partitioning on 256 of 256 processes (fill back 1), #elements/proc 330.4, #DG-nodes/proc 2643.0
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Create coarse mesh data
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 1536 faces, 1538 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 27909 faces, 26620 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: stabilized trilinear element
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Create coarse upstream mesh data
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: #elements 84577, #DG-nodes 676616, #CG-nodes 82554
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Coarsen mesh
+[p4est] Into p8est_coarsen with 84577 total quadrants
+[p4est] Done p8est_coarsen with 19463 total quadrants
+[p4est] Into p8est_balance CORNER with 19463 total quadrants
+[p4est] Done p8est_balance with 19463 total quadrants
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Coarse mesh #elements 19463, #DG-nodes 155704
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Partition coarse mesh
+[p4est] Into p8est_partition with 19463 total quadrants
+[p4est] Designated partition for coarsening 404 quadrants moved
+[p4est] Into p8est_partition_given with 19463 total quadrants
+[p4est] Done p8est_partition_given shipped 19036 quadrants 97.8%
+[p4est] Done p8est_partition shipped 19036 quadrants 97.8%
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Coarse partitioning on 256 of 256 processes (fill back 1), #elements/proc 76.0, #DG-nodes/proc 608.2
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Create coarse mesh data
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 384 faces, 386 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 8067 faces, 7424 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: stabilized trilinear element
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Create coarse upstream mesh data
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,2: #elements 19463, #DG-nodes 155704, #CG-nodes 18021
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: Number of CG-nodes is below min 20000
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 384 faces, 386 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 8067 faces, 7424 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Done ymir_gmg_hierarchy_mesh_new
+[ymir] Into ymir_gmg_hierarchy_stress_init
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 0)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 1.000e+06
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 0)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 9.998e+05
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 1)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 5.432e+02, max 2.000e+04, max/min 3.682e+01
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stress_pc_new_amg
+[ymir] ymir_stress_pc_new_amg: Assemble nl viscous stress matrix for AMG
+[ymir] Into ymir_stress_op_matrix_int (matrix type 3)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=54063, n data rows=3, n data cols=6, nzz alloc'ed=3856869, nzz=3856869, nnz/row (ave)=71.3, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 23.7801 nnz ave. (N=18021)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 18021 vertices. (0 local)  597 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 597 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=3.044203e+00 min=1.142861e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=54063 N=3582, nzz alloc'ed=1257696, nzz=1257696, nnz/row (ave)=23.3
+	[0]createLevel number of equations (loc) 12 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=3582, n data cols=6, nzz alloc'ed=1443276, nzz=1443276, nnz/row (ave)=402.9, 64 active pes
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 67.1541 nnz ave. (N=597)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 597 vertices. (0 local)  4 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 4 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=1.947766e+00 min=2.043087e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=3582 N=24, nzz alloc'ed=55044, nzz=55044, nnz/row (ave)=15.4
+	[0]createLevel number of equations (loc) 0 with simple aggregation
+		[0]PCSetUp_GAMG 2) N=24, n data cols=6, nzz alloc'ed=576, nzz=576, nnz/row (ave)=24.0, 1 active pes
+	[0]PCSetUp_GAMG 3 levels, grid complexity = 1.37436
+[ymir] Done ymir_stress_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stress_init
+[ymir] Done ymir_stress_pc_new_gmg
+[ymir] Into ymir_bfbt_init_int (BFBT type 3)
+[ymir] Into ymir_bbt_new_stiff
+[ymir] ymir_bbt_new_stiff: Assemble diagonal of pressure BB^T matrix
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 2.784e-13, max 1.076e-08, max/min 3.864e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 7.705e+02
+[ymir] Into ymir_stiff_pc_new_gmg
+[ymir] Into ymir_gmg_hierarchy_mesh_new
+[ymir] ymir_gmg_hierarchy_mesh_new: Use existing global mesh hierarchy
+[ymir] Into ymir_gmg_hierarchy_stiff_init
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 2.784e-13, max 7.254e-09, max/min 2.606e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 1.487e+03
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 2.784e-13, max 7.172e-09, max/min 2.576e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 3.652e+02
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 1.035e-10, max 6.912e-09, max/min 6.678e+01
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.001e+00, max 1.572e+00
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stiff_pc_new_amg
+[ymir] ymir_stiff_pc_new_amg: Assemble stiffness matrix for AMG (mass scaling 0)
+[ymir] Into ymir_stiffness_matrix (matrix type 3)
+[ymir] Done ymir_stiffness_matrix (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=18021, n data rows=1, n data cols=1, nzz alloc'ed=428541, nzz=428541, nnz/row (ave)=23.8, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 23.7801 nnz ave. (N=18021)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 18021 vertices. (0 local)  597 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 597 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=2.342191e+00 min=1.118344e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=18021 N=597, nzz alloc'ed=69872, nzz=69872, nnz/row (ave)=3.9
+	[0]createLevel number of equations (loc) 2 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=597, n data cols=1, nzz alloc'ed=40091, nzz=40091, nnz/row (ave)=67.2, 1 active pes
+	[0]PCSetUp_GAMG 2 levels, grid complexity = 1.09355
+[ymir] Done ymir_stiff_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stiff_init
+[ymir] Done ymir_stiff_pc_new_gmg
+[ymir] Done ymir_bbt_new_stiff
+[ymir] Done ymir_bfbt_init_int (BFBT type 3)
+[ymir] Done ymir_stokes_pc_new_ext_int
+[ymir] Done slabs_nonlinear_stokes_pc_new
+[ymir] slabs_nonlinear_solver_picard_newton: Set initial guess to zero
+[ymir] Into ymir_Hminus1_norm_op_new (mass scaling 0)
+[ymir] Into ymir_stiff_pc_new_gmg
+[ymir] Into ymir_gmg_hierarchy_mesh_new
+[ymir] ymir_gmg_hierarchy_mesh_new: Use existing global mesh hierarchy
+[ymir] Into ymir_gmg_hierarchy_stiff_init
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stiff_pc_new_amg
+[ymir] ymir_stiff_pc_new_amg: Assemble stiffness matrix for AMG (mass scaling 0)
+[ymir] Into ymir_stiffness_matrix (matrix type 3)
+[ymir] Done ymir_stiffness_matrix (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=18021, n data rows=1, n data cols=1, nzz alloc'ed=428541, nzz=218163, nnz/row (ave)=12.1, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 12.106 nnz ave. (N=18021)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 7810 of 18021 vertices. (50 local)  463 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 463 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=2.258496e+00 min=1.833135e-01 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=18021 N=463, nzz alloc'ed=44035, nzz=44035, nnz/row (ave)=2.4
+	[0]createLevel number of equations (loc) 2 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=463, n data cols=1, nzz alloc'ed=30061, nzz=30061, nnz/row (ave)=64.9, 1 active pes
+	[0]PCSetUp_GAMG 2 levels, grid complexity = 1.13779
+[ymir] Done ymir_stiff_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stiff_init
+[ymir] Done ymir_stiff_pc_new_gmg
+[ymir] Done ymir_Hminus1_norm_op_new (mass scaling 0)
+[ymir] NL iter 0, elapsed time 4.5054728984832764e+00 sec
+[ymir] NL iter 0, residual 3.711566e+05
+[ymir] NL iter 0, residual mom 3.712e+05, mass 0.000e+00, dual 0.000e+00
+[ymir] NL iter 0, residual l^2 norm 1.032e+04, mom 1.032e+04, mass 0.000e+00
+[ymir] slabs_nonlinear_solver_picard_newton: Range of velocity magn:   min 0.000e+00, max 0.000e+00, max/min -nan
+[ymir] slabs_nonlinear_solver_picard_newton: Range of pressure:        min 0.000e+00, max 0.000e+00, mean 0.000e+00
+[ymir] slabs_nonlinear_solver_picard_newton: Range of strain rate:     min 0.000e+00, max 0.000e+00, max/min -nan
+[ymir] slabs_nonlinear_solver_picard_newton: Range of viscosity:       min 1.000e+03, max 1.000e+04, max/min 1.000e+01
+[ymir] slabs_nonlinear_solver_picard_newton: Range of stress:          min 0.000e+00, max 0.000e+00, max/min -nan
+[ymir] slabs_nonlinear_solver_picard_newton: Mean rot of velocity:     0.000e+00, 0.000e+00, 0.000e+00
+[ymir] Into slabs_stokes_state_save: "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn00"
+[p4est] Into p8est_save /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn00_p4est.bin
+[p4est] Done p8est_save
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn00_temperature.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 3392998 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn00_velocity.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 10178994 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn00_pressure.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 1705884 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Done slabs_stokes_state_save
+[ymir] NL iter 0, set initial Krylov rtol 1.000e-04
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 644792320, max 694091776, max/min 1.076e+00, mean 6.511e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 166670184448
+[ymir] Krylov step 0: l^2 norm of initial Krylov residual 1.032e+04
+  Residual norms for stokes_ solve.
+  0 KSP Residual norm 1.032203448611e+04 
+  1 KSP Residual norm 1.557448015271e+03 
+  2 KSP Residual norm 7.434207347888e+02 
+  3 KSP Residual norm 6.148244352405e+02 
+  4 KSP Residual norm 5.350631313030e+02 
+  5 KSP Residual norm 4.878833767109e+02 
+  6 KSP Residual norm 3.611804388781e+02 
+  7 KSP Residual norm 3.071970063281e+02 
+  8 KSP Residual norm 2.725796208543e+02 
+  9 KSP Residual norm 2.370854963102e+02 
+ 10 KSP Residual norm 1.899377451228e+02 
+KSP Object:(stokes_) 256 MPI processes
+  type: gmres
+    GMRES: restart=150, using Classical (unmodified) Gram-Schmidt Orthogonalization with one step of iterative refinement
+    GMRES: happy breakdown tolerance 1e-30
+  maximum iterations=10, initial guess is zero
+  tolerances:  relative=0.0001, absolute=1e-40, divergence=1e+06
+  right preconditioning
+  using UNPRECONDITIONED norm type for convergence test
+PC Object:(stokes_) 256 MPI processes
+  type: mat
+  linear system matrix followed by preconditioner matrix:
+  Mat Object:   256 MPI processes
+    type: shell
+    rows=11884878, cols=11884878
+  Mat Object:   256 MPI processes
+    type: shell
+    rows=11884878, cols=11884878
+[ymir] Krylov step 0: l^2 norm of Krylov residual 1.899e+02
+[ymir] Krylov step 0: 10 Krylov iter for rtol 1.840e-02 (prescribed rtol 1.000e-04)
+[ymir] NL iter 0, l^2 norm of step before line search 5.572e+08
+[ymir] NL iter 0, l^2 norm of iterate 0.000e+00
+[ymir] NL iter 0, l^2 norm ratio: (iterate + step)/step = 1.000e+00
+[ymir] NL iter 0, l^2 norm ratio: step/iterate = inf
+[ymir] NL iter 0, descend condition factor 9.999e-01
+[ymir] Into slabs_nonlinear_stokes_op_update
+[ymir] Done slabs_nonlinear_stokes_op_update
+[ymir] NL iter 0, step_length 1.000e+00, res_new 1.791e+04, res_prev 3.712e+05
+[ymir] slabs_nonlinear_stokes_op_update_tensor: Update 4th order tensor
+[ymir] ymir_stress_op_set_usol: Stress Op dvisc/dIIe range: min -1.940e+02, max 0.000e+00, min/max -inf
+[ymir] NL iter 0, l^2 norm of step 5.572e+08
+[ymir] NL iter 0, Newton step, step length 1, 10 Krylov iter for reduction 1.840e-02 (prescribed rtol 1.000e-04)
+[ymir] Into slabs_discr_amr
+[ymir] slabs_discr_amr: Into AMR step 0
+[ymir] ymir_monitor_print_global_mesh_stats: Number of elements per processor: min 1659, max 1673, max/min 1.008e+00, mean 1.666e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of elements: 426471
+[ymir] slabs_discr_amr: Step 0, indicator 5, tol [0,0.002], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 0, indicator 5: #quadrants marked for coarsening 0, refinement 1819
+[ymir] slabs_discr_amr: Step 0, indicator 5: #quadrants next 439204 (approx)
+[ymir] slabs_discr_amr: Step 0, indicator 3, tol [0,1e+06], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 0, indicator 3: #quadrants marked for coarsening 0, refinement 1819
+[ymir] slabs_discr_amr: Step 0, indicator 3: #quadrants next 439204 (approx)
+[ymir] slabs_discr_amr: Step 0, indicator 10, tol [0,0.002], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 0, indicator 10: #quadrants marked for coarsening 0, refinement 3014
+[ymir] slabs_discr_amr: Step 0, indicator 10: #quadrants next 447569 (approx)
+[ymir] slabs_discr_amr: Step 0, 3014 quadrants (0.71 %) marked for AMR (threshold 0.50 %)
+[ymir] Into slabs_stokes_state_amr_prepare
+[ymir] Done slabs_stokes_state_amr_prepare
+[p4est] Into p8est_refine with 426471 total quadrants, allowed level 18
+[p4est] Done p8est_refine with 447569 total quadrants
+[p4est] Into p8est_balance CORNER with 447569 total quadrants
+[p4est] Done p8est_balance with 448871 total quadrants
+[ymir] Into slabs_stokes_state_project
+[ymir] Done slabs_stokes_state_project
+[p4est] Into p8est_partition with 448871 total quadrants
+[p4est] Designated partition for coarsening 484 quadrants moved
+[p4est] Into p8est_partition_given with 448871 total quadrants
+[p4est] Done p8est_partition_given shipped 277536 quadrants 61.8%
+[p4est] Done p8est_partition shipped 277536 quadrants 61.8%
+[p4est] Into p8est_ghost_new FACE
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[ymir] Into slabs_stokes_state_partition
+[ymir] Done slabs_stokes_state_partition
+[ymir] slabs_discr_amr: Done AMR step 0
+[ymir] slabs_discr_amr: Into AMR step 1
+[ymir] ymir_monitor_print_global_mesh_stats: Number of elements per processor: min 1746, max 1760, max/min 1.008e+00, mean 1.753e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of elements: 448871
+[ymir] slabs_discr_amr: Step 1, indicator 5, tol [0,0.002], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 1, indicator 5: #quadrants marked for coarsening 0, refinement 22
+[ymir] slabs_discr_amr: Step 1, indicator 5: #quadrants next 449025 (approx)
+[ymir] slabs_discr_amr: Step 1, indicator 3, tol [0,1e+06], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 1, indicator 3: #quadrants marked for coarsening 0, refinement 22
+[ymir] slabs_discr_amr: Step 1, indicator 3: #quadrants next 449025 (approx)
+[ymir] slabs_discr_amr: Step 1, indicator 10, tol [0,0.002], level bounds [4,15]
+[ymir] slabs_discr_amr: Step 1, indicator 10: #quadrants marked for coarsening 0, refinement 22
+[ymir] slabs_discr_amr: Step 1, indicator 10: #quadrants next 449025 (approx)
+[ymir] slabs_discr_amr: Step 1, 22 quadrants (0.00 %) marked for AMR (threshold 0.01 %)
+[ymir] slabs_discr_amr: Done AMR step 1 since too few elements were marked
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 6144 faces, 24578 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 104013 faces, 411552 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: polynomials of degree 1
+[ymir] Into slabs_stokes_state_amr_finalize
+[ymir] Done slabs_stokes_state_amr_finalize
+[ymir] slabs_discr_amr: Max level 8
+[ymir] Done slabs_discr_amr (1 AMR steps)
+[ymir] ymir_monitor_print_global_mesh_stats: Number of elements per processor: min 1746, max 1760, max/min 1.008e+00, mean 1.753e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of elements: 448871
+[ymir] ymir_monitor_print_global_mesh_stats: Number of owned continuous nodes per processor: min 11924, max 16129, max/min 1.353e+00, mean 1.379e+04
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of owned continuous nodes: 3530624
+[ymir] ymir_monitor_print_global_mesh_stats: Number of velocity unknowns per processor: min 35772, max 48387, max/min 1.353e+00, mean 4.137e+04
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of velocity unknowns: 10591872
+[ymir] ymir_monitor_print_global_mesh_stats: Number of pressure unknowns per processor: min 6984, max 7040, max/min 1.008e+00, mean 7.014e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of pressure unknowns: 1795484
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of unknowns: 12387356
+[ymir] ymir_monitor_print_global_mesh_stats: Ratio of velocity/pressure DOF: 5.89917
+[ymir] Into slabs_nonlinear_stokes_op_new
+[ymir] Into ymir_stokes_op_new_ext
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 4.561e+02, max 2.000e+04, max/min 4.385e+01
+[ymir] Done ymir_stokes_op_new_ext
+[ymir] ymir_stress_op_set_usol: Stress Op dvisc/dIIe range: min -1.940e+02, max 0.000e+00, min/max -inf
+[ymir] Done slabs_nonlinear_stokes_op_new
+[ymir] Into ymir_Hminus1_norm_op_new (mass scaling 0)
+[ymir] Into ymir_stiff_pc_new_gmg
+[ymir] Into ymir_gmg_hierarchy_mesh_new
+[ymir] Pressure element space: polynomials of degree 1
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: #elements 448871, #DG-nodes 12119517, #CG-nodes 3530624
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: #elements/proc 1753.4, #DG-nodes/proc 47341.9
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: Reduce polynomial order to 1
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 2,0: Create coarse mesh data
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 6144 faces, 6146 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 104013 faces, 101764 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: stabilized trilinear element
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: #elements 448871, #DG-nodes 3590968, #CG-nodes 434924
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Coarsen mesh
+[p4est] Into p8est_coarsen with 448871 total quadrants
+[p4est] Done p8est_coarsen with 91514 total quadrants
+[p4est] Into p8est_balance CORNER with 91514 total quadrants
+[p4est] Done p8est_balance with 94097 total quadrants
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Coarse mesh #elements 94097, #DG-nodes 752776
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Partition coarse mesh
+[p4est] Into p8est_partition with 94097 total quadrants
+[p4est] Designated partition for coarsening 487 quadrants moved
+[p4est] Into p8est_partition_given with 94097 total quadrants
+[p4est] Done p8est_partition_given shipped 89367 quadrants 95%
+[p4est] Done p8est_partition shipped 89367 quadrants 95%
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Coarse partitioning on 256 of 256 processes (fill back 1), #elements/proc 367.6, #DG-nodes/proc 2940.5
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Create coarse mesh data
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 1536 faces, 1538 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 28860 faces, 27411 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: stabilized trilinear element
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,0: Create coarse upstream mesh data
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: #elements 94097, #DG-nodes 752776, #CG-nodes 88983
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Coarsen mesh
+[p4est] Into p8est_coarsen with 94097 total quadrants
+[p4est] Done p8est_coarsen with 20737 total quadrants
+[p4est] Into p8est_balance CORNER with 20737 total quadrants
+[p4est] Done p8est_balance with 21276 total quadrants
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Coarse mesh #elements 21276, #DG-nodes 170208
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Partition coarse mesh
+[p4est] Into p8est_partition with 21276 total quadrants
+[p4est] Designated partition for coarsening 395 quadrants moved
+[p4est] Into p8est_partition_given with 21276 total quadrants
+[p4est] Done p8est_partition_given shipped 20184 quadrants 94.9%
+[p4est] Done p8est_partition shipped 20184 quadrants 94.9%
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Coarse partitioning on 256 of 256 processes (fill back 1), #elements/proc 83.1, #DG-nodes/proc 664.9
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Create coarse mesh data
+[p4est] Into p8est_ghost_new CORNER
+[p4est] Done p8est_ghost_new
+[mangll] Into mangll_p8est_mesh_new_full ghost 1
+[mangll] Done mangll_p8est_mesh_new_full
+[mangll] Into mangll_p8est_cnodes_new ghost 1
+[p4est] Into p8est_lnodes_new
+[p4est] Done p8est_lnodes_new
+[mangll] Done mangll_p8est_cnodes_new
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 384 faces, 386 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 8493 faces, 7797 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Pressure element space: stabilized trilinear element
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,1: Create coarse upstream mesh data
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: GMG level 1,2: #elements 21276, #DG-nodes 170208, #CG-nodes 19409
+[ymir 0] ymir_gmg_hierarchy_mesh_coarsen_recursively: Number of CG-nodes is below min 20000
+[ymir] Into ymir_mesh_new
+[ymir] Constructing face mesh 0
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 0: 384 faces, 386 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Constructing face mesh 1
+[ymir] sharing VCntoCna begin
+[ymir] sharing VCntoCna end
+[ymir] Count allgather start
+[ymir] Face mesh 1: 8493 faces, 7797 nodes
+[ymir] shareall destroyed
+[ymir] VCntoCn destroyed
+[ymir] VCntoP destroyed
+[ymir] CntoG set
+[ymir] share CntoGa start
+[ymir] share CntoGa end
+[ymir] face sharers start
+[ymir] Done ymir_mesh_new
+[ymir] Done ymir_gmg_hierarchy_mesh_new
+[ymir] Into ymir_gmg_hierarchy_stiff_init
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stiff_pc_new_amg
+[ymir] ymir_stiff_pc_new_amg: Assemble stiffness matrix for AMG (mass scaling 0)
+[ymir] Into ymir_stiffness_matrix (matrix type 3)
+[ymir] Done ymir_stiffness_matrix (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=19409, n data rows=1, n data cols=1, nzz alloc'ed=463961, nzz=242671, nnz/row (ave)=12.5, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 12.503 nnz ave. (N=19409)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 8183 of 19409 vertices. (56 local)  492 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 492 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=2.240651e+00 min=1.265579e-01 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=19409 N=492, nzz alloc'ed=48987, nzz=48987, nnz/row (ave)=2.5
+	[0]createLevel number of equations (loc) 1 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=492, n data cols=1, nzz alloc'ed=31882, nzz=31882, nnz/row (ave)=64.8, 1 active pes
+	[0]PCSetUp_GAMG 2 levels, grid complexity = 1.13138
+[ymir] Done ymir_stiff_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stiff_init
+[ymir] Done ymir_stiff_pc_new_gmg
+[ymir] Done ymir_Hminus1_norm_op_new (mass scaling 0)
+[ymir] Into slabs_linear_stokes_problem_project_out_nullspace (residual space 0)
+[ymir] Done slabs_linear_stokes_problem_project_out_nullspace (residual space 0)
+[ymir] NL iter 1, elapsed time 2.5582113027572632e+01 sec
+[ymir] NL iter 1, residual 2.004556e+04
+[ymir] NL iter 1, residual mom 2.005e+04, mass 2.950e+00, dual 0.000e+00
+[ymir] NL iter 1, residual l^2 norm 3.025e+03, mom 3.025e+03, mass 4.392e-03
+[ymir] slabs_nonlinear_solver_picard_newton: Range of velocity magn:   min 5.596e-04, max 2.722e+00, max/min 4.864e+03
+[ymir] slabs_nonlinear_solver_picard_newton: Range of pressure:        min -4.489e+06, max 2.008e+06, mean -1.182e-11
+[ymir] slabs_nonlinear_solver_picard_newton: Range of strain rate:     min 8.588e-02, max 1.451e+02, max/min 1.689e+03
+[ymir] slabs_nonlinear_solver_picard_newton: Range of viscosity:       min 2.280e+02, max 1.000e+04, max/min 4.385e+01
+[ymir] slabs_nonlinear_solver_picard_newton: Range of stress:          min 1.718e+03, max 8.953e+05, max/min 5.213e+02
+[ymir] slabs_nonlinear_solver_picard_newton: Mean rot of velocity:     -6.939e-18, 3.296e-17, -3.469e-17
+[ymir] Into slabs_stokes_state_save: "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn01"
+[p4est] Into p8est_save /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn01_p4est.bin
+[p4est] Done p8est_save
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn01_temperature.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 3530624 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn01_velocity.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 10591872 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn01_pressure.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 1795484 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Done slabs_stokes_state_save
+[ymir] NL iter 1, candidate for Krylov rtol 8.895e-07, max 1.000e-04, progressive reduction 9.975e-01, saveguard 0.000e+00 (threshold 1.000e-05)
+[ymir] NL iter 1, set adaptive Krylov rtol 8.872e-07
+[ymir] Into slabs_nonlinear_stokes_pc_new
+[ymir] Into ymir_stokes_pc_new_ext_int (nl 1, block 1, schur 1, scale 0)
+[ymir] Into ymir_stress_pc_new_gmg (nl 1)
+[ymir] Into ymir_gmg_hierarchy_mesh_new
+[ymir] ymir_gmg_hierarchy_mesh_new: Use existing global mesh hierarchy
+[ymir] Into ymir_gmg_hierarchy_stress_init
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 0)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 1.000e+06
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 0)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 1.000e+06
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 1)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 1.000e+06
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stress_pc_new_amg
+[ymir] ymir_stress_pc_new_amg: Assemble nl viscous stress matrix for AMG
+[ymir] Into ymir_stress_op_matrix_int (matrix type 3)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=58227, n data rows=3, n data cols=6, nzz alloc'ed=4175649, nzz=4175649, nnz/row (ave)=71.7, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 23.9044 nnz ave. (N=19409)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 19409 vertices. (0 local)  631 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 631 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=3.030362e+00 min=1.504246e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=58227 N=3786, nzz alloc'ed=1368774, nzz=1368774, nnz/row (ave)=23.5
+	[0]createLevel number of equations (loc) 12 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=3786, n data cols=6, nzz alloc'ed=1512684, nzz=1512684, nnz/row (ave)=399.5, 64 active pes
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 66.5911 nnz ave. (N=631)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 631 vertices. (0 local)  6 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 6 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=1.864955e+00 min=1.992888e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=3786 N=36, nzz alloc'ed=73476, nzz=73476, nnz/row (ave)=19.4
+	[0]createLevel number of equations (loc) 0 with simple aggregation
+		[0]PCSetUp_GAMG 2) N=36, n data cols=6, nzz alloc'ed=1296, nzz=1296, nnz/row (ave)=36.0, 1 active pes
+	[0]PCSetUp_GAMG 3 levels, grid complexity = 1.36257
+[ymir] Done ymir_stress_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stress_init
+[ymir] Done ymir_stress_pc_new_gmg
+[ymir] Into ymir_bfbt_init_int (BFBT type 3)
+[ymir] Into ymir_bbt_new_stiff
+[ymir] ymir_bbt_new_stiff: Assemble diagonal of pressure BB^T matrix
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 3.101e-13, max 1.267e-08, max/min 4.085e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 5.618e+02
+[ymir] Into ymir_stiff_pc_new_gmg
+[ymir] Into ymir_gmg_hierarchy_mesh_new
+[ymir] ymir_gmg_hierarchy_mesh_new: Use existing global mesh hierarchy
+[ymir] Into ymir_gmg_hierarchy_stiff_init
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 3.101e-13, max 9.684e-09, max/min 3.123e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 1.335e+03
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 3.101e-13, max 9.658e-09, max/min 3.115e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 3.125e+02
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 5.789e-11, max 7.501e-09, max/min 1.296e+02
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 1.592e+00
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stiff_pc_new_amg
+[ymir] ymir_stiff_pc_new_amg: Assemble stiffness matrix for AMG (mass scaling 0)
+[ymir] Into ymir_stiffness_matrix (matrix type 3)
+[ymir] Done ymir_stiffness_matrix (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=19409, n data rows=1, n data cols=1, nzz alloc'ed=463961, nzz=463961, nnz/row (ave)=23.9, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 23.9044 nnz ave. (N=19409)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 19409 vertices. (0 local)  631 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 631 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=2.315626e+00 min=1.318078e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=19409 N=631, nzz alloc'ed=76043, nzz=76043, nnz/row (ave)=3.9
+	[0]createLevel number of equations (loc) 2 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=631, n data cols=1, nzz alloc'ed=42019, nzz=42019, nnz/row (ave)=66.6, 1 active pes
+	[0]PCSetUp_GAMG 2 levels, grid complexity = 1.09057
+[ymir] Done ymir_stiff_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stiff_init
+[ymir] Done ymir_stiff_pc_new_gmg
+[ymir] Done ymir_bbt_new_stiff
+[ymir] Done ymir_bfbt_init_int (BFBT type 3)
+[ymir] Done ymir_stokes_pc_new_ext_int
+[ymir] Done slabs_nonlinear_stokes_pc_new
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 654503936, max 707080192, max/min 1.080e+00, mean 6.606e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 169115447296
+[ymir] Krylov step 0: l^2 norm of initial Krylov residual 3.025e+03
+  Residual norms for stokes_ solve.
+  0 KSP Residual norm 3.024731014479e+03 
+  1 KSP Residual norm 1.010522386577e+03 
+  2 KSP Residual norm 6.811616301307e+02 
+  3 KSP Residual norm 3.123099462173e+02 
+  4 KSP Residual norm 2.610130530078e+02 
+  5 KSP Residual norm 2.099885263769e+02 
+  6 KSP Residual norm 1.694829553069e+02 
+  7 KSP Residual norm 1.448225544425e+02 
+  8 KSP Residual norm 1.022731983698e+02 
+  9 KSP Residual norm 7.866624157079e+01 
+ 10 KSP Residual norm 5.337283209755e+01 
+KSP Object:(stokes_) 256 MPI processes
+  type: gmres
+    GMRES: restart=150, using Classical (unmodified) Gram-Schmidt Orthogonalization with one step of iterative refinement
+    GMRES: happy breakdown tolerance 1e-30
+  maximum iterations=10, initial guess is zero
+  tolerances:  relative=8.8723e-07, absolute=1e-40, divergence=1e+06
+  right preconditioning
+  using UNPRECONDITIONED norm type for convergence test
+PC Object:(stokes_) 256 MPI processes
+  type: mat
+  linear system matrix followed by preconditioner matrix:
+  Mat Object:   256 MPI processes
+    type: shell
+    rows=12387356, cols=12387356
+  Mat Object:   256 MPI processes
+    type: shell
+    rows=12387356, cols=12387356
+[ymir] Krylov step 0: l^2 norm of Krylov residual 5.337e+01
+[ymir] Krylov step 0: 10 Krylov iter for rtol 1.765e-02 (prescribed rtol 8.872e-07)
+[ymir] NL iter 1, l^2 norm of step before line search 9.233e+07
+[ymir] NL iter 1, l^2 norm of iterate 5.869e+08
+[ymir] NL iter 1, l^2 norm ratio: (iterate + step)/step = 7.356e+00
+[ymir] NL iter 1, l^2 norm ratio: step/iterate = 1.573e-01
+[ymir] NL iter 1, descend condition factor 9.999e-01
+[ymir] Into slabs_nonlinear_stokes_op_update
+[ymir] Done slabs_nonlinear_stokes_op_update
+[ymir] NL iter 1, step_length 1.000e+00, res_new 2.293e+03, res_prev 2.005e+04
+[ymir] slabs_nonlinear_stokes_op_update_tensor: Update 4th order tensor
+[ymir] ymir_stress_op_set_usol: Stress Op dvisc/dIIe range: min -1.940e+02, max 0.000e+00, min/max -inf
+[ymir] NL iter 1, l^2 norm of step 9.233e+07
+[ymir] NL iter 1, Newton step, step length 1, 10 Krylov iter for reduction 1.765e-02 (prescribed rtol 8.872e-07)
+[ymir] NL iter 2, elapsed time 4.8837907075881958e+01 sec
+[ymir] NL iter 2, residual 2.292792e+03
+[ymir] NL iter 2, residual mom 2.293e+03, mass 6.536e-01, dual 0.000e+00
+[ymir] NL iter 2, residual l^2 norm 2.180e+02, mom 2.180e+02, mass 9.955e-04
+[ymir] slabs_nonlinear_solver_picard_newton: Range of velocity magn:   min 1.846e-03, max 2.953e+00, max/min 1.600e+03
+[ymir] slabs_nonlinear_solver_picard_newton: Range of pressure:        min -4.910e+06, max 2.250e+06, mean -1.364e-12
+[ymir] slabs_nonlinear_solver_picard_newton: Range of strain rate:     min 7.077e-02, max 1.795e+02, max/min 2.537e+03
+[ymir] slabs_nonlinear_solver_picard_newton: Range of viscosity:       min 1.423e+02, max 1.000e+04, max/min 7.025e+01
+[ymir] slabs_nonlinear_solver_picard_newton: Range of stress:          min 1.055e+03, max 8.477e+05, max/min 8.032e+02
+[ymir] slabs_nonlinear_solver_picard_newton: Mean rot of velocity:     -9.718e-10, 9.735e-10, 4.227e-11
+[ymir] Into slabs_stokes_state_save: "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn02"
+[p4est] Into p8est_save /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn02_p4est.bin
+[p4est] Done p8est_save
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn02_temperature.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 3530624 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn02_velocity.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 10591872 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn02_pressure.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 1795484 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Done slabs_stokes_state_save
+[ymir] NL iter 2, candidate for Krylov rtol 2.995e-06, max 1.000e-04, progressive reduction 9.900e-01, saveguard 0.000e+00 (threshold 1.000e-05)
+[ymir] NL iter 2, set adaptive Krylov rtol 2.965e-06
+[ymir] Into slabs_nonlinear_stokes_pc_update
+[ymir] Into ymir_stress_pc_recompute_gmg
+[ymir] Into ymir_gmg_hierarchy_stress_init
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 0)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 1.000e+06
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 0)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 1.000e+06
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stress_pc_new_gmg_level (nl 1, level 1)
+[ymir] ymir_stress_pc_new_gmg_level: Assemble nl viscous stress matrix for GMG smoothing
+[ymir] Into ymir_stress_op_matrix_int (matrix type 2)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 2)
+[ymir] Done ymir_stress_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir] ymir_stress_op_new_ext: Stress Op coefficient range: min 2.000e-02, max 2.000e+04, max/min 1.000e+06
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stress_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stress_pc_new_amg
+[ymir] ymir_stress_pc_new_amg: Assemble nl viscous stress matrix for AMG
+[ymir] Into ymir_stress_op_matrix_int (matrix type 3)
+[ymir] ymir_stress_op_matrix_int: Generate scaling for Dirichlet boundary
+[ymir] Done ymir_stress_op_matrix_int (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=58227, n data rows=3, n data cols=6, nzz alloc'ed=4175649, nzz=4175649, nnz/row (ave)=71.7, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 23.9044 nnz ave. (N=19409)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 19409 vertices. (0 local)  631 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 631 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=3.029857e+00 min=1.542519e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=58227 N=3786, nzz alloc'ed=1368774, nzz=1368774, nnz/row (ave)=23.5
+	[0]createLevel number of equations (loc) 12 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=3786, n data cols=6, nzz alloc'ed=1512684, nzz=1512684, nnz/row (ave)=399.5, 64 active pes
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 66.5911 nnz ave. (N=631)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 631 vertices. (0 local)  6 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 6 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=1.873875e+00 min=2.007622e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=3786 N=36, nzz alloc'ed=73476, nzz=73476, nnz/row (ave)=19.4
+	[0]createLevel number of equations (loc) 0 with simple aggregation
+		[0]PCSetUp_GAMG 2) N=36, n data cols=6, nzz alloc'ed=1296, nzz=1296, nnz/row (ave)=36.0, 1 active pes
+	[0]PCSetUp_GAMG 3 levels, grid complexity = 1.36257
+[ymir] Done ymir_stress_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stress_init
+[ymir] Done ymir_stress_pc_recompute_gmg
+[ymir] Into ymir_bfbt_init_int (BFBT type 3)
+[ymir] Into ymir_bbt_new_stiff
+[ymir] ymir_bbt_new_stiff: Assemble diagonal of pressure BB^T matrix
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 1.399e-13, max 1.365e-08, max/min 9.757e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 1.245e+03
+[ymir] Into ymir_stiff_pc_new_gmg
+[ymir] Into ymir_gmg_hierarchy_mesh_new
+[ymir] ymir_gmg_hierarchy_mesh_new: Use existing global mesh hierarchy
+[ymir] Into ymir_gmg_hierarchy_stiff_init
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 1.399e-13, max 1.057e-08, max/min 7.556e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 2.959e+03
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 2,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 1.399e-13, max 1.057e-08, max/min 7.556e+04
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 6.835e+02
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,0: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create smoother
+[ymir] Into ymir_stiff_pc_new_gmg_level
+[ymir] ymir_stiff_pc_new_gmg_level: Assemble stiffness matrix for GMG smoothing
+[ymir] Into ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiffness_matrix (matrix type 1)
+[ymir] Done ymir_stiff_pc_new_gmg_level
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create operator on coarser level
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient range: min 3.137e-11, max 8.829e-09, max/min 2.815e+02
+[ymir] ymir_stiff_op_set_coeff_ext: Stiffness Op coefficient anisotropy ratio: min 1.000e+00, max 1.690e+00
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,1: Create projection operators
+[ymir 0] ymir_gmg_hierarchy_stiff_create_recursively: GMG level 1,2: Create coarse grid solver
+[ymir] Into ymir_stiff_pc_new_amg
+[ymir] ymir_stiff_pc_new_amg: Assemble stiffness matrix for AMG (mass scaling 0)
+[ymir] Into ymir_stiffness_matrix (matrix type 3)
+[ymir] Done ymir_stiffness_matrix (matrix type 3)
+	[0]PCSetFromOptions_GAMG threshold set 0.000000e+00
+[0]PCSetUp_GAMG pc_gamg->setup_count=0 pc->setupcalled=0
+	[0]PCSetUp_GAMG level 0 N=19409, n data rows=1, n data cols=1, nzz alloc'ed=463961, nzz=463961, nnz/row (ave)=23.9, np=256
+	[0]PCGAMGFilterGraph 100% nnz after filtering, with threshold 0, 23.9044 nnz ave. (N=19409)
+[0]PCGAMGCoarsen_AGG square graph
+[0]PCGAMGCoarsen_AGG square graph done
+[0]PCGAMGCoarsen_AGG coarsen graph
+	[0]maxIndSetAgg removed 0 of 19409 vertices. (0 local)  631 selected.
+[0]PCGAMGCoarsen_AGG coarsen graph done
+[0]PCGAMGCoarsen_AGG PCGAMGCoarsen_AGG done
+		[0]PCGAMGProlongator_AGG New grid 631 nodes
+			PCGAMGOptprol_AGG smooth P0: max eigen=2.316218e+00 min=1.300146e-02 PC=jacobi
+			[0]PCSetUp_GAMG Prolongator M=19409 N=631, nzz alloc'ed=76043, nzz=76043, nnz/row (ave)=3.9
+	[0]createLevel number of equations (loc) 2 with simple aggregation
+		[0]PCSetUp_GAMG 1) N=631, n data cols=1, nzz alloc'ed=42019, nzz=42019, nnz/row (ave)=66.6, 1 active pes
+	[0]PCSetUp_GAMG 2 levels, grid complexity = 1.09057
+[ymir] Done ymir_stiff_pc_new_amg
+[ymir] Done ymir_gmg_hierarchy_stiff_init
+[ymir] Done ymir_stiff_pc_new_gmg
+[ymir] Done ymir_bbt_new_stiff
+[ymir] Done ymir_bfbt_init_int (BFBT type 3)
+[ymir] Done slabs_nonlinear_stokes_pc_update
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 661897216, max 719409152, max/min 1.087e+00, mean 6.723e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 172109361152
+[ymir] Krylov step 0: l^2 norm of initial Krylov residual 2.180e+02
+  Residual norms for stokes_ solve.
+  0 KSP Residual norm 2.180448972709e+02 
+  1 KSP Residual norm 1.804140604047e+02 
+  2 KSP Residual norm 1.389408484233e+02 
+  3 KSP Residual norm 8.773007243904e+01 
+  4 KSP Residual norm 5.692044996689e+01 
+  5 KSP Residual norm 4.056235028839e+01 
+  6 KSP Residual norm 3.175642030106e+01 
+  7 KSP Residual norm 2.650030201071e+01 
+  8 KSP Residual norm 2.039352008565e+01 
+  9 KSP Residual norm 1.570672663486e+01 
+ 10 KSP Residual norm 1.158886978443e+01 
+KSP Object:(stokes_) 256 MPI processes
+  type: gmres
+    GMRES: restart=150, using Classical (unmodified) Gram-Schmidt Orthogonalization with one step of iterative refinement
+    GMRES: happy breakdown tolerance 1e-30
+  maximum iterations=10, initial guess is zero
+  tolerances:  relative=2.96525e-06, absolute=1e-40, divergence=1e+06
+  right preconditioning
+  using UNPRECONDITIONED norm type for convergence test
+PC Object:(stokes_) 256 MPI processes
+  type: mat
+  linear system matrix followed by preconditioner matrix:
+  Mat Object:   256 MPI processes
+    type: shell
+    rows=12387356, cols=12387356
+  Mat Object:   256 MPI processes
+    type: shell
+    rows=12387356, cols=12387356
+[ymir] Krylov step 0: l^2 norm of Krylov residual 1.159e+01
+[ymir] Krylov step 0: 10 Krylov iter for rtol 5.315e-02 (prescribed rtol 2.965e-06)
+[ymir] NL iter 2, l^2 norm of step before line search 1.698e+07
+[ymir] NL iter 2, l^2 norm of iterate 6.296e+08
+[ymir] NL iter 2, l^2 norm ratio: (iterate + step)/step = 3.807e+01
+[ymir] NL iter 2, l^2 norm ratio: step/iterate = 2.697e-02
+[ymir] NL iter 2, descend condition factor 9.999e-01
+[ymir] Into slabs_nonlinear_stokes_op_update
+[ymir] Done slabs_nonlinear_stokes_op_update
+[ymir] NL iter 2, step_length 1.000e+00, res_new 2.679e+02, res_prev 2.293e+03
+[ymir] slabs_nonlinear_stokes_op_update_tensor: Update 4th order tensor
+[ymir] ymir_stress_op_set_usol: Stress Op dvisc/dIIe range: min -1.940e+02, max 0.000e+00, min/max -inf
+[ymir] NL iter 2, l^2 norm of step 1.698e+07
+[ymir] NL iter 2, Newton step, step length 1, 10 Krylov iter for reduction 5.315e-02 (prescribed rtol 2.965e-06)
+[ymir] NL iter 3, elapsed time 7.0031559944152832e+01 sec
+[ymir] NL iter 3, residual 2.678830e+02
+[ymir] NL iter 3, residual mom 2.679e+02, mass 1.228e-01, dual 0.000e+00
+[ymir] NL iter 3, residual l^2 norm 1.654e+01, mom 1.654e+01, mass 1.776e-04
+[ymir] slabs_nonlinear_solver_picard_newton: Range of velocity magn:   min 2.017e-03, max 3.013e+00, max/min 1.494e+03
+[ymir] slabs_nonlinear_solver_picard_newton: Range of pressure:        min -4.895e+06, max 2.258e+06, mean -4.093e-12
+[ymir] slabs_nonlinear_solver_picard_newton: Range of strain rate:     min 2.064e-02, max 2.254e+02, max/min 1.092e+04
+[ymir] slabs_nonlinear_solver_picard_newton: Range of viscosity:       min 1.307e+02, max 1.000e+04, max/min 7.652e+01
+[ymir] slabs_nonlinear_solver_picard_newton: Range of stress:          min 4.127e+02, max 8.769e+05, max/min 2.124e+03
+[ymir] slabs_nonlinear_solver_picard_newton: Mean rot of velocity:     -7.351e-10, 7.520e-10, 2.616e-11
+[ymir] Into slabs_stokes_state_save: "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn03"
+[p4est] Into p8est_save /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn03_p4est.bin
+[p4est] Done p8est_save
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn03_temperature.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 3530624 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn03_velocity.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 10591872 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_nl_itn03_pressure.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 1795484 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Done slabs_stokes_state_save
+[ymir] slabs_nonlinear_solver_picard_newton: Maximum number of nonlinear iterations reached
+[ymir] Into slabs_linear_stokes_problem_project_out_nullspace (residual space 0)
+[ymir] Done slabs_linear_stokes_problem_project_out_nullspace (residual space 0)
+[ymir] ymir_monitor_print_global_mesh_stats: Number of elements per processor: min 1746, max 1760, max/min 1.008e+00, mean 1.753e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of elements: 448871
+[ymir] ymir_monitor_print_global_mesh_stats: Number of owned continuous nodes per processor: min 11924, max 16129, max/min 1.353e+00, mean 1.379e+04
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of owned continuous nodes: 3530624
+[ymir] ymir_monitor_print_global_mesh_stats: Number of velocity unknowns per processor: min 35772, max 48387, max/min 1.353e+00, mean 4.137e+04
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of velocity unknowns: 10591872
+[ymir] ymir_monitor_print_global_mesh_stats: Number of pressure unknowns per processor: min 6984, max 7040, max/min 1.008e+00, mean 7.014e+03
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of pressure unknowns: 1795484
+[ymir] ymir_monitor_print_global_mesh_stats: Total number of unknowns: 12387356
+[ymir] ymir_monitor_print_global_mesh_stats: Ratio of velocity/pressure DOF: 5.89917
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 644333568, max 702181376, max/min 1.090e+00, mean 6.550e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 167679156224
+[ymir] Done slabs_solve_stokes
+[ymir] Into slabs_stokes_state_save: "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_solution"
+[p4est] Into p8est_save /scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_solution_p4est.bin
+[p4est] Done p8est_save
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_solution_temperature.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 3530624 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_solution_velocity.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 10591872 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Into slabs_io_gather_write_vector: Gather & write vector to binary file "/scratch/01501/johann/runs/ymir/nl_conv/earth_viscE7_weak100km_1e-1_AMRtol2e-3_k2_2015-04-13/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3/bin/earth_bc1_L15_k2_Agmg1_BBTstiff1_schur1_bfbt3_solution_pressure.bin"
+[ymir] slabs_io_gather_write_vector: Use 16 groups (~16 ranks per group) to write vector of global size 1795484 - NEW IMPLEMENTATION
+[ymir] THIS IS THE NEW IMPLEMENTATION!!!
+[ymir] Done slabs_io_gather_write_vector
+[ymir] Done slabs_stokes_state_save
+[ymir] ###DEV### Slabs: mean pressure -3.183e-12
+[ymir] ###DEV### Slabs: mean pressure after projection -1.819e-12
+[ymir] ###DEV### Slabs: mean rotation -7.692e-13, +5.505e-12, +5.535e-12
+[ymir] ###DEV### Slabs: mean rotation after projection -1.648e-17, +0.000e+00, -6.939e-18
+[ymir] ===================================================
+[ymir]   Performance for "GMG hierarchy mesh"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "GMG mesh setup"
+   Global number of values:   256
+   Mean value (std. dev.):         0.136963 (8.12e-06 = 0.00593%)
+   Minimum attained at rank     4: 0.136948
+   Maximum attained at rank   252: 0.136981
+Summary = [ 0.136963 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "GMG hierarchy mesh level setup"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "GMG mesh level 2,0: coarsen"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "GMG mesh level 2,0: partition"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "GMG mesh level 2,0: create coarse data"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0271044 (0.000154 = 0.568%)
+   Minimum attained at rank     0: 0.026742
+   Maximum attained at rank   194: 0.0276182
+Statistics for Wtime of "GMG mesh level 1,0: coarsen"
+   Global number of values:   256
+   Mean value (std. dev.):         0.00309461 (0.000153 = 4.96%)
+   Minimum attained at rank   194: 0.00256205
+   Maximum attained at rank    54: 0.00338197
+Statistics for Wtime of "GMG mesh level 1,0: partition"
+   Global number of values:   256
+   Mean value (std. dev.):         0.000993731 (9.14e-05 = 9.2%)
+   Minimum attained at rank     0: 0.000775099
+   Maximum attained at rank   195: 0.00136399
+Statistics for Wtime of "GMG mesh level 1,0: create coarse data"
+   Global number of values:   256
+   Mean value (std. dev.):         0.011751 (9.17e-05 = 0.781%)
+   Minimum attained at rank     3: 0.011384
+   Maximum attained at rank    97: 0.011822
+Statistics for Wtime of "GMG mesh level 1,1: coarsen"
+   Global number of values:   256
+   Mean value (std. dev.):         0.00213183 (3.46e-05 = 1.62%)
+   Minimum attained at rank   111: 0.00204396
+   Maximum attained at rank     8: 0.00220895
+Statistics for Wtime of "GMG mesh level 1,1: partition"
+   Global number of values:   256
+   Mean value (std. dev.):         0.001034 (3.58e-05 = 3.46%)
+   Minimum attained at rank     0: 0.0008111
+   Maximum attained at rank    96: 0.00109506
+Statistics for Wtime of "GMG mesh level 1,1: create coarse data"
+   Global number of values:   256
+   Mean value (std. dev.):         0.007858 (1.45e-05 = 0.184%)
+   Minimum attained at rank     0: 0.0077498
+   Maximum attained at rank   217: 0.00789309
+Summary = [ 0 0 0.0271044 0.00309461 0.000993731 0.011751 0.00213183 0.001034 0.007858 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "Stress Op"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "Stress Op setup"
+   Global number of values:   256
+   Mean value (std. dev.):         0.000894335 (7.08e-05 = 7.91%)
+   Minimum attained at rank   162: 0.000727892
+   Maximum attained at rank    77: 0.00105
+Statistics for Wtime of "Stress Op apply (default)"
+   Global number of values:   256
+   Mean value (std. dev.):         0.235651 (0.0123 = 5.2%)
+   Minimum attained at rank   168: 0.200407
+   Maximum attained at rank     0: 0.258389
+Statistics for Wtime of "Stress Op apply (GMG level)"
+   Global number of values:   256
+   Mean value (std. dev.):         2.62325 (0.122 = 4.64%)
+   Minimum attained at rank    53: 2.38874
+   Maximum attained at rank   242: 3.04181
+Statistics for Wtime of "Stress Op apply (GMG coarse)"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "Stress Op apply element"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Ncalls of "Stress Op setup"
+   Global number of values:   256
+   Mean value (std. dev.):         1 (0 = 0%)
+   Minimum attained at rank     0: 1
+   Maximum attained at rank     0: 1
+Statistics for Ncalls of "Stress Op apply (default)"
+   Global number of values:   256
+   Mean value (std. dev.):         11 (0 = 0%)
+   Minimum attained at rank     0: 11
+   Maximum attained at rank     0: 11
+Statistics for Ncalls of "Stress Op apply (GMG level)"
+   Global number of values:   256
+   Mean value (std. dev.):         297 (0 = 0%)
+   Minimum attained at rank     0: 297
+   Maximum attained at rank     0: 297
+Statistics for Ncalls of "Stress Op apply (GMG coarse)"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Ncalls of "Stress Op apply element"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Summary = [ 0.000894335 0.235651 2.62325 0 0 1 11 297 0 0 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "Stress PC"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "Stress PC setup: GMG level matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         1.80261 (0.00173 = 0.0959%)
+   Minimum attained at rank   249: 1.79808
+   Maximum attained at rank    10: 1.80764
+Statistics for Wtime of "Stress PC setup: GMG level KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0271771 (0.000727 = 2.68%)
+   Minimum attained at rank    15: 0.0240257
+   Maximum attained at rank    63: 0.0282905
+Statistics for Wtime of "Stress PC setup: AMG matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0302549 (0.000808 = 2.67%)
+   Minimum attained at rank   242: 0.0288272
+   Maximum attained at rank    13: 0.0318208
+Statistics for Wtime of "Stress PC setup: AMG KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0.809332 (0.000144 = 0.0178%)
+   Minimum attained at rank     1: 0.808827
+   Maximum attained at rank    62: 0.809575
+Statistics for Wtime of "Stress PC apply"
+   Global number of values:   256
+   Mean value (std. dev.):         10.2215 (0.00769 = 0.0752%)
+   Minimum attained at rank    25: 10.1991
+   Maximum attained at rank    64: 10.2462
+Statistics for Ncalls of "Stress PC setup: GMG level matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         9 (0 = 0%)
+   Minimum attained at rank     0: 9
+   Maximum attained at rank     0: 9
+Statistics for Ncalls of "Stress PC setup: GMG level KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         9 (0 = 0%)
+   Minimum attained at rank     0: 9
+   Maximum attained at rank     0: 9
+Statistics for Ncalls of "Stress PC setup: AMG matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         3 (0 = 0%)
+   Minimum attained at rank     0: 3
+   Maximum attained at rank     0: 3
+Statistics for Ncalls of "Stress PC setup: AMG KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         3 (0 = 0%)
+   Minimum attained at rank     0: 3
+   Maximum attained at rank     0: 3
+Statistics for Ncalls of "Stress PC apply"
+   Global number of values:   256
+   Mean value (std. dev.):         33 (0 = 0%)
+   Minimum attained at rank     0: 33
+   Maximum attained at rank     0: 33
+Summary = [ 1.80261 0.0271771 0.0302549 0.809332 10.2215 9 9 3 3 33 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "GMG hierarchy stress"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "GMG stress setup: smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         1.82983 (0.00186 = 0.102%)
+   Minimum attained at rank   249: 1.82453
+   Maximum attained at rank    64: 1.83585
+Statistics for Wtime of "GMG stress setup: AMG"
+   Global number of values:   256
+   Mean value (std. dev.):         0.841167 (0.000219 = 0.026%)
+   Minimum attained at rank     4: 0.8401
+   Maximum attained at rank    51: 0.841549
+Statistics for Wtime of "GMG stress setup: total"
+   Global number of values:   256
+   Mean value (std. dev.):         2.78092 (1.32e-05 = 0.000476%)
+   Minimum attained at rank     6: 2.78077
+   Maximum attained at rank     7: 2.78105
+Statistics for Wtime of "GMG stress cycle: apply smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         7.37867 (0.222 = 3%)
+   Minimum attained at rank    57: 6.93209
+   Maximum attained at rank   139: 8.1475
+Statistics for Wtime of "GMG stress cycle: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         0.931369 (0.0537 = 5.76%)
+   Minimum attained at rank    47: 0.746654
+   Maximum attained at rank     4: 1.01181
+Statistics for Wtime of "GMG stress cycle: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         0.76162 (0.126 = 16.5%)
+   Minimum attained at rank   139: 0.39358
+   Maximum attained at rank    57: 0.989432
+Statistics for Wtime of "GMG stress cycle: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         0.318441 (0.00828 = 2.6%)
+   Minimum attained at rank   104: 0.298693
+   Maximum attained at rank    39: 0.342103
+Statistics for Wtime of "GMG stress cycle: solve coarse"
+   Global number of values:   256
+   Mean value (std. dev.):         0.156979 (0.00125 = 0.796%)
+   Minimum attained at rank     4: 0.154873
+   Maximum attained at rank    65: 0.160542
+Statistics for Ncalls of "GMG stress setup: smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         9 (0 = 0%)
+   Minimum attained at rank     0: 9
+   Maximum attained at rank     0: 9
+Statistics for Ncalls of "GMG stress setup: AMG"
+   Global number of values:   256
+   Mean value (std. dev.):         3 (0 = 0%)
+   Minimum attained at rank     0: 3
+   Maximum attained at rank     0: 3
+Statistics for Ncalls of "GMG stress setup: total"
+   Global number of values:   256
+   Mean value (std. dev.):         3 (0 = 0%)
+   Minimum attained at rank     0: 3
+   Maximum attained at rank     0: 3
+Statistics for Ncalls of "GMG stress cycle: apply smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         198 (0 = 0%)
+   Minimum attained at rank     0: 198
+   Maximum attained at rank     0: 198
+Statistics for Ncalls of "GMG stress cycle: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         99 (0 = 0%)
+   Minimum attained at rank     0: 99
+   Maximum attained at rank     0: 99
+Statistics for Ncalls of "GMG stress cycle: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         99 (0 = 0%)
+   Minimum attained at rank     0: 99
+   Maximum attained at rank     0: 99
+Statistics for Ncalls of "GMG stress cycle: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         99 (0 = 0%)
+   Minimum attained at rank     0: 99
+   Maximum attained at rank     0: 99
+Statistics for Ncalls of "GMG stress cycle: solve coarse"
+   Global number of values:   256
+   Mean value (std. dev.):         33 (0 = 0%)
+   Minimum attained at rank     0: 33
+   Maximum attained at rank     0: 33
+Summary = [ 1.82983 0.841167 2.78092 7.37867 0.931369 0.76162 0.318441 0.156979 9 3 3 198 99 99 99 33 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "GMG hierarchy stress level"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "GMG stress level 2,0: setup solver"
+   Global number of values:   256
+   Mean value (std. dev.):         0.550875 (0.000125 = 0.0227%)
+   Minimum attained at rank   255: 0.55049
+   Maximum attained at rank     0: 0.551463
+Statistics for Wtime of "GMG stress level 2,0: setup coarse op"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0226957 (0.000515 = 2.27%)
+   Minimum attained at rank     0: 0.02109
+   Maximum attained at rank    35: 0.024044
+Statistics for Wtime of "GMG stress level 2,0: apply level solver"
+   Global number of values:   256
+   Mean value (std. dev.):         2.17459 (0.112 = 5.14%)
+   Minimum attained at rank   213: 1.97815
+   Maximum attained at rank   242: 2.53063
+Statistics for Wtime of "GMG stress level 2,0: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         0.285078 (0.0232 = 8.14%)
+   Minimum attained at rank    47: 0.202803
+   Maximum attained at rank    11: 0.317273
+Statistics for Wtime of "GMG stress level 2,0: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         0.215459 (0.0562 = 26.1%)
+   Minimum attained at rank    16: 0.0664575
+   Maximum attained at rank   219: 0.335368
+Statistics for Wtime of "GMG stress level 2,0: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0779987 (0.00364 = 4.67%)
+   Minimum attained at rank   116: 0.0704346
+   Maximum attained at rank   167: 0.0912697
+Statistics for Wtime of "GMG stress level 1,0: setup solver"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0382488 (0.000438 = 1.14%)
+   Minimum attained at rank    35: 0.0371671
+   Maximum attained at rank   105: 0.039547
+Statistics for Wtime of "GMG stress level 1,0: setup coarse op"
+   Global number of values:   256
+   Mean value (std. dev.):         0.00604267 (0.000109 = 1.81%)
+   Minimum attained at rank    44: 0.00573611
+   Maximum attained at rank     6: 0.00655508
+Statistics for Wtime of "GMG stress level 1,0: apply level solver"
+   Global number of values:   256
+   Mean value (std. dev.):         0.268422 (0.0396 = 14.7%)
+   Minimum attained at rank   145: 0.211894
+   Maximum attained at rank    56: 0.40846
+Statistics for Wtime of "GMG stress level 1,0: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0246822 (0.000742 = 3%)
+   Minimum attained at rank    83: 0.023273
+   Maximum attained at rank   166: 0.0267649
+Statistics for Wtime of "GMG stress level 1,0: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0312228 (0.00356 = 11.4%)
+   Minimum attained at rank   139: 0.0223641
+   Maximum attained at rank    53: 0.040621
+Statistics for Wtime of "GMG stress level 1,0: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0214111 (0.000602 = 2.81%)
+   Minimum attained at rank   103: 0.01987
+   Maximum attained at rank   207: 0.0229845
+Statistics for Wtime of "GMG stress level 1,1: setup solver"
+   Global number of values:   256
+   Mean value (std. dev.):         0.00972545 (9.35e-05 = 0.961%)
+   Minimum attained at rank     6: 0.00919795
+   Maximum attained at rank    44: 0.00999904
+Statistics for Wtime of "GMG stress level 1,1: setup coarse op"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0020935 (3.3e-05 = 1.58%)
+   Minimum attained at rank     0: 0.00194502
+   Maximum attained at rank     6: 0.00243115
+Statistics for Wtime of "GMG stress level 1,1: apply level solver"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0619727 (0.00292 = 4.71%)
+   Minimum attained at rank   231: 0.056026
+   Maximum attained at rank    72: 0.0731456
+Statistics for Wtime of "GMG stress level 1,1: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         0.00583336 (8.76e-05 = 1.5%)
+   Minimum attained at rank    99: 0.00560355
+   Maximum attained at rank   191: 0.00603461
+Statistics for Wtime of "GMG stress level 1,1: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         0.00720276 (0.000572 = 7.94%)
+   Minimum attained at rank    14: 0.00584412
+   Maximum attained at rank    73: 0.00876951
+Statistics for Wtime of "GMG stress level 1,1: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         0.00697045 (0.000524 = 7.52%)
+   Minimum attained at rank     7: 0.0054481
+   Maximum attained at rank   128: 0.00818872
+Statistics for Wtime of "GMG stress level 1,2: setup solver"
+   Global number of values:   256
+   Mean value (std. dev.):         0.184219 (3.23e-05 = 0.0175%)
+   Minimum attained at rank     6: 0.183883
+   Maximum attained at rank     0: 0.184328
+Statistics for Wtime of "GMG stress level 1,2: setup coarse op"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "GMG stress level 1,2: apply level solver"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0483302 (0.000723 = 1.5%)
+   Minimum attained at rank   166: 0.0471487
+   Maximum attained at rank    99: 0.050293
+Statistics for Wtime of "GMG stress level 1,2: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "GMG stress level 1,2: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "GMG stress level 1,2: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Summary = [ 0.550875 0.0226957 2.17459 0.285078 0.215459 0.0779987 0.0382488 0.00604267 0.268422 0.0246822 0.0312228 0.0214111 0.00972545 0.0020935 0.0619727 0.00583336 0.00720276 0.00697045 0.184219 0 0.0483302 0 0 0 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "BB^T"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "BB^T setup: GMG level matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         0.172714 (0.00111 = 0.642%)
+   Minimum attained at rank    64: 0.170938
+   Maximum attained at rank    15: 0.176121
+Statistics for Wtime of "BB^T setup: GMG level KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "BB^T setup: AMG matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "BB^T setup: AMG KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Wtime of "BB^T apply"
+   Global number of values:   256
+   Mean value (std. dev.):         17.9343 (0.302 = 1.68%)
+   Minimum attained at rank    64: 17.3182
+   Maximum attained at rank   250: 19.4878
+Statistics for Ncalls of "BB^T setup: GMG level matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         3 (0 = 0%)
+   Minimum attained at rank     0: 3
+   Maximum attained at rank     0: 3
+Statistics for Ncalls of "BB^T setup: GMG level KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Ncalls of "BB^T setup: AMG matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Ncalls of "BB^T setup: AMG KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Ncalls of "BB^T apply"
+   Global number of values:   256
+   Mean value (std. dev.):         929 (0 = 0%)
+   Minimum attained at rank     0: 929
+   Maximum attained at rank     0: 929
+Summary = [ 0.172714 0 0 0 17.9343 3 0 0 0 929 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "GMG hierarchy BB^T"
+[ymir] ---------------------------------------------------
+Summary =  ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "Stokes Op"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "Stokes Op setup"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0657477 (0.00314 = 4.78%)
+   Minimum attained at rank    34: 0.059901
+   Maximum attained at rank     0: 0.076618
+Statistics for Wtime of "Stokes Op apply"
+   Global number of values:   256
+   Mean value (std. dev.):         1.1941 (0.00259 = 0.217%)
+   Minimum attained at rank   255: 1.18937
+   Maximum attained at rank    12: 1.20059
+Statistics for Wtime of "Stokes Op apply element"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Statistics for Ncalls of "Stokes Op setup"
+   Global number of values:   256
+   Mean value (std. dev.):         2 (0 = 0%)
+   Minimum attained at rank     0: 2
+   Maximum attained at rank     0: 2
+Statistics for Ncalls of "Stokes Op apply"
+   Global number of values:   256
+   Mean value (std. dev.):         40 (0 = 0%)
+   Minimum attained at rank     0: 40
+   Maximum attained at rank     0: 40
+Statistics for Ncalls of "Stokes Op apply element"
+   Global number of values:   256
+   Mean value (std. dev.):         0 (0)
+   Minimum attained at rank     0: 0
+   Maximum attained at rank     0: 0
+Summary = [ 0.0657477 1.1941 0 2 40 0 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "Stokes PC"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "Stokes PC setup"
+   Global number of values:   256
+   Mean value (std. dev.):         6.13675 (0.112 = 1.83%)
+   Minimum attained at rank   144: 5.52556
+   Maximum attained at rank    13: 6.16601
+Statistics for Wtime of "Stokes PC apply: A^-1"
+   Global number of values:   256
+   Mean value (std. dev.):         10.2216 (0.00769 = 0.0752%)
+   Minimum attained at rank    25: 10.1993
+   Maximum attained at rank    64: 10.2464
+Statistics for Wtime of "Stokes PC apply: B"
+   Global number of values:   256
+   Mean value (std. dev.):         0.288742 (0.00759 = 2.63%)
+   Minimum attained at rank    64: 0.264225
+   Maximum attained at rank    25: 0.311135
+Statistics for Wtime of "Stokes PC apply: S^-1"
+   Global number of values:   256
+   Mean value (std. dev.):         29.6323 (0.000997 = 0.00336%)
+   Minimum attained at rank     0: 29.6269
+   Maximum attained at rank   124: 29.634
+Statistics for Wtime of "Stokes PC apply"
+   Global number of values:   256
+   Mean value (std. dev.):         40.143 (0.00104 = 0.00259%)
+   Minimum attained at rank     0: 40.1381
+   Maximum attained at rank     3: 40.1452
+Statistics for Ncalls of "Stokes PC setup"
+   Global number of values:   256
+   Mean value (std. dev.):         3 (0 = 0%)
+   Minimum attained at rank     0: 3
+   Maximum attained at rank     0: 3
+Statistics for Ncalls of "Stokes PC apply: A^-1"
+   Global number of values:   256
+   Mean value (std. dev.):         33 (0 = 0%)
+   Minimum attained at rank     0: 33
+   Maximum attained at rank     0: 33
+Statistics for Ncalls of "Stokes PC apply: B"
+   Global number of values:   256
+   Mean value (std. dev.):         33 (0 = 0%)
+   Minimum attained at rank     0: 33
+   Maximum attained at rank     0: 33
+Statistics for Ncalls of "Stokes PC apply: S^-1"
+   Global number of values:   256
+   Mean value (std. dev.):         33 (0 = 0%)
+   Minimum attained at rank     0: 33
+   Maximum attained at rank     0: 33
+Statistics for Ncalls of "Stokes PC apply"
+   Global number of values:   256
+   Mean value (std. dev.):         33 (0 = 0%)
+   Minimum attained at rank     0: 33
+   Maximum attained at rank     0: 33
+Summary = [ 6.13675 10.2216 0.288742 29.6323 40.143 3 33 33 33 33 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "Stiff PC"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "Stiff PC setup: GMG level matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         3.59976 (0.00204 = 0.0568%)
+   Minimum attained at rank   249: 3.5942
+   Maximum attained at rank    64: 3.60608
+Statistics for Wtime of "Stiff PC setup: GMG level KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0109823 (0.000126 = 1.15%)
+   Minimum attained at rank     0: 0.00909781
+   Maximum attained at rank     4: 0.011308
+Statistics for Wtime of "Stiff PC setup: AMG matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0216333 (0.000554 = 2.56%)
+   Minimum attained at rank   253: 0.0201831
+   Maximum attained at rank    68: 0.0223551
+Statistics for Wtime of "Stiff PC setup: AMG KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         0.246941 (3.93e-05 = 0.0159%)
+   Minimum attained at rank     0: 0.246471
+   Maximum attained at rank   199: 0.247001
+Statistics for Wtime of "Stiff PC apply"
+   Global number of values:   256
+   Mean value (std. dev.):         19.1591 (0.131 = 0.684%)
+   Minimum attained at rank    81: 18.8826
+   Maximum attained at rank   141: 19.4986
+Statistics for Ncalls of "Stiff PC setup: GMG level matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         15 (0 = 0%)
+   Minimum attained at rank     0: 15
+   Maximum attained at rank     0: 15
+Statistics for Ncalls of "Stiff PC setup: GMG level KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         15 (0 = 0%)
+   Minimum attained at rank     0: 15
+   Maximum attained at rank     0: 15
+Statistics for Ncalls of "Stiff PC setup: AMG matrix"
+   Global number of values:   256
+   Mean value (std. dev.):         5 (0 = 0%)
+   Minimum attained at rank     0: 5
+   Maximum attained at rank     0: 5
+Statistics for Ncalls of "Stiff PC setup: AMG KSP"
+   Global number of values:   256
+   Mean value (std. dev.):         5 (0 = 0%)
+   Minimum attained at rank     0: 5
+   Maximum attained at rank     0: 5
+Statistics for Ncalls of "Stiff PC apply"
+   Global number of values:   256
+   Mean value (std. dev.):         85 (0 = 0%)
+   Minimum attained at rank     0: 85
+   Maximum attained at rank     0: 85
+Summary = [ 3.59976 0.0109823 0.0216333 0.246941 19.1591 15 15 5 5 85 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "GMG hierarchy stiffness"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "GMG stiffness setup: smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         3.61082 (0.00207 = 0.0572%)
+   Minimum attained at rank   249: 3.6052
+   Maximum attained at rank    64: 3.61715
+Statistics for Wtime of "GMG stiffness setup: AMG"
+   Global number of values:   256
+   Mean value (std. dev.):         0.268643 (0.000545 = 0.203%)
+   Minimum attained at rank   250: 0.267186
+   Maximum attained at rank    68: 0.2694
+Statistics for Wtime of "GMG stiffness setup: total"
+   Global number of values:   256
+   Mean value (std. dev.):         3.92817 (3.6e-05 = 0.000916%)
+   Minimum attained at rank     7: 3.92761
+   Maximum attained at rank    49: 3.92818
+Statistics for Wtime of "GMG stiffness cycle: apply smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         9.89206 (0.737 = 7.45%)
+   Minimum attained at rank   208: 8.71872
+   Maximum attained at rank   141: 11.6803
+Statistics for Wtime of "GMG stiffness cycle: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         2.27926 (0.13 = 5.7%)
+   Minimum attained at rank   255: 1.915
+   Maximum attained at rank    28: 2.53566
+Statistics for Wtime of "GMG stiffness cycle: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         2.23434 (0.425 = 19%)
+   Minimum attained at rank    71: 1.22459
+   Maximum attained at rank   188: 2.94278
+Statistics for Wtime of "GMG stiffness cycle: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         1.14873 (0.035 = 3.04%)
+   Minimum attained at rank     0: 1.05745
+   Maximum attained at rank   250: 1.24657
+Statistics for Wtime of "GMG stiffness cycle: solve coarse"
+   Global number of values:   256
+   Mean value (std. dev.):         0.691408 (0.00887 = 1.28%)
+   Minimum attained at rank   226: 0.669851
+   Maximum attained at rank     0: 0.725085
+Statistics for Ncalls of "GMG stiffness setup: smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         15 (0 = 0%)
+   Minimum attained at rank     0: 15
+   Maximum attained at rank     0: 15
+Statistics for Ncalls of "GMG stiffness setup: AMG"
+   Global number of values:   256
+   Mean value (std. dev.):         5 (0 = 0%)
+   Minimum attained at rank     0: 5
+   Maximum attained at rank     0: 5
+Statistics for Ncalls of "GMG stiffness setup: total"
+   Global number of values:   256
+   Mean value (std. dev.):         5 (0 = 0%)
+   Minimum attained at rank     0: 5
+   Maximum attained at rank     0: 5
+Statistics for Ncalls of "GMG stiffness cycle: apply smoother"
+   Global number of values:   256
+   Mean value (std. dev.):         1248 (0 = 0%)
+   Minimum attained at rank     0: 1248
+   Maximum attained at rank     0: 1248
+Statistics for Ncalls of "GMG stiffness cycle: compute residual"
+   Global number of values:   256
+   Mean value (std. dev.):         624 (0 = 0%)
+   Minimum attained at rank     0: 624
+   Maximum attained at rank     0: 624
+Statistics for Ncalls of "GMG stiffness cycle: restrict"
+   Global number of values:   256
+   Mean value (std. dev.):         624 (0 = 0%)
+   Minimum attained at rank     0: 624
+   Maximum attained at rank     0: 624
+Statistics for Ncalls of "GMG stiffness cycle: interpolate"
+   Global number of values:   256
+   Mean value (std. dev.):         624 (0 = 0%)
+   Minimum attained at rank     0: 624
+   Maximum attained at rank     0: 624
+Statistics for Ncalls of "GMG stiffness cycle: solve coarse"
+   Global number of values:   256
+   Mean value (std. dev.):         208 (0 = 0%)
+   Minimum attained at rank     0: 208
+   Maximum attained at rank     0: 208
+Summary = [ 3.61082 0.268643 3.92817 9.89206 2.27926 2.23434 1.14873 0.691408 15 5 5 1248 624 624 624 208 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "Slabs IO"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "IO temperature"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0437551 (0.00551 = 12.6%)
+   Minimum attained at rank    17: 0.0335081
+   Maximum attained at rank    11: 0.0581479
+Statistics for Wtime of "IO weakzone"
+   Global number of values:   256
+   Mean value (std. dev.):         0.170866 (0.000747 = 0.437%)
+   Minimum attained at rank    98: 0.169598
+   Maximum attained at rank     0: 0.172284
+Statistics for Wtime of "IO read & scatter vector"
+   Global number of values:   256
+   Mean value (std. dev.):         0.0421523 (0.00417 = 9.9%)
+   Minimum attained at rank    16: 0.0333869
+   Maximum attained at rank     0: 0.0580518
+Statistics for Wtime of "IO gather & write vector"
+   Global number of values:   256
+   Mean value (std. dev.):         9.02094 (0.136 = 1.5%)
+   Minimum attained at rank    96: 8.63384
+   Maximum attained at rank    48: 10.0211
+Summary = [ 0.0437551 0.170866 0.0421523 9.02094 ];
+[ymir] ===================================================
+[ymir] ===================================================
+[ymir]   Performance for "Slabs example main"
+[ymir] ---------------------------------------------------
+Statistics for Wtime of "Setup mesh"
+   Global number of values:   256
+   Mean value (std. dev.):         3.58961 (8.58e-06 = 0.000239%)
+   Minimum attained at rank    14: 3.58948
+   Maximum attained at rank     1: 3.58964
+Statistics for Wtime of "Setup Stokes"
+   Global number of values:   256
+   Mean value (std. dev.):         0.011386 (4.27e-06 = 0.0375%)
+   Minimum attained at rank   244: 0.0113771
+   Maximum attained at rank     2: 0.011395
+Statistics for Wtime of "Solve Stokes"
+   Global number of values:   256
+   Mean value (std. dev.):         72.1138 (2.31e-05 = 3.2e-05%)
+   Minimum attained at rank   187: 72.1137
+   Maximum attained at rank   110: 72.1138
+Statistics for Wtime of "Total"
+   Global number of values:   256
+   Mean value (std. dev.):         76.2592 (2.55e-05 = 3.34e-05%)
+   Minimum attained at rank   184: 76.2591
+   Maximum attained at rank     6: 76.2594
+Summary = [ 3.58961 0.011386 72.1138 76.2592 ];
+[ymir] ===================================================
+[ymir] ymir_monitor_print_global_mem_usage: Memory usage per processor (Bytes): min 558600192, max 616448000, max/min 1.104e+00, mean 5.693e+08
+[ymir] ymir_monitor_print_global_mem_usage: Total memory usage (Bytes): 145731411968
+ 
+TACC: Shutdown complete. Exiting.
+========================================

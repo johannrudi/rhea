@@ -1,0 +1,161 @@
+
+
+###### Global ######
+
+ #-log_summary  # summarize the program’s performance
+ #-malloc_dump  # dumps unfreed memory during call to PetscFinalize
+ #-malloc  # enable Petsc malloc logging
+
+
+###### Mass Matrix Inversion KSP ######
+
+  ### KSP type
+
+    # CG
+    -mass_ksp_type cg
+    -mass_ksp_cg_single_reduction  # combine 2 inner prods into 1 allreduce
+    -mass_ksp_pc_side left
+
+  ### KSP tolerances
+  -mass_ksp_rtol 1.0e-6
+  -mass_ksp_atol 0
+  -mass_ksp_max_it 25
+
+  ### KSP monitoring
+ #-mass_ksp_view
+ #-mass_ksp_monitor
+ #-mass_ksp_monitor_true_residual
+ #-mass_ksp_monitor_singular_value
+
+
+###### Mass Matrix Inversion PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -mass_pc_use_amat true
+
+
+###### Stress KSP ######
+
+  ### KSP type
+
+    # CG
+   #-stress_ksp_type cg
+   #-stress_ksp_cg_single_reduction
+   #-stress_ksp_pc_side left
+
+    # GMRES
+    -stress_ksp_type gmres
+    -stress_ksp_gmres_restart 150
+    -stress_ksp_pc_side right
+
+  ### KSP tolerances
+  -stress_ksp_rtol 1.0e-6
+  -stress_ksp_atol 0.0
+  -stress_ksp_max_it 600
+
+  ### KSP monitoring
+  -stress_ksp_view
+  -stress_ksp_monitor
+ #-stress_ksp_monitor_range
+ #-stress_ksp_monitor_singular_value
+
+
+###### Stress PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -stress_pc_use_amat true
+
+  ### GMG smoother
+
+    ### KSP type
+
+      # Chebyshev smoother
+      -stress_gmg_levels_ksp_type chebyshev
+      -stress_gmg_levels_ksp_chebyshev_estimate_eigenvalues
+      -stress_gmg_levels_est_ksp_type gmres
+      -stress_gmg_levels_est_ksp_pc_side left  # same as chebyshev
+      -stress_gmg_levels_est_ksp_gmres_restart 20
+      -stress_gmg_levels_est_ksp_max_it 20
+      -stress_gmg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -stress_gmg_levels_ksp_rtol 1.0e-16
+    -stress_gmg_levels_ksp_atol 0.0
+    -stress_gmg_levels_ksp_max_it 3
+
+    ### PC type
+
+      # Point block Jacobi
+      -stress_gmg_levels_pc_type pbjacobi
+
+    -stress_gmg_levels_pc_use_amat true
+
+  ### GMG coarse KSP
+
+    ### KSP type (use AMG preconditioner only)
+    -stress_gmg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -stress_gmg_coarse_ksp_max_it 1
+
+  ### GMG coarse PC
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -stress_gmg_coarse_pc_use_amat false
+
+  ### AMG Galerkin coarse grid generation
+  -stress_gmg_coarse_pc_mg_levels 5
+
+    # GAMG
+    -stress_gmg_coarse_pc_type gamg
+    -stress_gmg_coarse_pc_gamg_verbose 10
+    -stress_gmg_coarse_pc_gamg_threshold 0.001
+    -stress_gmg_coarse_pc_gamg_agg_nsmooths 1
+    -stress_gmg_coarse_pc_gamg_process_eq_limit 70
+    -stress_gmg_coarse_pc_gamg_coarse_eq_limit 916
+   #-stress_gmg_coarse_pc_gamg_repartition true
+
+  ### AMG algorithmic options
+  -stress_gmg_coarse_pc_mg_type multiplicative
+  -stress_gmg_coarse_pc_mg_multiplicative_cycles 1
+
+  ### AMG smoother
+
+    ### KSP type
+
+      # Chebyshev smoother
+      -stress_gmg_coarse_mg_levels_ksp_type chebyshev
+      -stress_gmg_coarse_mg_levels_ksp_chebyshev_estimate_eigenvalues
+      -stress_gmg_coarse_mg_levels_est_ksp_type gmres
+      -stress_gmg_coarse_mg_levels_est_ksp_pc_side left  # same as chebyshev
+      -stress_gmg_coarse_mg_levels_est_ksp_gmres_restart 20
+      -stress_gmg_coarse_mg_levels_est_ksp_max_it 20
+      -stress_gmg_coarse_mg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -stress_gmg_coarse_mg_levels_ksp_rtol 1.0e-16
+    -stress_gmg_coarse_mg_levels_ksp_atol 0.0
+    -stress_gmg_coarse_mg_levels_ksp_max_it 3
+
+    ### PC type
+
+      # Point block Jacobi
+      -stress_gmg_coarse_mg_levels_pc_type pbjacobi
+
+  ### AMG coarse solver
+
+    ### KSP type
+
+      # none
+      -stress_gmg_coarse_mg_coarse_mg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -stress_gmg_coarse_mg_coarse_mg_coarse_ksp_max_it 1
+
+    ### PC type
+
+      # Block Jacobi with Cholesky factorization as subsolver
+      -stress_gmg_coarse_mg_coarse_mg_coarse_pc_type bjacobi
+      -stress_gmg_coarse_mg_coarse_mg_coarse_sub_ksp_type preonly
+      -stress_gmg_coarse_mg_coarse_mg_coarse_sub_pc_type cholesky
+

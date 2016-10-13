@@ -1,0 +1,237 @@
+###### Global ######
+
+ #-info
+ #-info_exclude null
+ #-on_error_attach_debugger
+ #-log_summary  # summarize the program’s performance
+  -malloc_dump  # dumps unfreed memory during call to PetscFinalize
+ #-malloc_log   # activate logging of memory usage
+ #-memory_info  # print memory usage at end of run
+
+  -stokes_ksp_type preonly
+  -stokes_pc_type none
+
+###### BBT KSP ######
+
+  ### KSP type
+
+    # multigrid preconditioner
+   #-bbt_ksp_type preonly
+
+    # CG
+   #-bbt_ksp_type cg
+   #-bbt_ksp_cg_single_reduction  # combine both inner prod into 1 allreduce
+
+    # GMRES
+    -bbt_ksp_type gmres
+    -bbt_ksp_gmres_restart 150
+    -bbt_ksp_pc_side right
+
+  ### KSP tolerances
+  -bbt_ksp_rtol 1.0e-6
+  -bbt_ksp_atol 0.0
+  -bbt_ksp_max_it 10
+
+  ### KSP monitoring
+ #-bbt_ksp_view                    # show all the options in use
+  -bbt_ksp_monitor                 # show residual norm at each iteration
+ #-bbt_ksp_monitor_range           # show #residual elem's >20% of max res
+ #-bbt_ksp_monitor_singular_value  # show singular value est at each iter
+ #-bbt_ksp_compute_eigenvalues     # show eigvals computed during Krylov iter
+
+###### BBT PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -bbt_pc_use_amat false
+
+  ### AMG algorithmic options
+  -bbt_pc_mg_type multiplicative      # multiplicative,additive,full,cascade
+ #-bbt_pc_mg_cycles 1                 # 1: V-cycle, 2: W-cycle (ignored)
+  -bbt_pc_mg_multiplicative_cycles 1  # number of MG-cycles
+ #-bbt_pc_mg_smoothup 1               # number of smoothing steps (ignored)
+ #-bbt_pc_mg_smoothdown 1             # number of smoothing steps (ignored)
+
+  ### AMG monitoring
+ #-bbt_pc_mg_log          # log time spent on each level of the solver
+ #-bbt_pc_mg_dump_matlab  # dump all the multigrid matrices to Matlab
+
+  ### AMG Galerkin coarse grid generation
+
+    # GAMG
+    -bbt_pc_type gamg
+    -bbt_pc_gamg_verbose 10
+    -bbt_pc_gamg_threshold 0.01   # rel thresh for dropping edges
+    -bbt_pc_gamg_process_eq_limit 100  # #eqn's/proc on coarse grid (goal)
+    -bbt_pc_gamg_coarse_eq_limit 1000  # #eqn's for coarse grid
+   #-bbt_pc_gamg_eigtarget  # target eigval as fraction of est. max
+   #-bbt_pc_gamg_reuse_interpolation
+   #-bbt_pc_gamg_use_agg_gasm
+    -bbt_pc_gamg_agg_nsmooths 1  # smoothing steps for smoothed aggregation
+   #-bbt_pc_gamg_sym_graph     # asymmetric matrices
+   #-bbt_pc_gamg_square_graph  # faster coarsening & lower coarse grid compl
+   #-bbt_pc_gamg_repartition
+   #-bbt_pc_gamg_mat_partitioning_type parmetis
+
+    # ML
+#   -bbt_pc_type ml
+#   -bbt_pc_ml_PrintLevel 10
+#  #-bbt_pc_ml_maxNlevels 10
+#   -bbt_pc_ml_maxCoarseSize 1000
+#   -bbt_pc_ml_CoarsenScheme Uncoupled  # Uncoupled (Coupled) MIS (METIS)
+#   -bbt_pc_ml_Threshold 0.01  # Dropping threshold in aggregation
+   #-bbt_pc_ml_BlockScaling  # Scale DOFs at each node together (bug!)
+   #-bbt_pc_ml_EnergyMinimization 3
+   #-bbt_pc_ml_EnergyMinimizationDropTol 0.001
+   #-bbt_pc_ml_Reusable
+   #-bbt_pc_ml_KeepAggInfo
+   #-bbt_pc_ml_repartition                 # repartition levels of hierarchy
+   #-bbt_pc_ml_repartitionMaxMinRatio 1.3  # ratio of repartitioned sizes
+   #-bbt_pc_ml_repartitionMinPerProc 512   # smallest repartitioned size
+   #-bbt_pc_ml_repartitionPutOnSingleProc 5000  # repart. to one processor
+   #-bbt_pc_ml_repartitionType Zoltan      # Zoltan or ParMETIS
+   #-bbt_pc_ml_Aux
+   #-bbt_pc_ml_AuxThreshold 0.001
+
+  ### AMG coarse grid KSP
+
+    ### KSP type
+    -bbt_mg_coarse_ksp_type preonly  # (others don't seem to work here)
+
+    ### KSP tolerances
+    -bbt_mg_coarse_ksp_max_it 1
+
+    ### KSP monitoring
+   #-bbt_mg_coarse_ksp_view
+
+  ### AMG coarse grid PC
+
+    ### PC type
+
+      # Block Jacobi (has sub solver)
+      -bbt_mg_coarse_pc_type bjacobi
+
+      # Additive Schwarz (has sub solver)
+     #-bbt_mg_coarse_pc_type asm
+     #-bbt_mg_coarse_pc_asm_overlap 0
+     #-bbt_mg_coarse_pc_asm_type restrict
+
+    ### Sub KSP type
+
+      # none
+      -bbt_mg_coarse_sub_ksp_type preonly
+
+      # CG
+     #-bbt_mg_coarse_sub_ksp_type cg
+     #-bbt_mg_coarse_sub_ksp_rtol 1.0e-16
+     #-bbt_mg_coarse_sub_ksp_atol 1.0e-40
+     #-bbt_mg_coarse_sub_ksp_max_it 20
+     #-bbt_mg_coarse_sub_ksp_monitor_singular_value
+
+    ### Sub PC type
+
+      # none
+     #-bbt_mg_coarse_sub_pc_type none
+
+      # Cholesky factorization
+      -bbt_mg_coarse_sub_pc_type cholesky
+     #-bbt_mg_coarse_sub_pc_factor_fill 2
+
+      # ICC(k) factorization
+     #-bbt_mg_coarse_sub_pc_type icc
+     #-bbt_mg_coarse_sub_pc_factor_levels 0
+
+      # additional factorization options
+
+        # shift matrix diagonal to get nonzero pivots
+        # (none, nonzero, positive_definite, inblocks)
+        -bbt_mg_coarse_sub_pc_factor_shift_type positive_definite
+
+      # SSOR
+     #-bbt_mg_coarse_sub_pc_type sor
+     #-bbt_mg_coarse_sub_pc_sor_symmetric
+
+  ### AMG smoothing KSP
+
+    ### KSP type
+
+      # none
+     #-bbt_mg_levels_ksp_type preonly
+
+      # CG
+     #-bbt_mg_levels_ksp_type cg
+
+      # Chebyshev smoother
+      -bbt_mg_levels_ksp_type chebyshev
+      -bbt_mg_levels_ksp_chebyshev_estimate_eigenvalues
+      -bbt_mg_levels_ksp_chebyshev_estimate_eigenvalues_random
+      -bbt_mg_levels_est_ksp_type gmres
+      -bbt_mg_levels_est_ksp_max_it 10
+
+     #-bbt_mg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -bbt_mg_levels_ksp_rtol 1.0e-16
+    -bbt_mg_levels_ksp_atol 0.0
+    -bbt_mg_levels_ksp_max_it 3
+
+    ### KSP monitoring
+   #-bbt_mg_levels_ksp_view
+   #-bbt_mg_levels_ksp_monitor
+   #-bbt_mg_levels_ksp_monitor_singular_value
+   #-bbt_mg_levels_ksp_compute_eigenvalues
+
+  ### AMG smoothing PC
+
+    ### PC type
+
+      # Jacobi
+      -bbt_mg_levels_pc_type jacobi
+
+      # Block Jacobi (has sub solver)
+     #-bbt_mg_levels_pc_type bjacobi
+
+      # Additive Schwarz (has sub solver)
+     #-bbt_mg_levels_pc_type asm
+     #-bbt_mg_levels_pc_asm_overlap 0
+     #-bbt_mg_levels_pc_asm_type restrict
+
+      # SOR
+     #-bbt_mg_levels_pc_type sor
+     #-bbt_mg_levels_pc_sor_slow_richardson
+
+    ### Sub KSP type
+
+      # none
+     #-bbt_mg_levels_sub_ksp_type preonly
+
+    ### Sub PC type
+
+      # Cholesky factorization
+     #-bbt_mg_levels_sub_pc_type cholesky
+     #-bbt_mg_levels_sub_pc_factor_fill 50
+
+      # ICC(k) factorization
+     #-bbt_mg_levels_sub_pc_type icc
+     #-bbt_mg_levels_sub_pc_factor_levels 0
+     #-bbt_mg_levels_sub_pc_factor_in_place
+
+      # additional factorization options
+
+        # shift matrix diagonal to get nonzero pivots
+        # (none, nonzero, positive_definite, inblocks)
+       #-bbt_mg_levels_sub_pc_factor_shift_type positive_definite
+
+      # SSOR
+     #-bbt_mg_levels_sub_pc_type sor
+     #-bbt_mg_levels_sub_pc_sor_omega 1.0
+     #-bbt_mg_levels_sub_pc_sor_symmetric
+     #-bbt_mg_levels_sub_pc_sor_its 1
+     #-bbt_mg_levels_sub_pc_sor_local_symmetric
+     #-bbt_mg_levels_sub_pc_sor_lits 1
+     #-bbt_mg_levels_sub_pc_sor_diagonal_shift
+
+      # SSOR with Eisenstat's trick to reduce amount of computation
+     #-bbt_mg_levels_sub_pc_type eisenstat
+     #-bbt_mg_levels_sub_pc_eisenstat_omega 1.0
+     #-bbt_mg_levels_sub_pc_eisenstat_no_diagonal_scaling
+
