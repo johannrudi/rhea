@@ -25,6 +25,7 @@
 */
 
 #include <slabs_setup.h>
+#include <rhea.h>
 #include <ymir.h>
 #include <ymir_comm.h>
 #include <ymir_stokes_vec.h>
@@ -3348,8 +3349,8 @@ main (int argc, char **argv)
    * Initialize Libraries
    */
 
-  /* initialize ymir and dependent libraries */
-  ymir_initialize (argc, argv, mpicomm, NULL, SC_LP_DEFAULT, SC_LP_INFO);
+  /* initialize rhea and sub-packages */
+  rhea_initialize (argc, argv, mpicomm);
 
   /* get parallel environment */
   mpiret = MPI_Comm_size (mpicomm, &mpisize); YMIR_CHECK_MPI (mpiret);
@@ -3530,8 +3531,14 @@ main (int argc, char **argv)
                  enforce_refinement_data, coarsen_coeff_data,
                  &physics_options, &discr_options);
 
-    /* finalize ymir */
-    ymir_finalize ();
+    /* destroy options */
+    ymir_options_global_destroy ();
+
+    /* print that this function is ending */
+    YMIR_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+
+    /* finalize rhea */
+    rhea_finalize ();
 
     return 0;
   }
@@ -3794,12 +3801,12 @@ main (int argc, char **argv)
 
   /* print performance statistics */
   ymir_gmg_hierarchy_mesh_perf_counter_print ();   /* GMG mesh */
-  ymir_stress_op_perf_counter_print ();            /* Stress Op */
-  ymir_stress_pc_perf_counter_print ();            /* Stress PC */
-  ymir_gmg_hierarchy_stress_perf_counter_print (); /* GMG stress */
   ymir_stiff_op_perf_counter_print ();             /* Stiffness Op */
   ymir_stiff_pc_perf_counter_print ();             /* Stiffness PC */
   ymir_gmg_hierarchy_stiff_perf_counter_print ();  /* GMG stiffness */
+  ymir_stress_op_perf_counter_print ();            /* Stress Op */
+  ymir_stress_pc_perf_counter_print ();            /* Stress PC */
+  ymir_gmg_hierarchy_stress_perf_counter_print (); /* GMG stress */
   ymir_pressure_vec_perf_counter_print ();         /* B^T or B */
   ymir_bbt_perf_counter_print ();                  /* BB^T */
 //ymir_gmg_hierarchy_bbt_perf_counter_print ();    /* GMG BB^T */
@@ -3842,8 +3849,8 @@ main (int argc, char **argv)
   /* print that this function is ending */
   YMIR_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 
-  /* finalize ymir */
-  ymir_finalize ();
+  /* finalize rhea */
+  rhea_finalize ();
 
   return 0;
 }
