@@ -6,10 +6,14 @@
 librhea_generated_headers = src/rhea_config.h
 librhea_installed_headers = \
         src/rhea_base.h \
+        src/rhea_domain.h \
+        src/rhea_viscosity.h \
         src/rhea.h
 librhea_internal_headers =
 librhea_compiled_sources = \
-        src/rhea_base.c
+        src/rhea_base.c \
+        src/rhea_domain.c \
+        src/rhea_viscosity.c
 
 RHEA_CPPFLAGS =
 RHEA_LDADD = @top_builddir@/src/librhea.la @RHEA_YMIR_LDADD@ \
