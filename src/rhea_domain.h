@@ -7,35 +7,41 @@
 /* enumerator for domain shapes */
 typedef enum
 {
-  SL_DOMAIN_CUBE,
-  SL_DOMAIN_BRICK,
-  SL_DOMAIN_SHELL,
-  SL_DOMAIN_SHELL_CHUNK,
-  SL_DOMAIN_SHELL_SLICE
+  RHEA_DOMAIN_CUBE,
+  RHEA_DOMAIN_BRICK,
+  RHEA_DOMAIN_SHELL,
+  RHEA_DOMAIN_SHELL_CHUNK,
+  RHEA_DOMAIN_SHELL_SLICE
 }
-slabs_domain_shape_t;
+rhea_domain_shape_t;
 
-/* parameter list for mantle flow physics */
-typedef struct slabs_physics_options
+/* options & properties of domains */
+typedef struct rhea_domain_options
 {
-  double              domain_x_min;
-  double              domain_x_max;
-  double              domain_y_min;
-  double              domain_y_max;
-  double              domain_z_min;
-  double              domain_z_max;
-  double              domain_lon_min;
-  double              domain_lon_max;
-  double              domain_radius_min;
-  double              domain_radius_max;
+  /* shape of the domain */
+  rhea_domain_shape_t shape;
 
-  double              viscosity_upper_mantle_radius;
-  double              viscosity_lower_upper_transition_zone;
+  /* the domain knows the location of the lower-upper mantle interface,
+   * which causes discontinuous material properties */
+  double              lm_um_interface_radius;
+  double              lm_um_interface_smooth_transition_width;
 
-  double              domain_volume;
-  double              domain_center[3];
-  double              domain_moment_of_inertia[3];
+  /* properties of the domain */
+  double              x_min;
+  double              x_max;
+  double              y_min;
+  double              y_max;
+  double              z_min;
+  double              z_max;
+  double              lon_min;
+  double              lon_max;
+  double              radius_min;
+  double              radius_max;
+
+  double              volume;
+  double              center[3];
+  double              moment_of_inertia[3];
 }
-slabs_physics_options_t;
+rhea_domain_options_t;
 
 #endif /* RHEA_DOMAIN_H */
