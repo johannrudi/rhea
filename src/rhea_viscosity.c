@@ -3,6 +3,7 @@
 
 #include <rhea_viscosity.h>
 #include <rhea_base.h>
+#include <sc_dmatrix.h>
 
 /**
  * Calculates linear (i.e., temperature dependent) viscosity term from
@@ -108,9 +109,10 @@ rhea_viscosity_linear_elem (sc_dmatrix_t *visc_el_mat,
   const double        lm_activ_energy = opt->lower_mantle_activation_energy;
   const int           n_nodes_per_el = visc_el_mat->m;
   const double       *temp_el_data = temp_el_mat->e[0];
-
-  double              scaling, activ_energy;
+  const double       *weak_el_data = ( weak_el_mat != NULL ?
+                                       weak_el_mat->e[0] : NULL );
   double             *visc_el_data = visc_el_mat->e[0];
+  double              scaling, activ_energy;
   int                 nodeid;
 
   /* check input */
@@ -181,7 +183,7 @@ rhea_viscosity_linear_elem (sc_dmatrix_t *visc_el_mat,
  * Computes linear viscosity.
  */
 static void
-rhea_viscosity_linear (ymir_vec_t *viscosity,
+rhea_viscosity_linear_vec (ymir_vec_t *viscosity,
                        slabs_stokes_state_t *state,
                        rhea_viscosity_options_t *opt)
 {

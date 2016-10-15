@@ -13,7 +13,7 @@ typedef enum
   RHEA_VISCOSITY_LINEAR,
   RHEA_VISCOSITY_NONLINEAR
 }
-RHEA_viscosity_t;
+rhea_viscosity_t;
 
 /* enumerator for types of initial viscosities for nonlinear Stokes problems */
 typedef enum
@@ -31,15 +31,15 @@ typedef enum
 {
   /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound
    * viscosity bounds via cut-off */
-  SL_VISCOSITY_MODEL_UWYL,
+  RHEA_VISCOSITY_MODEL_UWYL,
 
   /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound
    * upper viscosity bound via cut-off, lower viscosity bound via addition */
-  SL_VISCOSITY_MODEL_UWYL_LREG,
+  RHEA_VISCOSITY_MODEL_UWYL_LREG,
 
   /* (1) upper bound + shift, (2) weak zone, (3) yielding, (4) lower bound
    * upper viscosity bound via shift, lower viscosity bound via addition */
-  SL_VISCOSITY_MODEL_UWYL_SHIFT_LREG
+  RHEA_VISCOSITY_MODEL_UWYL_SHIFT_LREG
 }
 rhea_viscosity_model_t;
 

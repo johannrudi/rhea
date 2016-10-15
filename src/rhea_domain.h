@@ -52,4 +52,14 @@ double              rhea_domain_compute_radius (const double x, const double y,
                                                 const double z,
                                                 rhea_domain_options_t *opt);
 
+/**
+ * Returns whether the element's center is located in the upper mantle.
+ */
+int                 rhea_domain_elem_is_in_upper_mantle (
+                                                  const double *x,
+                                                  const double *y,
+                                                  const double *z,
+                                                  const int *Vmask,
+                                                  rhea_domain_options_t *opt);
+
 #endif /* RHEA_DOMAIN_H */

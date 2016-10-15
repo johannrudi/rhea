@@ -56,3 +56,16 @@ rhea_domain_compute_radius_at_elem_center (const double *_sc_restrict x,
   /* return mean value of radii at vertices */
   return radii_sum / 8.0;
 }
+
+int
+rhea_domain_elem_is_in_upper_mantle (const double *x, const double *y,
+                                     const double *z, const int *Vmask,
+                                     rhea_domain_options_t *opt)
+{
+  const double        lm_um_interface_radius = opt->lm_um_interface_radius;
+  const double        r_center =
+    rhea_domain_compute_radius_at_elem_center (x, y, z, Vmask, opt);
+
+  /* return if radius of the element's center is in upper mantle */
+  return (lm_um_interface_radius <= r_center);
+}
