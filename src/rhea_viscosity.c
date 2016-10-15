@@ -3,7 +3,7 @@
 
 #include <rhea_viscosity.h>
 #include <rhea_base.h>
-#include <sc_dmatrix.h>
+#include <ymir_vec.h>
 
 /**
  * Calculates linear (i.e., temperature dependent) viscosity term from
@@ -178,63 +178,65 @@ rhea_viscosity_linear_elem (sc_dmatrix_t *visc_el_mat,
   }
 }
 
-#if 0
 /**
  * Computes linear viscosity.
  */
 static void
-rhea_viscosity_linear_vec (ymir_vec_t *viscosity,
-                       slabs_stokes_state_t *state,
-                       rhea_viscosity_options_t *opt)
+rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
+                           ymir_vec_t *temp_vec,
+                           ymir_vec_t *weak_vec,
+                           rhea_viscosity_options_t *opt)
 {
-  ymir_vec_t         *temp_vec = state->temp_vec;
-  ymir_vec_t         *weak_vec = state->weak_vec;
-  ymir_mesh_t        *mesh = viscosity->mesh;
+  const int           restrict_to_bounds = 1;
+//TODO provide functions for these:
+  ymir_mesh_t        *mesh = visc_vec->mesh;
   mangll_t           *mangll = mesh->ma;
-  const mangll_locidx_t  n_elements = mesh->cnodes->K;
+  const ymir_locidx_t  n_elements = mesh->cnodes->K;
   const int           N = ymir_n (mangll->N);
   const int           n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  const int          *Vmask = mangll->refel->Vmask;
 
   sc_dmatrix_t       *temp_el_mat;
   sc_dmatrix_t       *weak_el_mat;
   sc_dmatrix_t       *visc_el_mat;
   double             *x, *y, *z, *tmp_el;
-  mangll_locidx_t     elid;
+  ymir_locidx_t       elid;
 
-  /* check input parameters */
-  YMIR_ASSERT (state->temperature != NULL);
-  YMIR_ASSERT (state->temp_vec != NULL);
-  YMIR_ASSERT (state->weakzone != NULL);
-  YMIR_ASSERT (state->weak_vec != NULL);
+  /* check input */
+  YMIR_ASSERT_IS_CVEC (temp_vec);
+  YMIR_ASSERT_IS_DVEC (weak_vec);
+  YMIR_ASSERT_IS_DVEC (visc_vec);
 
   /* create work variables */
   temp_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  x = YMIR_ALLOC (double, n_nodes_per_el);
-  y = YMIR_ALLOC (double, n_nodes_per_el);
-  z = YMIR_ALLOC (double, n_nodes_per_el);
-  tmp_el = YMIR_ALLOC (double, n_nodes_per_el);
+  x = RHEA_ALLOC (double, n_nodes_per_el);
+  y = RHEA_ALLOC (double, n_nodes_per_el);
+  z = RHEA_ALLOC (double, n_nodes_per_el);
+  tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
-    /* get coordinates of this element at Gauss nodes */
-    slabs_elem_get_gauss_coordinates (x, y, z, elid, mangll, tmp_el);
+    /* get coordinates at Gauss nodes */
+    //TODO
+    //slabs_elem_get_gauss_coordinates (x, y, z, elid, mangll, tmp_el);
 
-    /* get temperature field of this element from state at Gauss nodes */
+    /* get temperature field at Gauss nodes */
     ymir_cvec_get_elem_interp (temp_vec, temp_el_mat, YMIR_STRIDE_NODE, elid,
                                YMIR_GAUSS_NODE, YMIR_READ);
-    slabs_matrix_bound_values (temp_el_mat, 0.0, 1.0);
+    //TODO
+    //slabs_matrix_bound_values (temp_el_mat, 0.0, 1.0);
 
-    /* get weak zone of this element */
+    /* get weak zone */
     ymir_dvec_get_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid,
                         YMIR_READ);
 
-    /* compute temperature dependent viscosity (restrict to bounds) */
-    slabs_visc_temp_elem (visc_el_mat, x, y, z, mangll->refel->Vmask,
-                          temp_el_mat, weak_el_mat, opt, 1);
+    /* compute linear viscosity */
+    rhea_viscosity_linear_elem (visc_el_mat, x, y, z, Vmask, temp_el_mat,
+                                weak_el_mat, opt, restrict_to_bounds);
 
-    /* set viscosity of this element */
-    ymir_dvec_set_elem (viscosity, visc_el_mat, YMIR_STRIDE_NODE, elid,
+    /* set viscosity */
+    ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid,
                         YMIR_SET);
   }
 
@@ -242,9 +244,8 @@ rhea_viscosity_linear_vec (ymir_vec_t *viscosity,
   sc_dmatrix_destroy (temp_el_mat);
   sc_dmatrix_destroy (weak_el_mat);
   sc_dmatrix_destroy (visc_el_mat);
-  YMIR_FREE (x);
-  YMIR_FREE (y);
-  YMIR_FREE (z);
-  YMIR_FREE (tmp_el);
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
 }
-#endif
