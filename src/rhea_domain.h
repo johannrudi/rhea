@@ -44,4 +44,12 @@ typedef struct rhea_domain_options
 }
 rhea_domain_options_t;
 
+/**
+ * Computes the radius of a shell domain or the corresponding value for a
+ * rectangular domain.
+ */
+double              rhea_domain_compute_radius (const double x, const double y,
+                                                const double z,
+                                                rhea_domain_options_t *opt);
+
 #endif /* RHEA_DOMAIN_H */
