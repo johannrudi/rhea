@@ -9,22 +9,22 @@
 /* enumerator for types of viscosities */
 typedef enum
 {
-  SL_VISCOSITY_CONST,
-  SL_VISCOSITY_LINEAR,
-  SL_VISCOSITY_NONLINEAR
+  RHEA_VISCOSITY_CONST,
+  RHEA_VISCOSITY_LINEAR,
+  RHEA_VISCOSITY_NONLINEAR
 }
-slabs_viscosity_t;
+RHEA_viscosity_t;
 
-/* enumerator for types of initial viscosities for nonlinear Stokes problem*/
+/* enumerator for types of initial viscosities for nonlinear Stokes problems */
 typedef enum
 {
-  SL_VISCOSITY_INIT_NL_STOKES_DEFAULT,
-  SL_VISCOSITY_INIT_NL_STOKES_CONST_CENTERED_TO_BOUNDS,
-  SL_VISCOSITY_INIT_NL_STOKES_CONST_MIN_BOUND,
-  SL_VISCOSITY_INIT_NL_STOKES_TEMP,
-  SL_VISCOSITY_INIT_NL_STOKES_TEMP_UM_REL_TO_LM
+  RHEA_VISCOSITY_INIT_NONLINEAR_DEFAULT,
+  RHEA_VISCOSITY_INIT_NONLINEAR_CONST_CENTERED_TO_BOUNDS,
+  RHEA_VISCOSITY_INIT_NONLINEAR_CONST_MIN_BOUND,
+  RHEA_VISCOSITY_INIT_NONLINEAR_TEMP,
+  RHEA_VISCOSITY_INIT_NONLINEAR_TEMP_UM_REL_TO_LM
 }
-slabs_viscosity_init_nl_stokes_t;
+rhea_viscosity_init_nonlinear_t;
 
 /* enumerator for types of viscosity models */
 typedef enum
@@ -41,28 +41,35 @@ typedef enum
    * upper viscosity bound via shift, lower viscosity bound via addition */
   SL_VISCOSITY_MODEL_UWYL_SHIFT_LREG
 }
-slabs_viscosity_model_t;
+rhea_viscosity_model_t;
 
-/* parameter list for mantle flow physics */
-typedef struct slabs_physics_options
+/* options of the mantle's viscosity */
+typedef struct rhea_viscosity_options
 {
-  slabs_viscosity_t                 type;
-  slabs_viscosity_init_nl_stokes_t  type_for_init_nonlinear;
-  slabs_viscosity_model_t           model_type;
+  /* type & model of the viscosity */
+  rhea_viscosity_t                 type;
+  rhea_viscosity_init_nonlinear_t  type_init_nonlinear;
+  rhea_viscosity_model_t           model;
 
+  /* lower and upper bounds for the viscosity */
   double              min;
   double              max;
 
+  /* scaling factor and activation energy in Arrhenius relationship */
   double              upper_mantle_scaling;
   double              upper_mantle_activation_energy;
   double              lower_mantle_scaling;
   double              lower_mantle_activation_energy;
 
+  /* strain rate weakening is governed by this exponent (aka. `n`) */
   double              stress_exponent;
-  double              stress_yield;
 
+  /* value of viscous stress above which plastic yielding occurs */
+  double              yield_stress;
+
+  /* options & properties of the computational domain */
   rhea_domain_options_t  *domain_options;
 }
-slabs_physics_options_t;
+rhea_viscosity_options_t;
 
 #endif /* RHEA_VISCOSITY_H */
