@@ -88,13 +88,14 @@ rhea_viscosity_linear_node (const double temp,
  * Computes linear viscosity in an element.
  */
 static void
-rhea_viscosity_linear_elem (sc_dmatrix_t *visc_el_mat,
+rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
+                            const double *_sc_restrict temp_elem,
+                            const double *_sc_restrict weak_elem,
                             const double *_sc_restrict x,
                             const double *_sc_restrict y,
                             const double *_sc_restrict z,
-                            const int *Vmask,
-                            const sc_dmatrix_t *temp_el_mat,
-                            const sc_dmatrix_t *weak_el_mat,
+                            const int n_nodes,
+                            const int *_sc_restrict Vmask,
                             rhea_viscosity_options_t *opt,
                             const int restrict_to_bounds)
 {
@@ -107,23 +108,13 @@ rhea_viscosity_linear_elem (sc_dmatrix_t *visc_el_mat,
   const double        um_activ_energy = opt->upper_mantle_activation_energy;
   const double        lm_scaling = opt->lower_mantle_scaling;
   const double        lm_activ_energy = opt->lower_mantle_activation_energy;
-  const int           n_nodes_per_el = visc_el_mat->m;
-  const double       *temp_el_data = temp_el_mat->e[0];
-  const double       *weak_el_data = ( weak_el_mat != NULL ?
-                                       weak_el_mat->e[0] : NULL );
-  double             *visc_el_data = visc_el_mat->e[0];
   double              scaling, activ_energy;
   int                 nodeid;
 
   /* check input */
-  RHEA_ASSERT (visc_el_mat->n == 1);
-  RHEA_ASSERT (temp_el_mat != NULL);
-  RHEA_ASSERT (temp_el_mat->m == visc_el_mat->m);
-  RHEA_ASSERT (temp_el_mat->n == visc_el_mat->n);
-  RHEA_ASSERT (sc_dmatrix_is_valid (temp_el_mat));
-  RHEA_ASSERT (weak_el_mat == NULL || weak_el_mat->m == visc_el_mat->m);
-  RHEA_ASSERT (weak_el_mat == NULL || weak_el_mat->n == visc_el_mat->n);
-  RHEA_ASSERT (weak_el_mat == NULL || sc_dmatrix_is_valid (weak_el_mat));
+  RHEA_ASSERT (temp_elem != NULL);
+  RHEA_ASSERT (x != NULL && y != NULL && z != NULL);
+  RHEA_ASSERT (Vmask != NULL);
 
   /* set parameters depending on location in lower or upper mantle */
   if (rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask, domain_options)) {
@@ -136,25 +127,26 @@ rhea_viscosity_linear_elem (sc_dmatrix_t *visc_el_mat,
   }
 
   /* compute viscosity at each node of this element */
-  for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+  for (nodeid = 0; nodeid < n_nodes; nodeid++) {
     const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
                                                         z[nodeid],
                                                         domain_options);
-    const double        temp = temp_el_data[nodeid];
-    const double        weak = ( weak_el_mat != NULL ?
-                                 weak_el_data[nodeid] : 1.0 );
+    const double        temp = temp_elem[nodeid];
+    const double        weak = (weak_elem != NULL ? weak_elem[nodeid] : 1.0);
 
     /* check temperature for valid range [0,1] */
+    RHEA_ASSERT (isfinite (temp));
     RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
     /* check weak zone for valid range (0,1] */
-    RHEA_ASSERT (weak_el_mat == NULL || (0.0 < weak && weak <= 1.0));
+    RHEA_ASSERT (weak_elem == NULL || isfinite (weak));
+    RHEA_ASSERT (weak_elem == NULL || (0.0 < weak && weak <= 1.0));
 
     /* compute viscosity */
     if (lm_um_interface_radius <= 0.0 || transition_width <= 0.0 ||
         transition_width < fabs (r - lm_um_interface_radius)) {
       /* compute viscosity "sufficiently far" from LM/UM interface or with a
        * discontinuous LM/UM interface */
-      visc_el_data[nodeid] = rhea_viscosity_linear_node (
+      visc_elem[nodeid] = rhea_viscosity_linear_node (
           temp, weak, scaling, activ_energy, opt, restrict_to_bounds);
     }
     else { /* if close to LM/UM interface and must apply smoothing */
@@ -169,12 +161,12 @@ rhea_viscosity_linear_elem (sc_dmatrix_t *visc_el_mat,
           temp, weak, lm_scaling, lm_activ_energy, opt, restrict_to_bounds);
       visc_um = rhea_viscosity_linear_node (
           temp, weak, um_scaling, um_activ_energy, opt, restrict_to_bounds);
-      visc_el_data[nodeid] = (1.0 - c) * visc_lm + c * visc_um;
+      visc_elem[nodeid] = (1.0 - c) * visc_lm + c * visc_um;
     }
 
     /* check viscosity for `nan`, `inf`, and positivity */
-    RHEA_ASSERT (isfinite (visc_el_data[nodeid]));
-    RHEA_ASSERT (0.0 < visc_el_data[nodeid]);
+    RHEA_ASSERT (isfinite (visc_elem[nodeid]));
+    RHEA_ASSERT (0.0 < visc_elem[nodeid]);
   }
 }
 
@@ -232,8 +224,9 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
                         YMIR_READ);
 
     /* compute linear viscosity */
-    rhea_viscosity_linear_elem (visc_el_mat, x, y, z, Vmask, temp_el_mat,
-                                weak_el_mat, opt, restrict_to_bounds);
+    rhea_viscosity_linear_elem (visc_el_mat->e[0], temp_el_mat->e[0],
+                                weak_el_mat->e[0], x, y, z, n_nodes_per_el,
+                                Vmask, opt, restrict_to_bounds);
 
     /* set viscosity */
     ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid,
