@@ -15,7 +15,7 @@ typedef enum
 }
 rhea_domain_shape_t;
 
-/* options & properties of domains */
+/* options & properties of a computational domain */
 typedef struct rhea_domain_options
 {
   /* shape of the domain */

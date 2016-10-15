@@ -37,9 +37,9 @@ rhea_domain_compute_radius (const double x, const double y, const double z,
  * (or the corresponding value in case of a rectangular domain).
  */
 static double
-rhea_domain_compute_radius_at_elem_center (const double *x,
-                                           const double *y,
-                                           const double *z,
+rhea_domain_compute_radius_at_elem_center (const double *_sc_restrict x,
+                                           const double *_sc_restrict y,
+                                           const double *_sc_restrict z,
                                            const int *_sc_restrict Vmask,
                                            rhea_domain_options_t *opt)
 {

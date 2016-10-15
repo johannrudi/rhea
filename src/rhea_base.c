@@ -25,11 +25,11 @@ rhea_init (sc_log_handler_t log_handler, int log_threshold)
 }
 
 void
-rhea_initialize (int argc, char ** argv, MPI_Comm mpicomm)
+rhea_initialize (int argc, char **argv, MPI_Comm mpicomm)
 {
   sc_log_handler_t    log_handler = NULL;
   int                 rhea_log_threshold = SC_LP_DEFAULT;
-  ymir_log_threshold_set_t ymir_log_threshold;
+  ymir_log_threshold_set_t  ymir_log_threshold;
 
   /* initialize sub-packages */
   ymir_log_threshold.sc = SC_LP_INFO;

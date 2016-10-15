@@ -171,7 +171,7 @@ void                rhea_init (sc_log_handler_t log_handler,
 
 /** TODO
  */
-void                rhea_initialize (int argc, char ** argv, MPI_Comm mpicomm);
+void                rhea_initialize (int argc, char **argv, MPI_Comm mpicomm);
 
 /** TODO
  */
