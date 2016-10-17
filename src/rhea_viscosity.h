@@ -87,4 +87,9 @@ void                rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec,
                                                    sc_dmatrix_t *visc_el_mat,
                                                    const ymir_locidx_t elid);
 
+void                rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
+                                               ymir_vec_t *temp_vec,
+                                               ymir_vec_t *weak_vec,
+                                               rhea_viscosity_options_t *opt);
+
 #endif /* RHEA_VISCOSITY_H */

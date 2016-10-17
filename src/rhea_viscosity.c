@@ -211,7 +211,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
 /**
  * Computes linear viscosity.
  */
-static void
+void
 rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
                            ymir_vec_t *temp_vec,
                            ymir_vec_t *weak_vec,
@@ -219,7 +219,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
 {
   const int           restrict_to_bounds = 1;
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
-  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_log (mesh);
+  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
 
