@@ -26,6 +26,7 @@
 
 #include <slabs_physics.h>
 #include <slabs_physics_extended.h>
+#include <rhea_viscosity.h>
 #include <ymir_comm.h>
 #include <ymir_velocity_vec.h>
 #include <ymir_stokes_vec.h>
@@ -3189,63 +3190,48 @@ slabs_viscosity_linear (ymir_dvec_t *viscosity,
 {
   ymir_cvec_t        *temp_vec = state->temp_vec;
   ymir_dvec_t        *weak_vec = state->weak_vec;
-  ymir_mesh_t        *mesh = viscosity->mesh;
-  mangll_t           *mangll = mesh->ma;
-  const mangll_locidx_t  n_elements = mesh->cnodes->K;
-  const int           N = ymir_n (mangll->N);
-  const int           n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
+  rhea_domain_options_t     domain_opt;
+  rhea_viscosity_options_t  visc_opt;
 
-  sc_dmatrix_t       *temp_el_mat;
-  sc_dmatrix_t       *weak_el_mat;
-  sc_dmatrix_t       *visc_el_mat;
-  double             *x, *y, *z, *tmp_el;
-  mangll_locidx_t     elid;
+  //TODO remove this copying of options
+  domain_opt.shape = physics_options->domain_shape;
+  domain_opt.lm_um_interface_radius =
+    physics_options->viscosity_upper_mantle_radius;
+  domain_opt.lm_um_interface_smooth_transition_width =
+    physics_options->viscosity_lower_upper_transition_zone;
+  domain_opt.x_min = physics_options->domain_x_min;
+  domain_opt.x_max = physics_options->domain_x_max;
+  domain_opt.y_min = physics_options->domain_y_min;
+  domain_opt.y_max = physics_options->domain_y_max;
+  domain_opt.z_min = physics_options->domain_z_min;
+  domain_opt.z_max = physics_options->domain_z_max;
+  domain_opt.lon_min = physics_options->domain_lon_min;
+  domain_opt.lon_max = physics_options->domain_lon_max;
+  domain_opt.radius_min = physics_options->domain_radius_min;
+  domain_opt.radius_max = physics_options->domain_radius_max;
+//domain_opt.volume = ;
+//domain_opt.center = ;
+//domain_opt.moment_of_inertia = ;
 
-  /* check input parameters */
-  YMIR_ASSERT (state->temperature != NULL);
-  YMIR_ASSERT (state->temp_vec != NULL);
-  YMIR_ASSERT (state->weakzone != NULL);
-  YMIR_ASSERT (state->weak_vec != NULL);
+  visc_opt.type = physics_options->viscosity_type;
+  visc_opt.type_init_nonlinear =
+    physics_options->viscosity_type_for_init_nl_stokes;
+  visc_opt.model = RHEA_VISCOSITY_MODEL_UWYL_SHIFT_LREG;
+  visc_opt.min = physics_options->viscosity_min;
+  visc_opt.max = physics_options->viscosity_max;
+  visc_opt.upper_mantle_scaling =
+    physics_options->viscosity_scaling;
+  visc_opt.upper_mantle_activation_energy =
+    physics_options->viscosity_temp_decay;
+  visc_opt.lower_mantle_scaling =
+    physics_options->viscosity_lower_mantle_scaling;
+  visc_opt.lower_mantle_activation_energy =
+    physics_options->viscosity_lower_mantle_temp_decay;
+  visc_opt.stress_exponent = physics_options->viscosity_stress_exponent;
+  visc_opt.yield_stress = physics_options->viscosity_stress_yield;
+  visc_opt.domain_options = &domain_opt;
 
-  /* create work variables */
-  temp_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  x = YMIR_ALLOC (double, n_nodes_per_el);
-  y = YMIR_ALLOC (double, n_nodes_per_el);
-  z = YMIR_ALLOC (double, n_nodes_per_el);
-  tmp_el = YMIR_ALLOC (double, n_nodes_per_el);
-
-  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
-    /* get coordinates of this element at Gauss nodes */
-    slabs_elem_get_gauss_coordinates (x, y, z, elid, mangll, tmp_el);
-
-    /* get temperature field of this element from state at Gauss nodes */
-    ymir_cvec_get_elem_interp (temp_vec, temp_el_mat, YMIR_STRIDE_NODE, elid,
-                               YMIR_GAUSS_NODE, YMIR_READ);
-    slabs_matrix_bound_values (temp_el_mat, 0.0, 1.0);
-
-    /* get weak zone of this element */
-    ymir_dvec_get_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid,
-                        YMIR_READ);
-
-    /* compute temperature dependent viscosity (restrict to bounds) */
-    slabs_visc_temp_elem (visc_el_mat, x, y, z, mangll->refel->Vmask,
-                          temp_el_mat, weak_el_mat, physics_options, 1);
-
-    /* set viscosity of this element */
-    ymir_dvec_set_elem (viscosity, visc_el_mat, YMIR_STRIDE_NODE, elid,
-                        YMIR_SET);
-  }
-
-  /* destroy */
-  sc_dmatrix_destroy (temp_el_mat);
-  sc_dmatrix_destroy (weak_el_mat);
-  sc_dmatrix_destroy (visc_el_mat);
-  YMIR_FREE (x);
-  YMIR_FREE (y);
-  YMIR_FREE (z);
-  YMIR_FREE (tmp_el);
+  rhea_viscosity_linear_vec (viscosity, temp_vec, weak_vec, &visc_opt);
 }
 
 /**
