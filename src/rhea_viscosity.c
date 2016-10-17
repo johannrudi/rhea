@@ -3,7 +3,45 @@
 
 #include <rhea_viscosity.h>
 #include <rhea_base.h>
-#include <ymir_vec.h>
+#include <rhea_temperature.h>
+#include <rhea_weakzone.h>
+#include <ymir_vec_getset.h>
+
+void
+rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
+                               const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (visc_vec);
+  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (visc_el_mat->n == 1);
+#endif
+
+  ymir_dvec_get_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
+}
+
+void
+rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec, sc_dmatrix_t *visc_el_mat,
+                               const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (visc_vec);
+  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (visc_el_mat->n == 1);
+#endif
+
+  ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+}
 
 /**
  * Calculates linear (i.e., temperature dependent) viscosity term from
@@ -180,13 +218,10 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
                            rhea_viscosity_options_t *opt)
 {
   const int           restrict_to_bounds = 1;
-//TODO provide functions for these:
-  ymir_mesh_t        *mesh = visc_vec->mesh;
-  mangll_t           *mangll = mesh->ma;
-  const ymir_locidx_t  n_elements = mesh->cnodes->K;
-  const int           N = ymir_n (mangll->N);
-  const int           n_nodes_per_el = (N + 1) * (N + 1) * (N + 1);
-  const int          *Vmask = mangll->refel->Vmask;
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
+  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_log (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+  const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
 
   sc_dmatrix_t       *temp_el_mat;
   sc_dmatrix_t       *weak_el_mat;
@@ -210,18 +245,13 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates at Gauss nodes */
-    //TODO
-    //slabs_elem_get_gauss_coordinates (x, y, z, elid, mangll, tmp_el);
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
     /* get temperature field at Gauss nodes */
-    ymir_cvec_get_elem_interp (temp_vec, temp_el_mat, YMIR_STRIDE_NODE, elid,
-                               YMIR_GAUSS_NODE, YMIR_READ);
-    //TODO
-    //slabs_matrix_bound_values (temp_el_mat, 0.0, 1.0);
+    rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
 
     /* get weak zone */
-    ymir_dvec_get_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid,
-                        YMIR_READ);
+    rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
 
     /* compute linear viscosity */
     rhea_viscosity_linear_elem (visc_el_mat->e[0], temp_el_mat->e[0],
@@ -229,8 +259,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
                                 Vmask, opt, restrict_to_bounds);
 
     /* set viscosity */
-    ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid,
-                        YMIR_SET);
+    rhea_viscosity_set_elem_gauss (visc_vec, visc_el_mat, elid);
   }
 
   /* destroy */

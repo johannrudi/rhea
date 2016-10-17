@@ -5,6 +5,7 @@
 #define RHEA_VISCOSITY_H
 
 #include <rhea_domain.h>
+#include <ymir_vec_ops.h>
 
 /* enumerator for types of viscosities */
 typedef enum
@@ -71,5 +72,19 @@ typedef struct rhea_viscosity_options
   rhea_domain_options_t  *domain_options;
 }
 rhea_viscosity_options_t;
+
+/**
+ * Gets the viscosity of one element at Gauss nodes.
+ */
+void                rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat,
+                                                   ymir_vec_t *visc_vec,
+                                                   const ymir_locidx_t elid);
+
+/**
+ * Sets the viscosity of one element at Gauss nodes.
+ */
+void                rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec,
+                                                   sc_dmatrix_t *visc_el_mat,
+                                                   const ymir_locidx_t elid);
 
 #endif /* RHEA_VISCOSITY_H */
