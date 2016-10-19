@@ -36,11 +36,11 @@ typedef enum
 
   /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound
    * upper viscosity bound via cut-off, lower viscosity bound via addition */
-  RHEA_VISCOSITY_MODEL_UWYL_LREG,
+  RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT,
 
   /* (1) upper bound + shift, (2) weak zone, (3) yielding, (4) lower bound
    * upper viscosity bound via shift, lower viscosity bound via addition */
-  RHEA_VISCOSITY_MODEL_UWYL_SHIFT_LREG
+  RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT
 }
 rhea_viscosity_model_t;
 
@@ -67,6 +67,7 @@ typedef struct rhea_viscosity_options
 
   /* value of viscous stress above which plastic yielding occurs */
   double              yield_stress;
+  double              yielding_regularization;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t  *domain_options;
