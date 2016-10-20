@@ -9,6 +9,7 @@ librhea_installed_headers = \
         src/rhea_domain.h \
         src/rhea_temperature.h \
         src/rhea_weakzone.h \
+        src/rhea_velocity.h \
         src/rhea_viscosity.h \
         src/rhea.h
 librhea_internal_headers =
@@ -17,6 +18,7 @@ librhea_compiled_sources = \
         src/rhea_domain.c \
         src/rhea_temperature.c \
         src/rhea_weakzone.c \
+        src/rhea_velocity.c \
         src/rhea_viscosity.c
 
 RHEA_CPPFLAGS =

@@ -5,6 +5,7 @@
 #include <rhea_base.h>
 #include <rhea_temperature.h>
 #include <rhea_weakzone.h>
+#include <rhea_velocity.h>
 #include <ymir_vec_getset.h>
 #include <ymir_stress_op.h>
 
@@ -344,7 +345,9 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
     rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
 
     /* get weak zone */
-    rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
+    if (in_weak) {
+      rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
+    }
 
     /* compute linear viscosity */
     rhea_viscosity_linear_elem (visc_el_data, temp_el_data, weak_el_data,
@@ -953,16 +956,14 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
     rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
 
     /* get weak zone */
-    rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
+    if (in_weak) {
+      rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
+    }
 
-    /* get velocity field of this element from state at GLL nodes */
-  //ymir_cvec_get_elem_interp (vel_vec, vel_el_mat, YMIR_STRIDE_NODE,
-  //                           elid, YMIR_GLL_NODE, YMIR_READ);
-
-    /* compute 2nd invariant of the strain rate at Gauss nodes */
-  //slabs_second_invariant_elem (vel_el_mat, IIe_el_mat, mangll, elid,
-  //                             tmp_grad_vel, tmp_dvel, tmp_vel,
-  //                             SL_GAUSS_NODE);
+    /* compute the 2nd invariant of the strain rate at Gauss nodes */
+    rhea_velocity_compute_strain_rate_2inv_elem_gauss (
+        strain_rate_2inv_el_mat, vel_el_mat, vel_vec, elid,
+        tmp_grad_vel, tmp_dvel, tmp_vel);
 
     /* compute nonlinear viscosity */
     rhea_viscosity_nonlinear_elem (

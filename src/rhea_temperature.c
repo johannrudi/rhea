@@ -30,6 +30,7 @@ rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
 
   /* check input */
   YMIR_ASSERT_IS_CVEC (temp_vec);
+  RHEA_ASSERT (temp_vec->ncfields == 1);
   RHEA_ASSERT (temp_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (temp_el_mat->n == 1);
 
