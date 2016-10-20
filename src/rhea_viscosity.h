@@ -88,6 +88,26 @@ void                rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec,
                                                    sc_dmatrix_t *visc_el_mat,
                                                    const ymir_locidx_t elid);
 
+void                rhea_viscosity_rank1_scal_get_elem_gauss (
+                                              sc_dmatrix_t *rank1_scal_el_mat,
+                                              ymir_vec_t *rank1_scal_vec,
+                                              const ymir_locidx_t elid);
+
+void                rhea_viscosity_rank1_scal_set_elem_gauss (
+                                              ymir_vec_t *rank1_scal_vec,
+                                              sc_dmatrix_t *rank1_scal_el_mat,
+                                              const ymir_locidx_t elid);
+
+void                rhea_viscosity_marker_get_elem_gauss (
+                                                  sc_dmatrix_t *marker_el_mat,
+                                                  ymir_vec_t *marker_vec,
+                                                  const ymir_locidx_t elid);
+
+void                rhea_viscosity_marker_set_elem_gauss (
+                                                  ymir_vec_t *marker_vec,
+                                                  sc_dmatrix_t *marker_el_mat,
+                                                  const ymir_locidx_t elid);
+
 void                rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
                                                ymir_vec_t *temp_vec,
                                                ymir_vec_t *weak_vec,

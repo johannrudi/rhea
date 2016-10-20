@@ -44,6 +44,86 @@ rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec, sc_dmatrix_t *visc_el_mat,
   ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
 }
 
+void
+rhea_viscosity_rank1_scal_get_elem_gauss (sc_dmatrix_t *rank1_scal_el_mat,
+                                          ymir_vec_t *rank1_scal_vec,
+                                          const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
+  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
+#endif
+
+  ymir_dvec_get_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
+                      elid, YMIR_READ);
+}
+
+void
+rhea_viscosity_rank1_scal_set_elem_gauss (ymir_vec_t *rank1_scal_vec,
+                                          sc_dmatrix_t *rank1_scal_el_mat,
+                                          const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
+  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
+#endif
+
+  ymir_dvec_set_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
+                      elid, YMIR_SET);
+}
+
+void
+rhea_viscosity_marker_get_elem_gauss (sc_dmatrix_t *marker_el_mat,
+                                      ymir_vec_t *marker_vec,
+                                      const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (marker_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (marker_vec);
+  RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (marker_el_mat->n == 1);
+#endif
+
+  ymir_dvec_get_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
+                      YMIR_READ);
+}
+
+void
+rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
+                                      sc_dmatrix_t *marker_el_mat,
+                                      const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (marker_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (marker_vec);
+  RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (marker_el_mat->n == 1);
+#endif
+
+  ymir_dvec_set_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
+                      YMIR_SET);
+}
+
 /******************************************************************************
  * Linear Viscosity
  *****************************************************************************/
@@ -184,8 +264,8 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     RHEA_ASSERT (isfinite (temp));
     RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
     /* check weak zone for valid range (0,1] */
-    RHEA_ASSERT (weak_elem == NULL || isfinite (weak));
-    RHEA_ASSERT (weak_elem == NULL || (0.0 < weak && weak <= 1.0));
+    RHEA_ASSERT (isfinite (weak));
+    RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
     /* compute viscosity */
     if (lm_um_interface_radius <= 0.0 || transition_width <= 0.0 ||
@@ -219,7 +299,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
 }
 
 /**
- * Computes linear viscosity.
+ * Computes the linear viscosity.
  */
 void
 rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
@@ -232,26 +312,29 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
+  const int           in_weak = (weak_vec != NULL ? 1 : 0);
 
-  sc_dmatrix_t       *temp_el_mat;
-  sc_dmatrix_t       *weak_el_mat;
-  sc_dmatrix_t       *visc_el_mat;
+  sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *visc_el_mat;
+  double             *temp_el_data, *weak_el_data, *visc_el_data;
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t       elid;
 
   /* check input */
-  YMIR_ASSERT_IS_CVEC (temp_vec);
-  YMIR_ASSERT_IS_DVEC (weak_vec);
-  YMIR_ASSERT_IS_DVEC (visc_vec);
+  RHEA_ASSERT (temp_vec != NULL);
+  RHEA_ASSERT (visc_vec != NULL);
 
   /* create work variables */
   temp_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  weak_el_mat = (in_weak ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   x = RHEA_ALLOC (double, n_nodes_per_el);
   y = RHEA_ALLOC (double, n_nodes_per_el);
   z = RHEA_ALLOC (double, n_nodes_per_el);
   tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
+
+  temp_el_data = temp_el_mat->e[0];
+  weak_el_data = (in_weak ? weak_el_mat->e[0] : NULL);
+  visc_el_data = visc_el_mat->e[0];
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates at Gauss nodes */
@@ -264,9 +347,9 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
     rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
 
     /* compute linear viscosity */
-    rhea_viscosity_linear_elem (visc_el_mat->e[0], temp_el_mat->e[0],
-                                weak_el_mat->e[0], x, y, z, n_nodes_per_el,
-                                Vmask, opt, restrict_to_bounds);
+    rhea_viscosity_linear_elem (visc_el_data, temp_el_data, weak_el_data,
+                                x, y, z, n_nodes_per_el, Vmask, opt,
+                                restrict_to_bounds);
 
     /* set viscosity */
     rhea_viscosity_set_elem_gauss (visc_vec, visc_el_mat, elid);
@@ -274,7 +357,9 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
 
   /* destroy */
   sc_dmatrix_destroy (temp_el_mat);
-  sc_dmatrix_destroy (weak_el_mat);
+  if (in_weak) {
+    sc_dmatrix_destroy (weak_el_mat);
+  }
   sc_dmatrix_destroy (visc_el_mat);
   RHEA_FREE (x);
   RHEA_FREE (y);
@@ -660,7 +745,6 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
 
   /* check input */
   RHEA_ASSERT (temp_elem != NULL);
-  RHEA_ASSERT (strain_rate_2inv_elem != NULL);
   RHEA_ASSERT (x != NULL && y != NULL && z != NULL);
   RHEA_ASSERT (Vmask != NULL);
   //TODO not implemented:
@@ -680,11 +764,11 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       RHEA_ASSERT (isfinite (temp));
       RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
       /* check weak zone for valid range (0,1] */
-      RHEA_ASSERT (weak_elem == NULL || isfinite (weak));
-      RHEA_ASSERT (weak_elem == NULL || (0.0 < weak && weak <= 1.0));
+      RHEA_ASSERT (isfinite (weak));
+      RHEA_ASSERT (0.0 < weak && weak <= 1.0);
       /* check 2nd invariant of the strain rate for non-negativity */
-      RHEA_ASSERT (strain_rate_2inv_elem == NULL || isfinite (sr2));
-      RHEA_ASSERT (strain_rate_2inv_elem == NULL || (0.0 <= sr2));
+      RHEA_ASSERT (isfinite (sr2));
+      RHEA_ASSERT (0.0 <= sr2);
 
       /* compute nonlinear viscosity in upper mantle */
       rhea_viscosity_nonlinear_node (
@@ -717,8 +801,8 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       RHEA_ASSERT (isfinite (temp));
       RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
       /* check weak zone for valid range (0,1] */
-      RHEA_ASSERT (weak_elem == NULL || isfinite (weak));
-      RHEA_ASSERT (weak_elem == NULL || (0.0 < weak && weak <= 1.0));
+      RHEA_ASSERT (isfinite (weak));
+      RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
       /* compute linear viscosity in lower mantle */
       visc_elem[nodeid] = rhea_viscosity_linear_node (
@@ -767,3 +851,163 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   }
 #endif
 }
+
+/**
+ * Computes the nonlinear viscosity.
+ */
+static void
+rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
+                              ymir_vec_t *rank1_scal_vec,
+                              ymir_vec_t *bounds_vec,
+                              ymir_vec_t *yielding_vec,
+                              ymir_vec_t *temp_vec,
+                              ymir_vec_t *weak_vec,
+                              ymir_vec_t *vel_vec,
+                              rhea_viscosity_options_t *opt)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
+  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+  const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
+  const int           in_weak = (weak_vec != NULL ? 1 : 0);
+  const int           out_rank1 = (rank1_scal_vec != NULL ? 1 : 0);
+  const int           out_bounds = (bounds_vec != NULL ? 1 : 0);
+  const int           out_yielding = (yielding_vec != NULL ? 1 : 0);
+
+  sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *vel_el_mat,
+                     *strain_rate_2inv_el_mat;
+  double             *temp_el_data, *weak_el_data, *vel_el_data,
+                     *strain_rate_2inv_el_data;
+  sc_dmatrix_t       *visc_el_mat, *rank1_scal_el_mat,
+                     *bounds_el_mat, *yielding_el_mat;
+  double             *visc_el_data, *rank1_scal_el_data,
+                     *bounds_el_data, *yielding_el_data;
+  sc_dmatrix_t       *tmp_grad_vel, *tmp_dvel, *tmp_vel;
+  double             *x, *y, *z, *tmp_el;
+  ymir_locidx_t       elid;
+
+  /* check input */
+  RHEA_ASSERT (temp_vec != NULL);
+  RHEA_ASSERT (vel_vec != NULL);
+  RHEA_ASSERT (visc_vec != NULL);
+  RHEA_ASSERT (0.0 < opt->max);
+
+  /* check if it is necessary to compute the nonlinear viscosity */
+  if (fabs (opt->stress_exponent - 1.0) < SC_EPS && opt->yield_stress <= 0.0) {
+    /* compute just the linear viscosity */
+    rhea_viscosity_linear_vec (visc_vec, temp_vec, weak_vec, opt);
+
+    /* set (default) values for other output vectors if they exist */
+    if (out_rank1) {
+      ymir_dvec_set_zero (rank1_scal_vec);
+    }
+    if (out_bounds) {
+      ymir_dvec_set_zero (bounds_vec);
+    }
+    if (out_yielding) {
+      ymir_dvec_set_zero (yielding_vec);
+    }
+
+    /* end execution */
+    return;
+  }
+
+  /* get velocity */
+//ymir_stokes_vec_get_velocity (vel_press_vec, vel_vec, press_elem);
+//ymir_vel_dir_separate (vel_vec, NULL, NULL, NULL, vel_dir);
+
+  /* create work variables */
+  /* *INDENT-OFF* */
+  temp_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  weak_el_mat = (in_weak ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
+  vel_el_mat  = sc_dmatrix_new (n_nodes_per_el, 3);
+  strain_rate_2inv_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  visc_el_mat        = sc_dmatrix_new (n_nodes_per_el, 1);
+  rank1_scal_el_mat  = (out_rank1 ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
+  bounds_el_mat      = (out_bounds ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
+  yielding_el_mat    = (out_yielding ? sc_dmatrix_new (n_nodes_per_el, 1) :
+                                       NULL);
+  tmp_grad_vel = sc_dmatrix_new (n_nodes_per_el, 9);
+  tmp_dvel     = sc_dmatrix_new (n_nodes_per_el, 3);
+  tmp_vel      = sc_dmatrix_new (n_nodes_per_el, 3);
+  x = RHEA_ALLOC (double, n_nodes_per_el);
+  y = RHEA_ALLOC (double, n_nodes_per_el);
+  z = RHEA_ALLOC (double, n_nodes_per_el);
+  tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
+
+  temp_el_data = temp_el_mat->e[0];
+  weak_el_data = (in_weak ? weak_el_mat->e[0] : NULL);
+  vel_el_data  = vel_el_mat->e[0];
+  strain_rate_2inv_el_data = strain_rate_2inv_el_mat->e[0];
+  visc_el_data       = visc_el_mat->e[0];
+  rank1_scal_el_data = (out_rank1 ? rank1_scal_el_mat->e[0] : NULL);
+  bounds_el_data     = (out_bounds ? bounds_el_mat->e[0] : NULL);
+  yielding_el_data   = (out_yielding ? yielding_el_mat->e[0] : NULL);
+  /* *INDENT-ON* */
+
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
+
+    /* get temperature field at Gauss nodes */
+    rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
+
+    /* get weak zone */
+    rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
+
+    /* get velocity field of this element from state at GLL nodes */
+  //ymir_cvec_get_elem_interp (vel_vec, vel_el_mat, YMIR_STRIDE_NODE,
+  //                           elid, YMIR_GLL_NODE, YMIR_READ);
+
+    /* compute 2nd invariant of the strain rate at Gauss nodes */
+  //slabs_second_invariant_elem (vel_el_mat, IIe_el_mat, mangll, elid,
+  //                             tmp_grad_vel, tmp_dvel, tmp_vel,
+  //                             SL_GAUSS_NODE);
+
+    /* compute nonlinear viscosity */
+    rhea_viscosity_nonlinear_elem (
+        visc_el_data, rank1_scal_el_data, bounds_el_data, yielding_el_data,
+        temp_el_data, weak_el_data, strain_rate_2inv_el_data, x, y, z,
+        n_nodes_per_el, Vmask, opt);
+
+    /* set viscosity and other output vectors */
+    rhea_viscosity_set_elem_gauss (visc_vec, visc_el_mat, elid);
+    if (out_rank1) {
+      rhea_viscosity_rank1_scal_set_elem_gauss (rank1_scal_vec,
+                                                rank1_scal_el_mat, elid);
+    }
+    if (out_bounds) {
+      rhea_viscosity_marker_set_elem_gauss (bounds_vec, bounds_el_mat, elid);
+    }
+    if (out_yielding) {
+      rhea_viscosity_marker_set_elem_gauss (yielding_vec, yielding_el_mat,
+                                            elid);
+    }
+  }
+
+  /* destroy */
+  sc_dmatrix_destroy (temp_el_mat);
+  if (in_weak) {
+    sc_dmatrix_destroy (weak_el_mat);
+  }
+  sc_dmatrix_destroy (vel_el_mat);
+  sc_dmatrix_destroy (strain_rate_2inv_el_mat);
+  sc_dmatrix_destroy (visc_el_mat);
+  if (out_rank1) {
+    sc_dmatrix_destroy (rank1_scal_el_mat);
+  }
+  if (out_bounds) {
+    sc_dmatrix_destroy (bounds_el_mat);
+  }
+  if (out_yielding) {
+    sc_dmatrix_destroy (yielding_el_mat);
+  }
+  sc_dmatrix_destroy (tmp_grad_vel);
+  sc_dmatrix_destroy (tmp_dvel);
+  sc_dmatrix_destroy (tmp_vel);
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+}
+
