@@ -3,6 +3,7 @@
 
 #include <rhea_domain.h>
 #include <rhea_base.h>
+#include <rhea_discretization.h>
 
 /* constants */
 #define RHEA_DOMAIN_REFERENCE_SHELL_RADIUS (1.0)
@@ -13,7 +14,7 @@
 #define RHEA_DOMAIN_DEFAULT_BOX_Y_EXTENSION (16)
 #define RHEA_DOMAIN_DEFAULT_BOX_Z_EXTENSION (16)
 #define RHEA_DOMAIN_DEFAULT_EARTH_RADIUS (6371.0e3)
-#define RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH (3504.05e3)
+#define RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH (2866.95e3)
 #define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH (660.0e3)
 #define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTH_TRANSITION_WIDTH (0.0)
 
@@ -33,7 +34,7 @@ double              rhea_domain_lm_um_interface_smooth_transition_width =
   RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTH_TRANSITION_WIDTH;
 
 void
-rhea_domain_add_suboptions (ymir_options_t * opt_sup)
+rhea_domain_add_options (ymir_options_t * opt_sup)
 {
   const char         *opt_prefix = "Domain";
   ymir_options_t     *opt = ymir_options_new ();
@@ -93,7 +94,7 @@ rhea_domain_compute_bounds (rhea_domain_options_t *opt)
   /* set radius bounds for all domain shapes */
   opt->radius_max = RHEA_DOMAIN_REFERENCE_SHELL_RADIUS;
   opt->radius_min = opt->radius_max *
-                    SC_MAX(0.0, 1.0 - mantle_depth/earth_radius);
+                    SC_MAX (0.0, 1.0 - mantle_depth/earth_radius);
 
   /* initialize other values */
   opt->x_min = NAN;
@@ -302,14 +303,7 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
       opt->moment_of_inertia[2] = moment_of_inertia;
     }
     break;
-
   case RHEA_DOMAIN_CUBE_SPHERICAL:
-    //TODO
-    opt->moment_of_inertia[0] = 0.0;
-    opt->moment_of_inertia[1] = 0.0;
-    opt->moment_of_inertia[2] = 0.0;
-    break;
-
   case RHEA_DOMAIN_BOX_SPHERICAL:
     //TODO
     opt->moment_of_inertia[0] = 0.0;
@@ -325,44 +319,88 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
   RHEA_ASSERT (isfinite (opt->moment_of_inertia[2]));
 }
 
-static void
-rhea_domain_compute_properties (rhea_domain_options_t *opt)
+/**
+ *
+ */
+static double
+rhea_domain_align_radius_to_mesh (double radius, const int level,
+                                  rhea_domain_options_t *opt)
 {
-  const char         *this_fn_name = "rhea_domain_compute_properties";
+  const double        rmin = opt->radius_min;
+  const double        rmax = opt->radius_max;
+  const double        rmax_rmin = rmax / rmin;
+  const double        rmin2_rmax = rmin*rmin / rmax;
+  int                 n_domain_subdiv;
+  double              h;
 
-  rhea_domain_compute_bounds (opt);
-  rhea_domain_compute_volume (opt);
-  rhea_domain_compute_center_of_mass (opt);
-  rhea_domain_compute_moment_of_inertia (opt);
+  /* check input */
+  RHEA_ASSERT (isfinite (opt->radius_min));
+  RHEA_ASSERT (isfinite (opt->radius_max));
+  RHEA_ASSERT (0.0 <= opt->radius_min);
+  RHEA_ASSERT (opt->radius_min < opt->radius_max);
 
-  RHEA_GLOBAL_INFO ("===================================================\n");
-  RHEA_GLOBAL_INFOF ("%s\n", this_fn_name);
-  RHEA_GLOBAL_INFO ("---------------------------------------------------\n");
-  RHEA_GLOBAL_INFOF ("  x min:      %g\n", opt->x_min);
-  RHEA_GLOBAL_INFOF ("  x max:      %g\n", opt->x_max);
-  RHEA_GLOBAL_INFOF ("  y min:      %g\n", opt->y_min);
-  RHEA_GLOBAL_INFOF ("  y max:      %g\n", opt->y_max);
-  RHEA_GLOBAL_INFOF ("  z min:      %g\n", opt->z_min);
-  RHEA_GLOBAL_INFOF ("  z max:      %g\n", opt->z_max);
-  RHEA_GLOBAL_INFOF ("  lon min:    %g\n", opt->lon_min);
-  RHEA_GLOBAL_INFOF ("  lon max:    %g\n", opt->lon_max);
-  RHEA_GLOBAL_INFOF ("  radius min: %g\n", opt->radius_min);
-  RHEA_GLOBAL_INFOF ("  radius max: %g\n", opt->radius_max);
-  RHEA_GLOBAL_INFOF ("  volume:            %g\n", opt->volume);
-  RHEA_GLOBAL_INFOF ("  center of mass:    %g, %g, %g\n",
-                     opt->center[0], opt->center[1], opt->center[2]);
-  RHEA_GLOBAL_INFOF ("  moment of inertia: %g, %g, %g\n",
-                     opt->moment_of_inertia[0],  opt->moment_of_inertia[1],
-                     opt->moment_of_inertia[2]);
-  RHEA_GLOBAL_INFO ("===================================================\n");
+  /* exit if nothing to do */
+  if ( !(rmin < radius && radius < rmax) ) {
+    return -1.0;
+  }
+
+  /* set number of subdivisions given by the extension in z-direction */
+  switch (opt->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    n_domain_subdiv = 1;
+    break;
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    n_domain_subdiv = opt->box_z_extension;
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+  RHEA_ASSERT (1 <= n_domain_subdiv);
+
+  /* calculate aligned radius */
+  switch (opt->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+    /* calculate element size: h = D / (n * 2^l) */
+    h = (rmax - rmin) / ((double) (n_domain_subdiv << level));
+
+    /* calculate closest aligned radius below `radius` */
+    radius = rmin + h * floor ((radius - rmin) / h);
+    break;
+
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    /* map radius from physical space to reference space */
+    radius = log (radius / rmin2_rmax) / log (rmax_rmin);
+
+    /* calculate element size: h = 1 / (n * 2^l) */
+    h = 1.0 / ((double) (n_domain_subdiv << level));
+
+    /* calculate closest aligned radius below `radius` */
+    radius = 1.0 + h * floor ((radius - 1.0) / h);
+
+    /* map radius from reference space to physical space */
+    radius = rmin2_rmax * pow (rmax_rmin, radius);
+    break;
+
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* return aligned radius */
+  return radius;
 }
 
-/**
- * Processes options.
- */
 void
 rhea_domain_process_options (rhea_domain_options_t *opt)
 {
+  const char         *this_fn_name = "rhea_domain_process_options";
+  double              radius;
+
   /* set shape of domain */
   if (strcmp (rhea_domain_shape_name, "cube") == 0) {
     opt->shape = RHEA_DOMAIN_CUBE;
@@ -405,16 +443,19 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   }
 
   /* compute domain properties */
-  rhea_domain_compute_properties (opt);
+  rhea_domain_compute_bounds (opt);
+  rhea_domain_compute_volume (opt);
+  rhea_domain_compute_center_of_mass (opt);
+  rhea_domain_compute_moment_of_inertia (opt);
+
+  /* align lower-upper mantle interface with mesh elements */
+  RHEA_ASSERT (isfinite (opt->radius_max) && 0.0 < opt->radius_max);
+  radius = opt->radius_max *
+           (1.0 - rhea_domain_lm_um_interface_depth / rhea_domain_earth_radius);
+  opt->lm_um_interface_radius = rhea_domain_align_radius_to_mesh (
+      radius, rhea_discretization_level_min, opt);
 
   /* set lower-upper mantle interface */
-  if (0.0 < rhea_domain_lm_um_interface_depth) {
-    opt->lm_um_interface_radius = rhea_domain_lm_um_interface_depth /
-                                  rhea_domain_earth_radius;
-  }
-  else {
-    opt->lm_um_interface_radius = -1.0;
-  }
   if (0.0 < rhea_domain_lm_um_interface_smooth_transition_width) {
     opt->lm_um_interface_smooth_transition_width =
       rhea_domain_lm_um_interface_smooth_transition_width /
@@ -424,8 +465,33 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
     opt->lm_um_interface_smooth_transition_width = 0.0;
   }
 
-  /* aligh lower-upper mantle interface with mesh elements */
-  //TODO
+  /* print derived domain properties */
+  RHEA_GLOBAL_INFO ("===================================================\n");
+  RHEA_GLOBAL_INFOF ("%s\n", this_fn_name);
+  RHEA_GLOBAL_INFO ("---------------------------------------------------\n");
+  RHEA_GLOBAL_INFOF ("  x min:      %g\n", opt->x_min);
+  RHEA_GLOBAL_INFOF ("  x max:      %g\n", opt->x_max);
+  RHEA_GLOBAL_INFOF ("  y min:      %g\n", opt->y_min);
+  RHEA_GLOBAL_INFOF ("  y max:      %g\n", opt->y_max);
+  RHEA_GLOBAL_INFOF ("  z min:      %g\n", opt->z_min);
+  RHEA_GLOBAL_INFOF ("  z max:      %g\n", opt->z_max);
+  RHEA_GLOBAL_INFOF ("  lon min:    %g\n", opt->lon_min);
+  RHEA_GLOBAL_INFOF ("  lon max:    %g\n", opt->lon_max);
+  RHEA_GLOBAL_INFOF ("  radius min: %g\n", opt->radius_min);
+  RHEA_GLOBAL_INFOF ("  radius max: %g\n", opt->radius_max);
+  RHEA_GLOBAL_INFOF ("  LM-UM interface radius: %g\n",
+                     opt->lm_um_interface_radius);
+  RHEA_GLOBAL_INFOF ("  LM-UM interface depth:  %g (%g km)\n",
+                     opt->radius_max - opt->lm_um_interface_radius,
+                     (opt->radius_max - opt->lm_um_interface_radius) *
+                     rhea_domain_earth_radius / 1.0e3);
+  RHEA_GLOBAL_INFOF ("  volume:            %g\n", opt->volume);
+  RHEA_GLOBAL_INFOF ("  center of mass:    %g, %g, %g\n",
+                     opt->center[0], opt->center[1], opt->center[2]);
+  RHEA_GLOBAL_INFOF ("  moment of inertia: %g, %g, %g\n",
+                     opt->moment_of_inertia[0],  opt->moment_of_inertia[1],
+                     opt->moment_of_inertia[2]);
+  RHEA_GLOBAL_INFO ("===================================================\n");
 }
 
 double

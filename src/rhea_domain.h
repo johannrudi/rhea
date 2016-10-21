@@ -53,7 +53,12 @@ rhea_domain_options_t;
 /**
  * Defines options and adds them as sub-options.
  */
-void                rhea_domain_add_suboptions (ymir_options_t * opt_sup);
+void                rhea_domain_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Processes options and stores them.
+ */
+void                rhea_domain_process_options (rhea_domain_options_t *opt);
 
 /**
  * Computes the radius of a shell domain or the corresponding value for a
