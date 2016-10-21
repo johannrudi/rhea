@@ -4,8 +4,17 @@
 #include <rhea.h>
 
 void
-rhea_add_suboptions_all (ymir_options_t * options)
+rhea_add_options_all (ymir_options_t *options)
 {
-  rhea_domain_add_suboptions (options);
-  rhea_viscosity_add_suboptions (options);
+  rhea_domain_add_options (options);
+  rhea_viscosity_add_options (options);
+  rhea_discretization_add_options (options);
+}
+
+void
+rhea_process_options_all (rhea_domain_options_t *domain_options,
+                          rhea_viscosity_options_t *viscosity_options)
+{
+  rhea_domain_process_options (domain_options);
+//rhea_viscosity_process_options (viscosity_options);
 }
