@@ -19,7 +19,8 @@ librhea_compiled_sources = \
         src/rhea_temperature.c \
         src/rhea_weakzone.c \
         src/rhea_velocity.c \
-        src/rhea_viscosity.c
+        src/rhea_viscosity.c \
+        src/rhea.c
 
 RHEA_CPPFLAGS =
 RHEA_LDADD = @top_builddir@/src/librhea.la @RHEA_YMIR_LDADD@ \
