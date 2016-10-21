@@ -78,7 +78,7 @@ rhea_viscosity_options_t;
 /**
  * Defines options and adds them as sub-options.
  */
-void                rhea_viscosity_add_suboptions (ymir_options_t * opt_sup);
+void                rhea_viscosity_add_options (ymir_options_t * opt_sup);
 
 /**
  * Gets the viscosity of one element at Gauss nodes.

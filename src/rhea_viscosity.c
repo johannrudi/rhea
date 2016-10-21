@@ -47,11 +47,8 @@ double              rhea_viscosity_yield_stress =
 double              rhea_viscosity_yielding_regularization =
   RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION;
 
-/**
- * Defines options and adds them as sub-options.
- */
 void
-rhea_viscosity_add_suboptions (ymir_options_t * opt_sup)
+rhea_viscosity_add_options (ymir_options_t * opt_sup)
 {
   const char         *opt_prefix = "Viscosity";
   ymir_options_t     *opt = ymir_options_new ();
