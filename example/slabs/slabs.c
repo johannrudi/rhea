@@ -3315,6 +3315,8 @@ main (int argc, char **argv)
   int                 mpiret;
   /* options */
   ymir_options_t     *opt;
+  rhea_domain_options_t     domain_options;
+  rhea_viscosity_options_t  viscosity_options;
   slabs_physics_options_t   physics_options;
   slabs_discr_options_t     discr_options;
   slabs_nl_solver_options_t solver_options;
@@ -3447,6 +3449,7 @@ main (int argc, char **argv)
 
   /* add sub-options */
   slabs_setup_add_suboptions (opt);
+  rhea_add_options_all (opt);
   ymir_options_add_suboptions_solver_stokes (opt);
 
   /* parse options */
@@ -3490,8 +3493,11 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
+  rhea_process_options_all (&domain_options, &viscosity_options);
   slabs_setup_process_options (&physics_options, &discr_options,
                                &solver_options);
+  physics_options.domain_options = &domain_options;
+  physics_options.viscosity_options = &viscosity_options;
   discr_options.inspect_p4est = monitor_performance;
 
   /*

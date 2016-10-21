@@ -30,6 +30,7 @@
 #include <slabs_base.h>
 #include <slabs_stokes_state.h>
 #include <weakzone_wrapper.h>
+#include <rhea.h>
 #include <ymir_stokes_op.h>
 
 /* basic constants */
@@ -282,6 +283,10 @@ typedef struct slabs_physics_options
   double              plume_center_z;
   double              plume_decay;
   double              plume_scaling;
+
+  /* rhea options */
+  rhea_domain_options_t     *domain_options;
+  rhea_viscosity_options_t  *viscosity_options;
 }
 slabs_physics_options_t;
 

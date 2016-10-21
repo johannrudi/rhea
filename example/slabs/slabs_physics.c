@@ -26,7 +26,6 @@
 
 #include <slabs_physics.h>
 #include <slabs_physics_extended.h>
-#include <rhea_viscosity.h>
 #include <ymir_comm.h>
 #include <ymir_velocity_vec.h>
 #include <ymir_stokes_vec.h>
@@ -3216,7 +3215,7 @@ slabs_viscosity_linear (ymir_dvec_t *viscosity,
   visc_opt.type = physics_options->viscosity_type;
   visc_opt.type_init_nonlinear =
     physics_options->viscosity_type_for_init_nl_stokes;
-  visc_opt.model = RHEA_VISCOSITY_MODEL_UWYL_SHIFT_LREG;
+  visc_opt.model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT;
   visc_opt.min = physics_options->viscosity_min;
   visc_opt.max = physics_options->viscosity_max;
   visc_opt.upper_mantle_scaling =
