@@ -7,20 +7,17 @@
 #include <ymir_vec_ops.h>
 
 /**
- * Gets the velocity of one element at GLL nodes
+ * Gets the velocity of one element at GLL nodes.
  */
 void                rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
                                                 ymir_vec_t *vel_vec,
                                                 const ymir_locidx_t elid);
 
 /**
- * Computes the square root of 2nd invariant of the strain rate,
- *
- *   2nd inv. = sqrt ( 1/2 * grad_sym (velocity) : grad_sym (velocity) ),
- *
- * of one element at Gauss nodes.
+ * Gets the velocity of one element at GLL nodes, then computes the square root
+ * of 2nd invariant of the strain rate at Gauss nodes.
  */
-void                rhea_velocity_compute_strain_rate_2inv_elem_gauss (
+void                rhea_velocity_get_elem_compute_strain_rate_2inv_gauss (
                                         sc_dmatrix_t *strain_rate_2inv_el_mat,
                                         sc_dmatrix_t *vel_el_mat,
                                         ymir_vec_t *vel_vec,
