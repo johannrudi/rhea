@@ -5,7 +5,7 @@
 #include <rhea_base.h>
 #include <ymir_vec_getset.h>
 
-void
+double *
 rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat, ymir_vec_t *weak_vec,
                               const ymir_locidx_t elid)
 {
@@ -21,6 +21,7 @@ rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat, ymir_vec_t *weak_vec,
 #endif
 
   ymir_dvec_get_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
+  return weak_el_mat->e[0];
 }
 
 void

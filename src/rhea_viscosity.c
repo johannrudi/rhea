@@ -114,7 +114,7 @@ rhea_viscosity_add_suboptions (ymir_options_t * opt_sup)
   ymir_options_destroy (opt);
 }
 
-void
+double *
 rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
                                const ymir_locidx_t elid)
 {
@@ -130,6 +130,7 @@ rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
 #endif
 
   ymir_dvec_get_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
+  return visc_el_mat->e[0];
 }
 
 void
@@ -150,7 +151,7 @@ rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec, sc_dmatrix_t *visc_el_mat,
   ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
 }
 
-void
+double *
 rhea_viscosity_rank1_scal_get_elem_gauss (sc_dmatrix_t *rank1_scal_el_mat,
                                           ymir_vec_t *rank1_scal_vec,
                                           const ymir_locidx_t elid)
@@ -168,6 +169,7 @@ rhea_viscosity_rank1_scal_get_elem_gauss (sc_dmatrix_t *rank1_scal_el_mat,
 
   ymir_dvec_get_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
                       elid, YMIR_READ);
+  return rank1_scal_el_mat->e[0];
 }
 
 void
@@ -190,7 +192,7 @@ rhea_viscosity_rank1_scal_set_elem_gauss (ymir_vec_t *rank1_scal_vec,
                       elid, YMIR_SET);
 }
 
-void
+double *
 rhea_viscosity_marker_get_elem_gauss (sc_dmatrix_t *marker_el_mat,
                                       ymir_vec_t *marker_vec,
                                       const ymir_locidx_t elid)
@@ -208,6 +210,7 @@ rhea_viscosity_marker_get_elem_gauss (sc_dmatrix_t *marker_el_mat,
 
   ymir_dvec_get_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
                       YMIR_READ);
+  return marker_el_mat->e[0];
 }
 
 void
@@ -421,7 +424,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   const int           in_weak = (weak_vec != NULL ? 1 : 0);
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *visc_el_mat;
-  double             *temp_el_data, *weak_el_data = NULL, *visc_el_data;
+  double             *temp_el_data, *weak_el_data, *visc_el_data;
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t       elid;
 
@@ -445,13 +448,12 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
     /* get temperature field at Gauss nodes */
-    rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
-    temp_el_data = temp_el_mat->e[0];
+    temp_el_data = rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec,
+                                                    elid);
 
     /* get weak zone */
     if (in_weak) {
-      rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
-      weak_el_data = weak_el_mat->e[0];
+      weak_el_data = rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
     }
 
     /* compute linear viscosity */
@@ -984,8 +986,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *vel_el_mat,
                      *strain_rate_2inv_el_mat;
-  double             *temp_el_data, *weak_el_data = NULL,
-                     *strain_rate_2inv_el_data;
+  double             *temp_el_data, *weak_el_data, *strain_rate_2inv_el_data;
   sc_dmatrix_t       *visc_el_mat, *rank1_scal_el_mat,
                      *bounds_el_mat, *yielding_el_mat;
   double             *visc_el_data, *rank1_scal_el_data,
@@ -1055,13 +1056,12 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
     /* get temperature field at Gauss nodes */
-    rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
-    temp_el_data = temp_el_mat->e[0];
+    temp_el_data = rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec,
+                                                    elid);
 
     /* get weak zone */
     if (in_weak) {
-      rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
-      weak_el_data = weak_el_mat->e[0];
+      weak_el_data = rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
     }
 
     /* get velocity; compute 2nd invariant of the strain rate at Gauss nodes */

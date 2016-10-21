@@ -9,7 +9,7 @@
 /**
  * Gets the weak zone of one element at Gauss nodes.
  */
-void                rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,
+double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,
                                                   ymir_vec_t *weak_vec,
                                                   const ymir_locidx_t elid);
 

@@ -20,7 +20,7 @@ rhea_temperature_bound_range_data (double *_sc_restrict temp_data,
   }
 }
 
-void
+double *
 rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
                                  ymir_vec_t *temp_vec,
                                  const ymir_locidx_t elid)
@@ -40,4 +40,6 @@ rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
 
   /* restrict temperature to valid range to account for interpolation erros */
   rhea_temperature_bound_range_data (temp_el_mat->e[0], n_nodes_per_el);
+
+  return temp_el_mat->e[0];
 }
