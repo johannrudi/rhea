@@ -421,7 +421,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   const int           in_weak = (weak_vec != NULL ? 1 : 0);
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *visc_el_mat;
-  double             *temp_el_data, *weak_el_data, *visc_el_data;
+  double             *temp_el_data, *weak_el_data = NULL, *visc_el_data;
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t       elid;
 
@@ -438,8 +438,6 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   z = RHEA_ALLOC (double, n_nodes_per_el);
   tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
 
-  temp_el_data = temp_el_mat->e[0];
-  weak_el_data = (in_weak ? weak_el_mat->e[0] : NULL);
   visc_el_data = visc_el_mat->e[0];
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
@@ -448,10 +446,12 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
 
     /* get temperature field at Gauss nodes */
     rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
+    temp_el_data = temp_el_mat->e[0];
 
     /* get weak zone */
     if (in_weak) {
       rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
+      weak_el_data = weak_el_mat->e[0];
     }
 
     /* compute linear viscosity */
@@ -984,7 +984,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *vel_el_mat,
                      *strain_rate_2inv_el_mat;
-  double             *temp_el_data, *weak_el_data, *vel_el_data,
+  double             *temp_el_data, *weak_el_data = NULL,
                      *strain_rate_2inv_el_data;
   sc_dmatrix_t       *visc_el_mat, *rank1_scal_el_mat,
                      *bounds_el_mat, *yielding_el_mat;
@@ -1043,9 +1043,6 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   z = RHEA_ALLOC (double, n_nodes_per_el);
   tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
 
-  temp_el_data = temp_el_mat->e[0];
-  weak_el_data = (in_weak ? weak_el_mat->e[0] : NULL);
-  vel_el_data  = vel_el_mat->e[0];
   strain_rate_2inv_el_data = strain_rate_2inv_el_mat->e[0];
   visc_el_data       = visc_el_mat->e[0];
   rank1_scal_el_data = (out_rank1 ? rank1_scal_el_mat->e[0] : NULL);
@@ -1059,10 +1056,12 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 
     /* get temperature field at Gauss nodes */
     rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec, elid);
+    temp_el_data = temp_el_mat->e[0];
 
     /* get weak zone */
     if (in_weak) {
       rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
+      weak_el_data = weak_el_mat->e[0];
     }
 
     /* get velocity; compute 2nd invariant of the strain rate at Gauss nodes */
