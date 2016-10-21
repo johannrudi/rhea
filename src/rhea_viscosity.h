@@ -5,6 +5,7 @@
 #define RHEA_VISCOSITY_H
 
 #include <rhea_domain.h>
+#include <ymir_options.h>
 #include <ymir_vec_ops.h>
 
 /* enumerator for types of viscosities */
@@ -62,7 +63,7 @@ typedef struct rhea_viscosity_options
   double              lower_mantle_scaling;
   double              lower_mantle_activation_energy;
 
-  /* strain rate weakening is governed by this exponent (aka. `n`) */
+  /* stress exponent that governs strain rate weakening (aka. `n`) */
   double              stress_exponent;
 
   /* value of viscous stress above which plastic yielding occurs */
@@ -73,6 +74,11 @@ typedef struct rhea_viscosity_options
   rhea_domain_options_t  *domain_options;
 }
 rhea_viscosity_options_t;
+
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_viscosity_add_suboptions (ymir_options_t * opt_sup);
 
 /**
  * Gets the viscosity of one element at Gauss nodes.

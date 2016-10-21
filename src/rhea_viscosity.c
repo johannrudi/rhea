@@ -9,6 +9,111 @@
 #include <ymir_vec_getset.h>
 #include <ymir_stress_op.h>
 
+/* default options */
+#define RHEA_VISCOSITY_DEFAULT_TYPE (RHEA_VISCOSITY_LINEAR)
+#define RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR \
+  (RHEA_VISCOSITY_INIT_NONLINEAR_TEMP_UM_REL_TO_LM)
+#define RHEA_VISCOSITY_DEFAULT_MODEL_NAME "UWYL_LADD_USHIFT"
+#define RHEA_VISCOSITY_DEFAULT_MIN (1.0e-2)
+#define RHEA_VISCOSITY_DEFAULT_MAX (1.0e+4)
+#define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING (4.0e+3)
+#define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ACTIVATION_ENERGY (17.5)
+#define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING (4.0e+5)
+#define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_ACTIVATION_ENERGY (17.5)
+#define RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT (3.0)
+#define RHEA_VISCOSITY_DEFAULT_YIELD_STRESS (-1.0)
+#define RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION (0.0)
+
+/* initialize options */
+int                 rhea_viscosity_type = RHEA_VISCOSITY_DEFAULT_TYPE;
+int                 rhea_viscosity_type_init_nonlinear =
+                      RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR;
+char               *rhea_viscosity_model_name =
+                      RHEA_VISCOSITY_DEFAULT_MODEL_NAME;
+double              rhea_viscosity_min = RHEA_VISCOSITY_DEFAULT_MIN;
+double              rhea_viscosity_max = RHEA_VISCOSITY_DEFAULT_MAX;
+double              rhea_viscosity_upper_mantle_scaling =
+  RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING;
+double              rhea_viscosity_upper_mantle_activation_energy =
+  RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ACTIVATION_ENERGY;
+double              rhea_viscosity_lower_mantle_scaling =
+  RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING;
+double              rhea_viscosity_lower_mantle_activation_energy =
+  RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_ACTIVATION_ENERGY;
+double              rhea_viscosity_stress_exponent =
+  RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT;
+double              rhea_viscosity_yield_stress =
+  RHEA_VISCOSITY_DEFAULT_YIELD_STRESS;
+double              rhea_viscosity_yielding_regularization =
+  RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION;
+
+/**
+ * Defines options and adds them as sub-options.
+ */
+void
+rhea_viscosity_add_suboptions (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "Viscosity";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_I, "type", '\0',
+    &(rhea_viscosity_type), RHEA_VISCOSITY_DEFAULT_TYPE,
+    "Viscosity type: 0: constant; 1: linear; 2: nonlinear",
+  YMIR_OPTIONS_I, "init-nonlinear-type", '\0',
+    &rhea_viscosity_type_init_nonlinear,
+    RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR,
+    "Viscosity type for initial viscosity when solving a nonlinear problem",
+  YMIR_OPTIONS_S, "model", '\0',
+    &rhea_viscosity_model_name, RHEA_VISCOSITY_DEFAULT_MODEL_NAME,
+    "Viscosity model name, e.g., 'UWYL'",
+
+  YMIR_OPTIONS_D, "min", '\0',
+    &rhea_viscosity_min, RHEA_VISCOSITY_DEFAULT_MIN,
+    "Lower bound for viscosity",
+  YMIR_OPTIONS_D, "max", '\0',
+    &rhea_viscosity_max, RHEA_VISCOSITY_DEFAULT_MAX,
+    "Upper bound for viscosity",
+
+  YMIR_OPTIONS_D, "upper-mantle-scaling", '\0',
+    &rhea_viscosity_upper_mantle_scaling,
+    RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING,
+    "UM-Scaling factor for viscosity",
+  YMIR_OPTIONS_D, "upper-mantle-activation-energy", '\0',
+    &rhea_viscosity_upper_mantle_activation_energy,
+    RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ACTIVATION_ENERGY,
+    "UM-Activation energy (or exp. decay) of temperature dependent viscosity",
+  YMIR_OPTIONS_D, "lower-mantle-scaling", '\0',
+    &rhea_viscosity_lower_mantle_scaling,
+    RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING,
+    "LM-Scaling factor for viscosity",
+  YMIR_OPTIONS_D, "lower-mantle-activation-energy", '\0',
+    &rhea_viscosity_lower_mantle_activation_energy,
+    RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_ACTIVATION_ENERGY,
+    "LM-Activation energy (or exp. decay) of temperature dependent viscosity",
+
+  YMIR_OPTIONS_D, "stress-exponent", '\0',
+    &rhea_viscosity_stress_exponent, RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT,
+    "Stress exponent that governs strain rate weakening (aka. 'n')",
+
+  YMIR_OPTIONS_D, "yield-stress", '\0',
+    &rhea_viscosity_yield_stress, RHEA_VISCOSITY_DEFAULT_YIELD_STRESS,
+    "Value of viscous stress above which plastic yielding occurs",
+  YMIR_OPTIONS_D, "yielding-regularization", '\0',
+    &rhea_viscosity_yielding_regularization,
+    RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION,
+    "Regularization for yielding in [0,1] (0: full yielding .. 1: no yielding)",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+}
+
 void
 rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
                                const ymir_locidx_t elid)
