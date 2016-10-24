@@ -72,6 +72,7 @@ DISTCLEANFILES += \
 include src/Makefile.am
 ##include test/Makefile.am
 ##if RHEA_ENABLE_EXAMPLES
+include example/basic/Makefile.am
 include example/slabs/Makefile.am
 ##endif
 
