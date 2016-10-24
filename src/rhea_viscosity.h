@@ -5,7 +5,6 @@
 #define RHEA_VISCOSITY_H
 
 #include <rhea_domain.h>
-#include <ymir_options.h>
 #include <ymir_vec_ops.h>
 
 /* enumerator for types of viscosities */
