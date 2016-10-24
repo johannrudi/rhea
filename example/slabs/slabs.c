@@ -3315,11 +3315,12 @@ main (int argc, char **argv)
   int                 mpiret;
   /* options */
   ymir_options_t     *opt;
-  rhea_domain_options_t     domain_options;
-  rhea_viscosity_options_t  viscosity_options;
-  slabs_physics_options_t   physics_options;
-  slabs_discr_options_t     discr_options;
-  slabs_nl_solver_options_t solver_options;
+  rhea_domain_options_t         domain_options;
+  rhea_discretization_options_t discr_options;
+  rhea_viscosity_options_t      viscosity_options;
+  slabs_physics_options_t   slabs_physics_options;
+  slabs_discr_options_t     slabs_discr_options;
+  slabs_nl_solver_options_t slabs_solver_options;
   /* options local to this function */
   double              visc_override_const;
   double              weak_override_factor;
@@ -3493,12 +3494,13 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_process_options_all (&domain_options, &viscosity_options);
-  slabs_setup_process_options (&physics_options, &discr_options,
-                               &solver_options);
-  physics_options.domain_options = &domain_options;
-  physics_options.viscosity_options = &viscosity_options;
-  discr_options.inspect_p4est = monitor_performance;
+  rhea_process_options_all (&domain_options, &discr_options,
+                            &viscosity_options);
+  slabs_setup_process_options (&slabs_physics_options, &slabs_discr_options,
+                               &slabs_solver_options);
+  slabs_physics_options.domain_options = &domain_options;
+  slabs_physics_options.viscosity_options = &viscosity_options;
+  slabs_discr_options.inspect_p4est = monitor_performance;
 
   /*
    * Setup Mesh
@@ -3507,7 +3509,8 @@ main (int argc, char **argv)
   /* create mesh and Stokes state */
   slabs_setup_mesh (&p8est, &mesh, &press_elem, &state,
                     &enforce_refinement_data, &coarsen_coeff_data,
-                    mpicomm, &physics_options, &discr_options, &solver_options,
+                    mpicomm, &slabs_physics_options, &slabs_discr_options,
+                    &slabs_solver_options,
                     &slabs_perf_counter[SLABS_PERF_COUNTER_SETUP_MESH],
                     workload_out_path);
 
@@ -3521,13 +3524,13 @@ main (int argc, char **argv)
   if (vtk_out_path != NULL && vtk_input_state) {
     snprintf (path, BUFSIZ, "%s_input", vtk_out_path);
     slabs_vtk_write_state (path, state, NULL, 1, 1, mesh, press_elem,
-                           &physics_options);
+                           &slabs_physics_options);
   }
 
   /* vtk output of p4est mesh */
   if (vtk_out_path != NULL && vtk_p8est) {
     snprintf (path, BUFSIZ, "%s_p4est", vtk_out_path);
-    slabs_vtk_write_p8est (path, p8est, physics_options.domain_shape);
+    slabs_vtk_write_p8est (path, p8est, slabs_physics_options.domain_shape);
   }
 
   /* exit after mesh generation */
@@ -3535,7 +3538,7 @@ main (int argc, char **argv)
     /* destroy Stokes problem, Stokes state, and mesh */
     slabs_clear (lin_stokes, nl_stokes, p8est, mesh, press_elem, state,
                  enforce_refinement_data, coarsen_coeff_data,
-                 &physics_options, &discr_options);
+                 &slabs_physics_options, &slabs_discr_options);
 
     /* destroy options */
     ymir_options_global_destroy ();
@@ -3554,13 +3557,14 @@ main (int argc, char **argv)
    */
 
   {
-    const slabs_domain_shape_t  domain_shape = physics_options.domain_shape;
-    const int8_t        minlevel = discr_options.minlevel;
-    const int8_t        maxlevel = discr_options.maxlevel;
-    char               *refine = discr_options.refine;
-    const int           N = discr_options.order;
+    const slabs_domain_shape_t  domain_shape =
+                                  slabs_physics_options.domain_shape;
+    const int8_t        minlevel = slabs_discr_options.minlevel;
+    const int8_t        maxlevel = slabs_discr_options.maxlevel;
+    char               *refine = slabs_discr_options.refine;
+    const int           N = slabs_discr_options.order;
     const double        nl_norm_Hminus1_mass_scaling =
-                          solver_options.norm_Hminus1_mass_scaling;
+                          slabs_solver_options.norm_Hminus1_mass_scaling;
 
     /* test strain rate tensor and 2nd invariant computation */
     if (test_strain_rate) {
@@ -3639,23 +3643,25 @@ main (int argc, char **argv)
   if (0.0 < visc_override_const) {
     YMIR_GLOBAL_INFOF ("%s: Warning: Override viscosity to be const %g!\n",
                        this_fn_name, visc_override_const);
-    physics_options.viscosity_type = SL_VISCOSITY_CONST;
-    physics_options.viscosity_scaling = visc_override_const;
+    slabs_physics_options.viscosity_type = SL_VISCOSITY_CONST;
+    slabs_physics_options.viscosity_scaling = visc_override_const;
   }
 
   /* override weak zone factor (for testing purposes) */
   if (0.0 < weak_override_factor) {
     YMIR_GLOBAL_INFOF ("%s: Warning: Override weak zone factor to be %1.3e!\n",
                        this_fn_name, weak_override_factor);
-    physics_options.weakzone_import_weak_factor = weak_override_factor;
-    physics_options.weakzone_2plates_subdu_weak_factor = weak_override_factor;
-    physics_options.weakzone_2plates_ridge_weak_factor = weak_override_factor;
-    slabs_physics_compute_weakzone (state->weak_vec, &physics_options);
+    slabs_physics_options.weakzone_import_weak_factor = weak_override_factor;
+    slabs_physics_options.weakzone_2plates_subdu_weak_factor =
+      weak_override_factor;
+    slabs_physics_options.weakzone_2plates_ridge_weak_factor =
+      weak_override_factor;
+    slabs_physics_compute_weakzone (state->weak_vec, &slabs_physics_options);
   }
 
   /* setup Stokes problem */
   slabs_setup_stokes (&lin_stokes, &nl_stokes, p8est, mesh, press_elem, state,
-                      &physics_options, &solver_options,
+                      &slabs_physics_options, &slabs_solver_options,
                       &slabs_perf_counter[SLABS_PERF_COUNTER_SETUP_STOKES],
                       workload_out_path);
 
@@ -3664,14 +3670,16 @@ main (int argc, char **argv)
     snprintf (path, BUFSIZ, "%s_input", vtk_out_path);
 
     /* write vtk file */
-    if (solver_options.nl_solver_type == SL_NL_SOLVER_NONE) {
+    if (slabs_solver_options.nl_solver_type == SL_NL_SOLVER_NONE) {
       /* if linear solve */
       slabs_vtk_write_input_lin_stokes (path, state, lin_stokes,
-                                        &physics_options, &discr_options);
+                                        &slabs_physics_options,
+                                        &slabs_discr_options);
     }
     else { /* if nonlinear solve */
       slabs_vtk_write_input_nl_stokes (path, state, nl_stokes,
-                                       &physics_options, &discr_options);
+                                       &slabs_physics_options,
+                                       &slabs_discr_options);
     }
   }
 
@@ -3688,7 +3696,7 @@ main (int argc, char **argv)
     char               *vtk_nl_filepath = NULL;
 
     /* set output filenames for nonlinear iterations */
-    if (solver_options.nl_solver_type != SL_NL_SOLVER_NONE) {
+    if (slabs_solver_options.nl_solver_type != SL_NL_SOLVER_NONE) {
       if (bin_out_filepath != NULL && bin_out_nl_iter) {
         bin_nl_filepath = bin_out_filepath;
       }
@@ -3699,8 +3707,8 @@ main (int argc, char **argv)
 
     /* run solver */
     slabs_solve_stokes (lin_stokes, &nl_stokes, p8est, &mesh, &press_elem,
-                        state, &physics_options, &discr_options,
-                        &solver_options, workload_out_path,
+                        state, &slabs_physics_options, &slabs_discr_options,
+                        &slabs_solver_options, workload_out_path,
                         bin_nl_filepath, vtk_nl_filepath);
   }
 
@@ -3722,22 +3730,24 @@ main (int argc, char **argv)
   if (vtk_out_path != NULL) {
     snprintf (path, BUFSIZ, "%s_solution", vtk_out_path);
 
-    if (solver_options.nl_solver_type == SL_NL_SOLVER_NONE) {
+    if (slabs_solver_options.nl_solver_type == SL_NL_SOLVER_NONE) {
       /* if linear solve */
       slabs_vtk_write_solution_lin_stokes (path, state, lin_stokes,
-                                           solver_options.krylov_type,
-                                           &physics_options, &discr_options);
+                                           slabs_solver_options.krylov_type,
+                                           &slabs_physics_options,
+                                           &slabs_discr_options);
     }
     else {
       /* if nonlinear solve */
       slabs_vtk_write_solution_nl_stokes (path, state, nl_stokes,
-                                          &physics_options, &discr_options);
+                                          &slabs_physics_options,
+                                          &slabs_discr_options);
     }
   }
 
   //###DEV### papi test
 #if 0
-  if (solver_options.nl_solver_type == SL_NL_SOLVER_NONE) {
+  if (slabs_solver_options.nl_solver_type == SL_NL_SOLVER_NONE) {
     ymir_vec_t         *a = ymir_dvec_new (mesh, 1, YMIR_GLL_NODE);
     ymir_vec_t         *b = ymir_dvec_new (mesh, 1, YMIR_GLL_NODE);
     ymir_vec_t         *x = ymir_cvec_new (mesh, 3);
@@ -3794,7 +3804,7 @@ main (int argc, char **argv)
   /* destroy Stokes problem, Stokes state, and mesh */
   slabs_clear (lin_stokes, nl_stokes, p8est, mesh, press_elem, state,
                enforce_refinement_data, coarsen_coeff_data,
-               &physics_options, &discr_options);
+               &slabs_physics_options, &slabs_discr_options);
 
   /* print memory usage */
   ymir_monitor_print_global_mem_usage (mpicomm);
