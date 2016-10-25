@@ -67,13 +67,23 @@ void                rhea_discretization_mangll_and_cnodes_new (
                                         rhea_discretization_options_t *opt);
 
 /**
- * Creates new ymir mesh and pressure element structures.
+ * Creates new ymir mesh and pressure element structures, given mangll and
+ * cnodes.
  */
-void                rhea_discretization_ymir_new (
-                                        ymir_mesh_t **mesh,
-                                        ymir_pressure_elem_t **press_elem,
-                                        mangll_t *mangll,
-                                        mangll_cnodes_t *cnodes,
-                                        rhea_discretization_options_t *opt);
+void                rhea_discretization_ymir_mesh_new_from_mangll (
+                                          ymir_mesh_t **ymir_mesh,
+                                          ymir_pressure_elem_t **press_elem,
+                                          mangll_t *mangll,
+                                          mangll_cnodes_t *cnodes,
+                                          rhea_discretization_options_t *opt);
+
+/**
+ * Creates new ymir mesh and pressure element structures, given p4est.
+ */
+void                rhea_discretization_ymir_mesh_new_from_p4est (
+                                          ymir_mesh_t **ymir_mesh,
+                                          ymir_pressure_elem_t **press_elem,
+                                          p4est_t *p4est,
+                                          rhea_discretization_options_t *opt);
 
 #endif /* RHEA_DISCRETIZATION_H */
