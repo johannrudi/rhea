@@ -80,6 +80,16 @@ rhea_viscosity_options_t;
 void                rhea_viscosity_add_options (ymir_options_t * opt_sup);
 
 /**
+ * Creates a new viscosity vector.
+ */
+ymir_vec_t         *rhea_viscosity_new (ymir_mesh_t *ymir_mesh);
+
+/**
+ * Destroys a viscosity vector.
+ */
+void                rhea_viscosity_destroy (ymir_vec_t *viscosity);
+
+/**
  * Gets the viscosity of one element at Gauss nodes.
  */
 double             *rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat,

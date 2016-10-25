@@ -111,6 +111,22 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
   ymir_options_destroy (opt);
 }
 
+ymir_vec_t *
+rhea_viscosity_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
+}
+
+void
+rhea_viscosity_destroy (ymir_vec_t *viscosity)
+{
+  ymir_vec_destroy (viscosity);
+}
+
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
+
 double *
 rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
                                const ymir_locidx_t elid)
