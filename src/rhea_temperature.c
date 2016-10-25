@@ -5,6 +5,22 @@
 #include <rhea_base.h>
 #include <ymir_vec_getset.h>
 
+ymir_vec_t *
+rhea_temperature_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_cvec_new (ymir_mesh, 1);
+}
+
+void
+rhea_temperature_destroy (ymir_vec_t *temperature)
+{
+  ymir_vec_destroy (temperature);
+}
+
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
+
 /**
  * Restrict temperature to its valid range [0,1].
  */
