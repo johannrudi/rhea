@@ -541,13 +541,11 @@ rhea_domain_compute_radius (const double x, const double y, const double z,
 
       return z / z_max * (radius_max - radius_min) + radius_min;
     }
-    break;
 
   case RHEA_DOMAIN_SHELL:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
     return sqrt (x * x + y * y + z * z);
-    break;
 
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
