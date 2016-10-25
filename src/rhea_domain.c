@@ -5,7 +5,20 @@
 #include <rhea_base.h>
 #include <rhea_discretization.h>
 
-/* constants */
+/* enumerator for boundary faces */
+typedef enum
+{
+  RHEA_DOMAIN_BOUNDARY_FACE_NONE = -1,
+  RHEA_DOMAIN_BOUNDARY_FACE_BASE = 0,
+  RHEA_DOMAIN_BOUNDARY_FACE_TOP,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE1,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE2,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE3,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE4
+}
+rhea_domain_boundary_face_t;
+
+/* constant: reference value for shell radius */
 #define RHEA_DOMAIN_REFERENCE_SHELL_RADIUS (1.0)
 
 /* default options */
@@ -769,8 +782,8 @@ rhea_domain_vel_dir_shell_restrict_dof_fn (double *dummy,
 
   /* set one point to all Dirichlet */
   if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE && fabs (nz - 1.0) < SC_EPS) {
-    ymir_mesh_t        *mesh = vel_dir->mesh;
-    ymir_face_mesh_t   *fmesh = &mesh->fmeshes[face];
+    ymir_mesh_t        *ymir_mesh = vel_dir->mesh;
+    ymir_face_mesh_t   *fmesh = &ymir_mesh->fmeshes[face];
     ymir_locidx_t       vcnid = fmesh->CntoVCn[node_id];
     double             *vn = ymir_cvec_index (vel_dir->nvec, vcnid, 0);
 
@@ -787,8 +800,8 @@ rhea_domain_vel_dir_shell_restrict_dof_fn (double *dummy,
 
   /* set another point to Dirichlet in normal and one tangential direction */
   if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE && fabs (ny - 1.0) < SC_EPS) {
-    ymir_mesh_t        *mesh = vel_dir->mesh;
-    ymir_face_mesh_t   *fmesh = &mesh->fmeshes[face];
+    ymir_mesh_t        *ymir_mesh = vel_dir->mesh;
+    ymir_face_mesh_t   *fmesh = &ymir_mesh->fmeshes[face];
     ymir_locidx_t       vcnid = fmesh->CntoVCn[node_id];
     double             *vn = ymir_cvec_index (vel_dir->nvec, vcnid, 0);
 
@@ -813,15 +826,15 @@ rhea_domain_vel_dir_shell_restrict_dof_fn (double *dummy,
 static void
 rhea_domain_vel_dir_shell_restrict_dof (ymir_vel_dir_t * vel_dir)
 {
-  ymir_mesh_t        *mesh = vel_dir->mesh;
-  const ymir_topidx_t n_faces = mesh->num_face_meshes;
+  ymir_mesh_t        *ymir_mesh = vel_dir->mesh;
+  const ymir_topidx_t n_faces = ymir_mesh->num_face_meshes;
   ymir_topidx_t       faceid;
 
   for (faceid = 0; faceid < n_faces; faceid++) {
     ymir_vec_t         *dummy_face_cvec;
 
     /* create dummy vector for current face */
-    dummy_face_cvec = ymir_face_cvec_new (mesh, faceid, 1);
+    dummy_face_cvec = ymir_face_cvec_new (ymir_mesh, faceid, 1);
 
     /* set additional Dirichlet boundary conditions for current face */
     ymir_face_cvec_set_function (
@@ -833,7 +846,7 @@ rhea_domain_vel_dir_shell_restrict_dof (ymir_vel_dir_t * vel_dir)
 }
 
 ymir_vel_dir_t *
-rhea_domain_create_velocity_dirichlet_bc (ymir_mesh_t *mesh,
+rhea_domain_create_velocity_dirichlet_bc (ymir_mesh_t *ymir_mesh,
                                           ymir_vec_t *dirscal,
                                           void *data)
 {
@@ -848,11 +861,11 @@ rhea_domain_create_velocity_dirichlet_bc (ymir_mesh_t *mesh,
   case RHEA_DOMAIN_BOX:
   case RHEA_DOMAIN_BOX_SPHERICAL:
     vel_dir = ymir_vel_dir_new_from_faces (
-        mesh, NULL, rhea_domain_vel_dir_fn_box, &vel_bc_type, dirscal);
+        ymir_mesh, NULL, rhea_domain_vel_dir_fn_box, &vel_bc_type, dirscal);
     break;
   case RHEA_DOMAIN_SHELL:
     vel_dir = ymir_vel_dir_new_from_faces (
-        mesh, NULL, rhea_domain_vel_dir_fn_shell, &vel_bc_type, dirscal);
+        ymir_mesh, NULL, rhea_domain_vel_dir_fn_shell, &vel_bc_type, dirscal);
     if (RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_NORM_FIXDOF == vel_bc_type) {
       rhea_domain_vel_dir_shell_restrict_dof (vel_dir);
     }

@@ -21,19 +21,6 @@ typedef enum
 }
 rhea_domain_shape_t;
 
-/* enumerator for boundary faces */
-typedef enum
-{
-  RHEA_DOMAIN_BOUNDARY_FACE_NONE = -1,
-  RHEA_DOMAIN_BOUNDARY_FACE_BASE = 0,
-  RHEA_DOMAIN_BOUNDARY_FACE_TOP,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE1,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE2,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE3,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE4
-}
-rhea_domain_boundary_face_t;
-
 /* enumerator for velocity boundray conditions */
 typedef enum
 {
@@ -152,8 +139,8 @@ void                rhea_domain_boundary_destroy (
  * Creates Dirichlet boundary conditions.
  */
 ymir_vel_dir_t     *rhea_domain_create_velocity_dirichlet_bc (
-                                                          ymir_mesh_t *mesh,
-                                                          ymir_vec_t *dirscal,
-                                                          void *data);
+                                                        ymir_mesh_t *ymir_mesh,
+                                                        ymir_vec_t *dirscal,
+                                                        void *data);
 
 #endif /* RHEA_DOMAIN_H */
