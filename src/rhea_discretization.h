@@ -58,6 +58,11 @@ p4est_t            *rhea_discretization_p4est_new (
                                         rhea_domain_options_t *domain_options);
 
 /**
+ * Destroys p4est.
+ */
+void                rhea_discretization_p4est_destroy (p4est_t *p4est);
+
+/**
  * Creates new mangll and cnodes objects.
  */
 void                rhea_discretization_mangll_and_cnodes_new (
@@ -85,5 +90,12 @@ void                rhea_discretization_ymir_mesh_new_from_p4est (
                                           ymir_pressure_elem_t **press_elem,
                                           p4est_t *p4est,
                                           rhea_discretization_options_t *opt);
+
+/**
+ * Destroys ymir mesh and corresponding mangll structures.
+ */
+void                rhea_discretization_ymir_mesh_destroy (
+                                          ymir_mesh_t *ymir_mesh,
+                                          ymir_pressure_elem_t *press_elem);
 
 #endif /* RHEA_DISCRETIZATION_H */

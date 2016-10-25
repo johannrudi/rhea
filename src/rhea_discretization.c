@@ -524,6 +524,17 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
 }
 
 void
+rhea_discretization_p4est_destroy (p4est_t *p4est)
+{
+  p4est_connectivity_t *conn = p4est->connectivity;
+
+  //slabs_discr_p8est_clear_data (p4est);
+  //TODO
+  p4est_destroy (p4est);
+  p4est_connectivity_destroy (conn);
+}
+
+void
 rhea_discretization_mangll_and_cnodes_new (mangll_t **mangll,
                                            mangll_cnodes_t **cnodes,
                                            p4est_t *p4est,
@@ -609,4 +620,24 @@ rhea_discretization_ymir_mesh_new_from_p4est (
   /* create ymir mesh & pressure element */
   rhea_discretization_ymir_mesh_new_from_mangll (ymir_mesh, press_elem,
                                                  mangll, cnodes, opt);
+}
+
+/**
+ * Destroys ymir mesh and corresponding mangll structures.
+ */
+void
+rhea_discretization_ymir_mesh_destroy (ymir_mesh_t *ymir_mesh,
+                                       ymir_pressure_elem_t *press_elem)
+{
+  /* destroy pressure element */
+  if (press_elem != NULL) {
+    ymir_pressure_elem_destroy (press_elem);
+  }
+
+  /* destroy mangll, cnodes, and ymir_mesh */
+  if (ymir_mesh != NULL) {
+    mangll_destroy (ymir_mesh->ma);
+    mangll_p8est_cnodes_destroy (ymir_mesh->cnodes);
+    ymir_mesh_destroy (ymir_mesh);
+  }
 }
