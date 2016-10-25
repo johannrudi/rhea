@@ -7,6 +7,16 @@
 #include <ymir_vec_ops.h>
 
 /**
+ * Creates a new temperature vector.
+ */
+ymir_vec_t         *rhea_velocity_new (ymir_mesh_t *ymir_mesh);
+
+/**
+ * Destroys a temperature vector.
+ */
+void                rhea_velocity_destroy (ymir_vec_t *velocity);
+
+/**
  * Gets the velocity of one element at GLL nodes.
  */
 void                rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,

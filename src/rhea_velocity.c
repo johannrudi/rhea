@@ -6,6 +6,22 @@
 #include <ymir_vec_getset.h>
 #include <ymir_velocity_elem.h>
 
+ymir_vec_t *
+rhea_velocity_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_cvec_new (ymir_mesh, 3);
+}
+
+void
+rhea_velocity_destroy (ymir_vec_t *velocity)
+{
+  ymir_vec_destroy (velocity);
+}
+
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
+
 void
 rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
                             ymir_vec_t *vel_vec,
