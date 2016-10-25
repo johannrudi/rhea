@@ -5,6 +5,68 @@
 #include <rhea_base.h>
 #include <ymir_vec_getset.h>
 
+/* constant: default value for constant temperatures (gives viscosity = 1) */
+#define RHEA_TEMPERATURE_DEFAULT_CONST_TEMP (0.5)
+
+/* default options */
+#define RHEA_TEMPERATURE_DEFAULT_TYPE_NAME "none"
+#define RHEA_TEMPERATURE_DEFAULT_RHS_SCALING (1.0)
+
+/* initialize options */
+char               *rhea_temperature_type_name =
+  RHEA_TEMPERATURE_DEFAULT_TYPE_NAME;
+double              rhea_temperature_rhs_scaling =
+  RHEA_TEMPERATURE_DEFAULT_RHS_SCALING;
+
+/* initialize derived options */
+int                 rhea_temperature_type = RHEA_TEMPERATURE_NONE;
+
+void
+rhea_temperature_add_options (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "Temperature";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_S, "type", '\0',
+    &(rhea_temperature_type_name), RHEA_TEMPERATURE_DEFAULT_TYPE_NAME,
+    "Type of temperature: none, import, cold_plate, 2plates_poly2",
+
+  YMIR_OPTIONS_D, "right-hand-side-scaling", '\0',
+    &(rhea_temperature_rhs_scaling), RHEA_TEMPERATURE_DEFAULT_RHS_SCALING,
+    "Scaling factor for velocity right-hand side from temperature",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+}
+
+void
+rhea_temperature_process_options ()
+{
+  /* set shape of domain */
+  if (strcmp (rhea_temperature_type_name, "none") == 0) {
+    rhea_temperature_type = RHEA_TEMPERATURE_NONE;
+  }
+  else if (strcmp (rhea_temperature_type_name, "import") == 0) {
+    rhea_temperature_type = RHEA_TEMPERATURE_IMPORT;
+  }
+  else if (strcmp (rhea_temperature_type_name, "cold_plate") == 0) {
+    rhea_temperature_type = RHEA_TEMPERATURE_COLD_PLATE;
+  }
+  else if (strcmp (rhea_temperature_type_name, "2plates_poly2") == 0) {
+    rhea_temperature_type = RHEA_TEMPERATURE_2PLATES_POLY2;
+  }
+  else { /* unknown temperature type */
+    RHEA_ABORT ("Unknown temperature type");
+  }
+}
+
 ymir_vec_t *
 rhea_temperature_new (ymir_mesh_t *ymir_mesh)
 {
@@ -58,4 +120,140 @@ rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
   rhea_temperature_bound_range_data (temp_el_mat->e[0], n_nodes_per_el);
 
   return temp_el_mat->e[0];
+}
+
+/******************************************************************************
+ * Temperature Computation
+ *****************************************************************************/
+
+/******************************************************************************
+ * Background Temperature Computation
+ *****************************************************************************/
+
+/**
+ * Computes the background temperature at one node.
+ */
+static double
+rhea_temperature_background_node (const double x, const double y,
+                                  const double z,
+                                  rhea_domain_options_t *domain_options)
+{
+  const rhea_temperature_t temperature_type = rhea_temperature_type;
+  double              back_temp;
+
+  switch (temperature_type) {
+  case RHEA_TEMPERATURE_NONE:
+    back_temp = RHEA_TEMPERATURE_DEFAULT_CONST_TEMP;
+    break;
+  default: /* unknown temperature type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* check background temperature for `nan` and `inf` */
+  RHEA_ASSERT (isfinite (back_temp));
+
+  /* bound background temperature to valid interval */
+  back_temp = SC_MIN (1.0, back_temp);
+  back_temp = SC_MAX (0.0, back_temp);
+
+  /* return background temperature */
+  return back_temp;
+}
+
+/******************************************************************************
+ * Right-Hand Side Computation
+ *****************************************************************************/
+
+/**
+ * Computes velocity right-hand side at one node from temperature and
+ * background temperature.
+ */
+static void
+rhea_temperature_rhs_vel_node (double *rhs, const double x, const double y,
+                               const double z, const double temp,
+                               const double back_temp,
+                               rhea_domain_options_t *domain_options)
+{
+  const double        scaling = rhea_temperature_rhs_scaling;
+
+  switch (domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+    /**
+     * Computes right-hand side from temperature and background temperature
+     * on the cube domain:
+     *
+     *   f(x) = e_z * (T - T_0)
+     *
+     * where `e_z` is unit vector in z-direction, `T` is temperature,
+     * `T_0` is background temperature.
+     */
+    rhs[0] = 0.0;
+    rhs[1] = 0.0;
+    rhs[2] = scaling * (temp - back_temp);
+    break;
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    /**
+     * Computes right-hand side from temperature and background temperature
+     * on the shell domain:
+     *
+     *   f(x) = e_r * (T - T_0)
+     *
+     * where `e_r` is normalized spherical position vector, `T` is temperature,
+     * `T_0` is background temperature.
+     */
+    {
+      const double        radius = rhea_domain_compute_radius (x, y, z,
+                                                               domain_options);
+
+      rhs[0] = scaling * x / radius * (temp - back_temp);
+      rhs[1] = scaling * y / radius * (temp - back_temp);
+      rhs[2] = scaling * z / radius * (temp - back_temp);
+    }
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/* data for callback function to compute the velocity right-hand side */
+typedef struct rhea_temperature_compute_rhs_vel_fn_data
+{
+  ymir_vec_t             *temperature;
+  rhea_domain_options_t  *domain_options;
+}
+rhea_temperature_compute_rhs_vel_fn_data_t;
+
+/**
+ * Callback function to compute the velocity right-hand side.
+ */
+static void
+rhea_temperature_compute_rhs_vel_fn (double *rhs, double x, double y, double z,
+                                     ymir_locidx_t nodeid, void *data)
+{
+  rhea_temperature_compute_rhs_vel_fn_data_t  *d = data;
+  rhea_domain_options_t  *domain_options = d->domain_options;
+  const double        temp = *ymir_cvec_index (d->temperature, nodeid, 0);
+  double              back_temp;
+
+  /* compute background temperature */
+  back_temp = rhea_temperature_background_node (x, y, z, domain_options);
+
+  /* compute right-hand side */
+  rhea_temperature_rhs_vel_node (rhs, x, y, z, temp, back_temp, domain_options);
+}
+
+void
+rhea_temperature_compute_rhs_vel (ymir_vec_t *rhs_vel,
+                                  ymir_vec_t *temperature,
+                                  rhea_domain_options_t *domain_options)
+{
+  rhea_temperature_compute_rhs_vel_fn_data_t  data;
+
+  /* set right-hand side */
+  data.temperature = temperature;
+  data.domain_options = domain_options;
+  ymir_cvec_set_function (rhs_vel, rhea_temperature_compute_rhs_vel_fn, &data);
 }
