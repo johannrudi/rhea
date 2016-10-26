@@ -135,9 +135,16 @@ void                rhea_viscosity_marker_set_elem_gauss (
                                                   sc_dmatrix_t *marker_el_mat,
                                                   const ymir_locidx_t elid);
 
-void                rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
-                                               ymir_vec_t *temp_vec,
-                                               ymir_vec_t *weak_vec,
-                                               rhea_viscosity_options_t *opt);
+/**
+ * Computes viscosity.
+ */
+void                rhea_viscosity_compute (ymir_vec_t *viscosity,
+                                            ymir_vec_t *rank1_tensor_scal,
+                                            ymir_vec_t *bounds_marker,
+                                            ymir_vec_t *yielding_marker,
+                                            ymir_vec_t *temperature,
+                                            ymir_vec_t *weakzone,
+                                            ymir_vec_t *velocity,
+                                            rhea_viscosity_options_t *opt);
 
 #endif /* RHEA_VISCOSITY_H */
