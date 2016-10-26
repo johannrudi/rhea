@@ -41,6 +41,7 @@ basic_setup_stokes (rhea_stokes_linear_problem_t **lin_stokes,
                     ymir_mesh_t *ymir_mesh,
                     ymir_pressure_elem_t *press_elem,
                     rhea_domain_options_t *domain_options,
+                    rhea_temperature_options_t *temp_options,
                     rhea_viscosity_options_t *viscosity_options)
 {
   const char         *this_fn_name = "basic_setup_stokes";
@@ -132,8 +133,9 @@ main (int argc, char **argv)
   /* options */
   ymir_options_t     *opt;
   rhea_domain_options_t         domain_options;
-  rhea_discretization_options_t discr_options;
+  rhea_temperature_options_t    temp_options;
   rhea_viscosity_options_t      viscosity_options;
+  rhea_discretization_options_t discr_options;
   /* options local to this function */
   int                 production_run;
   /* mesh */
@@ -218,8 +220,8 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_process_options_all (&domain_options, &discr_options,
-                            &viscosity_options);
+  rhea_process_options_all (&domain_options, &temp_options,
+                            &viscosity_options, &discr_options);
 
   /*
    * Setup Mesh
@@ -233,7 +235,7 @@ main (int argc, char **argv)
    */
 
   basic_setup_stokes (&lin_stokes, ymir_mesh, press_elem,
-                      &domain_options, &viscosity_options);
+                      &domain_options, &temp_options, &viscosity_options);
 
   /*
    * Solve Stokes Problem
