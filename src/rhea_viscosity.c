@@ -60,46 +60,46 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     &(rhea_viscosity_type), RHEA_VISCOSITY_DEFAULT_TYPE,
     "Viscosity type: 0: constant; 1: linear; 2: nonlinear",
   YMIR_OPTIONS_I, "init-nonlinear-type", '\0',
-    &rhea_viscosity_type_init_nonlinear,
+    &(rhea_viscosity_type_init_nonlinear),
     RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR,
     "Viscosity type for initial viscosity when solving a nonlinear problem",
   YMIR_OPTIONS_S, "model", '\0',
-    &rhea_viscosity_model_name, RHEA_VISCOSITY_DEFAULT_MODEL_NAME,
+    &(rhea_viscosity_model_name), RHEA_VISCOSITY_DEFAULT_MODEL_NAME,
     "Viscosity model name, e.g., 'UWYL'",
 
   YMIR_OPTIONS_D, "min", '\0',
-    &rhea_viscosity_min, RHEA_VISCOSITY_DEFAULT_MIN,
+    &(rhea_viscosity_min), RHEA_VISCOSITY_DEFAULT_MIN,
     "Lower bound for viscosity",
   YMIR_OPTIONS_D, "max", '\0',
-    &rhea_viscosity_max, RHEA_VISCOSITY_DEFAULT_MAX,
+    &(rhea_viscosity_max), RHEA_VISCOSITY_DEFAULT_MAX,
     "Upper bound for viscosity",
 
   YMIR_OPTIONS_D, "upper-mantle-scaling", '\0',
-    &rhea_viscosity_upper_mantle_scaling,
+    &(rhea_viscosity_upper_mantle_scaling),
     RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING,
     "UM-Scaling factor for viscosity",
   YMIR_OPTIONS_D, "upper-mantle-activation-energy", '\0',
-    &rhea_viscosity_upper_mantle_activation_energy,
+    &(rhea_viscosity_upper_mantle_activation_energy),
     RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ACTIVATION_ENERGY,
     "UM-Activation energy (or exp. decay) of temperature dependent viscosity",
   YMIR_OPTIONS_D, "lower-mantle-scaling", '\0',
-    &rhea_viscosity_lower_mantle_scaling,
+    &(rhea_viscosity_lower_mantle_scaling),
     RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING,
     "LM-Scaling factor for viscosity",
   YMIR_OPTIONS_D, "lower-mantle-activation-energy", '\0',
-    &rhea_viscosity_lower_mantle_activation_energy,
+    &(rhea_viscosity_lower_mantle_activation_energy),
     RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_ACTIVATION_ENERGY,
     "LM-Activation energy (or exp. decay) of temperature dependent viscosity",
 
   YMIR_OPTIONS_D, "stress-exponent", '\0',
-    &rhea_viscosity_stress_exponent, RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT,
+    &(rhea_viscosity_stress_exponent), RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT,
     "Stress exponent that governs strain rate weakening (aka. 'n')",
 
   YMIR_OPTIONS_D, "yield-stress", '\0',
-    &rhea_viscosity_yield_stress, RHEA_VISCOSITY_DEFAULT_YIELD_STRESS,
+    &(rhea_viscosity_yield_stress), RHEA_VISCOSITY_DEFAULT_YIELD_STRESS,
     "Value of viscous stress above which plastic yielding occurs",
   YMIR_OPTIONS_D, "yielding-regularization", '\0',
-    &rhea_viscosity_yielding_regularization,
+    &(rhea_viscosity_yielding_regularization),
     RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION,
     "Regularization for yielding in [0,1] (0: full yielding .. 1: no yielding)",
 
@@ -109,6 +109,84 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
   ymir_options_destroy (opt);
+}
+
+void
+rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
+                                rhea_domain_options_t *domain_options)
+{
+  const char         *this_fn_name = "rhea_viscosity_process_options";
+
+  /* set viscosity type */
+  opt->type = (rhea_viscosity_t) rhea_viscosity_type;
+  opt->type_init_nonlinear =
+    (rhea_viscosity_init_nonlinear_t) rhea_viscosity_type_init_nonlinear;
+
+  /* set viscosity model */
+  if (strcmp (rhea_viscosity_model_name, "UWYL") == 0) {
+    opt->model = RHEA_VISCOSITY_MODEL_UWYL;
+  }
+  else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_UCUT") == 0) {
+    opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT;
+  }
+  else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_USHIFT") == 0) {
+    opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT;
+  }
+  else { /* unknown model name */
+    RHEA_ABORT ("Unknown viscosity model name");
+  }
+
+  /* set viscosity bounds */
+  opt->min = rhea_viscosity_min;
+  opt->max = rhea_viscosity_max;
+  RHEA_CHECK_ABORT (opt->min <= 0.0 || opt->max <= 0.0 || opt->min < opt->max,
+                    "Invalid viscosity lower/upper bounds");
+
+  /* store linear viscosity options */
+  opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
+  opt->upper_mantle_activation_energy =
+    rhea_viscosity_upper_mantle_activation_energy;
+  if (0.0 < rhea_viscosity_lower_mantle_scaling) {
+    opt->lower_mantle_scaling = rhea_viscosity_lower_mantle_scaling;
+  }
+  else {
+    opt->lower_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
+  }
+  if (0.0 < rhea_viscosity_lower_mantle_activation_energy) {
+    opt->lower_mantle_activation_energy =
+      rhea_viscosity_lower_mantle_activation_energy;
+  }
+  else {
+    opt->lower_mantle_activation_energy =
+      rhea_viscosity_upper_mantle_activation_energy;
+  }
+
+  /* store nonlinear viscosity options */
+  opt->stress_exponent = rhea_viscosity_stress_exponent;
+  opt->yield_stress = rhea_viscosity_yield_stress;
+  opt->yielding_regularization = rhea_viscosity_yielding_regularization;
+
+  /* set additive component of nonlinear viscous stress coefficient */
+  if (opt->type == RHEA_VISCOSITY_NONLINEAR) {
+    switch (opt->model) {
+    case RHEA_VISCOSITY_MODEL_UWYL:
+      break;
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
+      if (0 < opt->min) {
+        ymir_nlstress_op_coeff_tensor_add = -2.0 * opt->min;
+        RHEA_GLOBAL_INFOF (
+            "%s: Overriding option ymir_nlstress_op_coeff_tensor_add = %g\n",
+            this_fn_name, ymir_nlstress_op_coeff_tensor_add);
+      }
+      break;
+    default: /* unknown viscosity model */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+
+  /* store domain options */
+  opt->domain_options = domain_options;
 }
 
 ymir_vec_t *

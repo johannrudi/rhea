@@ -80,6 +80,12 @@ rhea_viscosity_options_t;
 void                rhea_viscosity_add_options (ymir_options_t * opt_sup);
 
 /**
+ * Processes options and stores them.
+ */
+void                rhea_viscosity_process_options (
+                                        rhea_viscosity_options_t *opt,
+                                        rhea_domain_options_t *domain_options);
+/**
  * Creates a new viscosity vector.
  */
 ymir_vec_t         *rhea_viscosity_new (ymir_mesh_t *ymir_mesh);
