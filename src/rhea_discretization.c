@@ -31,19 +31,19 @@ rhea_discretization_add_options (ymir_options_t * opt_sup)
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
 
-  YMIR_OPTIONS_I, "order", 'N',
-    &rhea_discretization_order, RHEA_DISCRETIZATION_DEFAULT_ORDER,
+  YMIR_OPTIONS_I, "order", '\0',
+    &(rhea_discretization_order), RHEA_DISCRETIZATION_DEFAULT_ORDER,
     "Order of finite element discretization",
 
-  YMIR_OPTIONS_I, "level-min", 'l',
-    &rhea_discretization_level_min, RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN,
+  YMIR_OPTIONS_I, "level-min", '\0',
+    &(rhea_discretization_level_min), RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN,
     "Minumum level of mesh refinement",
-  YMIR_OPTIONS_I, "level-max", 'L',
-    &rhea_discretization_level_max, RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX,
+  YMIR_OPTIONS_I, "level-max", '\0',
+    &(rhea_discretization_level_max), RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX,
     "Maximum level of mesh refinement",
 
   YMIR_OPTIONS_S, "refinement-type", '\0',
-    &rhea_discretization_refinement_type,
+    &(rhea_discretization_refinement_type),
     RHEA_DISCRETIZATION_DEFAULT_REFINEMENT_TYPE,
     "Mesh refinement type",
 
