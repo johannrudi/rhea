@@ -17,6 +17,24 @@ typedef enum
 }
 rhea_temperature_t;
 
+/* options of the mantle's temperature */
+typedef struct rhea_temperature_options
+{
+  /* type of the temperature */
+  rhea_temperature_t  type;
+
+  /* data imported from file */
+  char               *import_path_txt;
+  char               *import_path_bin;
+
+  /* buoyancy right-hand side derived from temperature */
+  double              rhs_scaling;
+
+  /* options & properties of the computational domain */
+  rhea_domain_options_t  *domain_options;
+}
+rhea_temperature_options_t;
+
 /**
  * Defines options and adds them as sub-options.
  */
@@ -25,7 +43,9 @@ void                rhea_temperature_add_options (ymir_options_t * opt_sup);
 /**
  * Processes options and stores them.
  */
-void                rhea_temperature_process_options ();
+void                rhea_temperature_process_options (
+                                        rhea_temperature_options_t *opt,
+                                        rhea_domain_options_t *domain_options);
 
 /**
  * Creates a new temperature vector.
@@ -49,8 +69,8 @@ double             *rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
  * temperature vector.
  */
 void                rhea_temperature_compute_rhs_vel (
-                                        ymir_vec_t *rhs_vel,
-                                        ymir_vec_t *temperature,
-                                        rhea_domain_options_t *domain_options);
+                                              ymir_vec_t *rhs_vel,
+                                              ymir_vec_t *temperature,
+                                              rhea_temperature_options_t *opt);
 
 #endif /* RHEA_TEMPERATURE_H */

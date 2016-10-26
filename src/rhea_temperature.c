@@ -18,9 +18,6 @@ char               *rhea_temperature_type_name =
 double              rhea_temperature_rhs_scaling =
   RHEA_TEMPERATURE_DEFAULT_RHS_SCALING;
 
-/* initialize derived options */
-int                 rhea_temperature_type = RHEA_TEMPERATURE_NONE;
-
 void
 rhea_temperature_add_options (ymir_options_t * opt_sup)
 {
@@ -47,24 +44,31 @@ rhea_temperature_add_options (ymir_options_t * opt_sup)
 }
 
 void
-rhea_temperature_process_options ()
+rhea_temperature_process_options (rhea_temperature_options_t *opt,
+                                  rhea_domain_options_t *domain_options)
 {
-  /* set shape of domain */
+  /* set temperature type */
   if (strcmp (rhea_temperature_type_name, "none") == 0) {
-    rhea_temperature_type = RHEA_TEMPERATURE_NONE;
+    opt->type = RHEA_TEMPERATURE_NONE;
   }
   else if (strcmp (rhea_temperature_type_name, "import") == 0) {
-    rhea_temperature_type = RHEA_TEMPERATURE_IMPORT;
+    opt->type = RHEA_TEMPERATURE_IMPORT;
   }
   else if (strcmp (rhea_temperature_type_name, "cold_plate") == 0) {
-    rhea_temperature_type = RHEA_TEMPERATURE_COLD_PLATE;
+    opt->type = RHEA_TEMPERATURE_COLD_PLATE;
   }
   else if (strcmp (rhea_temperature_type_name, "2plates_poly2") == 0) {
-    rhea_temperature_type = RHEA_TEMPERATURE_2PLATES_POLY2;
+    opt->type = RHEA_TEMPERATURE_2PLATES_POLY2;
   }
   else { /* unknown temperature type */
     RHEA_ABORT ("Unknown temperature type");
   }
+
+  /* set right-hand side parameters */
+  opt->rhs_scaling = rhea_temperature_rhs_scaling;
+
+  /* store domain options */
+  opt->domain_options = domain_options;
 }
 
 ymir_vec_t *
@@ -136,12 +140,12 @@ rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
 static double
 rhea_temperature_background_node (const double x, const double y,
                                   const double z,
-                                  rhea_domain_options_t *domain_options)
+                                  rhea_temperature_options_t *opt)
 {
-  const rhea_temperature_t temperature_type = rhea_temperature_type;
+  //rhea_domain_options_t  *domain_options = opt->domain_options;
   double              back_temp;
 
-  switch (temperature_type) {
+  switch (opt->type) {
   case RHEA_TEMPERATURE_NONE:
     back_temp = RHEA_TEMPERATURE_DEFAULT_CONST_TEMP;
     break;
@@ -221,8 +225,8 @@ rhea_temperature_rhs_vel_node (double *rhs, const double x, const double y,
 /* data for callback function to compute the velocity right-hand side */
 typedef struct rhea_temperature_compute_rhs_vel_fn_data
 {
-  ymir_vec_t             *temperature;
-  rhea_domain_options_t  *domain_options;
+  ymir_vec_t          *temperature;
+  rhea_temperature_options_t  *temp_options;
 }
 rhea_temperature_compute_rhs_vel_fn_data_t;
 
@@ -234,12 +238,13 @@ rhea_temperature_compute_rhs_vel_fn (double *rhs, double x, double y, double z,
                                      ymir_locidx_t nodeid, void *data)
 {
   rhea_temperature_compute_rhs_vel_fn_data_t  *d = data;
-  rhea_domain_options_t  *domain_options = d->domain_options;
+  rhea_temperature_options_t  *opt = d->temp_options;
+  rhea_domain_options_t  *domain_options = opt->domain_options;
   const double        temp = *ymir_cvec_index (d->temperature, nodeid, 0);
   double              back_temp;
 
   /* compute background temperature */
-  back_temp = rhea_temperature_background_node (x, y, z, domain_options);
+  back_temp = rhea_temperature_background_node (x, y, z, opt);
 
   /* compute right-hand side */
   rhea_temperature_rhs_vel_node (rhs, x, y, z, temp, back_temp, domain_options);
@@ -248,12 +253,12 @@ rhea_temperature_compute_rhs_vel_fn (double *rhs, double x, double y, double z,
 void
 rhea_temperature_compute_rhs_vel (ymir_vec_t *rhs_vel,
                                   ymir_vec_t *temperature,
-                                  rhea_domain_options_t *domain_options)
+                                  rhea_temperature_options_t *opt)
 {
   rhea_temperature_compute_rhs_vel_fn_data_t  data;
 
   /* set right-hand side */
   data.temperature = temperature;
-  data.domain_options = domain_options;
+  data.temp_options = opt;
   ymir_cvec_set_function (rhs_vel, rhea_temperature_compute_rhs_vel_fn, &data);
 }
