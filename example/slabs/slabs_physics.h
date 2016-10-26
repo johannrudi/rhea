@@ -285,8 +285,9 @@ typedef struct slabs_physics_options
   double              plume_scaling;
 
   /* rhea options */
-  rhea_domain_options_t     *domain_options;
-  rhea_viscosity_options_t  *viscosity_options;
+  rhea_domain_options_t       *domain_options;
+  rhea_temperature_options_t  *temp_options;
+  rhea_viscosity_options_t    *viscosity_options;
 }
 slabs_physics_options_t;
 

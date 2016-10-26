@@ -3316,8 +3316,9 @@ main (int argc, char **argv)
   /* options */
   ymir_options_t     *opt;
   rhea_domain_options_t         domain_options;
-  rhea_discretization_options_t discr_options;
+  rhea_temperature_options_t    temp_options;
   rhea_viscosity_options_t      viscosity_options;
+  rhea_discretization_options_t discr_options;
   slabs_physics_options_t   slabs_physics_options;
   slabs_discr_options_t     slabs_discr_options;
   slabs_nl_solver_options_t slabs_solver_options;
@@ -3494,11 +3495,12 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_process_options_all (&domain_options, &discr_options,
-                            &viscosity_options);
+  rhea_process_options_all (&domain_options, &temp_options,
+                            &viscosity_options, &discr_options);
   slabs_setup_process_options (&slabs_physics_options, &slabs_discr_options,
                                &slabs_solver_options);
   slabs_physics_options.domain_options = &domain_options;
+  slabs_physics_options.temp_options = &temp_options;
   slabs_physics_options.viscosity_options = &viscosity_options;
   slabs_discr_options.inspect_p4est = monitor_performance;
 
