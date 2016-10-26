@@ -3230,7 +3230,8 @@ slabs_viscosity_linear (ymir_dvec_t *viscosity,
   visc_opt.yield_stress = physics_options->viscosity_stress_yield;
   visc_opt.domain_options = &domain_opt;
 
-  rhea_viscosity_linear_vec (viscosity, temp_vec, weak_vec, &visc_opt);
+  rhea_viscosity_compute (viscosity, NULL, NULL, NULL, temp_vec, weak_vec,
+                          NULL, &visc_opt);
 }
 
 /**
