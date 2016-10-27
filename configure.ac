@@ -48,7 +48,7 @@ echo "o---------------------------------------"
 echo "| Checking functions"
 echo "o---------------------------------------"
 
-SC_REQUIRE_FUNCS([exp log pow sqrt floor ceil])
+SC_REQUIRE_FUNCS([exp log pow sqrt floor ceil erf])
 
 echo "o---------------------------------------"
 echo "| Checking third-party software"
