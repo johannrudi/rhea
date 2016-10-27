@@ -37,32 +37,29 @@ basic_setup_mesh (p4est_t **p4est,
  * Sets up a linear Stokes problem.
  */
 static void
-basic_setup_stokes (rhea_stokes_linear_problem_t **lin_stokes,
+basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     ymir_mesh_t *ymir_mesh,
                     ymir_pressure_elem_t *press_elem,
                     rhea_domain_options_t *domain_options,
                     rhea_temperature_options_t *temp_options,
-                    rhea_viscosity_options_t *viscosity_options)
+                    rhea_viscosity_options_t *visc_options)
 {
   const char         *this_fn_name = "basic_setup_stokes";
-  ymir_vec_t         *temperature, *viscosity;
+  ymir_vec_t         *temperature, *weakzone;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
-  /* create temperature */
+  /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
-  //TODO set temp
-  ymir_vec_set_value (temperature, 0.5);
+  rhea_temperature_compute (temperature, temp_options);
 
-  /* create Stokes coefficient (= 2 * viscosity) */
-  viscosity = rhea_viscosity_new (ymir_mesh);
-  //TODO set visc
-  ymir_vec_set_value (viscosity, 1.0);
+  /* compute weak zone */
+  weakzone = NULL;  /* Note: in this example, we do not want weak zones */
 
   /* create Stokes problem */
-  *lin_stokes = rhea_stokes_linear_problem_new (
-      temperature, viscosity, 1 /* pass viscosity vector as owned */,
-      ymir_mesh, press_elem, domain_options);
+  *stokes_problem = rhea_stokes_problem_new (
+      temperature, weakzone, ymir_mesh, press_elem,
+      domain_options, temp_options, visc_options);
 
   /* destroy */
   rhea_temperature_destroy (temperature);
@@ -74,7 +71,7 @@ basic_setup_stokes (rhea_stokes_linear_problem_t **lin_stokes,
  * Cleans up Stokes problem and mesh.
  */
 static void
-basic_setup_clear_all (rhea_stokes_linear_problem_t *lin_stokes,
+basic_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                        p4est_t *p4est,
                        ymir_mesh_t *ymir_mesh,
                        ymir_pressure_elem_t *press_elem,
@@ -85,7 +82,7 @@ basic_setup_clear_all (rhea_stokes_linear_problem_t *lin_stokes,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* destroy Stokes problem */
-  rhea_stokes_linear_problem_destroy (lin_stokes);
+  rhea_stokes_problem_destroy (stokes_problem);
 
   /* destroy mesh */
   rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
@@ -111,7 +108,7 @@ basic_run_solver ()
 //slabs_stokes_state_init_vel_press (state, mesh, press_elem);
 
   /* run solver */
-//slabs_solve_stokes (lin_stokes, &nl_stokes, p8est, &mesh, &press_elem,
+//slabs_solve_stokes (stokes_problem, &nl_stokes, p8est, &mesh, &press_elem,
 //                    state, &physics_options, &discr_options,
 //                    &solver_options, workload_out_path,
 //                    bin_nl_filepath, vtk_nl_filepath);
@@ -134,7 +131,7 @@ main (int argc, char **argv)
   ymir_options_t     *opt;
   rhea_domain_options_t         domain_options;
   rhea_temperature_options_t    temp_options;
-  rhea_viscosity_options_t      viscosity_options;
+  rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
   /* options local to this function */
   int                 production_run;
@@ -143,7 +140,7 @@ main (int argc, char **argv)
   ymir_mesh_t        *ymir_mesh;
   ymir_pressure_elem_t  *press_elem;
   /* Stokes */
-  rhea_stokes_linear_problem_t *lin_stokes;
+  rhea_stokes_problem_t *stokes_problem;
 
   /*
    * Initialize Libraries
@@ -221,7 +218,7 @@ main (int argc, char **argv)
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options,
-                            &viscosity_options, &discr_options);
+                            &visc_options, &discr_options);
 
   /*
    * Setup Mesh
@@ -234,8 +231,8 @@ main (int argc, char **argv)
    * Setup Stokes Problem
    */
 
-  basic_setup_stokes (&lin_stokes, ymir_mesh, press_elem,
-                      &domain_options, &temp_options, &viscosity_options);
+  basic_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
+                      &domain_options, &temp_options, &visc_options);
 
   /*
    * Solve Stokes Problem
@@ -248,7 +245,7 @@ main (int argc, char **argv)
    */
 
   /* destroy Stokes problem and mesh */
-  basic_setup_clear_all (lin_stokes, p4est, ymir_mesh, press_elem,
+  basic_setup_clear_all (stokes_problem, p4est, ymir_mesh, press_elem,
                          &discr_options);
 
   /* destroy options */
