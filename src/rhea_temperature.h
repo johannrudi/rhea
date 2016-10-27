@@ -7,6 +7,9 @@
 #include <rhea_domain.h>
 #include <ymir_vec_ops.h>
 
+/* constant: default value for temperature (gives const viscosity) */
+#define RHEA_TEMPERATURE_DEFAULT_VALUE (0.5)
+
 /* enumerator for types of temperature */
 typedef enum
 {
@@ -64,13 +67,6 @@ ymir_vec_t         *rhea_temperature_new (ymir_mesh_t *ymir_mesh);
 void                rhea_temperature_destroy (ymir_vec_t *temperature);
 
 /**
- * Gets the temperature of one element at Gauss nodes.
- */
-double             *rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
-                                                     ymir_vec_t *temp_vec,
-                                                     const ymir_locidx_t elid);
-
-/**
  * Computes the temperature.
  */
 void                rhea_temperature_compute (ymir_vec_t *temperature,
@@ -82,6 +78,13 @@ void                rhea_temperature_compute (ymir_vec_t *temperature,
 void                rhea_temperature_background_compute (
                                               ymir_vec_t *back_temperature,
                                               rhea_temperature_options_t *opt);
+
+/**
+ * Gets the temperature of one element at Gauss nodes.
+ */
+double             *rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
+                                                     ymir_vec_t *temp_vec,
+                                                     const ymir_locidx_t elid);
 
 /**
  * Computes velocity right-hand side in (primal) function space, given a

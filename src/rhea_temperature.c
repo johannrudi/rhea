@@ -7,8 +7,6 @@
 
 /* constant: seconds in a year (= 365.25*24*3600) */
 #define RHEA_TEMPERATURE_SECONDS_PER_YEAR (31557600.0)
-/* constant: default value for constant temperature (gives const viscosity) */
-#define RHEA_TEMPERATURE_DEFAULT_CONST_TEMP (0.5)
 
 /* default options */
 #define RHEA_TEMPERATURE_DEFAULT_TYPE_NAME "none"
@@ -108,49 +106,6 @@ rhea_temperature_destroy (ymir_vec_t *temperature)
 }
 
 /******************************************************************************
- * Get & Set Functions
- *****************************************************************************/
-
-/**
- * Restrict temperature to its valid range [0,1].
- */
-static void
-rhea_temperature_bound_range_data (double *_sc_restrict temp_data,
-                                   const sc_bint_t size)
-{
-  sc_bint_t           i;
-
-  for (i = 0; i < size; i++) {
-    RHEA_ASSERT (isfinite (temp_data[i]));
-    temp_data[i] = SC_MAX (0.0, SC_MIN (temp_data[i], 1.0));
-  }
-}
-
-double *
-rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
-                                 ymir_vec_t *temp_vec,
-                                 const ymir_locidx_t elid)
-{
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (temp_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  YMIR_ASSERT_IS_CVEC (temp_vec);
-  RHEA_ASSERT (temp_vec->ncfields == 1);
-  RHEA_ASSERT (temp_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (temp_el_mat->n == 1);
-
-  /* interpolate from continuous nodes to (discontinuous) Gauss nodes */
-  ymir_cvec_get_elem_interp (temp_vec, temp_el_mat, YMIR_STRIDE_NODE, elid,
-                             YMIR_GAUSS_NODE, YMIR_READ);
-
-  /* restrict temperature to valid range to account for interpolation erros */
-  rhea_temperature_bound_range_data (temp_el_mat->e[0], n_nodes_per_el);
-
-  return temp_el_mat->e[0];
-}
-
-/******************************************************************************
  * Temperature Computation
  *****************************************************************************/
 
@@ -216,7 +171,7 @@ rhea_temperature_node (const double x, const double y, const double z,
 
   switch (opt->type) {
   case RHEA_TEMPERATURE_NONE:
-    temp = RHEA_TEMPERATURE_DEFAULT_CONST_TEMP;
+    temp = RHEA_TEMPERATURE_DEFAULT_VALUE;
     break;
   case RHEA_TEMPERATURE_COLD_PLATE:
     {
@@ -283,7 +238,7 @@ rhea_temperature_background_node (const double x, const double y,
 
   switch (opt->type) {
   case RHEA_TEMPERATURE_NONE:
-    back_temp = RHEA_TEMPERATURE_DEFAULT_CONST_TEMP;
+    back_temp = RHEA_TEMPERATURE_DEFAULT_VALUE;
     break;
   case RHEA_TEMPERATURE_COLD_PLATE:
     {
@@ -333,6 +288,49 @@ rhea_temperature_background_compute (ymir_vec_t *back_temperature,
 {
   ymir_cvec_set_function (back_temperature,
                           rhea_temperature_background_compute_fn, opt);
+}
+
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
+
+/**
+ * Restrict temperature to its valid range [0,1].
+ */
+static void
+rhea_temperature_bound_range_data (double *_sc_restrict temp_data,
+                                   const sc_bint_t size)
+{
+  sc_bint_t           i;
+
+  for (i = 0; i < size; i++) {
+    RHEA_ASSERT (isfinite (temp_data[i]));
+    temp_data[i] = SC_MAX (0.0, SC_MIN (temp_data[i], 1.0));
+  }
+}
+
+double *
+rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
+                                 ymir_vec_t *temp_vec,
+                                 const ymir_locidx_t elid)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (temp_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_CVEC (temp_vec);
+  RHEA_ASSERT (temp_vec->ncfields == 1);
+  RHEA_ASSERT (temp_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (temp_el_mat->n == 1);
+
+  /* interpolate from continuous nodes to (discontinuous) Gauss nodes */
+  ymir_cvec_get_elem_interp (temp_vec, temp_el_mat, YMIR_STRIDE_NODE, elid,
+                             YMIR_GAUSS_NODE, YMIR_READ);
+
+  /* restrict temperature to valid range to account for interpolation erros */
+  rhea_temperature_bound_range_data (temp_el_mat->e[0], n_nodes_per_el);
+
+  return temp_el_mat->e[0];
 }
 
 /******************************************************************************
