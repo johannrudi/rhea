@@ -6,6 +6,9 @@
 
 #include <ymir_vec_ops.h>
 
+/* constant: default value for weak zone (i.e., no weakening) */
+#define RHEA_WEAKZONE_DEFAULT_VALUE (1.0)
+
 /**
  * Gets the weak zone of one element at Gauss nodes.
  */

@@ -5,6 +5,10 @@
 #include <rhea_base.h>
 #include <ymir_vec_getset.h>
 
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
+
 double *
 rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat, ymir_vec_t *weak_vec,
                               const ymir_locidx_t elid)
