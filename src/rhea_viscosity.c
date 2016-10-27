@@ -202,129 +202,6 @@ rhea_viscosity_destroy (ymir_vec_t *viscosity)
 }
 
 /******************************************************************************
- * Get & Set Functions
- *****************************************************************************/
-
-double *
-rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
-                               const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  YMIR_ASSERT_IS_DVEC (visc_vec);
-  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (visc_el_mat->n == 1);
-#endif
-
-  ymir_dvec_get_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
-  return visc_el_mat->e[0];
-}
-
-void
-rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec, sc_dmatrix_t *visc_el_mat,
-                               const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  YMIR_ASSERT_IS_DVEC (visc_vec);
-  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (visc_el_mat->n == 1);
-#endif
-
-  ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
-}
-
-double *
-rhea_viscosity_rank1_scal_get_elem_gauss (sc_dmatrix_t *rank1_scal_el_mat,
-                                          ymir_vec_t *rank1_scal_vec,
-                                          const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
-  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
-#endif
-
-  ymir_dvec_get_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
-                      elid, YMIR_READ);
-  return rank1_scal_el_mat->e[0];
-}
-
-void
-rhea_viscosity_rank1_scal_set_elem_gauss (ymir_vec_t *rank1_scal_vec,
-                                          sc_dmatrix_t *rank1_scal_el_mat,
-                                          const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
-  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
-#endif
-
-  ymir_dvec_set_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
-                      elid, YMIR_SET);
-}
-
-double *
-rhea_viscosity_marker_get_elem_gauss (sc_dmatrix_t *marker_el_mat,
-                                      ymir_vec_t *marker_vec,
-                                      const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (marker_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  YMIR_ASSERT_IS_DVEC (marker_vec);
-  RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (marker_el_mat->n == 1);
-#endif
-
-  ymir_dvec_get_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
-                      YMIR_READ);
-  return marker_el_mat->e[0];
-}
-
-void
-rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
-                                      sc_dmatrix_t *marker_el_mat,
-                                      const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (marker_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  YMIR_ASSERT_IS_DVEC (marker_vec);
-  RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (marker_el_mat->n == 1);
-#endif
-
-  ymir_dvec_set_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
-                      YMIR_SET);
-}
-
-/******************************************************************************
  * Constant Viscosity
  *****************************************************************************/
 
@@ -539,6 +416,10 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
                             rhea_viscosity_options_t *opt,
                             const int restrict_to_bounds)
 {
+  const int           in_temp = (temp_elem != NULL ? 1 : 0);
+  const int           in_weak = (weak_elem != NULL ? 1 : 0);
+  const double        temp_default = RHEA_TEMPERATURE_DEFAULT_VALUE;
+  const double        weak_default = RHEA_WEAKZONE_DEFAULT_VALUE;
   rhea_domain_options_t  *domain_options = opt->domain_options;
   const double        lm_um_interface_radius =
                         domain_options->lm_um_interface_radius;
@@ -552,7 +433,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
   int                 nodeid;
 
   /* check input */
-  RHEA_ASSERT (temp_elem != NULL);
+  RHEA_ASSERT (visc_elem != NULL);
   RHEA_ASSERT (x != NULL && y != NULL && z != NULL);
   RHEA_ASSERT (Vmask != NULL);
 
@@ -571,8 +452,8 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
                                                         z[nodeid],
                                                         domain_options);
-    const double        temp = temp_elem[nodeid];
-    const double        weak = (weak_elem != NULL ? weak_elem[nodeid] : 1.0);
+    const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
+    const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
 
     /* check temperature for valid range [0,1] */
     RHEA_ASSERT (isfinite (temp));
@@ -626,6 +507,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
+  const int           in_temp = (temp_vec != NULL ? 1 : 0);
   const int           in_weak = (weak_vec != NULL ? 1 : 0);
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *visc_el_mat;
@@ -634,11 +516,10 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   ymir_locidx_t       elid;
 
   /* check input */
-  RHEA_ASSERT (temp_vec != NULL);
   RHEA_ASSERT (visc_vec != NULL);
 
   /* create work variables */
-  temp_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  temp_el_mat = (in_temp ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   weak_el_mat = (in_weak ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   x = RHEA_ALLOC (double, n_nodes_per_el);
@@ -646,17 +527,19 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   z = RHEA_ALLOC (double, n_nodes_per_el);
   tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
 
+  temp_el_data = NULL;
+  weak_el_data = NULL;
   visc_el_data = visc_el_mat->e[0];
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
-    /* get temperature field at Gauss nodes */
-    temp_el_data = rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec,
-                                                    elid);
-
-    /* get weak zone */
+    /* get temperature and weak zone at Gauss nodes */
+    if (in_temp) {
+      temp_el_data = rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec,
+                                                      elid);
+    }
     if (in_weak) {
       weak_el_data = rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
     }
@@ -671,7 +554,9 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   }
 
   /* destroy */
-  sc_dmatrix_destroy (temp_el_mat);
+  if (in_temp) {
+    sc_dmatrix_destroy (temp_el_mat);
+  }
   if (in_weak) {
     sc_dmatrix_destroy (weak_el_mat);
   }
@@ -1051,6 +936,10 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
                                const int *_sc_restrict Vmask,
                                rhea_viscosity_options_t *opt)
 {
+  const int           in_temp = (temp_elem != NULL ? 1 : 0);
+  const int           in_weak = (weak_elem != NULL ? 1 : 0);
+  const double        temp_default = RHEA_TEMPERATURE_DEFAULT_VALUE;
+  const double        weak_default = RHEA_WEAKZONE_DEFAULT_VALUE;
   rhea_domain_options_t  *domain_options = opt->domain_options;
   const double        um_scaling = opt->upper_mantle_scaling;
   const double        um_activ_energy = opt->upper_mantle_activation_energy;
@@ -1059,7 +948,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   int                 nodeid;
 
   /* check input */
-  RHEA_ASSERT (temp_elem != NULL);
+  RHEA_ASSERT (visc_elem != NULL);
   RHEA_ASSERT (x != NULL && y != NULL && z != NULL);
   RHEA_ASSERT (Vmask != NULL);
   //TODO not implemented:
@@ -1070,8 +959,8 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
     double              r1, b, y;
 
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-      const double        temp = temp_elem[nodeid];
-      const double        weak = (weak_elem != NULL ? weak_elem[nodeid] : 1.0);
+      const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
+      const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
       const double        sr2 = ( strain_rate_2inv_elem != NULL ?
                                   strain_rate_2inv_elem[nodeid] : 1.0 );
 
@@ -1109,8 +998,8 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
     const double        y = 0.0;
 
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-      const double        temp = temp_elem[nodeid];
-      const double        weak = (weak_elem != NULL ? weak_elem[nodeid] : 1.0);
+      const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
+      const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
 
       /* check temperature for valid range [0,1] */
       RHEA_ASSERT (isfinite (temp));
@@ -1184,6 +1073,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
+  const int           in_temp = (temp_vec != NULL ? 1 : 0);
   const int           in_weak = (weak_vec != NULL ? 1 : 0);
   const int           out_rank1 = (rank1_scal_vec != NULL ? 1 : 0);
   const int           out_bounds = (bounds_vec != NULL ? 1 : 0);
@@ -1201,7 +1091,6 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   ymir_locidx_t       elid;
 
   /* check input */
-  RHEA_ASSERT (temp_vec != NULL);
   RHEA_ASSERT (vel_vec != NULL);
   RHEA_ASSERT (visc_vec != NULL);
   RHEA_ASSERT (0.0 < opt->max);
@@ -1229,10 +1118,11 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   /* get velocity */
 //ymir_stokes_vec_get_velocity (vel_press_vec, vel_vec, press_elem);
 //ymir_vel_dir_separate (vel_vec, NULL, NULL, NULL, vel_dir);
+//TODO delete?
 
   /* create work variables */
   /* *INDENT-OFF* */
-  temp_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  temp_el_mat = (in_temp ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   weak_el_mat = (in_weak ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   vel_el_mat  = sc_dmatrix_new (n_nodes_per_el, 3);
   strain_rate_2inv_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
@@ -1249,6 +1139,8 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   z = RHEA_ALLOC (double, n_nodes_per_el);
   tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
 
+  temp_el_data             = NULL;
+  weak_el_data             = NULL;
   strain_rate_2inv_el_data = strain_rate_2inv_el_mat->e[0];
   visc_el_data       = visc_el_mat->e[0];
   rank1_scal_el_data = (out_rank1 ? rank1_scal_el_mat->e[0] : NULL);
@@ -1260,11 +1152,11 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
     /* get coordinates of this element at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
-    /* get temperature field at Gauss nodes */
-    temp_el_data = rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec,
-                                                    elid);
-
-    /* get weak zone */
+    /* get temperature and weak zone at Gauss nodes */
+    if (in_temp) {
+      temp_el_data = rhea_temperature_get_elem_gauss (temp_el_mat, temp_vec,
+                                                      elid);
+    }
     if (in_weak) {
       weak_el_data = rhea_weakzone_get_elem_gauss (weak_el_mat, weak_vec, elid);
     }
@@ -1296,7 +1188,9 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   }
 
   /* destroy */
-  sc_dmatrix_destroy (temp_el_mat);
+  if (in_temp) {
+    sc_dmatrix_destroy (temp_el_mat);
+  }
   if (in_weak) {
     sc_dmatrix_destroy (weak_el_mat);
   }
@@ -1356,4 +1250,127 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
   default: /* unknown viscosity type */
     RHEA_ABORT_NOT_REACHED ();
   }
+}
+
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
+
+double *
+rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
+                               const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (visc_vec);
+  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (visc_el_mat->n == 1);
+#endif
+
+  ymir_dvec_get_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
+  return visc_el_mat->e[0];
+}
+
+void
+rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec, sc_dmatrix_t *visc_el_mat,
+                               const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (visc_vec);
+  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (visc_el_mat->n == 1);
+#endif
+
+  ymir_dvec_set_elem (visc_vec, visc_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
+}
+
+double *
+rhea_viscosity_rank1_scal_get_elem_gauss (sc_dmatrix_t *rank1_scal_el_mat,
+                                          ymir_vec_t *rank1_scal_vec,
+                                          const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
+  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
+#endif
+
+  ymir_dvec_get_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
+                      elid, YMIR_READ);
+  return rank1_scal_el_mat->e[0];
+}
+
+void
+rhea_viscosity_rank1_scal_set_elem_gauss (ymir_vec_t *rank1_scal_vec,
+                                          sc_dmatrix_t *rank1_scal_el_mat,
+                                          const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
+  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
+#endif
+
+  ymir_dvec_set_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
+                      elid, YMIR_SET);
+}
+
+double *
+rhea_viscosity_marker_get_elem_gauss (sc_dmatrix_t *marker_el_mat,
+                                      ymir_vec_t *marker_vec,
+                                      const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (marker_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (marker_vec);
+  RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (marker_el_mat->n == 1);
+#endif
+
+  ymir_dvec_get_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
+                      YMIR_READ);
+  return marker_el_mat->e[0];
+}
+
+void
+rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
+                                      sc_dmatrix_t *marker_el_mat,
+                                      const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (marker_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  YMIR_ASSERT_IS_DVEC (marker_vec);
+  RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (marker_el_mat->n == 1);
+#endif
+
+  ymir_dvec_set_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
+                      YMIR_SET);
 }

@@ -96,6 +96,18 @@ ymir_vec_t         *rhea_viscosity_new (ymir_mesh_t *ymir_mesh);
 void                rhea_viscosity_destroy (ymir_vec_t *viscosity);
 
 /**
+ * Computes viscosity.
+ */
+void                rhea_viscosity_compute (ymir_vec_t *viscosity,
+                                            ymir_vec_t *rank1_tensor_scal,
+                                            ymir_vec_t *bounds_marker,
+                                            ymir_vec_t *yielding_marker,
+                                            ymir_vec_t *temperature,
+                                            ymir_vec_t *weakzone,
+                                            ymir_vec_t *velocity,
+                                            rhea_viscosity_options_t *opt);
+
+/**
  * Gets the viscosity of one element at Gauss nodes.
  */
 double             *rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat,
@@ -140,17 +152,5 @@ void                rhea_viscosity_marker_set_elem_gauss (
                                                   ymir_vec_t *marker_vec,
                                                   sc_dmatrix_t *marker_el_mat,
                                                   const ymir_locidx_t elid);
-
-/**
- * Computes viscosity.
- */
-void                rhea_viscosity_compute (ymir_vec_t *viscosity,
-                                            ymir_vec_t *rank1_tensor_scal,
-                                            ymir_vec_t *bounds_marker,
-                                            ymir_vec_t *yielding_marker,
-                                            ymir_vec_t *temperature,
-                                            ymir_vec_t *weakzone,
-                                            ymir_vec_t *velocity,
-                                            rhea_viscosity_options_t *opt);
 
 #endif /* RHEA_VISCOSITY_H */
