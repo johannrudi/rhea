@@ -1,0 +1,412 @@
+###### Global ######
+
+ #-info
+ #-info_exclude null
+ #-on_error_attach_debugger
+ #-log_summary  # summarize the program’s performance
+ #-malloc_dump  # dumps unfreed memory during call to PetscFinalize
+ #-malloc_log   # activate logging of memory usage
+ #-memory_info  # print memory usage at end of run
+
+###### Stress KSP ######
+
+  ### KSP type
+
+    # multigrid preconditioner
+    -stress_ksp_type preonly
+
+    # CG
+   #-stress_ksp_type cg
+   #-stress_ksp_cg_single_reduction  # combine both inner prod into 1 allreduce
+
+    # GMRES
+   #-stress_ksp_type gmres
+   #-stress_ksp_gmres_restart 150
+   #-stress_ksp_pc_side right
+
+  ### KSP tolerances
+  -stress_ksp_rtol 1.0e-16
+  -stress_ksp_atol 0.0
+  -stress_ksp_max_it 1
+
+  ### KSP monitoring
+ #-stress_ksp_view                    # show all the options in use
+ #-stress_ksp_monitor                 # show residual norm at each iteration
+ #-stress_ksp_monitor_range           # show #residual elem's >20% of max res
+ #-stress_ksp_monitor_singular_value  # show singular value est at each iter
+ #-stress_ksp_compute_eigenvalues     # show eigvals computed during Krylov iter
+
+###### Stress PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -stress_pc_use_amat true
+
+  ### GMG smoothing KSP
+
+    ### KSP type
+
+      # none
+     #-stress_gmg_levels_ksp_type preonly
+
+      # Chebyshev smoother
+      -stress_gmg_levels_ksp_type chebyshev
+      -stress_gmg_levels_ksp_chebyshev_estimate_eigenvalues
+     #-stress_gmg_levels_ksp_chebyshev_estimate_eigenvalues_random
+      -stress_gmg_levels_est_ksp_type gmres
+      -stress_gmg_levels_est_ksp_max_it 10
+      -stress_gmg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -stress_gmg_levels_ksp_rtol 1.0e-16
+    -stress_gmg_levels_ksp_atol 0.0
+    -stress_gmg_levels_ksp_max_it 3
+    -stress_gmg_levels_ksp_norm_type none
+
+    ### KSP monitoring
+   #-stress_gmg_levels_ksp_view
+   #-stress_gmg_levels_ksp_monitor
+   #-stress_gmg_levels_ksp_monitor_singular_value
+   #-stress_gmg_levels_ksp_compute_eigenvalues
+
+  ### GMG smoothing PC
+
+    -stress_gmg_levels_pc_use_amat true
+
+    ### PC type
+
+      # Point block Jacobi
+     #-stress_gmg_levels_pc_type pbjacobi
+
+  ### GMG coarse KSP
+
+    # AMG preconditioner
+    -stress_gmg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -stress_gmg_coarse_ksp_max_it 1
+
+    ### KSP monitoring
+   #-stress_gmg_coarse_ksp_view
+   #-stress_gmg_coarse_ksp_monitor
+   #-stress_gmg_coarse_ksp_monitor_singular_value
+   #-stress_gmg_coarse_ksp_compute_eigenvalues
+
+  ### GMG coarse PC
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -stress_gmg_coarse_pc_use_amat true  # is better for nonlinear solver
+
+  ### AMG algorithmic options
+  -stress_gmg_coarse_pc_mg_type multiplicative
+  -stress_gmg_coarse_pc_mg_multiplicative_cycles 1
+
+  ### AMG Galerkin coarse grid generation
+
+    # GAMG
+    -stress_gmg_coarse_pc_type gamg
+    -stress_gmg_coarse_pc_gamg_verbose 10
+    -stress_gmg_coarse_pc_gamg_threshold 0.01
+    -stress_gmg_coarse_pc_gamg_process_eq_limit 256
+    -stress_gmg_coarse_pc_gamg_coarse_eq_limit 1024
+   #-stress_gmg_coarse_pc_gamg_eigtarget
+   #-stress_gmg_coarse_pc_gamg_reuse_interpolation
+   #-stress_gmg_coarse_pc_gamg_use_agg_gasm
+    -stress_gmg_coarse_pc_gamg_agg_nsmooths 1
+   #-stress_gmg_coarse_pc_gamg_sym_graph
+   #-stress_gmg_coarse_pc_gamg_square_graph
+   #-stress_gmg_coarse_pc_gamg_repartition
+   #-stress_gmg_coarse_pc_gamg_mat_partitioning_type parmetis
+
+  ### AMG coarse grid KSP
+
+    ### KSP type (just preonly seems to work here)
+    -stress_gmg_coarse_mg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -stress_gmg_coarse_mg_coarse_ksp_max_it 1
+
+  ### AMG coarse grid PC
+
+    ### PC type
+
+      # Block Jacobi with Cholesky factorization as subsolver
+      -stress_gmg_coarse_mg_coarse_pc_type bjacobi
+      -stress_gmg_coarse_mg_coarse_sub_ksp_type preonly
+      -stress_gmg_coarse_mg_coarse_sub_pc_type cholesky
+     #-stress_gmg_coarse_mg_coarse_sub_pc_factor_shift_type positive_definite
+
+  ### AMG smoothing KSP
+
+    ### KSP type
+
+      # Chebyshev smoother
+      -stress_gmg_coarse_mg_levels_ksp_type chebyshev
+     #-stress_gmg_coarse_mg_levels_ksp_chebyshev_estimate_eigenvalues
+     #-stress_gmg_coarse_mg_levels_ksp_chebyshev_estimate_eigenvalues_random
+     #-stress_gmg_coarse_mg_levels_est_ksp_type gmres
+     #-stress_gmg_coarse_mg_levels_est_ksp_max_it 10
+     #-stress_gmg_coarse_mg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -stress_gmg_coarse_mg_levels_ksp_rtol 1.0e-16
+    -stress_gmg_coarse_mg_levels_ksp_atol 0.0
+    -stress_gmg_coarse_mg_levels_ksp_max_it 3
+    -stress_gmg_coarse_mg_levels_ksp_norm_type none
+
+  ### AMG smoothing PC
+
+    ### PC type
+
+      # Point block Jacobi
+      -stress_gmg_coarse_mg_levels_pc_type pbjacobi
+
+      # Block jacobi with SSOR as subsolver
+     #-stress_gmg_coarse_mg_levels_pc_type bjacobi
+     #-stress_gmg_coarse_mg_levels_sub_ksp_type preonly
+     #-stress_gmg_coarse_mg_levels_sub_pc_type sor
+     #-stress_gmg_coarse_mg_levels_sub_pc_sor_symmetric
+
+###### Stokes KSP ######
+
+  ### KSP type
+
+    # GMRES
+    -stokes_ksp_type gmres
+    -stokes_ksp_gmres_restart 10
+   #-stokes_ksp_gmres_haptol 1e-30
+    -stokes_ksp_gmres_classicalgramschmidt  # fast
+   #-stokes_ksp_gmres_modifiedgramschmidt   # more stable, but slower
+    -stokes_ksp_pc_side right
+
+    # FGMRES (use if inner Krylov cycles are used anywhere)
+   #-stokes_ksp_type fgmres
+   #-stokes_ksp_pc_side right
+
+    # MINRES
+   #-stokes_ksp_type minres
+   #-stokes_ksp_pc_side left
+
+  ### KSP tolerances (if commented out, then ymir options are passed)
+ #-stokes_ksp_rtol 1.0e-6
+ #-stokes_ksp_atol 0.0
+ #-stokes_ksp_max_it 10
+
+  ### KSP monitoring
+  -stokes_ksp_view                    # show all the options in use
+  -stokes_ksp_monitor                 # show residual norm at each iteration
+ #-stokes_ksp_monitor_range           # show #residual elem's >20% of max res
+ #-stokes_ksp_monitor_singular_value  # show singular value est at each iter
+ #-stokes_ksp_compute_eigenvalues     # show eigvals computed during Krylov iter
+
+###### Schur KSP ######
+
+  ### KSP type
+  -schur_ksp_type preonly
+
+  ### Schur KSP tolerances
+  -schur_ksp_rtol 1.0e-16
+  -schur_ksp_atol 0.
+  -schur_ksp_max_it 1
+
+###### Schur inner KSP ######
+# (invert stress block when applying Schur complement)
+
+###### BB^T KSP ######
+
+  ### KSP type
+  -bbt_ksp_type preonly
+
+  ### KSP tolerances
+  -bbt_ksp_max_it 1
+
+  ### KSP monitoring
+ #-bbt_ksp_view
+ #-bbt_ksp_monitor
+ #-bbt_ksp_monitor_singular_value
+
+###### BB^T PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -bbt_pc_use_amat true
+
+###### BB^T smoothing KSP ######
+
+  ### KSP type
+
+    # Chebyshev smoother
+    -bbt_smooth_ksp_type chebyshev
+    -bbt_smooth_ksp_chebyshev_estimate_eigenvalues
+   #-bbt_smooth_ksp_chebyshev_estimate_eigenvalues_random
+    -bbt_smooth_est_ksp_type gmres
+    -bbt_smooth_est_ksp_max_it 10
+    -bbt_smooth_est_ksp_monitor_singular_value
+
+  ### KSP tolerances
+  -bbt_smooth_ksp_rtol 1.0e-16
+  -bbt_smooth_ksp_atol 0.0
+  -bbt_smooth_ksp_max_it 6
+  -bbt_smooth_ksp_norm_type none
+
+  ### KSP monitoring
+ #-bbt_smooth_ksp_view
+ #-bbt_smooth_ksp_monitor
+ #-bbt_smooth_ksp_monitor_singular_value
+ #-bbt_smooth_ksp_compute_eigenvalues
+
+###### BB^T smoothing PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -bbt_smooth_pc_use_amat true
+
+  ### PC type
+
+    # Jacobi
+   #-bbt_smooth_pc_type jacobi
+
+###### BB^T stiffness KSP ######
+
+  ### KSP type
+  -bbt_stiff_ksp_type preonly
+
+  ### KSP tolerances
+  -bbt_stiff_ksp_max_it 1
+
+  ### KSP monitoring
+ #-bbt_stiff_ksp_view
+ #-bbt_stiff_ksp_monitor
+ #-bbt_stiff_ksp_monitor_true_residual
+ #-bbt_stiff_ksp_monitor_singular_value
+
+###### BB^T stiffness PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -bbt_stiff_pc_use_amat true
+
+  ### GMG smoothing KSP
+
+    ### KSP type
+
+      # Chebyshev smoother
+      -bbt_stiff_gmg_levels_ksp_type chebyshev
+      -bbt_stiff_gmg_levels_ksp_chebyshev_estimate_eigenvalues
+     #-bbt_stiff_gmg_levels_ksp_chebyshev_estimate_eigenvalues_random
+      -bbt_stiff_gmg_levels_est_ksp_type gmres
+      -bbt_stiff_gmg_levels_est_ksp_max_it 10
+      -bbt_stiff_gmg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -bbt_stiff_gmg_levels_ksp_rtol 1.0e-16
+    -bbt_stiff_gmg_levels_ksp_atol 0.0
+    -bbt_stiff_gmg_levels_ksp_max_it 3
+    -bbt_stiff_gmg_levels_ksp_norm_type none
+
+    ### KSP monitoring
+   #-bbt_stiff_gmg_levels_ksp_view
+   #-bbt_stiff_gmg_levels_ksp_monitor
+   #-bbt_stiff_gmg_levels_ksp_monitor_true_residual
+   #-bbt_stiff_gmg_levels_ksp_monitor_singular_value
+   #-bbt_stiff_gmg_levels_ksp_compute_eigenvalues
+
+  ### GMG smoothing PC
+
+    -bbt_stiff_gmg_levels_pc_use_amat true
+
+    ### PC type
+
+      # Jacobi
+     #-bbt_stiff_gmg_levels_pc_type jacobi
+
+      # Block Jacobi with SSOR subsolver (requires use_amat to be false)
+     #-bbt_stiff_gmg_levels_pc_type bjacobi
+     #-bbt_stiff_gmg_levels_sub_ksp_type preonly
+     #-bbt_stiff_gmg_levels_sub_pc_type sor
+     #-bbt_stiff_gmg_levels_sub_pc_sor_symmetric
+
+      # Block Jacobi with ICC(k) subsolver (requires use_amat to be false)
+     #-bbt_stiff_gmg_levels_pc_type bjacobi
+     #-bbt_stiff_gmg_levels_sub_ksp_type preonly
+     #-bbt_stiff_gmg_levels_sub_pc_type icc
+     #-bbt_stiff_gmg_levels_sub_pc_factor_levels 0
+     #-bbt_stiff_gmg_levels_sub_pc_factor_shift_type positive_definite
+
+  ### GMG coarse KSP
+
+    # AMG preconditioner
+    -bbt_stiff_gmg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -bbt_stiff_gmg_coarse_ksp_max_it 1
+
+    ### KSP monitoring
+   #-bbt_stiff_gmg_coarse_ksp_view
+   #-bbt_stiff_gmg_coarse_ksp_monitor
+   #-bbt_stiff_gmg_coarse_ksp_monitor_singular_value
+   #-bbt_stiff_gmg_coarse_ksp_compute_eigenvalues
+
+  ### GMG coarse PC
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -bbt_stiff_gmg_coarse_pc_use_amat false
+
+  # direct solve
+ #-bbt_stiff_gmg_coarse_pc_type bjacobi
+ #-bbt_stiff_gmg_coarse_sub_ksp_type preonly
+ #-bbt_stiff_gmg_coarse_sub_pc_type cholesky
+
+  ### AMG algorithmic options
+  -bbt_stiff_gmg_coarse_pc_mg_type multiplicative
+  -bbt_stiff_gmg_coarse_pc_mg_multiplicative_cycles 1
+
+  ### AMG Galerkin coarse grid generation
+
+    # GAMG
+    -bbt_stiff_gmg_coarse_pc_type gamg
+    -bbt_stiff_gmg_coarse_pc_gamg_verbose 10
+    -bbt_stiff_gmg_coarse_pc_gamg_threshold 0.01
+    -bbt_stiff_gmg_coarse_pc_gamg_process_eq_limit 256
+    -bbt_stiff_gmg_coarse_pc_gamg_coarse_eq_limit 1024
+    -bbt_stiff_gmg_coarse_pc_gamg_agg_nsmooths 1
+
+  ### AMG coarse grid KSP
+
+    ### KSP type (just preonly seems to work here)
+    -bbt_stiff_gmg_coarse_mg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -bbt_stiff_gmg_coarse_mg_coarse_ksp_max_it 1
+
+  ### AMG coarse grid PC
+
+    ### PC type
+
+      # Block Jacobi with Cholesky factorization as subsolver
+      -bbt_stiff_gmg_coarse_mg_coarse_pc_type bjacobi
+      -bbt_stiff_gmg_coarse_mg_coarse_sub_ksp_type preonly
+      -bbt_stiff_gmg_coarse_mg_coarse_sub_pc_type cholesky
+      -bbt_stiff_gmg_coarse_mg_coarse_sub_pc_factor_shift_type positive_definite
+
+  ### AMG smoothing KSP
+
+    ### KSP type
+
+      # Chebyshev smoother
+      -bbt_stiff_gmg_coarse_mg_levels_ksp_type chebyshev
+     #-bbt_stiff_gmg_coarse_mg_levels_ksp_chebyshev_estimate_eigenvalues
+     #-bbt_stiff_gmg_coarse_mg_levels_ksp_chebyshev_estimate_eigenvalues_random
+     #-bbt_stiff_gmg_coarse_mg_levels_est_ksp_type gmres
+     #-bbt_stiff_gmg_coarse_mg_levels_est_ksp_max_it 10
+     #-bbt_stiff_gmg_coarse_mg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -bbt_stiff_gmg_coarse_mg_levels_ksp_rtol 1.0e-16
+    -bbt_stiff_gmg_coarse_mg_levels_ksp_atol 0.0
+    -bbt_stiff_gmg_coarse_mg_levels_ksp_max_it 3
+    -bbt_stiff_gmg_coarse_mg_levels_ksp_norm_type none
+
+  ### AMG smoothing PC
+
+    ### PC type
+
+      # Jacobi
+      -bbt_stiff_gmg_coarse_mg_levels_pc_type jacobi
+
