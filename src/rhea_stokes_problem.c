@@ -1,7 +1,7 @@
 /*
  */
 
-#include <rhea_stokes.h>
+#include <rhea_stokes_problem.h>
 #include <rhea_base.h>
 #include <rhea_velocity.h>
 #include <ymir_stokes_op.h>
@@ -41,7 +41,7 @@ struct rhea_stokes_problem
 };
 
 /**
- * Creates and initializes a new Stokes problem.
+ * Creates and initializes a new structure of a Stokes problem.
  */
 static rhea_stokes_problem_t *
 rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
@@ -66,7 +66,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
 }
 
 /**
- * Destroys a Stokes problem.
+ * Destroys a structure of a Stokes problem.
  */
 static void
 rhea_stokes_problem_struct_destroy (rhea_stokes_problem_t *stokes_problem)
@@ -74,6 +74,38 @@ rhea_stokes_problem_struct_destroy (rhea_stokes_problem_t *stokes_problem)
   RHEA_FREE (stokes_problem);
 }
 
+rhea_stokes_problem_t *
+rhea_stokes_problem_new (ymir_vec_t *temperature,
+                         ymir_vec_t *weakzone,
+                         ymir_mesh_t *ymir_mesh,
+                         ymir_pressure_elem_t *press_elem,
+                         rhea_domain_options_t *domain_options,
+                         rhea_temperature_options_t *temp_options,
+                         rhea_viscosity_options_t *visc_options)
+{
+  if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
+    return NULL;
+    //TODO
+    //return rhea_stokes_problem_nonlinear_new (...);
+  }
+  else {
+    return rhea_stokes_problem_linear_new (
+        temperature, weakzone, ymir_mesh, press_elem,
+        domain_options, temp_options, visc_options);
+  }
+}
+
+void
+rhea_stokes_problem_destroy (rhea_stokes_problem_t *stokes_problem)
+{
+  if (RHEA_STOKES_PROBLEM_NONLINEAR == stokes_problem->type) {
+    //TODO
+    //rhea_stokes_problem_nonlinear_destroy (stokes_problem);
+  }
+  else {
+    rhea_stokes_problem_linear_destroy (stokes_problem);
+  }
+}
 
 /******************************************************************************
  * Linear Stokes Problem
@@ -96,7 +128,7 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
   ymir_vec_t         *rhs_vel_press;
   ymir_stokes_op_t   *stokes_op;
   ymir_stokes_pc_t   *stokes_pc;
-  rhea_stokes_problem_t *lin_stokes;
+  rhea_stokes_problem_t *stokes_problem_lin;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -147,49 +179,49 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
                                     stokes_op);
 
   /* create, fill, and return the structure of the linear Stokes problem */
-  lin_stokes = rhea_stokes_problem_struct_new (RHEA_STOKES_PROBLEM_LINEAR,
-                                               ymir_mesh, press_elem);
-  lin_stokes->coeff = coeff;
-  lin_stokes->vel_dir = vel_dir;
-  lin_stokes->rhs_vel = rhs_vel;
-  lin_stokes->rhs_vel_press = rhs_vel_press;
-  lin_stokes->stokes_op = stokes_op;
-  lin_stokes->stokes_pc = stokes_pc;
+  stokes_problem_lin = rhea_stokes_problem_struct_new (
+      RHEA_STOKES_PROBLEM_LINEAR, ymir_mesh, press_elem);
+  stokes_problem_lin->coeff = coeff;
+  stokes_problem_lin->vel_dir = vel_dir;
+  stokes_problem_lin->rhs_vel = rhs_vel;
+  stokes_problem_lin->rhs_vel_press = rhs_vel_press;
+  stokes_problem_lin->stokes_op = stokes_op;
+  stokes_problem_lin->stokes_pc = stokes_pc;
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 
-  return lin_stokes;
+  return stokes_problem_lin;
 }
 
-/**
- * Destroys a linear Stokes problem.
- */
 void
-rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *lin_stokes)
+rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
 {
   const char         *this_fn_name = "rhea_stokes_problem_linear_destroy";
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
+  /* check input */
+  RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
+
   /* destroy Stokes operator and preconditioner */
-  ymir_stokes_pc_destroy (lin_stokes->stokes_pc);
-  ymir_stokes_op_destroy (lin_stokes->stokes_op);
+  ymir_stokes_pc_destroy (stokes_problem_lin->stokes_pc);
+  ymir_stokes_op_destroy (stokes_problem_lin->stokes_op);
 
   /* destroy vectors */
-  ymir_vec_destroy (lin_stokes->coeff);
-  ymir_vec_destroy (lin_stokes->rhs_vel);
-  ymir_vec_destroy (lin_stokes->rhs_vel_press);
+  ymir_vec_destroy (stokes_problem_lin->coeff);
+  ymir_vec_destroy (stokes_problem_lin->rhs_vel);
+  ymir_vec_destroy (stokes_problem_lin->rhs_vel_press);
 
   /* destroy Dirichlet BC's */
-  if (lin_stokes->vel_dir != NULL) {
-    if (lin_stokes->vel_dir->scale != NULL) {
-      ymir_vec_destroy (lin_stokes->vel_dir->scale);
+  if (stokes_problem_lin->vel_dir != NULL) {
+    if (stokes_problem_lin->vel_dir->scale != NULL) {
+      ymir_vec_destroy (stokes_problem_lin->vel_dir->scale);
     }
-    ymir_vel_dir_destroy (lin_stokes->vel_dir);
+    ymir_vel_dir_destroy (stokes_problem_lin->vel_dir);
   }
 
   /* destroy linear Stokes problem */
-  rhea_stokes_problem_struct_destroy (lin_stokes);
+  rhea_stokes_problem_struct_destroy (stokes_problem_lin);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }

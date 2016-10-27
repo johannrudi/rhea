@@ -9,13 +9,31 @@
 #include <rhea_viscosity.h>
 #include <ymir_pressure_elem.h>
 
-/* linear Stokes problem (opaque) */
+/* Stokes problem (opaque) */
 typedef struct rhea_stokes_problem rhea_stokes_problem_t;
+
+/**
+ * Creates a new Stokes problem.
+ */
+rhea_stokes_problem_t *rhea_stokes_problem_new (
+                                    ymir_vec_t *temperature,
+                                    ymir_vec_t *weakzone,
+                                    ymir_mesh_t *ymir_mesh,
+                                    ymir_pressure_elem_t *press_elem,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options,
+                                    rhea_viscosity_options_t *visc_options);
+
+/**
+ * Destroys a Stokes problem.
+ */
+void                rhea_stokes_problem_destroy (
+                                    rhea_stokes_problem_t *stokes_problem);
 
 /**
  * Creates a new linear Stokes problem.
  */
-rhea_stokes_problem_t  *rhea_stokes_problem_linear_new (
+rhea_stokes_problem_t *rhea_stokes_problem_linear_new (
                                     ymir_vec_t *temperature,
                                     ymir_vec_t *weakzone,
                                     ymir_mesh_t *ymir_mesh,
@@ -28,6 +46,6 @@ rhea_stokes_problem_t  *rhea_stokes_problem_linear_new (
  * Destroys a linear Stokes problem.
  */
 void                rhea_stokes_problem_linear_destroy (
-                                    rhea_stokes_problem_t *lin_stokes);
+                                    rhea_stokes_problem_t *stokes_problem_lin);
 
 #endif /* RHEA_STOKES_H */
