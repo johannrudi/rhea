@@ -339,7 +339,7 @@ rhea_discretization_options_set_boundary (rhea_discretization_options_t *opt,
   opt->boundary = rhea_domain_boundary_new (p4est, domain_options);
 
   /* initialize geometric multigrid */
-  ymir_gmg_init_mesh (*p4est, opt->boundary->e_to_fm_fn,
+  ymir_gmg_init_mesh (p4est, opt->boundary->e_to_fm_fn,
                       opt->boundary->tree_to_bf);
   ymir_gmg_init_bc (rhea_domain_create_velocity_dirichlet_bc, domain_options,
                     NULL /* Robin BC's */, NULL /* Robin data */);
