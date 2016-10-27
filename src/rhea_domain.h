@@ -78,7 +78,7 @@ typedef struct rhea_domain_options
   /* velocity boundary conditions */
   rhea_domain_velocity_bc_t  velocity_bc_type;
 
-  /* properties of the domain (reference coordinate system) */
+  /* nondimensional properties of the domain */
   double              x_min;
   double              x_max;
   double              y_min;
@@ -92,6 +92,10 @@ typedef struct rhea_domain_options
   double              volume;
   double              center[3];
   double              moment_of_inertia[3];
+
+  /* dimensional properties of the domain */
+  double              radius_min_m;
+  double              radius_max_m;
 }
 rhea_domain_options_t;
 
