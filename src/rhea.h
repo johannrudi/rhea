@@ -9,7 +9,7 @@
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
-#include <rhea_stokes.h>
+#include <rhea_stokes_problem.h>
 
 /**
  * Defines all rhea options and adds them as sub-options.
