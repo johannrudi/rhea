@@ -27,6 +27,12 @@ typedef struct rhea_temperature_options
   char               *import_path_txt;
   char               *import_path_bin;
 
+  /* cold plate model */
+  double              cold_plate_model_plate_age_yr;
+
+  /* thermal constants */
+  double              thermal_diffusivity_m2_s;
+
   /* buoyancy right-hand side derived from temperature */
   double              rhs_scaling;
 
@@ -63,6 +69,19 @@ void                rhea_temperature_destroy (ymir_vec_t *temperature);
 double             *rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
                                                      ymir_vec_t *temp_vec,
                                                      const ymir_locidx_t elid);
+
+/**
+ * Computes the temperature.
+ */
+void                rhea_temperature_compute (ymir_vec_t *temperature,
+                                              rhea_temperature_options_t *opt);
+
+/**
+ * Computes the background temperature.
+ */
+void                rhea_temperature_background_compute (
+                                              ymir_vec_t *back_temperature,
+                                              rhea_temperature_options_t *opt);
 
 /**
  * Computes velocity right-hand side in (primal) function space, given a
