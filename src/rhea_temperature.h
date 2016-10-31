@@ -36,6 +36,15 @@ typedef struct rhea_temperature_options
   /* thermal constants */
   double              thermal_diffusivity_m2_s;
 
+  /* sinker */
+  int                 sinker_active;
+  double              sinker_center_x;
+  double              sinker_center_y;
+  double              sinker_center_z;
+  double              sinker_decay;
+  double              sinker_width;
+  double              sinker_scaling;
+
   /* buoyancy right-hand side derived from temperature */
   double              rhs_scaling;
 
