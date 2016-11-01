@@ -10,6 +10,7 @@
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
+#include <rhea_velocity_pressure.h>
 #include <rhea_stokes_problem.h>
 #include <rhea_vtk.h>
 
@@ -26,5 +27,15 @@ void                rhea_process_options_all (
                               rhea_temperature_options_t *temperature_options,
                               rhea_viscosity_options_t *viscosity_options,
                               rhea_discretization_options_t *discr_options);
+
+/**
+ * Get whether current program execution is flagged as a production run.
+ */
+int                 rhea_get_production_run ();
+
+/**
+ * Set current program execution as a production run.
+ */
+void                rhea_set_production_run (const int is_production_run);
 
 #endif /* RHEA_H */

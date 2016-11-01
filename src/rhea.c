@@ -2,6 +2,7 @@
  */
 
 #include <rhea.h>
+#include <ymir.h>
 
 void
 rhea_add_options_all (ymir_options_t *options)
@@ -24,3 +25,16 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
   rhea_viscosity_process_options (viscosity_options, domain_options);
   rhea_discretization_process_options (discr_options, domain_options);
 }
+
+int
+rhea_get_production_run ()
+{
+  return ymir_get_production_run ();
+}
+
+void
+rhea_set_production_run (const int is_production_run)
+{
+  ymir_set_production_run (is_production_run);;
+}
+
