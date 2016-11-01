@@ -31,6 +31,15 @@ void                rhea_stokes_problem_destroy (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
+ * Solves a Stokes problem.
+ */
+void                rhea_stokes_problem_solve (
+                                    ymir_vec_t *sol_vel_press,
+                                    const double rel_tol,
+                                    const int maxiter,
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
  * Creates a new linear Stokes problem.
  */
 rhea_stokes_problem_t *rhea_stokes_problem_linear_new (
@@ -46,6 +55,15 @@ rhea_stokes_problem_t *rhea_stokes_problem_linear_new (
  * Destroys a linear Stokes problem.
  */
 void                rhea_stokes_problem_linear_destroy (
+                                    rhea_stokes_problem_t *stokes_problem_lin);
+
+/**
+ * Solves a linear Stokes problem.
+ */
+void                rhea_stokes_problem_linear_solve (
+                                    ymir_vec_t *sol_vel_press,
+                                    const double rel_tol,
+                                    const int maxiter,
                                     rhea_stokes_problem_t *stokes_problem_lin);
 
 #endif /* RHEA_STOKES_H */

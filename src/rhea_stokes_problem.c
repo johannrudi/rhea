@@ -4,9 +4,9 @@
 #include <rhea_stokes_problem.h>
 #include <rhea_base.h>
 #include <rhea_velocity.h>
+#include <rhea_velocity_pressure.h>
 #include <ymir_stokes_op.h>
 #include <ymir_stokes_pc.h>
-#include <ymir_stokes_vec.h>
 
 /******************************************************************************
  * General Stokes Problem
@@ -107,6 +107,22 @@ rhea_stokes_problem_destroy (rhea_stokes_problem_t *stokes_problem)
   }
 }
 
+void
+rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
+                           const double rel_tol,
+                           const int maxiter,
+                           rhea_stokes_problem_t *stokes_problem)
+{
+  if (RHEA_STOKES_PROBLEM_NONLINEAR == stokes_problem->type) {
+    //TODO
+    //rhea_stokes_problem_nonlinear_solve (stokes_problem);
+  }
+  else {
+    rhea_stokes_problem_linear_solve (sol_vel_press, rel_tol, maxiter,
+                                      stokes_problem);
+  }
+}
+
 /******************************************************************************
  * Linear Stokes Problem
  *****************************************************************************/
@@ -170,7 +186,7 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
   rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
 
   /* construct right-hand side for incompressible Stokes system */
-  rhs_vel_press = ymir_stokes_vec_new (ymir_mesh, press_elem);
+  rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
   ymir_stokes_op_construct_rhs_ext (rhs_vel /* Dirichlet forcing */,
                                     NULL /* Neumann forcing */,
                                     NULL /* Dirichlet lift */,
@@ -208,9 +224,9 @@ rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
   ymir_stokes_op_destroy (stokes_problem_lin->stokes_op);
 
   /* destroy vectors */
-  ymir_vec_destroy (stokes_problem_lin->coeff);
-  ymir_vec_destroy (stokes_problem_lin->rhs_vel);
-  ymir_vec_destroy (stokes_problem_lin->rhs_vel_press);
+  rhea_viscosity_destroy (stokes_problem_lin->coeff);
+  rhea_velocity_destroy (stokes_problem_lin->rhs_vel);
+  rhea_velocity_pressure_destroy (stokes_problem_lin->rhs_vel_press);
 
   /* destroy Dirichlet BC's */
   if (stokes_problem_lin->vel_dir != NULL) {
@@ -222,6 +238,84 @@ rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
 
   /* destroy linear Stokes problem */
   rhea_stokes_problem_struct_destroy (stokes_problem_lin);
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
+
+void
+rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
+                                  const double rel_tol,
+                                  const int maxiter,
+                                  rhea_stokes_problem_t *stokes_problem_lin)
+{
+  const char         *this_fn_name = "rhea_stokes_problem_linear_solve";
+  const int           nonzero_initial_guess = 0;
+  const double        abs_tol = 1.0e-16;
+  const int           krylov_gmres_n_vecs = 100;
+
+  double              norm_res_init, norm_res;
+  int                 conv_reason;
+  int                 n_iter;
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s (rel tol %.3e, max iter %i)\n",
+                           this_fn_name, rel_tol, maxiter);
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
+  RHEA_ASSERT (stokes_problem_lin->stokes_pc != NULL);
+  //TODO check if `sol_vel_press` is of correct type
+
+  /* compute residual with zero inital guess */
+  if (rhea_get_production_run ()) {
+    norm_res_init = -1.0;
+  //TODO
+  //ymir_vec_set_zero (state->vel_press_vec);
+  //norm_res_init = slabs_norm_compute_residual (
+  //    NULL, NULL, NULL, NULL, lin_stokes->rhs_u_point,
+  //    lin_stokes->stokes_op, lin_stokes->stokes_pc,
+  //    solver_options->krylov_type, SL_NORM_VEC_L2, NULL);
+  }
+
+  /* run solver for Stokes */
+  conv_reason = ymir_stokes_pc_solve (stokes_problem_lin->rhs_vel_press,
+                                      sol_vel_press,
+                                      stokes_problem_lin->stokes_pc,
+                                      nonzero_initial_guess,
+                                      rel_tol, abs_tol, maxiter,
+                                      krylov_gmres_n_vecs /* unused */,
+                                      &n_iter);
+
+  /* compute residual at solution */
+  if (rhea_get_production_run ()) {
+    double              res_reduction, conv_factor;
+
+    norm_res = 1.0;
+  //TODO
+  //norm_res = slabs_norm_compute_residual (
+  //    residual_up, NULL, NULL, state->vel_press_vec,
+  //    lin_stokes->rhs_u_point,
+  //    lin_stokes->stokes_op, lin_stokes->stokes_pc,
+  //    solver_options->krylov_type, SL_NORM_VEC_L2, NULL);
+
+    /* calculate rate of convergence */
+    res_reduction = norm_res/norm_res_init;
+    conv_factor = exp (log (res_reduction) / ((double) n_iter));
+
+    RHEA_GLOBAL_PRODUCTIONF (
+        "%s: Linear solver converged reason %d, %d iterations, "
+        "residual reduction %.3e, convergence %.3e\n",
+        this_fn_name, conv_reason, n_iter, res_reduction, conv_factor);
+  }
+  else {
+    RHEA_GLOBAL_PRODUCTIONF (
+        "%s: Linear solver converged reason %d, %d iterations\n",
+        this_fn_name, conv_reason, n_iter);
+  }
+
+  /* project out nullspaces of solution */
+  //TODO
+//slabs_linear_stokes_problem_project_out_nullspace (
+//    state->vel_press_vec, lin_stokes->stokes_op, physics_options, 0);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
