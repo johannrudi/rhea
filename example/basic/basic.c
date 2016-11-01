@@ -42,7 +42,8 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     ymir_pressure_elem_t *press_elem,
                     rhea_domain_options_t *domain_options,
                     rhea_temperature_options_t *temp_options,
-                    rhea_viscosity_options_t *visc_options)
+                    rhea_viscosity_options_t *visc_options,
+                    const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "basic_setup_stokes";
   ymir_vec_t         *temperature, *weakzone;
@@ -55,6 +56,30 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* compute weak zone */
   weakzone = NULL;  /* Note: in this example, we do not want weak zones */
+
+  /* write vtk of input data */
+  if (vtk_write_input_path != NULL) {
+    ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
+    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+    ymir_vec_t         *rhs_vel = rhea_velocity_new (ymir_mesh);
+
+    rhea_temperature_background_compute (background_temp, temp_options);
+    rhea_viscosity_compute (viscosity,
+                            NULL /* nl. Stokes output */,
+                            NULL /* nl. Stokes output */,
+                            NULL /* nl. Stokes output */,
+                            temperature, weakzone,
+                            NULL /* nl. Stokes input */,
+                            visc_options);
+    rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
+
+    rhea_vtk_write_simple (vtk_write_input_path, temperature, background_temp,
+                           weakzone, viscosity, rhs_vel);
+
+    rhea_temperature_destroy (background_temp);
+    rhea_viscosity_destroy (viscosity);
+    rhea_velocity_destroy (rhs_vel);
+  }
 
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
@@ -135,6 +160,8 @@ main (int argc, char **argv)
   rhea_discretization_options_t discr_options;
   /* options local to this function */
   int                 production_run;
+  char               *vtk_write_input_path;
+  char               *vtk_write_solution_path;
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -183,8 +210,16 @@ main (int argc, char **argv)
 
   /* performance & monitoring options */
   YMIR_OPTIONS_B, "production-run", '\0',
-    &production_run, 0,
+    &(production_run), 0,
     "Execute as a production run (to reduce some overhead and checks)",
+
+  /* vtk output options */
+  YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
+    &(vtk_write_input_path), NULL,
+    "File path for vtk files for the input of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
+    &(vtk_write_solution_path), NULL,
+    "File path for vtk files for the solution of the Stokes problem",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -232,7 +267,8 @@ main (int argc, char **argv)
    */
 
   basic_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
-                      &domain_options, &temp_options, &visc_options);
+                      &domain_options, &temp_options, &visc_options,
+                      vtk_write_input_path);
 
   /*
    * Solve Stokes Problem
