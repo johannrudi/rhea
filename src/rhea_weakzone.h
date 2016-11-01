@@ -10,6 +10,16 @@
 #define RHEA_WEAKZONE_DEFAULT_VALUE (1.0)
 
 /**
+ * Creates a new weak zone vector.
+ */
+ymir_vec_t         *rhea_weakzone_new (ymir_mesh_t *ymir_mesh);
+
+/**
+ * Destroys a weak zone vector.
+ */
+void                rhea_weakzone_destroy (ymir_vec_t *weakzone);
+
+/**
  * Gets the weak zone of one element at Gauss nodes.
  */
 double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,

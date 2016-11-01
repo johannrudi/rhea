@@ -5,6 +5,18 @@
 #include <rhea_base.h>
 #include <ymir_vec_getset.h>
 
+ymir_vec_t *
+rhea_weakzone_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
+}
+
+void
+rhea_weakzone_destroy (ymir_vec_t *weakzone)
+{
+  ymir_vec_destroy (weakzone);
+}
+
 /******************************************************************************
  * Get & Set Functions
  *****************************************************************************/
