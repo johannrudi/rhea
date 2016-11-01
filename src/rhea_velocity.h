@@ -7,12 +7,12 @@
 #include <ymir_vec_ops.h>
 
 /**
- * Creates a new temperature vector.
+ * Creates a new velocity vector.
  */
 ymir_vec_t         *rhea_velocity_new (ymir_mesh_t *ymir_mesh);
 
 /**
- * Destroys a temperature vector.
+ * Destroys a velocity vector.
  */
 void                rhea_velocity_destroy (ymir_vec_t *velocity);
 
