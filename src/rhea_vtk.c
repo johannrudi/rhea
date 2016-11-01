@@ -23,6 +23,9 @@ rhea_vtk_write_simple (const char *filepath,
   const int           in_visc = (viscosity != NULL ? 1 : 0);
   ymir_mesh_t        *mesh;
 
+  RHEA_GLOBAL_INFOF ("Into %s: Write VTK file \"%s\"\n",
+                     this_fn_name, filepath);
+
   /* check input */
   RHEA_ASSERT (in_temp || in_back || in_weak || in_visc || rhs_vel != NULL);
 
@@ -81,4 +84,6 @@ rhea_vtk_write_simple (const char *filepath,
   if (!in_visc) {
     rhea_viscosity_destroy (viscosity);
   }
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
