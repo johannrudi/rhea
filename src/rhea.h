@@ -10,6 +10,7 @@
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
+#include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
 #include <rhea_stokes_problem.h>
 #include <rhea_vtk.h>

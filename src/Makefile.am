@@ -12,6 +12,7 @@ librhea_installed_headers = \
         src/rhea_weakzone.h \
         src/rhea_viscosity.h \
         src/rhea_velocity.h \
+        src/rhea_pressure.h \
         src/rhea_velocity_pressure.h \
         src/rhea_stokes_problem.h \
         src/rhea_vtk.h \
@@ -25,6 +26,7 @@ librhea_compiled_sources = \
         src/rhea_weakzone.c \
         src/rhea_viscosity.c \
         src/rhea_velocity.c \
+        src/rhea_pressure.c \
         src/rhea_velocity_pressure.c \
         src/rhea_stokes_problem.c \
         src/rhea_vtk.c \
