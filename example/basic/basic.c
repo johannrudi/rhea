@@ -73,8 +73,8 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                             visc_options);
     rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
 
-    rhea_vtk_write_simple (vtk_write_input_path, temperature, background_temp,
-                           weakzone, viscosity, rhs_vel);
+    rhea_vtk_write_input_data (vtk_write_input_path, temperature,
+                               background_temp, weakzone, viscosity, rhs_vel);
 
     rhea_temperature_destroy (background_temp);
     rhea_viscosity_destroy (viscosity);
@@ -141,7 +141,23 @@ basic_run_solver (rhea_stokes_problem_t *stokes_problem,
   /* run solver */
   rhea_stokes_problem_solve (sol_vel_press, rel_tol, maxiter, stokes_problem);
 
-  //TODO write vtk of solution
+  /* write vtk of solution */
+  if (vtk_write_solution_path != NULL) {
+    ymir_vec_t         *velocity = rhea_velocity_new (ymir_mesh);
+    ymir_vec_t         *pressure = rhea_pressure_new (ymir_mesh, press_elem);
+    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+
+    ymir_stokes_vec_get_components (sol_vel_press, velocity, pressure,
+                                    press_elem);
+    rhea_stokes_problem_get_viscosity (viscosity, stokes_problem);
+
+    rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
+                             viscosity);
+
+    rhea_velocity_destroy (velocity);
+    rhea_pressure_destroy (pressure);
+    rhea_viscosity_destroy (viscosity);
+  }
 
   /* destroy */
   rhea_velocity_pressure_destroy (sol_vel_press);
