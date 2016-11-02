@@ -66,4 +66,11 @@ void                rhea_stokes_problem_linear_solve (
                                     const int maxiter,
                                     rhea_stokes_problem_t *stokes_problem_lin);
 
+/**
+ * Gets viscosity vector from Stokes problem.
+ */
+void                rhea_stokes_problem_get_viscosity (
+                                    ymir_vec_t *viscosity,
+                                    rhea_stokes_problem_t *stokes_problem);
+
 #endif /* RHEA_STOKES_H */

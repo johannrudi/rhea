@@ -123,6 +123,18 @@ rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
   }
 }
 
+void
+rhea_stokes_problem_get_viscosity (ymir_vec_t *viscosity,
+                                   rhea_stokes_problem_t *stokes_problem)
+{
+  /* check input */
+  RHEA_ASSERT (stokes_problem->coeff != NULL);
+
+  /* copy Stokes coefficient and divide by 2 */
+  ymir_vec_copy (stokes_problem->coeff, viscosity);
+  ymir_vec_scale (0.5, viscosity);
+}
+
 /******************************************************************************
  * Linear Stokes Problem
  *****************************************************************************/
