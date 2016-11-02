@@ -207,13 +207,7 @@ main (int argc, char **argv)
   mpiret = MPI_Comm_rank (mpicomm, &mpirank); YMIR_CHECK_MPI (mpiret);
 
 #ifdef RHEA_ENABLE_OPENMP
-  #pragma omp parallel
-  {
-    #pragma omp single
-    {
-      ompsize = omp_get_num_threads ();
-    }
-  }
+  ompsize = omp_get_max_threads ();
 #else
   ompsize = 1;
 #endif
