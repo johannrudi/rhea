@@ -73,7 +73,7 @@ typedef struct rhea_domain_options
   /* the domain knows the location of the lower-upper mantle interface,
    * which causes discontinuous material properties */
   double              lm_um_interface_radius;
-  double              lm_um_interface_smooth_transition_width;
+  double              lm_um_interface_smoothing_width;
 
   /* velocity boundary conditions */
   rhea_domain_velocity_bc_t  velocity_bc_type;

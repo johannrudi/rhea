@@ -29,7 +29,7 @@ rhea_domain_boundary_face_t;
 #define RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M (6371.0e3)
 #define RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH_M (2866.95e3)
 #define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M (660.0e3)
-#define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTH_TRANSITION_WIDTH_M (0.0)
+#define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTHING_WIDTH_M (0.0)
 #define RHEA_DOMAIN_DEFAULT_VELOCITY_BC_TYPE \
   RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_ALL
 
@@ -47,8 +47,8 @@ double              rhea_domain_mantle_depth_m =
   RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH_M;
 double              rhea_domain_lm_um_interface_depth_m =
   RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M;
-double              rhea_domain_lm_um_interface_smooth_transition_width_m =
-  RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTH_TRANSITION_WIDTH_M;
+double              rhea_domain_lm_um_interface_smoothing_width_m =
+  RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTHING_WIDTH_M;
 int                 rhea_domain_velocity_bc_type =
   RHEA_DOMAIN_DEFAULT_VELOCITY_BC_TYPE;
 
@@ -84,10 +84,11 @@ rhea_domain_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "lower-upper-mantle-interface-depth", '\0',
     &(rhea_domain_lm_um_interface_depth_m),
     RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M,
-    "Depth of interface between lower and upper mantle [m]",
+    "Depth of interface between lower and upper mantle [m] "
+    "(0: lower mantle everywhere, -1: upper mantle everywhere)",
   YMIR_OPTIONS_D, "lower-upper-mantle-interface-smooth-transition-width", '\0',
-    &(rhea_domain_lm_um_interface_smooth_transition_width_m),
-    RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTH_TRANSITION_WIDTH_M,
+    &(rhea_domain_lm_um_interface_smoothing_width_m),
+    RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTHING_WIDTH_M,
     "Width of smooth transition zone between lower and upper mantle [m]",
 
   YMIR_OPTIONS_I, "velocity-boundary-condition", '\0',
@@ -352,8 +353,8 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
  *
  */
 static double
-rhea_domain_align_radius_to_mesh (double radius, const int level,
-                                  rhea_domain_options_t *opt)
+rhea_domain_align_radius_with_mesh (double radius, const int level,
+                                    rhea_domain_options_t *opt)
 {
   const double        rmin = opt->radius_min;
   const double        rmax = opt->radius_max;
@@ -369,8 +370,11 @@ rhea_domain_align_radius_to_mesh (double radius, const int level,
   RHEA_ASSERT (opt->radius_min < opt->radius_max);
 
   /* exit if nothing to do */
-  if ( !(rmin < radius && radius < rmax) ) {
-    return -1.0;
+  if (radius <= rmin) {
+    return rmin;
+  }
+  else if (rmax <= radius) {
+    return rmax;
   }
 
   /* set number of subdivisions given by the extension in z-direction */
@@ -428,7 +432,7 @@ void
 rhea_domain_process_options (rhea_domain_options_t *opt)
 {
   const char         *this_fn_name = "rhea_domain_process_options";
-  double              radius;
+  double              scal_len_to_km, radius;
 
   /* set shape of domain */
   if (strcmp (rhea_domain_shape_name, "cube") == 0) {
@@ -475,29 +479,40 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   opt->radius_min_m = SC_MAX (0.0, rhea_domain_earth_radius_m -
                                    rhea_domain_mantle_depth_m);
   opt->radius_max_m = rhea_domain_earth_radius_m;
+  scal_len_to_km = opt->radius_max_m / 1.0e3;
 
   /* compute domain properties */
   rhea_domain_compute_bounds (opt);
   rhea_domain_compute_volume (opt);
   rhea_domain_compute_center_of_mass (opt);
   rhea_domain_compute_moment_of_inertia (opt);
-
-  /* align lower-upper mantle interface with mesh elements */
-  RHEA_ASSERT (isfinite (opt->radius_max) && 0.0 < opt->radius_max);
-  radius = opt->radius_max *
-           (1.0 - rhea_domain_lm_um_interface_depth_m /
-                  rhea_domain_earth_radius_m);
-  opt->lm_um_interface_radius = rhea_domain_align_radius_to_mesh (
-      radius, rhea_discretization_level_min, opt);
+  RHEA_ASSERT (isfinite (opt->radius_min) && 0.0 <= opt->radius_min);
+  RHEA_ASSERT (isfinite (opt->radius_max) && opt->radius_min < opt->radius_max);
 
   /* set lower-upper mantle interface */
-  if (0.0 < rhea_domain_lm_um_interface_smooth_transition_width_m) {
-    opt->lm_um_interface_smooth_transition_width =
-      rhea_domain_lm_um_interface_smooth_transition_width_m /
+  radius = 1.0 - rhea_domain_lm_um_interface_depth_m /
+                 rhea_domain_earth_radius_m;
+  radius = opt->radius_max * SC_MIN (radius, 1.0);
+  if (0.0 <= rhea_domain_lm_um_interface_depth_m &&
+      opt->radius_min < radius) { /* if lower mantle exists */
+    /* align interface with mesh elements */
+    opt->lm_um_interface_radius = rhea_domain_align_radius_with_mesh (
+        radius, rhea_discretization_level_min, opt);
+  }
+  else { /* otherwise upper mantle everywhere */
+    opt->lm_um_interface_radius = -1.0;
+  }
+
+  /* set smoothing of lower-upper mantle interface (if it exists) */
+  if (0.0 < rhea_domain_lm_um_interface_smoothing_width_m &&
+      opt->radius_min < opt->lm_um_interface_radius &&
+      opt->lm_um_interface_radius < opt->radius_max) {
+    opt->lm_um_interface_smoothing_width =
+      rhea_domain_lm_um_interface_smoothing_width_m /
       rhea_domain_earth_radius_m;
   }
-  else {
-    opt->lm_um_interface_smooth_transition_width = 0.0;
+  else { /* otherwise deactivate smoothing */
+    opt->lm_um_interface_smoothing_width = 0.0;
   }
 
   /* set velocity boundary conditions */
@@ -514,19 +529,28 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   RHEA_GLOBAL_INFOF ("  y max:      %g\n", opt->y_max);
   RHEA_GLOBAL_INFOF ("  z min:      %g\n", opt->z_min);
   RHEA_GLOBAL_INFOF ("  z max:      %g\n", opt->z_max);
-  RHEA_GLOBAL_INFOF ("  lon min:    %g\n", opt->lon_min);
-  RHEA_GLOBAL_INFOF ("  lon max:    %g\n", opt->lon_max);
+  RHEA_GLOBAL_INFOF ("  lon min:    %+g\n", opt->lon_min);
+  RHEA_GLOBAL_INFOF ("  lon max:    %+g\n", opt->lon_max);
   RHEA_GLOBAL_INFOF ("  radius min: %g (%g km)\n",
                      opt->radius_min, opt->radius_min_m/1.0e3);
   RHEA_GLOBAL_INFOF ("  radius max: %g (%g km)\n",
                      opt->radius_max, opt->radius_max_m/1.0e3);
-  RHEA_GLOBAL_INFOF ("  LM-UM interface radius: %g (%g km)\n",
-                     opt->lm_um_interface_radius,
-                     opt->lm_um_interface_radius * opt->radius_max_m/1.0e3);
-  RHEA_GLOBAL_INFOF ("  LM-UM interface depth:  %g (%g km)\n",
-                     opt->radius_max - opt->lm_um_interface_radius,
-                     (opt->radius_max - opt->lm_um_interface_radius) *
-                     opt->radius_max_m/1.0e3);
+  if (0.0 < opt->lm_um_interface_radius) {
+    const double        r_lm_um = opt->lm_um_interface_radius;
+    const double        r_max = opt->radius_max;
+
+    RHEA_GLOBAL_INFOF ("  LM-UM interface radius:    %g (%g km)\n",
+                       r_lm_um, r_lm_um * scal_len_to_km);
+    RHEA_GLOBAL_INFOF ("  LM-UM interface depth:     %g (%g km)\n",
+                       (r_max - r_lm_um), (r_max - r_lm_um) * scal_len_to_km);
+  }
+  else {
+    RHEA_GLOBAL_INFOF ("  LM-UM interface radius:    %g\n",
+                       opt->lm_um_interface_radius);
+  }
+  RHEA_GLOBAL_INFOF ("  LM-UM interface smoothing: %g (%g km)\n",
+                     opt->lm_um_interface_smoothing_width,
+                     opt->lm_um_interface_smoothing_width * scal_len_to_km);
   RHEA_GLOBAL_INFOF ("  volume:            %g\n", opt->volume);
   RHEA_GLOBAL_INFOF ("  center of mass:    %g, %g, %g\n",
                      opt->center[0], opt->center[1], opt->center[2]);
@@ -584,6 +608,7 @@ rhea_domain_compute_radius_at_elem_center (const double *_sc_restrict x,
   }
 
   /* return mean value of radii at vertices */
+  RHEA_ASSERT ((radii_sum / 8.0) < opt->radius_max);
   return radii_sum / 8.0;
 }
 
