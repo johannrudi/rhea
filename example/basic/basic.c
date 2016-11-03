@@ -3,6 +3,9 @@
 
 #include <rhea.h>
 
+//###DEV### TODO delete
+#include <ymir_stress_op.h>
+
 /**
  * Sets up the mesh.
  */
@@ -59,11 +62,15 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* write vtk of input data */
   if (vtk_write_input_path != NULL) {
+    const rhea_viscosity_t  viscosity_type = visc_options->type;
     ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
     ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
     ymir_vec_t         *rhs_vel = rhea_velocity_new (ymir_mesh);
 
     rhea_temperature_background_compute (background_temp, temp_options);
+    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
+      visc_options->type = RHEA_VISCOSITY_LINEAR;
+    }
     rhea_viscosity_compute (viscosity,
                             NULL /* nl. Stokes output */,
                             NULL /* nl. Stokes output */,
@@ -71,6 +78,9 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                             temperature, weakzone,
                             NULL /* nl. Stokes input */,
                             visc_options);
+    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
+      visc_options->type = viscosity_type;
+    }
     rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
 
     rhea_vtk_write_input_data (vtk_write_input_path, temperature,
@@ -123,44 +133,16 @@ basic_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
  * Runs Stokes solver.
  */
 static void
-basic_run_solver (rhea_stokes_problem_t *stokes_problem,
-                  ymir_mesh_t *ymir_mesh,
-                  ymir_pressure_elem_t *press_elem,
-                  const double rel_tol,
-                  const int maxiter,
-                  const char *vtk_write_solution_path)
+basic_run_solver (ymir_vec_t *sol_vel_press,
+                  rhea_stokes_problem_t *stokes_problem,
+                  const double rel_tol, const int maxiter)
 {
   const char         *this_fn_name = "basic_run_solver";
-  ymir_vec_t         *sol_vel_press;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
-  /* initialize solution vector */
-  sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-
   /* run solver */
   rhea_stokes_problem_solve (sol_vel_press, rel_tol, maxiter, stokes_problem);
-
-  /* write vtk of solution */
-  if (vtk_write_solution_path != NULL) {
-    ymir_vec_t         *velocity = rhea_velocity_new (ymir_mesh);
-    ymir_vec_t         *pressure = rhea_pressure_new (ymir_mesh, press_elem);
-    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
-
-    ymir_stokes_vec_get_components (sol_vel_press, velocity, pressure,
-                                    press_elem);
-    rhea_stokes_problem_get_viscosity (viscosity, stokes_problem);
-
-    rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
-                             viscosity);
-
-    rhea_velocity_destroy (velocity);
-    rhea_pressure_destroy (pressure);
-    rhea_viscosity_destroy (viscosity);
-  }
-
-  /* destroy */
-  rhea_velocity_pressure_destroy (sol_vel_press);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
@@ -194,6 +176,7 @@ main (int argc, char **argv)
   ymir_pressure_elem_t  *press_elem;
   /* Stokes */
   rhea_stokes_problem_t *stokes_problem;
+  ymir_vec_t         *sol_vel_press;
 
   /*
    * Initialize Libraries
@@ -302,8 +285,62 @@ main (int argc, char **argv)
    * Solve Stokes Problem
    */
 
-  basic_run_solver (stokes_problem, ymir_mesh, press_elem,
-                    solver_rel_tol, solver_maxiter, vtk_write_solution_path);
+  /* initialize solution vector */
+  sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  /* run solver */
+  basic_run_solver (sol_vel_press, stokes_problem,
+                    solver_rel_tol, solver_maxiter);
+
+  /* write vtk of solution */
+  if (vtk_write_solution_path != NULL) {
+    ymir_vec_t         *velocity = rhea_velocity_new (ymir_mesh);
+    ymir_vec_t         *pressure = rhea_pressure_new (ymir_mesh, press_elem);
+    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+
+    ymir_stokes_vec_get_components (sol_vel_press, velocity, pressure,
+                                    press_elem);
+    rhea_stokes_problem_get_viscosity (viscosity, stokes_problem);
+
+    rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
+                             viscosity);
+
+    //###DEV### compute a fake nonlinear viscosity using the (linear) solution
+    //TODO delete
+    {
+      const rhea_viscosity_t  viscosity_type = visc_options.type;
+      const double        coeff_tensor_add = ymir_nlstress_op_coeff_tensor_add;
+      ymir_vec_t         *temperature, *weakzone;
+      char                path[BUFSIZ];
+
+      temperature = rhea_temperature_new (ymir_mesh);
+      rhea_temperature_compute (temperature, &temp_options);
+      weakzone = NULL;
+      rhea_stokes_problem_set_zero_velocity_boundary (velocity, stokes_problem);
+
+      visc_options.type = RHEA_VISCOSITY_NONLINEAR;
+      ymir_nlstress_op_coeff_tensor_add = -2.0 * visc_options.min;
+      rhea_viscosity_compute (viscosity,
+                              NULL /* nl. Stokes output */,
+                              NULL /* nl. Stokes output */,
+                              NULL /* nl. Stokes output */,
+                              temperature, weakzone, velocity,
+                              &visc_options);
+      visc_options.type = viscosity_type;
+      ymir_nlstress_op_coeff_tensor_add = coeff_tensor_add;
+      snprintf (path, BUFSIZ, "%s_fake_nl_visc", vtk_write_solution_path);
+      rhea_vtk_write_solution (path, velocity, pressure, viscosity);
+
+      rhea_temperature_destroy (temperature);
+    }
+
+    rhea_velocity_destroy (velocity);
+    rhea_pressure_destroy (pressure);
+    rhea_viscosity_destroy (viscosity);
+  }
+
+  /* destroy */
+  rhea_velocity_pressure_destroy (sol_vel_press);
 
   /*
    * Finalize
