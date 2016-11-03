@@ -49,8 +49,7 @@ rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat, ymir_vec_t *weak_vec,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (weak_vec);
-  RHEA_ASSERT (weak_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rhea_weakzone_check_vec_type (weak_vec));
   RHEA_ASSERT (weak_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (weak_el_mat->n == 1);
 #endif
@@ -68,8 +67,7 @@ rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec, sc_dmatrix_t *weak_el_mat,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (weak_vec);
-  RHEA_ASSERT (weak_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rhea_weakzone_check_vec_type (weak_vec));
   RHEA_ASSERT (weak_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (weak_el_mat->n == 1);
 #endif

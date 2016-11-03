@@ -48,8 +48,7 @@ rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_CVEC (vel_vec);
-  RHEA_ASSERT (vel_vec->ncfields == 3);
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel_vec));
   RHEA_ASSERT (vel_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (vel_el_mat->n == 3);
 #endif

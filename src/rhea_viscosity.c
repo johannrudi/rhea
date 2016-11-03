@@ -1284,8 +1284,7 @@ rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat, ymir_vec_t *visc_vec,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (visc_vec);
-  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (visc_vec));
   RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (visc_el_mat->n == 1);
 #endif
@@ -1303,8 +1302,7 @@ rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec, sc_dmatrix_t *visc_el_mat,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (visc_vec);
-  RHEA_ASSERT (visc_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (visc_vec));
   RHEA_ASSERT (visc_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (visc_el_mat->n == 1);
 #endif
