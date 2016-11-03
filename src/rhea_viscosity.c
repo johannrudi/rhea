@@ -237,10 +237,10 @@ rhea_viscosity_const_elem (double *_sc_restrict visc_elem,
                            rhea_viscosity_options_t *opt)
 {
   rhea_domain_options_t  *domain_options = opt->domain_options;
-  const double        lm_um_interface_radius =
+  const double        interface_radius =
                         domain_options->lm_um_interface_radius;
-  const double        transition_width =
-                        domain_options->lm_um_interface_smooth_transition_width;
+  const double        interface_smoothing_width =
+                        domain_options->lm_um_interface_smoothing_width;
   const double        um_scaling = opt->upper_mantle_scaling;
   const double        lm_scaling = opt->lower_mantle_scaling;
 
@@ -260,22 +260,24 @@ rhea_viscosity_const_elem (double *_sc_restrict visc_elem,
     const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
                                                         z[nodeid],
                                                         domain_options);
+    const int           interface_smoothing =
+      ( 0.0 < interface_smoothing_width &&
+        fabs (r - interface_radius) < interface_smoothing_width );
 
     /* compute viscosity */
-    if (lm_um_interface_radius <= 0.0 || transition_width <= 0.0 ||
-        transition_width < fabs (r - lm_um_interface_radius)) {
-      /* compute viscosity "sufficiently far" from LM/UM interface or with a
-       * discontinuous LM/UM interface */
+    if (!interface_smoothing) {
+      /* compute viscosity "sufficiently far" from LM-UM interface or with a
+       * discontinuous LM-UM interface */
       visc_elem[nodeid] = scaling;
     }
-    else { /* if close to LM/UM interface and must apply smoothing */
+    else { /* if close to LM-UM interface and must apply smoothing */
       const double        c =
-        (transition_width + (r - lm_um_interface_radius)) /
-        (2.0 * transition_width);
+        (interface_smoothing_width + (r - interface_radius)) /
+        (2.0 * interface_smoothing_width);
 
       RHEA_ASSERT (0.0 <= c && c <= 1.0);
 
-      /* compute viscosity with smooth transition at LM/UM interface (via a
+      /* compute viscosity with smooth transition around LM-UM interface (via
        * convex combination) */
       visc_elem[nodeid] = (1.0 - c) * lm_scaling + c * um_scaling;
     }
@@ -440,14 +442,15 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
   const double        temp_default = RHEA_TEMPERATURE_DEFAULT_VALUE;
   const double        weak_default = RHEA_WEAKZONE_DEFAULT_VALUE;
   rhea_domain_options_t  *domain_options = opt->domain_options;
-  const double        lm_um_interface_radius =
+  const double        interface_radius =
                         domain_options->lm_um_interface_radius;
-  const double        transition_width =
-                        domain_options->lm_um_interface_smooth_transition_width;
+  const double        interface_smoothing_width =
+                        domain_options->lm_um_interface_smoothing_width;
   const double        um_scaling = opt->upper_mantle_scaling;
   const double        um_activ_energy = opt->upper_mantle_activation_energy;
   const double        lm_scaling = opt->lower_mantle_scaling;
   const double        lm_activ_energy = opt->lower_mantle_activation_energy;
+
   double              scaling, activ_energy;
   int                 nodeid;
 
@@ -471,6 +474,9 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
                                                         z[nodeid],
                                                         domain_options);
+    const int           interface_smoothing =
+      ( 0.0 < interface_smoothing_width &&
+        fabs (r - interface_radius) < interface_smoothing_width );
     const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
     const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
 
@@ -482,22 +488,21 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
     /* compute viscosity */
-    if (lm_um_interface_radius <= 0.0 || transition_width <= 0.0 ||
-        transition_width < fabs (r - lm_um_interface_radius)) {
-      /* compute viscosity "sufficiently far" from LM/UM interface or with a
-       * discontinuous LM/UM interface */
+    if (!interface_smoothing) {
+      /* compute viscosity "sufficiently far" from LM-UM interface or with a
+       * discontinuous LM-UM interface */
       visc_elem[nodeid] = rhea_viscosity_linear_node (
           temp, weak, scaling, activ_energy, opt, restrict_to_bounds);
     }
-    else { /* if close to LM/UM interface and must apply smoothing */
+    else { /* if close to LM-UM interface and must apply smoothing */
       const double        c =
-        (transition_width + (r - lm_um_interface_radius)) /
-        (2.0 * transition_width);
+        (interface_smoothing_width + (r - interface_radius)) /
+        (2.0 * interface_smoothing_width);
       double              visc_lm, visc_um;
 
       RHEA_ASSERT (0.0 <= c && c <= 1.0);
 
-      /* compute viscosity with smooth transition at LM/UM interface (via a
+      /* compute viscosity with smooth transition around LM-UM interface (via
        * convex combination) */
       visc_lm = rhea_viscosity_linear_node (
           temp, weak, lm_scaling, lm_activ_energy, opt, restrict_to_bounds);
@@ -971,7 +976,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   RHEA_ASSERT (x != NULL && y != NULL && z != NULL);
   RHEA_ASSERT (Vmask != NULL);
   //TODO not implemented:
-  RHEA_ASSERT (domain_options->lm_um_interface_smooth_transition_width <= 0.0);
+  RHEA_ASSERT (domain_options->lm_um_interface_smoothing_width <= 0.0);
 
   /* compute viscosity depending on location in lower or upper mantle */
   if (rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask, domain_options)) {
