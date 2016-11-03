@@ -20,4 +20,14 @@ ymir_vec_t         *rhea_velocity_pressure_new (
 void                rhea_velocity_pressure_destroy (
                                             ymir_vec_t *velocity_pressure);
 
+/**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_velocity_pressure_check_vec_type (ymir_vec_t *vec);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_velocity_pressure_is_valid (ymir_vec_t *vec);
+
 #endif /* RHEA_VELOCITY_PRESSURE_H */

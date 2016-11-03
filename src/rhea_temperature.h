@@ -76,6 +76,16 @@ ymir_vec_t         *rhea_temperature_new (ymir_mesh_t *ymir_mesh);
 void                rhea_temperature_destroy (ymir_vec_t *temperature);
 
 /**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_temperature_check_vec_type (ymir_vec_t *vec);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_temperature_is_valid (ymir_vec_t *vec);
+
+/**
  * Computes the temperature.
  */
 void                rhea_temperature_compute (ymir_vec_t *temperature,

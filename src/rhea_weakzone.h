@@ -20,6 +20,16 @@ ymir_vec_t         *rhea_weakzone_new (ymir_mesh_t *ymir_mesh);
 void                rhea_weakzone_destroy (ymir_vec_t *weakzone);
 
 /**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_weakzone_check_vec_type (ymir_vec_t *vec);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_weakzone_is_valid (ymir_vec_t *vec);
+
+/**
  * Gets the weak zone of one element at Gauss nodes.
  */
 double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,

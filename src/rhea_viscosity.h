@@ -96,6 +96,16 @@ ymir_vec_t         *rhea_viscosity_new (ymir_mesh_t *ymir_mesh);
 void                rhea_viscosity_destroy (ymir_vec_t *viscosity);
 
 /**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_viscosity_check_vec_type (ymir_vec_t *vec);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_viscosity_is_valid (ymir_vec_t *vec);
+
+/**
  * Computes viscosity.
  */
 void                rhea_viscosity_compute (ymir_vec_t *viscosity,

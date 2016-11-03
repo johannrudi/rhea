@@ -180,6 +180,25 @@ rhea_temperature_destroy (ymir_vec_t *temperature)
   ymir_vec_destroy (temperature);
 }
 
+int
+rhea_temperature_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_cvec (vec) &&
+      vec->ncfields == 1 &&
+      vec->node_type == YMIR_GLL_NODE
+  );
+}
+
+int
+rhea_temperature_is_valid (ymir_vec_t *vec)
+{
+  return (
+      sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff) &&
+      0.0 <= ymir_cvec_min_global (vec) && ymir_cvec_max_global (vec) <= 1.0
+  );
+}
+
 /******************************************************************************
  * Temperature Computation
  *****************************************************************************/

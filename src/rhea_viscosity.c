@@ -201,6 +201,25 @@ rhea_viscosity_destroy (ymir_vec_t *viscosity)
   ymir_vec_destroy (viscosity);
 }
 
+int
+rhea_viscosity_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_dvec (vec) &&
+      vec->ndfields == 1 &&
+      vec->node_type == YMIR_GAUSS_NODE
+  );
+}
+
+int
+rhea_viscosity_is_valid (ymir_vec_t *vec)
+{
+  return (
+      sc_dmatrix_is_valid (vec->dataown) &&
+      0.0 < ymir_dvec_min_global (vec)
+  );
+}
+
 /******************************************************************************
  * Constant Viscosity
  *****************************************************************************/

@@ -18,6 +18,22 @@ rhea_velocity_destroy (ymir_vec_t *velocity)
   ymir_vec_destroy (velocity);
 }
 
+int
+rhea_velocity_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_cvec (vec) &&
+      vec->ncfields == 3 &&
+      vec->node_type == YMIR_GLL_NODE
+  );
+}
+
+int
+rhea_velocity_is_valid (ymir_vec_t *vec)
+{
+  return sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff);
+}
+
 /******************************************************************************
  * Get & Set Functions
  *****************************************************************************/

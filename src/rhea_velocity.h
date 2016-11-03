@@ -17,6 +17,16 @@ ymir_vec_t         *rhea_velocity_new (ymir_mesh_t *ymir_mesh);
 void                rhea_velocity_destroy (ymir_vec_t *velocity);
 
 /**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_velocity_check_vec_type (ymir_vec_t *vec);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_velocity_is_valid (ymir_vec_t *vec);
+
+/**
  * Gets the velocity of one element at GLL nodes.
  */
 void                rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
