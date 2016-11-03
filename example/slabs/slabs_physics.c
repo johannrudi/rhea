@@ -3196,7 +3196,7 @@ slabs_viscosity_linear (ymir_dvec_t *viscosity,
   domain_opt.shape = physics_options->domain_shape;
   domain_opt.lm_um_interface_radius =
     physics_options->viscosity_upper_mantle_radius;
-  domain_opt.lm_um_interface_smooth_transition_width =
+  domain_opt.lm_um_interface_smoothing_width =
     physics_options->viscosity_lower_upper_transition_zone;
   domain_opt.x_min = physics_options->domain_x_min;
   domain_opt.x_max = physics_options->domain_x_max;
