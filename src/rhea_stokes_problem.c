@@ -135,6 +135,20 @@ rhea_stokes_problem_get_viscosity (ymir_vec_t *viscosity,
   ymir_vec_scale (0.5, viscosity);
 }
 
+void
+rhea_stokes_problem_set_zero_velocity_boundary (
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
+
+  /* set Dirichlet components to zero if Dirichlet BC's exist */
+  if (stokes_problem->vel_dir != NULL) {
+    ymir_vel_dir_separate (velocity, NULL, NULL, NULL, stokes_problem->vel_dir);
+  }
+}
+
 /******************************************************************************
  * Linear Stokes Problem
  *****************************************************************************/

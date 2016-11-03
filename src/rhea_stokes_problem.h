@@ -73,4 +73,11 @@ void                rhea_stokes_problem_get_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 
+/**
+ * Sets velocity Dirichelet boundary components to zero.
+ */
+void                rhea_stokes_problem_set_zero_velocity_boundary (
+                                    ymir_vec_t *velocity,
+                                    rhea_stokes_problem_t *stokes_problem);
+
 #endif /* RHEA_STOKES_H */
