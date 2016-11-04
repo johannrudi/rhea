@@ -60,7 +60,7 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* compute weak zone */
   weakzone = NULL;  /* Note: in this example, we do not want weak zones */
 
-  /* write vtk of input data */
+  /* write vtk of input data */ //TODO better move this into main fnc
   if (vtk_write_input_path != NULL) {
     const rhea_viscosity_t  viscosity_type = visc_options->type;
     ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
@@ -95,6 +95,7 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   *stokes_problem = rhea_stokes_problem_new (
       temperature, weakzone, ymir_mesh, press_elem,
       domain_options, temp_options, visc_options);
+  rhea_stokes_problem_setup_solver (*stokes_problem);
 
   /* destroy */
   rhea_temperature_destroy (temperature);
@@ -307,7 +308,7 @@ main (int argc, char **argv)
 
     //###DEV### compute a fake nonlinear viscosity using the (linear) solution
     //TODO delete
-    {
+    if (visc_options.type != RHEA_VISCOSITY_NONLINEAR) {
       const rhea_viscosity_t  viscosity_type = visc_options.type;
       const double        coeff_tensor_add = ymir_nlstress_op_coeff_tensor_add;
       ymir_vec_t         *temperature, *weakzone;
@@ -316,7 +317,7 @@ main (int argc, char **argv)
       temperature = rhea_temperature_new (ymir_mesh);
       rhea_temperature_compute (temperature, &temp_options);
       weakzone = NULL;
-      rhea_stokes_problem_set_zero_velocity_boundary (velocity, stokes_problem);
+      rhea_stokes_problem_velocity_boundary_set_zero (velocity, stokes_problem);
 
       visc_options.type = RHEA_VISCOSITY_NONLINEAR;
       ymir_nlstress_op_coeff_tensor_add = -2.0 * visc_options.min;
