@@ -1,8 +1,8 @@
 /*
  */
 
-#ifndef RHEA_STOKES_H
-#define RHEA_STOKES_H
+#ifndef RHEA_STOKES_PROBLEM_H
+#define RHEA_STOKES_PROBLEM_H
 
 #include <rhea_domain.h>
 #include <rhea_temperature.h>
@@ -115,4 +115,4 @@ void                rhea_stokes_problem_nonlinear_solve (
                                     const int maxiter,
                                     rhea_stokes_problem_t *stokes_problem_nl);
 
-#endif /* RHEA_STOKES_H */
+#endif /* RHEA_STOKES_PROBLEM_H */
