@@ -41,8 +41,8 @@ void                rhea_stokes_problem_setup_solver (
  */
 void                rhea_stokes_problem_solve (
                                     ymir_vec_t *sol_vel_press,
+                                    const int iter_max,
                                     const double rel_tol,
-                                    const int maxiter,
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
@@ -79,8 +79,8 @@ void                rhea_stokes_problem_linear_setup_solver (
 
 void                rhea_stokes_problem_linear_solve (
                                     ymir_vec_t *sol_vel_press,
+                                    const int iter_max,
                                     const double rel_tol,
-                                    const int maxiter,
                                     rhea_stokes_problem_t *stokes_problem_lin);
 
 /* Analogous function declarations for a nonlinear Stokes problem */
@@ -102,17 +102,17 @@ void                rhea_stokes_problem_nonlinear_setup_solver (
 
 void                rhea_stokes_problem_nonlinear_solve (
                                     ymir_vec_t *sol_vel_press,
+                                    const int iter_max,
                                     const double rel_tol,
-                                    const int maxiter,
                                     rhea_stokes_problem_t *stokes_problem_nl);
 
-void                rhea_stokes_problem_nonlinear_setup_solver (
-                                    rhea_stokes_problem_t *stokes_problem_nl);
-
-void                rhea_stokes_problem_nonlinear_solve (
+int                 rhea_stokes_problem_nonlinear_solve_linearized (
                                     ymir_vec_t *sol_vel_press,
+                                    ymir_vec_t *rhs_vel_press,
+                                    const int iter_max,
                                     const double rel_tol,
-                                    const int maxiter,
-                                    rhea_stokes_problem_t *stokes_problem_nl);
+                                    const int nonzero_initial_guess,
+                                    rhea_stokes_problem_t *stokes_problem_nl,
+                                    int *n_iter);
 
 #endif /* RHEA_STOKES_PROBLEM_H */
