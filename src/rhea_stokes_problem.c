@@ -554,6 +554,162 @@ rhea_stokes_problem_nonlinear_setup_solver (
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
+static void
+rhea_stokes_problem_nonlinear_apply_operator (ymir_vec_t *out, ymir_vec_t *in,
+                                              void *data)
+{
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
+  const int           nl = 0;
+  const int           dirty = 1;
+
+  RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
+  ymir_stokes_pc_apply_stokes_op (in, out, stokes_op, nl, dirty);
+}
+
+static void
+rhea_stokes_problem_nonlinear_apply_jacobian (ymir_vec_t *out, ymir_vec_t *in,
+                                              void *data)
+{
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
+  const int           nl = 1;
+  const int           dirty = 1;
+
+  RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
+  ymir_stokes_pc_apply_stokes_op (in, out, stokes_op, nl, dirty);
+}
+
+static void
+rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *sol_vel_press,
+                                               void *data)
+{
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_update_operator";
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
+
+  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+  RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
+
+  /* compute physical viscosity and its derivative
+   * (updates `state->vel_bc_vec`) */
+//TODO
+//slabs_physics_compute_stokes_coeff (viscosity, dvisc_dIIe, rank1_tensor_scal,
+//                                    nl_stokes->bounds_marker,
+//                                    nl_stokes->yielding_marker,
+//                                    state, nl_stokes->press_elem, vel_dir,
+//                                    physics_options);
+//ymir_stress_op_setup_geo_coeff (stress_op);
+
+  /* set derivative of viscosity to zero if Picard method is used */
+//if (nl_solver_type == SL_NL_SOLVER_PICARD) {
+//  slabs_nonlinear_stokes_op_switch_picard (nl_stokes);
+//}
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+}
+
+static void
+rhea_stokes_problem_nonlinear_update_jacobian (ymir_vec_t *sol_vel_press,
+                                               void *data)
+{
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_update_jacobian";
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
+
+  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+  RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
+
+  /* update 4th order tensor */
+  //TODO setting usol is deprecated
+//ymir_stress_op_set_usol (stress_op, state->vel_bc_vec, stress_op->dvdIIe);
+//ymir_stress_op_coeff_compute_rank1_tensor (stress_op,
+//                                           stress_op->coeff_rank1_tensor_scal,
+//                                           state->vel_bc_vec);
+
+  /* test derivative of Stokes operator */
+//TODO
+//if (check_derivative) {
+//  slabs_nonlinear_stokes_problem_test_current_deriv (
+//      nl_stokes->stokes_op, state, nl_stokes->mesh, nl_stokes->press_elem,
+//      nl_stokes->vel_dir, nl_stokes->viscosity, physics_options);
+//}
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+}
+
+static void
+rhea_stokes_problem_nonlinear_compute_residual (ymir_vec_t *residual,
+                                                ymir_vec_t *solution,
+                                                void *data)
+{
+  //TODO
+}
+
+static double
+rhea_stokes_problem_nonlinear_compute_residual_norm (ymir_vec_t *residual,
+                                                     void *data,
+                                                     double *res_norm_comp)
+{
+  return 1.; //TODO
+}
+
+static int
+rhea_stokes_problem_nonlinear_solve_linearized (
+                                      ymir_vec_t *sol_vel_press,
+                                      ymir_vec_t *rhs_vel_press,
+                                      const int iter_max,
+                                      const double rel_tol,
+                                      const int nonzero_initial_guess,
+                                      void *data,
+                                      int *n_iter)
+{
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_solve_linearized";
+  const double        abs_tol = 1.0e-100;
+  const int           krylov_gmres_n_vecs = 100;
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+
+  int                 itn, stop_reason;
+
+  RHEA_GLOBAL_INFOF ("Into %s (rel tol %.3e, max iter %i)\n",
+                     this_fn_name, rel_tol, iter_max);
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+  RHEA_ASSERT (stokes_problem_nl->stokes_pc != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (rhs_vel_press));
+
+  /* run solver for the linearized Stokes system */
+  stop_reason = ymir_stokes_pc_solve (rhs_vel_press, sol_vel_press,
+                                      stokes_problem_nl->stokes_pc,
+                                      nonzero_initial_guess,
+                                      rel_tol, abs_tol, iter_max,
+                                      krylov_gmres_n_vecs /* unused */, &itn);
+
+  /* set number of iterations as a return value */
+  if (n_iter != NULL) {
+    *n_iter = itn;
+  }
+
+  RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, num iter %i)\n",
+                     this_fn_name, stop_reason, itn);
+
+  /* return the termination reason of the solver */
+  return stop_reason;
+}
+
 void
 rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
                                      const int iter_max,
@@ -585,49 +741,4 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
 //    state->vel_press_vec, lin_stokes->stokes_op, physics_options, 0);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
-
-int
-rhea_stokes_problem_nonlinear_solve_linearized (
-                                      ymir_vec_t *sol_vel_press,
-                                      ymir_vec_t *rhs_vel_press,
-                                      const int iter_max,
-                                      const double rel_tol,
-                                      const int nonzero_initial_guess,
-                                      rhea_stokes_problem_t *stokes_problem_nl,
-                                      int *n_iter)
-{
-  const char         *this_fn_name =
-                        "rhea_stokes_problem_nonlinear_solve_linearized";
-  const double        abs_tol = 1.0e-100;
-  const int           krylov_gmres_n_vecs = 100;
-
-  int                 itn, stop_reason;
-
-  RHEA_GLOBAL_INFOF ("Into %s (rel tol %.3e, max iter %i)\n",
-                     this_fn_name, rel_tol, iter_max);
-
-  /* check input */
-  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
-  RHEA_ASSERT (stokes_problem_nl->stokes_pc != NULL);
-  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
-  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (rhs_vel_press));
-
-  /* run solver for the linearized Stokes system */
-  stop_reason = ymir_stokes_pc_solve (rhs_vel_press, sol_vel_press,
-                                      stokes_problem_nl->stokes_pc,
-                                      nonzero_initial_guess,
-                                      rel_tol, abs_tol, iter_max,
-                                      krylov_gmres_n_vecs /* unused */, &itn);
-
-  /* set number of iterations as a return value */
-  if (n_iter != NULL) {
-    *n_iter = itn;
-  }
-
-  RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, num iter %i)\n",
-                     this_fn_name, stop_reason, itn);
-
-  /* return the termination reason of the solver */
-  return stop_reason;
 }

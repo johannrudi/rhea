@@ -106,13 +106,4 @@ void                rhea_stokes_problem_nonlinear_solve (
                                     const double rel_tol,
                                     rhea_stokes_problem_t *stokes_problem_nl);
 
-int                 rhea_stokes_problem_nonlinear_solve_linearized (
-                                    ymir_vec_t *sol_vel_press,
-                                    ymir_vec_t *rhs_vel_press,
-                                    const int iter_max,
-                                    const double rel_tol,
-                                    const int nonzero_initial_guess,
-                                    rhea_stokes_problem_t *stokes_problem_nl,
-                                    int *n_iter);
-
 #endif /* RHEA_STOKES_PROBLEM_H */
