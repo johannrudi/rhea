@@ -136,14 +136,14 @@ basic_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
 static void
 basic_run_solver (ymir_vec_t *sol_vel_press,
                   rhea_stokes_problem_t *stokes_problem,
-                  const double rel_tol, const int maxiter)
+                  const int iter_max, const double rel_tol)
 {
   const char         *this_fn_name = "basic_run_solver";
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* run solver */
-  rhea_stokes_problem_solve (sol_vel_press, rel_tol, maxiter, stokes_problem);
+  rhea_stokes_problem_solve (sol_vel_press, iter_max, rel_tol, stokes_problem);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
@@ -167,8 +167,8 @@ main (int argc, char **argv)
   rhea_discretization_options_t discr_options;
   /* options local to this function */
   int                 production_run;
+  int                 solver_iter_max;
   double              solver_rel_tol;
-  int                 solver_maxiter;
   char               *vtk_write_input_path;
   char               *vtk_write_solution_path;
   /* mesh */
@@ -213,12 +213,12 @@ main (int argc, char **argv)
     ".ini file with option values",
 
   /* solver options */
+  YMIR_OPTIONS_I, "solver-iter-max", '\0',
+    &solver_iter_max, 100,
+    "Maximum number of iterations for Stokes solver",
   YMIR_OPTIONS_D, "solver-rel-tol", '\0',
     &solver_rel_tol, 1.0e-6,
     "Relative tolerance for Stokes solver",
-  YMIR_OPTIONS_I, "krylov-maxiter", '\0',
-    &solver_maxiter, 100,
-    "Maximum number of iterations for Stokes solver",
 
   /* performance & monitoring options */
   YMIR_OPTIONS_B, "production-run", '\0',
@@ -291,7 +291,7 @@ main (int argc, char **argv)
 
   /* run solver */
   basic_run_solver (sol_vel_press, stokes_problem,
-                    solver_rel_tol, solver_maxiter);
+                    solver_iter_max, solver_rel_tol);
 
   /* write vtk of solution */
   if (vtk_write_solution_path != NULL) {
