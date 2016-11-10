@@ -467,7 +467,7 @@ slabs_nonlinear_stokes_op_update (slabs_nl_stokes_problem_t *nl_stokes,
   /* check input */
   YMIR_ASSERT (nl_stokes->stokes_op != NULL);
 
-  /* compute physical viscosity and it's derivative
+  /* compute physical viscosity and its derivative
    * (updates `state->vel_bc_vec`) */
   slabs_physics_compute_stokes_coeff (viscosity, dvisc_dIIe, rank1_tensor_scal,
                                       nl_stokes->bounds_marker,
