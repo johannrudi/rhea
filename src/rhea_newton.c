@@ -27,12 +27,12 @@ struct rhea_newton_problem
 /* Newton options */
 struct rhea_newton_options
 {
-  /* options for nonlinear solver */
+  /* options for the nonlinear solver */
   int                 iter_start;
   int                 iter_max;
   double              res_norm_rtol;
 
-  /* options for solver of linearized system */
+  /* options for the solver of the linearized system */
   int                 lin_iter_max;
 
   int                 lin_rtol_init_n_iter;
@@ -621,8 +621,6 @@ rhea_newton_solve (ymir_vec_t *solution,
   const int           iter_max = opt->iter_max;
   int                 iter;
   const double        res_norm_rtol = opt->res_norm_rtol;
-  double              res_norm;
-  double             *res_norm_comp;
   rhea_newton_step_t  step;
   rhea_newton_residual_t  residual;
 
@@ -632,6 +630,10 @@ rhea_newton_solve (ymir_vec_t *solution,
    * Initialize
    */
   {
+    const int           residual_norm_n_components =
+                          nl_problem->residual_norm_n_components;
+    double              res_norm, *res_norm_comp;
+
     /* set initial guess */
     ymir_vec_set_zero (solution);
 
@@ -639,15 +641,14 @@ rhea_newton_solve (ymir_vec_t *solution,
     rhea_newton_step_init (&step, nl_problem->step_vec);
 
     /* create residual */
-    if (0 < nl_problem->residual_norm_n_components) {
-      res_norm_comp = RHEA_ALLOC (double,
-                                  nl_problem->residual_norm_n_components);
+    if (0 < residual_norm_n_components) {
+      res_norm_comp = RHEA_ALLOC (double, residual_norm_n_components);
     }
     else {
       res_norm_comp = NULL;
     }
     rhea_newton_residual_init (&residual, nl_problem->residual_vec,
-                               nl_problem->residual_norm_n_components);
+                               residual_norm_n_components);
 
     /* compute initial residual */
     nl_problem->compute_residual (residual.vec, solution, nl_problem->data);
@@ -656,6 +657,11 @@ rhea_newton_solve (ymir_vec_t *solution,
                                                   res_norm_comp);
     rhea_newton_residual_norm_set_curr (&residual, res_norm, res_norm_comp);
     rhea_newton_residual_norm_copy_curr_to_init (&residual);
+
+    /* destroy */
+    if (0 < residual_norm_n_components) {
+      RHEA_FREE (res_norm_comp);
+    }
   }
 
   /*
@@ -668,6 +674,10 @@ rhea_newton_solve (ymir_vec_t *solution,
      * Pre-Step Output
      */
     {
+      RHEA_GLOBAL_INFOF (
+          "%s: Newton iter %i, residual %.6e, reduction %.3e\n",
+          this_fn_name, iter, residual.norm_curr, residual.norm_reduction);
+
       //TODO
     }
 
@@ -715,9 +725,9 @@ rhea_newton_solve (ymir_vec_t *solution,
           step.lin_res_norm_reduction, step.lin_res_norm_rtol,
           step.lin_convergence);
 
+      //TODO move summary to the end
       if (print_summary) {
-        //TODO move summary to the end
-        RHEA_GLOBAL_INFOF (
+        RHEA_GLOBAL_PRODUCTIONF (
             "%s: Newton step summary: [%2d, %.6f, %4d, %.3e, %.3e, %.3e]\n",
             this_fn_name, iter, step.length,
             step.lin_iter_count, step.lin_res_norm_reduction,
@@ -747,9 +757,6 @@ rhea_newton_solve (ymir_vec_t *solution,
   {
     /* destroy */
     rhea_newton_residual_clear (&residual);
-    if (0 < nl_problem->residual_norm_n_components) {
-      RHEA_FREE (res_norm_comp);
-    }
 
     //TODO
   }

@@ -13,6 +13,7 @@
 #include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
 #include <rhea_stokes_problem.h>
+#include <rhea_newton.h>
 #include <rhea_vtk.h>
 
 /**
