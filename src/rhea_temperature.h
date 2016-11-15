@@ -7,7 +7,8 @@
 #include <rhea_domain.h>
 #include <ymir_vec_ops.h>
 
-/* constant: default value for temperature (gives const viscosity) */
+/* constant: default value for temperature (gives const viscosity due to
+ * implementation of function `rhea_viscosity_linear_arrhenius`) */
 #define RHEA_TEMPERATURE_DEFAULT_VALUE (0.5)
 
 /* enumerator for types of temperature */

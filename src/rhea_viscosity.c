@@ -221,122 +221,6 @@ rhea_viscosity_is_valid (ymir_vec_t *vec)
 }
 
 /******************************************************************************
- * Constant Viscosity
- *****************************************************************************/
-
-/**
- * Sets constant viscosity in one element.
- */
-static void
-rhea_viscosity_const_elem (double *_sc_restrict visc_elem,
-                           const double *_sc_restrict x,
-                           const double *_sc_restrict y,
-                           const double *_sc_restrict z,
-                           const int n_nodes,
-                           const int *_sc_restrict Vmask,
-                           rhea_viscosity_options_t *opt)
-{
-  rhea_domain_options_t  *domain_options = opt->domain_options;
-  const double        interface_radius =
-                        domain_options->lm_um_interface_radius;
-  const double        interface_smoothing_width =
-                        domain_options->lm_um_interface_smoothing_width;
-  const double        um_scaling = opt->upper_mantle_scaling;
-  const double        lm_scaling = opt->lower_mantle_scaling;
-
-  double              scaling;
-  int                 nodeid;
-
-  /* set parameters depending on location in lower or upper mantle */
-  if (rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask, domain_options)) {
-    scaling = um_scaling;
-  }
-  else {
-    scaling = lm_scaling;
-  }
-
-  /* compute viscosity at each node of this element */
-  for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-    const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
-                                                        z[nodeid],
-                                                        domain_options);
-    const int           interface_smoothing =
-      ( 0.0 < interface_smoothing_width &&
-        fabs (r - interface_radius) < interface_smoothing_width );
-
-    /* compute viscosity */
-    if (!interface_smoothing) {
-      /* compute viscosity "sufficiently far" from LM-UM interface or with a
-       * discontinuous LM-UM interface */
-      visc_elem[nodeid] = scaling;
-    }
-    else { /* if close to LM-UM interface and must apply smoothing */
-      const double        c =
-        (interface_smoothing_width + (r - interface_radius)) /
-        (2.0 * interface_smoothing_width);
-
-      RHEA_ASSERT (0.0 <= c && c <= 1.0);
-
-      /* compute viscosity with smooth transition around LM-UM interface (via
-       * convex combination) */
-      visc_elem[nodeid] = (1.0 - c) * lm_scaling + c * um_scaling;
-    }
-
-    /* check viscosity for `nan`, `inf`, and positivity */
-    RHEA_ASSERT (isfinite (visc_elem[nodeid]));
-    RHEA_ASSERT (0.0 < visc_elem[nodeid]);
-  }
-}
-
-/**
- * Sets the constant viscosity.
- */
-static void
-rhea_viscosity_const_vec (ymir_vec_t *visc_vec, rhea_viscosity_options_t *opt)
-{
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
-  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-  const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
-
-  sc_dmatrix_t       *visc_el_mat;
-  double             *visc_el_data;
-  double             *x, *y, *z, *tmp_el;
-  ymir_locidx_t       elid;
-
-  /* check input */
-  RHEA_ASSERT (visc_vec != NULL);
-
-  /* create work variables */
-  visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  x = RHEA_ALLOC (double, n_nodes_per_el);
-  y = RHEA_ALLOC (double, n_nodes_per_el);
-  z = RHEA_ALLOC (double, n_nodes_per_el);
-  tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
-
-  visc_el_data = visc_el_mat->e[0];
-
-  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
-    /* get coordinates at Gauss nodes */
-    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
-
-    /* set constant viscosity */
-    rhea_viscosity_const_elem (visc_el_data, x, y, z, n_nodes_per_el, Vmask,
-                               opt);
-
-    /* set viscosity */
-    rhea_viscosity_set_elem_gauss (visc_vec, visc_el_mat, elid);
-  }
-
-  /* destroy */
-  sc_dmatrix_destroy (visc_el_mat);
-  RHEA_FREE (x);
-  RHEA_FREE (y);
-  RHEA_FREE (z);
-  RHEA_FREE (tmp_el);
-}
-
-/******************************************************************************
  * Linear Viscosity
  *****************************************************************************/
 
@@ -1237,10 +1121,6 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
                         rhea_viscosity_options_t *opt)
 {
   switch (opt->type) {
-  case RHEA_VISCOSITY_CONST:
-    rhea_viscosity_const_vec (viscosity, opt);
-    break;
-
   case RHEA_VISCOSITY_LINEAR:
     rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
     break;

@@ -10,7 +10,6 @@
 /* enumerator for types of viscosities */
 typedef enum
 {
-  RHEA_VISCOSITY_CONST,
   RHEA_VISCOSITY_LINEAR,
   RHEA_VISCOSITY_NONLINEAR
 }
