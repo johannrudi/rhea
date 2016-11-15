@@ -8,6 +8,7 @@
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>
+#include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
