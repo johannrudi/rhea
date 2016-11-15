@@ -21,6 +21,11 @@ rhea_domain_boundary_face_t;
 /* constant: reference value for shell radius */
 #define RHEA_DOMAIN_REFERENCE_SHELL_RADIUS (1.0)
 
+/* user provided velocity boundary conditions */
+ymir_vel_dir_fn_t   rhea_domain_velocity_bc_user_fn = NULL;
+void               *rhea_domain_velocity_bc_user_data = NULL;
+int                 rhea_domain_velocity_bc_user_nonzero = 1;
+
 /* default options */
 #define RHEA_DOMAIN_DEFAULT_SHAPE_NAME "cube"
 #define RHEA_DOMAIN_DEFAULT_BOX_X_EXTENSION (1)
@@ -94,6 +99,7 @@ rhea_domain_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "velocity-boundary-condition", '\0',
     &(rhea_domain_velocity_bc_type), RHEA_DOMAIN_DEFAULT_VELOCITY_BC_TYPE,
     "Velocity boundary condition: "
+    "-1: Provided by user; "
     "0: Dirichlet all; "
     "1: Dirichlet in normal direction; "
     "2: Dirichlet norm (if shell: two inner points fixed for rotation inv); "
@@ -625,12 +631,16 @@ rhea_domain_elem_is_in_upper_mantle (const double *x, const double *y,
   return (lm_um_interface_radius <= r_center);
 }
 
+/******************************************************************************
+ * Domain Boundary
+ *****************************************************************************/
+
 /**
  * Assigns boundary faces of to p4est-tree faces.
  */
 static ymir_topidx_t *
 rhea_domain_get_tree_to_bf (p4est_connectivity_t *conn,
-                                    rhea_domain_shape_t domain_shape)
+                            rhea_domain_shape_t domain_shape)
 {
   const ymir_topidx_t ntrees = conn->num_trees;
   ymir_topidx_t       treeid;
@@ -717,6 +727,10 @@ rhea_domain_boundary_destroy (rhea_domain_boundary_t *boundary)
   RHEA_FREE (boundary->tree_to_bf);
   RHEA_FREE (boundary);
 }
+
+/******************************************************************************
+ * Boundary Conditions
+ *****************************************************************************/
 
 /**
  *
@@ -878,6 +892,16 @@ rhea_domain_vel_dir_shell_restrict_dof (ymir_vel_dir_t * vel_dir)
   }
 }
 
+void
+rhea_domain_set_user_velocity_dirichlet_bc (ymir_vel_dir_fn_t vel_dir_bc_fn,
+                                            void *vel_dir_bc_data,
+                                            const int vel_dir_bc_nonzero)
+{
+  rhea_domain_velocity_bc_user_fn = vel_dir_bc_fn;
+  rhea_domain_velocity_bc_user_data = vel_dir_bc_data;
+  rhea_domain_velocity_bc_user_nonzero = vel_dir_bc_nonzero;
+}
+
 ymir_vel_dir_t *
 rhea_domain_create_velocity_dirichlet_bc (ymir_mesh_t *ymir_mesh,
                                           ymir_vec_t *dirscal,
@@ -886,6 +910,19 @@ rhea_domain_create_velocity_dirichlet_bc (ymir_mesh_t *ymir_mesh,
   rhea_domain_options_t  *opt = data;
   int                 vel_bc_type = (int) opt->velocity_bc_type;
   ymir_vel_dir_t     *vel_dir;
+
+  /* call user provided function and return */
+  if (RHEA_DOMAIN_VELOCITY_BC_USER == vel_bc_type) {
+    RHEA_CHECK_ABORT (
+        rhea_domain_velocity_bc_user_fn != NULL,
+        "No function for setting velocity Dirichlet boundary provided");
+
+    vel_dir = ymir_vel_dir_new_from_faces (
+        ymir_mesh, NULL, rhea_domain_velocity_bc_user_fn,
+        rhea_domain_velocity_bc_user_data, dirscal);
+    vel_dir->nonzero = rhea_domain_velocity_bc_user_nonzero;
+    return vel_dir;
+  }
 
   /* create velocity Dirichlet BC's */
   switch (opt->shape) {

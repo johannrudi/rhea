@@ -24,6 +24,9 @@ rhea_domain_shape_t;
 /* enumerator for velocity boundray conditions */
 typedef enum
 {
+  /* user provided function */
+  RHEA_DOMAIN_VELOCITY_BC_USER = -1,
+
   /* Dirichlet all */
   RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_ALL = 0,
 
@@ -140,11 +143,19 @@ void                rhea_domain_boundary_destroy (
                                             rhea_domain_boundary_t *boundary);
 
 /**
+ * Sets function that defines velocity Dirichlet BC's.
+ */
+void                rhea_domain_set_user_velocity_dirichlet_bc (
+                                            ymir_vel_dir_fn_t vel_dir_bc_fn,
+                                            void *vel_dir_bc_data,
+                                            const int vel_dir_bc_nonzero);
+
+/**
  * Creates Dirichlet boundary conditions.
  */
 ymir_vel_dir_t     *rhea_domain_create_velocity_dirichlet_bc (
-                                                        ymir_mesh_t *ymir_mesh,
-                                                        ymir_vec_t *dirscal,
-                                                        void *data);
+                                            ymir_mesh_t *ymir_mesh,
+                                            ymir_vec_t *dirscal,
+                                            void *data);
 
 #endif /* RHEA_DOMAIN_H */
