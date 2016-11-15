@@ -32,6 +32,7 @@ collide_setup_mesh (p4est_t **p4est,
                                           domain_options);
 
   /* set up boundary, store in `discr_options` */
+  //TODO xi, the boundary conditions need to be changed
   rhea_discretization_options_set_boundary (discr_options, *p4est,
                                             domain_options);
 
@@ -61,10 +62,13 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
+  //TODO xi, is the following computation of temperature what you want?
   rhea_temperature_compute (temperature, temp_options);
 
   /* compute weak zone */
-  weakzone = NULL;  /* Note: in this example, we do not want weak zones */
+  weakzone = rhea_weakzone_new (ymir_mesh);
+  //TODO xi, here you need to provide the weak zone factor
+  ymir_vec_set_value (weakzone, 1.0);
 
   /* write vtk of input data */ //TODO better move this into main fnc
   if (vtk_write_input_path != NULL) {
@@ -105,6 +109,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* destroy */
   rhea_temperature_destroy (temperature);
+  rhea_temperature_destroy (weakzone);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
