@@ -32,7 +32,6 @@ collide_setup_mesh (p4est_t **p4est,
                                           domain_options);
 
   /* set up boundary, store in `discr_options` */
-  //TODO xi, the boundary conditions need to be changed
   rhea_discretization_options_set_boundary (discr_options, *p4est,
                                             domain_options);
 
@@ -69,6 +68,14 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   weakzone = rhea_weakzone_new (ymir_mesh);
   //TODO xi, here you need to provide the weak zone factor
   ymir_vec_set_value (weakzone, 1.0);
+
+  /* set velocity boundary conditions */
+  //TODO xi, the boundary conditions need to be defined via implementing:
+  //   collide_velocity_bc_fn, collide_velocity_bc_data
+  // and then set via the following function call:
+//rhea_domain_set_user_velocity_dirichlet_bc (
+//    collide_velocity_bc_fn, collide_velocity_bc_data,
+//    1 /* nonzero Dirichlet boundary */);
 
   /* write vtk of input data */ //TODO better move this into main fnc
   if (vtk_write_input_path != NULL) {
