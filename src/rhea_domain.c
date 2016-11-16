@@ -24,7 +24,7 @@ rhea_domain_boundary_face_t;
 /* user provided velocity boundary conditions */
 ymir_vel_dir_fn_t   rhea_domain_velocity_bc_user_fn = NULL;
 void               *rhea_domain_velocity_bc_user_data = NULL;
-int                 rhea_domain_velocity_bc_user_nonzero = 1;
+int                 rhea_domain_velocity_bc_user_nonzero = -1;
 
 /* default options */
 #define RHEA_DOMAIN_DEFAULT_SHAPE_NAME "cube"
@@ -914,8 +914,9 @@ rhea_domain_create_velocity_dirichlet_bc (ymir_mesh_t *ymir_mesh,
   /* call user provided function and return */
   if (RHEA_DOMAIN_VELOCITY_BC_USER == vel_bc_type) {
     RHEA_CHECK_ABORT (
-        rhea_domain_velocity_bc_user_fn != NULL,
-        "No function for setting velocity Dirichlet boundary provided");
+        rhea_domain_velocity_bc_user_fn != NULL &&
+        rhea_domain_velocity_bc_user_nonzero != -1,
+        "Function for defining velocity boundary conditions was not provided");
 
     vel_dir = ymir_vel_dir_new_from_faces (
         ymir_mesh, NULL, rhea_domain_velocity_bc_user_fn,
