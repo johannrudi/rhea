@@ -8,6 +8,22 @@
 struct rhea_newton_problem
 {
   ymir_vec_t         *step_vec;
+  ymir_vec_t         *neg_gradient_vec;
+
+  rhea_newton_problem_evaluate_objective_fn_t         evaluate_objective;
+  rhea_newton_problem_compute_negative_gradient_fn_t  compute_neg_gradient;
+  rhea_newton_problem_compute_norm_of_gradient_fn_t   compute_gradient_norm;
+  int                 gradient_norm_multi_components;
+
+  rhea_newton_problem_apply_hessian_fn_t         apply_hessian;
+  rhea_newton_problem_solve_hessian_system_fn_t  solve_hessian_sys;
+
+  rhea_newton_problem_update_operator_fn_t  update_operator;
+  rhea_newton_problem_update_hessian_fn_t   update_hessian;
+
+  void               *data;
+  /*
+  ymir_vec_t         *step_vec;
   ymir_vec_t         *residual_vec;
 
   rhea_newton_problem_apply_operator_fn_t   apply_operator;
@@ -22,6 +38,7 @@ struct rhea_newton_problem
   rhea_newton_problem_solve_linearized_fn_t  solve_linearized;
 
   void               *data;
+  */
 };
 
 /* Newton options */
@@ -48,6 +65,7 @@ struct rhea_newton_options
   int                 step_search_iter_max;
   double              step_length_min;
   double              step_length_max;
+  double              step_reduction;
   double              step_descend_condition_relaxation;
 
   int                 print_summary;
@@ -98,32 +116,31 @@ rhea_newton_step_t;
 rhea_newton_problem_t *
 rhea_newton_problem_new (
     ymir_vec_t *step_vec,
-    ymir_vec_t *residual_vec,
-    rhea_newton_problem_apply_operator_fn_t apply_operator,
-    rhea_newton_problem_apply_jacobian_fn_t apply_jacobian,
+    ymir_vec_t *neg_gradient_vec,
+    rhea_newton_problem_evaluate_objective_fn_t evaluate_objective,
+    rhea_newton_problem_compute_negative_gradient_fn_t compute_neg_gradient,
+    rhea_newton_problem_compute_norm_of_gradient_fn_t compute_gradient_norm,
+    rhea_newton_problem_apply_hessian_fn_t apply_hessian,
+    rhea_newton_problem_solve_hessian_system_fn_t solve_hessian_sys,
     rhea_newton_problem_update_operator_fn_t update_operator,
-    rhea_newton_problem_update_jacobian_fn_t update_jacobian,
-    rhea_newton_problem_compute_residual_fn_t compute_residual,
-    rhea_newton_problem_compute_residual_norm_fn_t compute_residual_norm,
-    const int residual_norm_n_components,
-    rhea_newton_problem_solve_linearized_fn_t solve_linearized,
+    rhea_newton_problem_update_hessian_fn_t update_hessian,
+    const int gradient_norm_multi_components,
     void *data)
 {
   rhea_newton_problem_t  *nl_problem = RHEA_ALLOC (rhea_newton_problem_t, 1);
 
   nl_problem->step_vec = step_vec;
-  nl_problem->residual_vec = residual_vec;
+  nl_problem->neg_gradient_vec = neg_gradient_vec;
 
-  nl_problem->apply_operator = apply_operator;
-  nl_problem->apply_jacobian = apply_jacobian;
+  nl_problem->evaluate_objective = evaluate_objective;
+  nl_problem->compute_neg_gradient = compute_neg_gradient;
+  nl_problem->compute_gradient_norm = compute_gradient_norm;
+  nl_problem->apply_hessian = apply_hessian;
+  nl_problem->solve_hessian_sys = solve_hessian_sys;
   nl_problem->update_operator = update_operator;
-  nl_problem->update_jacobian = update_jacobian;
+  nl_problem->update_hessian = update_hessian;
 
-  nl_problem->compute_residual = compute_residual;
-  nl_problem->compute_residual_norm = compute_residual_norm;
-  nl_problem->residual_norm_n_components = residual_norm_n_components;
-
-  nl_problem->solve_linearized = solve_linearized;
+  nl_problem->gradient_norm_multi_components = gradient_norm_multi_components;
 
   nl_problem->data = data;
 
@@ -281,6 +298,7 @@ rhea_newton_step_init (rhea_newton_step_t *step, ymir_vec_t *step_vec)
  * Calculates the accuracy for solving the linearized system, i.e., the Krylov
  * relative tolerance (or "forcing") for the linear solver of inexact Newton.
  */
+//TODO
 static void
 rhea_newton_set_accuracy (rhea_newton_step_t *step,
                           rhea_newton_residual_t *residual,
@@ -405,19 +423,19 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
  * Solves the linearized system for an inexact Newton step.
  */
 static void
-rhea_newton_solve_linearized (rhea_newton_step_t *step,
-                              rhea_newton_residual_t *residual,
-                              rhea_newton_problem_t *nl_problem,
-                              rhea_newton_options_t *opt)
+rhea_newton_compute_step (rhea_newton_step_t *step,
+                          rhea_newton_residual_t *residual,
+                          rhea_newton_problem_t *nl_problem,
+                          rhea_newton_options_t *opt)
 {
-  const char         *this_fn_name = "rhea_newton_solve_linearized";
+  const char         *this_fn_name = "rhea_newton_compute_step";
   const int           iter = step->iter;
   const int           nonzero_initial_guess = 0;
   const int           lin_iter_max = opt->lin_iter_max;
   int                 lin_iter_count = -1;
   const double        lin_res_norm_rtol = step->lin_res_norm_rtol;
-  double              lin_res_norm_reduction = 1.0;
-  double              lin_conv = 1.0;
+  double              lin_res_norm_reduction;
+  double              lin_conv;
 
   RHEA_GLOBAL_INFOF ("Newton iter %i -- Into %s\n", iter, this_fn_name);
 
@@ -425,24 +443,24 @@ rhea_newton_solve_linearized (rhea_newton_step_t *step,
   RHEA_ASSERT (0 <= step->iter);
   RHEA_ASSERT (0.0 < step->lin_res_norm_rtol && step->lin_res_norm_rtol < 1.0);
 
-  /* run solver for the linearized system */
-  nl_problem->solve_linearized (
+  /* run solver for the linearized system */ //TODO
+  nl_problem->solve_hessian_sys (
       step->vec, residual->vec, lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, nl_problem->data, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
 
-  /* calculate the residual reduction of the linearized system */
-  {
+  /* calculate the residual reduction of the linearized solve */
+  if (nl_problem->apply_hessian != NULL) { /* if function provided */
     ymir_vec_t         *lin_residual_vec;
     double              lin_res_norm_init;
     double              lin_res_norm_curr;
 
-    /* compute the inital l^2-norm of the residual of the linearized system */
+    /* compute the inital l^2-norm of the residual of the linearized system */ //TODO
     lin_res_norm_init = ymir_vec_norm (residual->vec);
 
-    /* compute the new l^2-norm of the residual of the linearized system */
+    /* compute the new l^2-norm of the residual of the linearized system */ //TODO
     lin_residual_vec = ymir_vec_template (residual->vec);
-    nl_problem->apply_jacobian (lin_residual_vec, step->vec, nl_problem->data);
+    nl_problem->apply_hessian (lin_residual_vec, step->vec, nl_problem->data);
     ymir_vec_add (-1.0, residual->vec, lin_residual_vec);
     lin_res_norm_curr = ymir_vec_norm (lin_residual_vec);
     ymir_vec_destroy (lin_residual_vec);
@@ -452,6 +470,10 @@ rhea_newton_solve_linearized (rhea_newton_step_t *step,
 
     /* calculate convergence of the linear solver `rtol^(1/#iter)` */
     lin_conv = exp ( log (lin_res_norm_reduction) / ((double) lin_iter_count) );
+  }
+  else {
+    lin_res_norm_reduction = -1.0;
+    lin_conv = -1.0;
   }
 
   /* set the #iterations used by the linear solver and the residual reduction */
@@ -465,6 +487,7 @@ rhea_newton_solve_linearized (rhea_newton_step_t *step,
                      lin_res_norm_reduction, lin_res_norm_rtol);
 }
 
+//TODO
 static int
 rhea_newton_search_step_length_check_descend (rhea_newton_step_t *step,
                                               rhea_newton_residual_t *residual,
@@ -511,6 +534,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   int                 search_id;
   int                 search_success = 0;
   const double        step_length_min = opt->step_length_min;
+  const double        step_reduction = opt->step_reduction;
   double              step_length = opt->step_length_max;
   double              res_norm, *res_norm_comp;
 
@@ -539,9 +563,9 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
     /* update the nonlinear operator at new solution */
     nl_problem->update_operator (solution, nl_problem->data);
 
-    /* compute residual for new solution */
-    nl_problem->compute_residual (residual->vec, solution, nl_problem->data);
-    res_norm = nl_problem->compute_residual_norm (residual->vec,
+    /* compute new Newton right-hand side */ //TODO
+    nl_problem->compute_neg_gradient (residual->vec, solution, nl_problem->data);
+    res_norm = nl_problem->compute_gradient_norm (residual->vec,
                                                   nl_problem->data,
                                                   res_norm_comp);
     rhea_newton_residual_norm_set_curr (residual, res_norm, res_norm_comp);
@@ -562,11 +586,11 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
     }
     else {
       /* reduce step length */
-      step_length *= 0.5;
+      step_length *= step_reduction;
 
       /* stop search if step length is too low */
       if (step_length < step_length_min) {
-        step_length = -1.0;
+        step_length = 0.0;
         break;
       }
     }
@@ -579,23 +603,22 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
         iter, this_fn_name, step_length);
 
     /* update the linearized operator */
-    nl_problem->update_jacobian (solution, nl_problem->data);
+    nl_problem->update_hessian (solution, nl_problem->data);
   }
   else {
-    if (step_length < 0.0) {
-      RHEA_GLOBAL_INFOF (
-          "Newton iter %i -- %s: Line search failed, "
-          "min step length reached\n", iter, this_fn_name);
-    }
-    else {
+    /* check and print why search did not succeed */
+    if (0.0 < step_length) {
+      step_length = -1.0;
       RHEA_GLOBAL_INFOF (
           "Newton iter %i -- %s: Line search failed, "
           "max number of step reductions reached\n", iter, this_fn_name);
     }
-
-    /* set step to zero */
-    step_length = 0.0;
-    ymir_vec_set_zero (step->vec);
+    else {
+      step_length = 0.0;
+      RHEA_GLOBAL_INFOF (
+          "Newton iter %i -- %s: Line search failed, "
+          "min step length reached\n", iter, this_fn_name);
+    }
 
     /* reverse updates of nonlinear operator */
     nl_problem->update_operator (solution_prev, nl_problem->data);
@@ -630,8 +653,8 @@ rhea_newton_solve (ymir_vec_t *solution,
    * Initialize
    */
   {
-    const int           residual_norm_n_components =
-                          nl_problem->residual_norm_n_components;
+    const int           grad_norm_n_components =
+                          nl_problem->gradient_norm_multi_components;
     double              res_norm, *res_norm_comp;
 
     /* set initial guess */
@@ -640,17 +663,17 @@ rhea_newton_solve (ymir_vec_t *solution,
     /* create step */
     rhea_newton_step_init (&step, nl_problem->step_vec);
 
-    /* create residual */
-    if (0 < residual_norm_n_components) {
-      res_norm_comp = RHEA_ALLOC (double, residual_norm_n_components);
+    /* create residual */ //TODO
+    if (0 < grad_norm_n_components) {
+      res_norm_comp = RHEA_ALLOC (double, grad_norm_n_components);
     }
     else {
       res_norm_comp = NULL;
     }
     rhea_newton_residual_init (&residual, nl_problem->residual_vec,
-                               residual_norm_n_components);
+                               grad_norm_n_components);
 
-    /* compute initial residual */
+    /* compute initial residual */ //TODO
     nl_problem->compute_residual (residual.vec, solution, nl_problem->data);
     res_norm = nl_problem->compute_residual_norm (residual.vec,
                                                   nl_problem->data,
@@ -659,7 +682,7 @@ rhea_newton_solve (ymir_vec_t *solution,
     rhea_newton_residual_norm_copy_curr_to_init (&residual);
 
     /* destroy */
-    if (0 < residual_norm_n_components) {
+    if (0 < grad_norm_n_components) {
       RHEA_FREE (res_norm_comp);
     }
   }
@@ -693,17 +716,19 @@ rhea_newton_solve (ymir_vec_t *solution,
         break;
       }
 
-      /* calculate the accuracy for solving the linearized system */
+      /* calculate the accuracy for solving the linearized system
+       * (stored in `step`) */
       rhea_newton_set_accuracy (
           /* out: */ &step,
           /* in:  */ &residual, opt);
 
       /* solve the linearized system for an inexact Newton step */
-      rhea_newton_solve_linearized (
+      rhea_newton_compute_step (
           /* out: */ &step,
           /* in:  */ &residual, nl_problem, opt);
 
-      /* perform line search for the step length (updates the Jacobian) */
+      /* perform line search for the step length
+       * (updates the solution and the nonlinear operator) */
       rhea_newton_search_step_length (
           /* out: */ solution, &step, &residual,
           /* in:  */ nl_problem, opt);
