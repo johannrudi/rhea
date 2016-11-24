@@ -134,17 +134,17 @@ newton_polynomial_evaluate (ymir_vec_t *f_vec, ymir_vec_t *x_vec,
   switch (derivative) {
   case 0:
     for (i = 0; i < size_owned; i++) {
-      f_owned_data[i] = newton_polynomial_eval_p2 (x_owned_data[i], coeff[3]);
+      f_owned_data[i] = newton_polynomial_eval_p2 (x_owned_data[i], coeff);
     }
     break;
   case 1:
     for (i = 0; i < size_owned; i++) {
-      f_owned_data[i] = newton_polynomial_eval_p2d (x_owned_data[i], coeff[3]);
+      f_owned_data[i] = newton_polynomial_eval_p2d (x_owned_data[i], coeff);
     }
     break;
   case 2:
     for (i = 0; i < size_owned; i++) {
-      f_owned_data[i] = newton_polynomial_eval_p2dd (x_owned_data[i], coeff[3]);
+      f_owned_data[i] = newton_polynomial_eval_p2dd (x_owned_data[i], coeff);
     }
     break;
   default:
@@ -160,20 +160,17 @@ newton_polynomial_evaluate (ymir_vec_t *f_vec, ymir_vec_t *x_vec,
   switch (derivative) {
   case 0:
     for (i = 0; i < size_shared; i++) {
-      f_shared_data[i] = newton_polynomial_eval_p2 (x_shared_data[i],
-                                                    coeff[3]);
+      f_shared_data[i] = newton_polynomial_eval_p2 (x_shared_data[i], coeff);
     }
     break;
   case 1:
     for (i = 0; i < size_shared; i++) {
-      f_shared_data[i] = newton_polynomial_eval_p2d (x_shared_data[i],
-                                                     coeff[3]);
+      f_shared_data[i] = newton_polynomial_eval_p2d (x_shared_data[i], coeff);
     }
     break;
   case 2:
     for (i = 0; i < size_shared; i++) {
-      f_shared_data[i] = newton_polynomial_eval_p2dd (x_shared_data[i],
-                                                      coeff[3]);
+      f_shared_data[i] = newton_polynomial_eval_p2dd (x_shared_data[i], coeff);
     }
     break;
   default:
@@ -194,7 +191,7 @@ newton_polynomial_problem_t;
 /**
  * Computes the misfit between the data and a trial solution vector.
  */
-static double
+static void
 newton_polynomial_compute_misfit (ymir_vec_t *misfit_x,
                                   ymir_vec_t *misfit_y,
                                   ymir_vec_t *sol_x,
@@ -342,7 +339,7 @@ newton_polynomial_apply_hessian (ymir_vec_t *out, ymir_vec_t *in, void *data)
  * Applies inverse of the Hessian operator.
  * (Callback function for Newton's method.)
  */
-static void
+static int
 newton_polynomial_solve_hessian_system (ymir_vec_t *step,
                                         ymir_vec_t *neg_gradient,
                                         const int lin_iter_max,
@@ -649,15 +646,16 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
 
   /* create data for Newton problem */
   poly_problem = RHEA_ALLOC (newton_polynomial_problem_t, 1);
+  //TODO set coeff
   poly_problem->sol_x = sol_x = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
   poly_problem->data_a = ymir_vec_template (sol_x);
   poly_problem->data_b = ymir_vec_template (sol_x);
 
   /* create Newton problem */
-  step_vec = ymir_vec_template (sol_x);
   neg_gradient_vec = ymir_vec_template (sol_x);
-  nl_problem = rhea_newton_problem_new (
-      step_vec, neg_gradient_vec,
+  step_vec = ymir_vec_template (sol_x);
+  *nl_problem = rhea_newton_problem_new (
+      neg_gradient_vec, step_vec,
       newton_polynomial_evaluate_objective,
       newton_polynomial_compute_negative_gradient,
       newton_polynomial_compute_gradient_norm,
@@ -685,15 +683,16 @@ newton_polynomial_setup_clear_all (rhea_newton_problem_t *nl_problem,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* destroy data of Newton problem */
-  poly_problem = nl_problem->data;
+  poly_problem =
+    (newton_polynomial_problem_t *) rhea_newton_problem_get_data (nl_problem);
   ymir_vec_destroy (poly_problem->sol_x);
   ymir_vec_destroy (poly_problem->data_a);
   ymir_vec_destroy (poly_problem->data_b);
   RHEA_FREE (poly_problem);
 
   /* destroy Newton problem */
-  ymir_vec_destroy (nl_problem->step_vec);
-  ymir_vec_destroy (nl_problem->neg_gradient_vec);
+  ymir_vec_destroy (rhea_newton_problem_get_neg_gradient_vec (nl_problem));
+  ymir_vec_destroy (rhea_newton_problem_get_step_vec (nl_problem));
   rhea_newton_problem_destroy (nl_problem);
 
   /* destroy mesh */
