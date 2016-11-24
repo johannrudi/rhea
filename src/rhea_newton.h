@@ -79,8 +79,8 @@ typedef int       (*rhea_newton_problem_solve_linearized_fn_t) (
  * Creates a new nonlinear problem.
  */
 rhea_newton_problem_t *rhea_newton_problem_new (
-    ymir_vec_t *step_vec,
     ymir_vec_t *neg_gradient_vec,
+    ymir_vec_t *step_vec,
     rhea_newton_problem_evaluate_objective_fn_t evaluate_objective,
     rhea_newton_problem_compute_negative_gradient_fn_t compute_neg_gradient,
     rhea_newton_problem_compute_norm_of_gradient_fn_t compute_gradient_norm,
@@ -95,6 +95,24 @@ rhea_newton_problem_t *rhea_newton_problem_new (
  * Destroys a nonlinear problem.
  */
 void                rhea_newton_problem_destroy (
+                                            rhea_newton_problem_t *nl_problem);
+
+/**
+ * Returns a pointer to the (negative) gradient vector.
+ */
+ymir_vec_t         *rhea_newton_problem_get_neg_gradient_vec (
+                                            rhea_newton_problem_t *nl_problem);
+
+/**
+ * Returns a pointer to the step vector.
+ */
+ymir_vec_t         *rhea_newton_problem_get_step_vec (
+                                            rhea_newton_problem_t *nl_problem);
+
+/**
+ * Returns a pointer to the user data.
+ */
+void               *rhea_newton_problem_get_data (
                                             rhea_newton_problem_t *nl_problem);
 
 /**

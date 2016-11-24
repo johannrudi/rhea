@@ -7,8 +7,8 @@
 /* Nonlinear problem */
 struct rhea_newton_problem
 {
-  ymir_vec_t         *step_vec;
   ymir_vec_t         *neg_gradient_vec;
+  ymir_vec_t         *step_vec;
 
   rhea_newton_problem_evaluate_objective_fn_t         evaluate_objective;
   rhea_newton_problem_compute_negative_gradient_fn_t  compute_neg_gradient;
@@ -47,7 +47,7 @@ struct rhea_newton_options
   /* options for the nonlinear solver */
   int                 iter_start;
   int                 iter_max;
-  double              res_norm_rtol;
+  double              rtol;
 
   /* options for the solver of the linearized system */
   int                 lin_iter_max;
@@ -97,6 +97,7 @@ rhea_newton_residual_t;
 /* Newton step */
 typedef struct rhea_newton_step
 {
+  ymir_vec_t         *rhs_vec;
   ymir_vec_t         *vec;
   double              length;
 
@@ -109,14 +110,59 @@ typedef struct rhea_newton_step
 }
 rhea_newton_step_t;
 
+/* enumerator for convergence critera */
+typedef enum
+{
+  RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+  RHEA_NEWTON_CONV_CRITERION_GRAD_NORM
+}
+rhea_newton_conv_criterion_t;
+
+/* Newton status */
+typedef struct rhea_newton_status
+{
+  rhea_newton_conv_criterion_t  conv_criterion;
+
+  /* objective value at (initial, previous, and current) iteration */
+  double              obj_init;
+  double              obj_prev;
+  double              obj_curr;
+
+  /* reduction of objective in just one iteration (previous and current) */
+  double              obj_reduction_prev;
+  double              obj_reduction_curr;
+
+  /* reduction of objective over all iterations */
+  double              obj_reduction;
+
+  /* number of components for a gradient with multiple compoents */
+  int                 grad_norm_multi_components;
+
+  /* gradient norm at (initial, previous, and current) iteration */
+  double              grad_norm_init;
+  double             *grad_norm_init_comp;
+  double              grad_norm_prev;
+  double             *grad_norm_prev_comp;
+  double              grad_norm_curr;
+  double             *grad_norm_curr_comp;
+
+  /* reduction of gradient norm in just one iteration (previous and current) */
+  double              grad_norm_reduction_prev;
+  double              grad_norm_reduction_curr;
+
+  /* reduction of gradient norm over all iterations */
+  double              grad_norm_reduction;
+}
+rhea_newton_status_t;
+
 /******************************************************************************
  * Nonlinear Problem
  *****************************************************************************/
 
 rhea_newton_problem_t *
 rhea_newton_problem_new (
-    ymir_vec_t *step_vec,
     ymir_vec_t *neg_gradient_vec,
+    ymir_vec_t *step_vec,
     rhea_newton_problem_evaluate_objective_fn_t evaluate_objective,
     rhea_newton_problem_compute_negative_gradient_fn_t compute_neg_gradient,
     rhea_newton_problem_compute_norm_of_gradient_fn_t compute_gradient_norm,
@@ -129,8 +175,8 @@ rhea_newton_problem_new (
 {
   rhea_newton_problem_t  *nl_problem = RHEA_ALLOC (rhea_newton_problem_t, 1);
 
-  nl_problem->step_vec = step_vec;
   nl_problem->neg_gradient_vec = neg_gradient_vec;
+  nl_problem->step_vec = step_vec;
 
   nl_problem->evaluate_objective = evaluate_objective;
   nl_problem->compute_neg_gradient = compute_neg_gradient;
@@ -153,120 +199,22 @@ rhea_newton_problem_destroy (rhea_newton_problem_t *nl_problem)
   RHEA_FREE (nl_problem);
 }
 
-/******************************************************************************
- * Newton Residual
- *****************************************************************************/
-
-/**
- * Initializes a residual object.
- */
-static void
-rhea_newton_residual_init (rhea_newton_residual_t *residual,
-                           ymir_vec_t *residual_vec,
-                           const int norm_n_components)
+ymir_vec_t *
+rhea_newton_problem_get_neg_gradient_vec (rhea_newton_problem_t *nl_problem)
 {
-  residual->vec = residual_vec;
-  residual->norm_n_components = norm_n_components;
-
-  residual->norm_init = -1.0;
-  residual->norm_prev = -1.0;
-  residual->norm_curr = -1.0;
-
-  if (0 < residual->norm_n_components) {
-    int                 compid;
-
-    residual->norm_init_comp = RHEA_ALLOC (double, norm_n_components);
-    residual->norm_prev_comp = RHEA_ALLOC (double, norm_n_components);
-    residual->norm_curr_comp = RHEA_ALLOC (double, norm_n_components);
-    for (compid = 0; compid < norm_n_components; compid++) {
-      residual->norm_init_comp[compid] = -1.0;
-      residual->norm_prev_comp[compid] = -1.0;
-      residual->norm_curr_comp[compid] = -1.0;
-    }
-  }
-  else {
-    residual->norm_init_comp = NULL;
-    residual->norm_prev_comp = NULL;
-    residual->norm_curr_comp = NULL;
-  }
-
-  residual->norm_reduction_prev = 1.0;
-  residual->norm_reduction_curr = 1.0;
-
-  residual->norm_reduction = 1.0;
+  return nl_problem->neg_gradient_vec;
 }
 
-/**
- * Destroys content of a residual object.
- */
-static void
-rhea_newton_residual_clear (rhea_newton_residual_t *residual)
+ymir_vec_t *
+rhea_newton_problem_get_step_vec (rhea_newton_problem_t *nl_problem)
 {
-  if (0 < residual->norm_n_components) {
-    RHEA_FREE (residual->norm_init_comp);
-    RHEA_FREE (residual->norm_prev_comp);
-    RHEA_FREE (residual->norm_curr_comp);
-  }
+  return nl_problem->step_vec;
 }
 
-/**
- * Sets current residual norms.
- */
-static void
-rhea_newton_residual_norm_set_curr (rhea_newton_residual_t *residual,
-                                    const double norm, const double *norm_comp)
+void *
+rhea_newton_problem_get_data (rhea_newton_problem_t *nl_problem)
 {
-  residual->norm_curr = norm;
-
-  if (0 < residual->norm_n_components && norm_comp != NULL) {
-    int                 compid;
-
-    for (compid = 0; compid < residual->norm_n_components; compid++) {
-      residual->norm_curr_comp[compid] = norm_comp[compid];
-    }
-  }
-
-  if (0.0 < residual->norm_prev) {
-    residual->norm_reduction_curr = residual->norm_curr / residual->norm_prev;
-  }
-  if (0.0 < residual->norm_init) {
-    residual->norm_reduction = residual->norm_curr / residual->norm_init;
-  }
-}
-
-/**
- * Copies residual norms of the current iteration to the initial iteration.
- */
-static void
-rhea_newton_residual_norm_copy_curr_to_init (rhea_newton_residual_t *residual)
-{
-  residual->norm_init = residual->norm_curr;
-
-  if (0 < residual->norm_n_components) {
-    int                 compid;
-
-    for (compid = 0; compid < residual->norm_n_components; compid++) {
-      residual->norm_init_comp[compid] = residual->norm_curr_comp[compid];
-    }
-  }
-}
-
-/**
- * Copies residual norms of the current iteration to the previous iteration.
- */
-static void
-rhea_newton_residual_norm_copy_curr_to_prev (rhea_newton_residual_t *residual)
-{
-  residual->norm_prev = residual->norm_curr;
-  residual->norm_reduction_prev = residual->norm_reduction_curr;
-
-  if (0 < residual->norm_n_components) {
-    int                 compid;
-
-    for (compid = 0; compid < residual->norm_n_components; compid++) {
-      residual->norm_prev_comp[compid] = residual->norm_curr_comp[compid];
-    }
-  }
+  return nl_problem->data;
 }
 
 /******************************************************************************
@@ -277,8 +225,11 @@ rhea_newton_residual_norm_copy_curr_to_prev (rhea_newton_residual_t *residual)
  * Initializes a step object.
  */
 static void
-rhea_newton_step_init (rhea_newton_step_t *step, ymir_vec_t *step_vec)
+rhea_newton_step_init (rhea_newton_step_t *step,
+                       ymir_vec_t *rhs_vec,
+                       ymir_vec_t *step_vec)
 {
+  step->rhs_vec = rhs_vec;
   step->vec = step_vec;
   step->length = -1.0;
 
@@ -291,6 +242,240 @@ rhea_newton_step_init (rhea_newton_step_t *step, ymir_vec_t *step_vec)
 }
 
 /******************************************************************************
+ * Newton Status
+ *****************************************************************************/
+
+/**
+ * Initializes a status object.
+ */
+static void
+rhea_newton_status_init (rhea_newton_status_t *status,
+                         const int grad_norm_multi_components)
+{
+  /* init convergence criterion */
+  status->conv_criterion = RHEA_NEWTON_CONV_CRITERION_OBJECTIVE; //TODO
+
+  /* init valus pertaining to objective values */
+  status->obj_init = -1.0;
+  status->obj_prev = -1.0;
+  status->obj_curr = -1.0;
+
+  status->obj_reduction_prev = 1.0;
+  status->obj_reduction_curr = 1.0;
+  status->obj_reduction = 1.0;
+
+  /* init valus pertaining to gradient norm(s) */
+  status->grad_norm_multi_components = grad_norm_multi_components;
+
+  status->grad_norm_init = -1.0;
+  status->grad_norm_prev = -1.0;
+  status->grad_norm_curr = -1.0;
+
+  if (0 < status->grad_norm_multi_components) {
+    const int           n_components = status->grad_norm_multi_components;
+    int                 compid;
+
+    status->grad_norm_init_comp = RHEA_ALLOC (double, n_components);
+    status->grad_norm_prev_comp = RHEA_ALLOC (double, n_components);
+    status->grad_norm_curr_comp = RHEA_ALLOC (double, n_components);
+    for (compid = 0; compid < n_components; compid++) {
+      status->grad_norm_init_comp[compid] = -1.0;
+      status->grad_norm_prev_comp[compid] = -1.0;
+      status->grad_norm_curr_comp[compid] = -1.0;
+    }
+  }
+  else {
+    status->grad_norm_init_comp = NULL;
+    status->grad_norm_prev_comp = NULL;
+    status->grad_norm_curr_comp = NULL;
+  }
+
+  status->grad_norm_reduction_prev = 1.0;
+  status->grad_norm_reduction_curr = 1.0;
+  status->grad_norm_reduction = 1.0;
+}
+
+/**
+ * Destroys content of a status object.
+ */
+static void
+rhea_newton_status_clear (rhea_newton_status_t *status)
+{
+  if (0 < status->grad_norm_multi_components) {
+    RHEA_FREE (status->grad_norm_init_comp);
+    RHEA_FREE (status->grad_norm_prev_comp);
+    RHEA_FREE (status->grad_norm_curr_comp);
+  }
+}
+
+/**
+ * Sets current status.
+ */
+static void
+rhea_newton_status_set_curr (rhea_newton_status_t *status,
+                             const double obj,
+                             const double grad_norm,
+                             const double *grad_norm_comp)
+{
+  /* set values pertaining to objective */
+  status->obj_curr = obj;
+
+  if (0.0 < status->obj_prev) {
+    status->obj_reduction_curr = status->obj_curr / status->obj_prev;
+  }
+  if (0.0 < status->obj_init) {
+    status->obj_reduction = status->obj_curr / status->obj_init;
+  }
+
+  /* set valus pertaining to gradient norm(s) */
+  status->grad_norm_curr = grad_norm;
+  if (0 < status->grad_norm_multi_components && grad_norm_comp != NULL) {
+    int                 compid;
+
+    for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
+      status->grad_norm_curr_comp[compid] = grad_norm_comp[compid];
+    }
+  }
+
+  if (0.0 < status->grad_norm_prev) {
+    status->grad_norm_reduction_curr = status->grad_norm_curr /
+                                       status->grad_norm_prev;
+  }
+  if (0.0 < status->grad_norm_init) {
+    status->grad_norm_reduction = status->grad_norm_curr /
+                                  status->grad_norm_init;
+  }
+}
+
+/**
+ * Copies status of the current iteration to the initial iteration.
+ */
+static void
+rhea_newton_status_copy_curr_to_init (rhea_newton_status_t *status)
+{
+  /* copy values pertaining to objective */
+  status->obj_init = status->obj_curr;
+
+  /* copy valus pertaining to gradient norm(s) */
+  status->grad_norm_init = status->grad_norm_curr;
+  if (0 < status->grad_norm_multi_components) {
+    int                 compid;
+
+    for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
+      status->grad_norm_init_comp[compid] = status->grad_norm_curr_comp[compid];
+    }
+  }
+}
+
+/**
+ * Copies status of the current iteration to the previous iteration.
+ */
+static void
+rhea_newton_status_copy_curr_to_prev (rhea_newton_status_t *status)
+{
+  /* copy values pertaining to objective */
+  status->obj_prev = status->obj_curr;
+  status->obj_reduction_prev = status->obj_reduction_curr;
+
+  /* copy valus pertaining to gradient norm(s) */
+  status->grad_norm_prev = status->grad_norm_curr;
+  status->grad_norm_reduction_prev = status->grad_norm_reduction_curr;
+  if (0 < status->grad_norm_multi_components) {
+    int                 compid;
+
+    for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
+      status->grad_norm_prev_comp[compid] = status->grad_norm_curr_comp[compid];
+    }
+  }
+}
+
+/**
+ * Return overall reduction of the value that determines convergence.
+ */
+static double
+rhea_newton_status_get_reduction (rhea_newton_status_t *status)
+{
+  double              reduction;
+
+  switch (status->conv_criterion) {
+  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+    reduction = status->obj_reduction;
+  case RHEA_NEWTON_CONV_CRITERION_GRAD_NORM:
+    reduction = status->grad_norm_reduction;
+  default: /* unknown criterion */
+    RHEA_ABORT_NOT_REACHED ();
+    reduction = -1.0;
+  }
+
+  return reduction;
+}
+
+/**
+ * Return previous reduction of the value that determines convergence.
+ */
+static double
+rhea_newton_status_get_reduction_prev (rhea_newton_status_t *status)
+{
+  double              reduction;
+
+  switch (status->conv_criterion) {
+  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+    reduction = status->obj_reduction_prev;
+  case RHEA_NEWTON_CONV_CRITERION_GRAD_NORM:
+    reduction = status->grad_norm_reduction_prev;
+  default: /* unknown criterion */
+    RHEA_ABORT_NOT_REACHED ();
+    reduction = -1.0;
+  }
+
+  return reduction;
+}
+
+/**
+ * Return current reduction of the value that determines convergence.
+ */
+static double
+rhea_newton_status_get_reduction_curr (rhea_newton_status_t *status)
+{
+  double              reduction;
+
+  switch (status->conv_criterion) {
+  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+    reduction = status->obj_reduction_curr;
+  case RHEA_NEWTON_CONV_CRITERION_GRAD_NORM:
+    reduction = status->grad_norm_reduction_curr;
+  default: /* unknown criterion */
+    RHEA_ABORT_NOT_REACHED ();
+    reduction = -1.0;
+  }
+
+  return reduction;
+}
+
+/**
+ *
+ */
+static void
+rhea_newton_status_print_curr (rhea_newton_status_t *status, const int iter,
+                               const char *name)
+{
+  switch (status->conv_criterion) {
+  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+    RHEA_GLOBAL_INFOF (
+        "%s: Newton iter %i, objective functional %.6e, reduction %.3e\n",
+        name, iter, status->obj_curr, status->obj_reduction);
+    break;
+  case RHEA_NEWTON_CONV_CRITERION_GRAD_NORM:
+    RHEA_GLOBAL_INFOF (
+        "%s: Newton iter %i, gradient norm %.6e, reduction %.3e\n",
+        name, iter, status->grad_norm_curr, status->grad_norm_reduction);
+    break;
+  default: /* unknown criterion */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/******************************************************************************
  * Inexact Newton--Krylov Method
  *****************************************************************************/
 
@@ -298,10 +483,9 @@ rhea_newton_step_init (rhea_newton_step_t *step, ymir_vec_t *step_vec)
  * Calculates the accuracy for solving the linearized system, i.e., the Krylov
  * relative tolerance (or "forcing") for the linear solver of inexact Newton.
  */
-//TODO
 static void
 rhea_newton_set_accuracy (rhea_newton_step_t *step,
-                          rhea_newton_residual_t *residual,
+                          rhea_newton_status_t *status,
                           rhea_newton_options_t *opt)
 {
   const char         *this_fn_name = "rhea_newton_set_accuracy";
@@ -338,10 +522,10 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
                           opt->lin_rtol_adaptive_min_threshold;
 
     const double        exponent = opt->lin_rtol_adaptive_exponent;
-    const double        res_norm_reduction_prev =
-                          SC_MIN (residual->norm_reduction_prev, 1.0);
-    const double        res_norm_reduction_curr =
-                          SC_MIN (residual->norm_reduction_curr, 1.0);
+    const double        reduction_prev =
+      SC_MIN (rhea_newton_status_get_reduction_prev (status), 1.0);
+    const double        reduction_curr =
+      SC_MIN (rhea_newton_status_get_reduction_curr (status), 1.0);
 
     double              lin_rtol_max;
     double              lin_rtol_min, lin_rtol_min_effective;
@@ -350,8 +534,8 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
     /* check input */
     RHEA_ASSERT (0.0 < opt->lin_rtol_adaptive_max);
     RHEA_ASSERT (opt->lin_rtol_adaptive_max < 1.0);
-    RHEA_ASSERT (0.0 < residual->norm_reduction_prev);
-    RHEA_ASSERT (0.0 < residual->norm_reduction_curr);
+    RHEA_ASSERT (0.0 < rhea_newton_status_get_reduction_prev (status));
+    RHEA_ASSERT (0.0 < rhea_newton_status_get_reduction_curr (status));
 
     /* set progressive reduction factor:
      *
@@ -383,7 +567,7 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
     if (lin_rtol_min_active) {
       double              reduction_avg;
 
-      reduction_avg = 0.5 * (res_norm_reduction_prev + res_norm_reduction_curr);
+      reduction_avg = 0.5 * (reduction_prev + reduction_curr);
       lin_rtol_min = lin_rtol_max * pow (reduction_avg, exponent);
 
       /* activate min rtol above a given threshold */
@@ -404,7 +588,7 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
      *
      *   rtol_max * (current residual / prev residual)^exponent
      */
-    lin_rtol = lin_rtol_max * pow (res_norm_reduction_curr, exponent);
+    lin_rtol = lin_rtol_max * pow (reduction_curr, exponent);
 
     /* set the effective adaptive rtol */
     step->lin_res_norm_rtol = SC_MAX (lin_rtol_min_effective, lin_rtol);
@@ -643,9 +827,9 @@ rhea_newton_solve (ymir_vec_t *solution,
   const int           iter_start = opt->iter_start;
   const int           iter_max = opt->iter_max;
   int                 iter;
-  const double        res_norm_rtol = opt->res_norm_rtol;
+  const double        rtol = opt->rtol;
   rhea_newton_step_t  step;
-  rhea_newton_residual_t  residual;
+  rhea_newton_status_t  status;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -653,37 +837,39 @@ rhea_newton_solve (ymir_vec_t *solution,
    * Initialize
    */
   {
-    const int           grad_norm_n_components =
+    const int           n_components =
                           nl_problem->gradient_norm_multi_components;
-    double              res_norm, *res_norm_comp;
+    double              obj_val, grad_norm, *grad_norm_comp;
 
     /* set initial guess */
     ymir_vec_set_zero (solution);
 
     /* create step */
-    rhea_newton_step_init (&step, nl_problem->step_vec);
+    rhea_newton_step_init (&step, nl_problem->neg_gradient_vec,
+                           nl_problem->step_vec);
 
-    /* create residual */ //TODO
-    if (0 < grad_norm_n_components) {
-      res_norm_comp = RHEA_ALLOC (double, grad_norm_n_components);
+    /* compute initial right-hand side */
+    nl_problem->compute_neg_gradient (step.rhs_vec, solution, nl_problem->data);
+
+    /* create status */
+    if (0 < n_components) {
+      grad_norm_comp = RHEA_ALLOC (double, n_components);
     }
     else {
-      res_norm_comp = NULL;
+      grad_norm_comp = NULL;
     }
-    rhea_newton_residual_init (&residual, nl_problem->residual_vec,
-                               grad_norm_n_components);
+    rhea_newton_status_init (&status, n_components);
 
-    /* compute initial residual */ //TODO
-    nl_problem->compute_residual (residual.vec, solution, nl_problem->data);
-    res_norm = nl_problem->compute_residual_norm (residual.vec,
-                                                  nl_problem->data,
-                                                  res_norm_comp);
-    rhea_newton_residual_norm_set_curr (&residual, res_norm, res_norm_comp);
-    rhea_newton_residual_norm_copy_curr_to_init (&residual);
+    /* set initial status */
+    obj_val = nl_problem->evaluate_objective (solution, nl_problem->data);
+    grad_norm = nl_problem->compute_gradient_norm (
+        step.rhs_vec, nl_problem->data, grad_norm_comp);
+    rhea_newton_status_set_curr (&status, obj_val, grad_norm, grad_norm_comp);
+    rhea_newton_status_copy_curr_to_init (&status);
 
     /* destroy */
-    if (0 < grad_norm_n_components) {
-      RHEA_FREE (res_norm_comp);
+    if (0 < n_components) {
+      RHEA_FREE (grad_norm_comp);
     }
   }
 
@@ -697,9 +883,7 @@ rhea_newton_solve (ymir_vec_t *solution,
      * Pre-Step Output
      */
     {
-      RHEA_GLOBAL_INFOF (
-          "%s: Newton iter %i, residual %.6e, reduction %.3e\n",
-          this_fn_name, iter, residual.norm_curr, residual.norm_reduction);
+      rhea_newton_status_print_curr (&status, iter, this_fn_name);
 
       //TODO
     }
@@ -709,29 +893,31 @@ rhea_newton_solve (ymir_vec_t *solution,
      */
     {
       /* check for convergence */
-      if (residual.norm_reduction < res_norm_rtol) {
+      if (rhea_newton_status_get_reduction (&status) < rtol) {
         RHEA_GLOBAL_PRODUCTIONF (
             "%s: Nonlinear problem converged to rtol (%.3e)\n",
-            this_fn_name, res_norm_rtol);
+            this_fn_name, rtol);
         break;
       }
 
-      /* calculate the accuracy for solving the linearized system
-       * (stored in `step`) */
+      /* calculate the accuracy for computing the step, i.e., solving the
+       * linearized system */
       rhea_newton_set_accuracy (
           /* out: */ &step,
-          /* in:  */ &residual, opt);
+          /* in:  */ &status, opt);
 
       /* solve the linearized system for an inexact Newton step */
-      rhea_newton_compute_step (
-          /* out: */ &step,
-          /* in:  */ &residual, nl_problem, opt);
+//TODO
+//    rhea_newton_compute_step (
+//        /* out: */ &step,
+//        /* in:  */ &residual, nl_problem, opt);
 
-      /* perform line search for the step length
-       * (updates the solution and the nonlinear operator) */
-      rhea_newton_search_step_length (
-          /* out: */ solution, &step, &residual,
-          /* in:  */ nl_problem, opt);
+      /* perform line search for the step length (updates the solution and the
+       * nonlinear operator) */
+//TODO
+//    rhea_newton_search_step_length (
+//        /* out: */ solution, &step, &residual,
+//        /* in:  */ nl_problem, opt);
     }
 
     /*
@@ -770,7 +956,7 @@ rhea_newton_solve (ymir_vec_t *solution,
   } /* END: Newton iter */
 
   /* check if max #iterations was reached without convergence */
-  if (iter_max == iter && res_norm_rtol <= residual.norm_reduction) {
+  if (iter_max == iter && rtol <= rhea_newton_status_get_reduction (&status)) {
     RHEA_GLOBAL_PRODUCTIONF (
         "%s: Maximum number of nonlinear iterations reached (%i)\n",
         this_fn_name, iter_max);
@@ -781,7 +967,7 @@ rhea_newton_solve (ymir_vec_t *solution,
    */
   {
     /* destroy */
-    rhea_newton_residual_clear (&residual);
+    rhea_newton_status_clear (&status);
 
     //TODO
   }
