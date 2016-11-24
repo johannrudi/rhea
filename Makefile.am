@@ -74,6 +74,7 @@ include src/Makefile.am
 ##if RHEA_ENABLE_EXAMPLES
 include example/basic/Makefile.am
 include example/collide/Makefile.am
+include example/newton_polynomial/Makefile.am
 include example/slabs/Makefile.am
 ##endif
 
