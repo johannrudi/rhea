@@ -42,38 +42,6 @@ typedef void      (*rhea_newton_problem_update_operator_fn_t) (
 
 typedef void      (*rhea_newton_problem_update_hessian_fn_t) (
                                             ymir_vec_t *solution, void *data);
-/*
-typedef void      (*rhea_newton_problem_apply_operator_fn_t) (
-                                            ymir_vec_t *out, ymir_vec_t *in,
-                                            void *data);
-
-typedef void      (*rhea_newton_problem_apply_jacobian_fn_t) (
-                                            ymir_vec_t *out, ymir_vec_t *in,
-                                            void *data);
-
-typedef void      (*rhea_newton_problem_update_operator_fn_t) (
-                                            ymir_vec_t *solution, void *data);
-
-typedef void      (*rhea_newton_problem_update_jacobian_fn_t) (
-                                            ymir_vec_t *solution, void *data);
-
-typedef void      (*rhea_newton_problem_compute_residual_fn_t) (
-                                            ymir_vec_t *residual,
-                                            ymir_vec_t *solution, void *data);
-
-typedef double    (*rhea_newton_problem_compute_residual_norm_fn_t) (
-                                            ymir_vec_t *residual, void *data,
-                                            double *res_norm_comp);
-
-typedef int       (*rhea_newton_problem_solve_linearized_fn_t) (
-                                            ymir_vec_t *step,
-                                            ymir_vec_t *residual,
-                                            const int lin_iter_max,
-                                            const double lin_res_norm_rtol,
-                                            const int nonzero_initial_guess,
-                                            void *data,
-                                            int *lin_iter_count);
-*/
 
 /**
  * Creates a new nonlinear problem.
@@ -88,7 +56,7 @@ rhea_newton_problem_t *rhea_newton_problem_new (
     rhea_newton_problem_solve_hessian_system_fn_t solve_hessian_sys,
     rhea_newton_problem_update_operator_fn_t update_operator,
     rhea_newton_problem_update_hessian_fn_t update_hessian,
-    const int gradient_norm_multi_components,
+    const int grad_norm_multi_components,
     void *data);
 
 /**
