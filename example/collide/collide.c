@@ -43,6 +43,26 @@ collide_setup_mesh (p4est_t **p4est,
 }
 
 /**
+ * Sets Dirichlet in all directions on left side of the domain, and 
+ * Dirichlet in normal directions otherwise.
+ */
+static ymir_dir_code_t
+collide_velocity_bc_fn (double X, double Y, double Z,
+                        double nx, double ny, double nz,
+                        ymir_topidx_t face, ymir_locidx_t node_id,
+                        void *data)
+{
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
+    /* set Dirichlet in normal direction on side faces */
+    return YMIR_VEL_DIRICHLET_ALL;
+  }
+  else {
+    /* set Dirichlet in all directions on bottom and top faces */
+    return YMIR_VEL_DIRICHLET_NORM;
+  }
+}
+
+/**
  * Sets up a linear Stokes problem.
  */
 static void
@@ -70,12 +90,9 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   ymir_vec_set_value (weakzone, 1.0);
 
   /* set velocity boundary conditions */
-  //TODO xi, the boundary conditions need to be defined via implementing:
-  //   collide_velocity_bc_fn, collide_velocity_bc_data
-  // and then set via the following function call:
-//rhea_domain_set_user_velocity_dirichlet_bc (
-//    collide_velocity_bc_fn, collide_velocity_bc_data,
-//    1 /* nonzero Dirichlet boundary */);
+  rhea_domain_set_user_velocity_dirichlet_bc (
+      collide_velocity_bc_fn, NULL /* no data necessary */,
+      1 /* nonzero Dirichlet boundary */);
 
   /* write vtk of input data */ //TODO better move this into main fnc
   if (vtk_write_input_path != NULL) {
