@@ -54,6 +54,19 @@ typedef enum
 }
 rhea_domain_velocity_bc_t;
 
+/* enumerator for boundary faces */
+typedef enum
+{
+  RHEA_DOMAIN_BOUNDARY_FACE_NONE = -1,
+  RHEA_DOMAIN_BOUNDARY_FACE_BASE = 0,
+  RHEA_DOMAIN_BOUNDARY_FACE_TOP,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE1,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE2,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE3,
+  RHEA_DOMAIN_BOUNDARY_FACE_SIDE4
+}
+rhea_domain_boundary_face_t;
+
 /* boundary information */
 typedef struct rhea_domain_boundary
 {

@@ -5,19 +5,6 @@
 #include <rhea_base.h>
 #include <rhea_discretization.h>
 
-/* enumerator for boundary faces */
-typedef enum
-{
-  RHEA_DOMAIN_BOUNDARY_FACE_NONE = -1,
-  RHEA_DOMAIN_BOUNDARY_FACE_BASE = 0,
-  RHEA_DOMAIN_BOUNDARY_FACE_TOP,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE1,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE2,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE3,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE4
-}
-rhea_domain_boundary_face_t;
-
 /* constant: reference value for shell radius */
 #define RHEA_DOMAIN_REFERENCE_SHELL_RADIUS (1.0)
 
