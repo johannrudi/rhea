@@ -9,9 +9,6 @@
 /* Nonlinear problem (opaque) */
 typedef struct rhea_newton_problem rhea_newton_problem_t;
 
-/* Newton options */
-typedef struct rhea_newton_options rhea_newton_options_t;
-
 /* callback functions for Newton's method */
 typedef double    (*rhea_newton_problem_evaluate_objective_fn_t) (
                                             ymir_vec_t *solution, void *data);
@@ -42,6 +39,47 @@ typedef void      (*rhea_newton_problem_update_operator_fn_t) (
 
 typedef void      (*rhea_newton_problem_update_hessian_fn_t) (
                                             ymir_vec_t *solution, void *data);
+
+/* Newton options */
+typedef struct rhea_newton_options
+{
+  /* options for the nonlinear solver */
+  int                 iter_start;
+  int                 iter_max;
+  double              rtol;
+
+  /* options for the solver of the linearized system */
+  int                 lin_iter_max;
+
+  int                 lin_rtol_init_n_iter;
+  double              lin_rtol_init;
+
+  double              lin_rtol_adaptive_exponent;
+  double              lin_rtol_adaptive_max;
+  int                 lin_rtol_adaptive_min_active;
+  double              lin_rtol_adaptive_min_threshold;
+  int                 lin_rtol_adaptive_progressive_n_iter;
+
+  /* options for line search */
+  int                 step_search_iter_max;
+  double              step_length_min;
+  double              step_length_max;
+  double              step_reduction;
+  double              step_descend_condition_relaxation;
+
+  int                 print_summary;
+}
+rhea_newton_options_t;
+
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_newton_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Processes options and stores them.
+ */
+void                rhea_newton_process_options (rhea_newton_options_t *opt);
 
 /**
  * Creates a new nonlinear problem.
