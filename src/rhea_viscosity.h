@@ -84,6 +84,7 @@ void                rhea_viscosity_add_options (ymir_options_t * opt_sup);
 void                rhea_viscosity_process_options (
                                         rhea_viscosity_options_t *opt,
                                         rhea_domain_options_t *domain_options);
+
 /**
  * Creates a new viscosity vector.
  */
