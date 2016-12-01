@@ -93,7 +93,8 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      temperature, weakzone, ymir_mesh, press_elem,
+      temperature, weakzone, NULL /* nonzero vel. Dirichlet values */,
+      ymir_mesh, press_elem,
       domain_options, temp_options, visc_options);
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
