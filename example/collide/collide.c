@@ -12,6 +12,22 @@
 
 #include <rhea.h>
 
+/* enumerator for domain shapes */
+typedef enum
+{
+  COLLIDE_VEL_DIR_BC_WALLSLIDE,
+  COLLIDE_VEL_DIR_BC_INOUTFLOW
+}
+collide_vel_dir_bc_t;
+
+/* options of collide example */
+typedef struct collide_options
+{
+  collide_vel_dir_bc_t vel_dir_bc;
+  double              wallslide_vel;
+}
+collide_options_t;
+
 /**
  * Sets up the mesh.
  */
@@ -43,24 +59,53 @@ collide_setup_mesh (p4est_t **p4est,
 }
 
 /**
- * Sets Dirichlet in all directions on left side of the domain, and 
- * Dirichlet in normal directions otherwise.
+ * Sets tangential velocity on one side of the domain.
  */
 static ymir_dir_code_t
-collide_velocity_bc_fn (double X, double Y, double Z,
-                        double nx, double ny, double nz,
-                        ymir_topidx_t face, ymir_locidx_t node_id,
-                        void *data)
+collide_set_vel_dir_wallslide (
+    double X, double Y, double Z,
+    double nx, double ny, double nz,
+    ymir_topidx_t face, ymir_locidx_t node_id,
+    void *data)
 {
-  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
-    /* set Dirichlet in normal direction on side faces */
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 && 0.5 < Z) {
     return YMIR_VEL_DIRICHLET_ALL;
   }
   else {
-    /* set Dirichlet in all directions on bottom and top faces */
     return YMIR_VEL_DIRICHLET_NORM;
   }
 }
+
+void
+collide_set_rhs_vel_nonzero_dir_wallslide (
+    double *vel, double x, double y, double z,
+    ymir_locidx_t nid, void *data)
+{
+  collide_options_t  *collide_options = data;
+  const double        wallslide_vel = collide_options->wallslide_vel;
+
+  if (fabs (y) < SC_1000_EPS && 0.5 < z) {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = wallslide_vel * sin (2.0 * M_PI * z);
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
+//TODO
+//  const double        inflow_length = 1.0/3.0;
+//  double tx;
+//  vel[0] = vel[2] = 0.0;
+//  tx = 20.0*(z-0.75); 
+//  vel[1] = 2.0 * inflow_length * lid_vel * 
+//           (exp (tx) - exp (-tx)) / 
+//           (exp (tx) + exp (-tx)) + 
+//           inflow_length * lid_vel;
+//  vel[1] = - sin (2.0 * M_PI * z);
 
 /**
  * Sets up a linear Stokes problem.
@@ -72,10 +117,12 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                       rhea_domain_options_t *domain_options,
                       rhea_temperature_options_t *temp_options,
                       rhea_viscosity_options_t *visc_options,
+                      collide_options_t *collide_options,
                       const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "collide_setup_stokes";
   ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -89,10 +136,20 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   //TODO xi, here you need to provide the weak zone factor
   ymir_vec_set_value (weakzone, 1.0);
 
-  /* set velocity boundary conditions */
-  rhea_domain_set_user_velocity_dirichlet_bc (
-      collide_velocity_bc_fn, NULL /* no data necessary */,
-      1 /* nonzero Dirichlet boundary */);
+  /* set velocity boundary conditions & nonzero Dirichlet values */
+  switch (collide_options->vel_dir_bc) {
+  case COLLIDE_VEL_DIR_BC_WALLSLIDE:
+    rhea_domain_set_user_velocity_dirichlet_bc (
+        collide_set_vel_dir_wallslide, NULL /* no data necessary */,
+        0 /* TODO don't need this flag */);
+    rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
+    ymir_cvec_set_function (rhs_vel_nonzero_dirichlet, 
+                            collide_set_rhs_vel_nonzero_dir_wallslide, 
+                            collide_options);
+    break;
+  default: /* unknown boundary condition */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 
   /* write vtk of input data */ //TODO better move this into main fnc
   if (vtk_write_input_path != NULL) {
@@ -127,7 +184,8 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      temperature, weakzone, ymir_mesh, press_elem,
+      temperature, weakzone, rhs_vel_nonzero_dirichlet, 
+      ymir_mesh, press_elem,
       domain_options, temp_options, visc_options);
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
@@ -149,10 +207,16 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                          rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "collide_setup_clear_all";
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* destroy Stokes problem */
+  rhs_vel_nonzero_dirichlet = 
+    rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
+  if (rhs_vel_nonzero_dirichlet != NULL) {
+    rhea_velocity_destroy (rhs_vel_nonzero_dirichlet);
+  }
   rhea_stokes_problem_destroy (stokes_problem);
 
   /* destroy mesh */
@@ -170,15 +234,30 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
  */
 static void
 collide_run_solver (ymir_vec_t *sol_vel_press,
+                    ymir_mesh_t *ymir_mesh,
+                    ymir_pressure_elem_t *press_elem,
                     rhea_stokes_problem_t *stokes_problem,
                     const int iter_max, const double rel_tol)
 {
   const char         *this_fn_name = "collide_run_solver";
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* run solver */
   rhea_stokes_problem_solve (sol_vel_press, iter_max, rel_tol, stokes_problem);
+
+  /* add nonzero Dirichlet values of the velocity to the solution */
+  rhs_vel_nonzero_dirichlet = 
+    rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
+  if (rhs_vel_nonzero_dirichlet != NULL) {
+    ymir_vec_t         *sol_vel = rhea_velocity_new (ymir_mesh);
+
+    ymir_stokes_vec_get_velocity (sol_vel_press, sol_vel, press_elem);
+    ymir_vec_add (1.0, rhs_vel_nonzero_dirichlet, sol_vel);
+    ymir_stokes_vec_set_velocity (sol_vel, sol_vel_press, press_elem);
+    rhea_velocity_destroy (sol_vel);
+  }
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
@@ -200,6 +279,10 @@ main (int argc, char **argv)
   rhea_temperature_options_t    temp_options;
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
+  /* collide options */
+  int                 vel_dir_bc;
+  double              wallslide_vel;
+  collide_options_t   collide_options;
   /* options local to this function */
   int                 production_run;
   int                 solver_iter_max;
@@ -247,6 +330,14 @@ main (int argc, char **argv)
   YMIR_OPTIONS_INIFILE, "options-file", 'f',
     ".ini file with option values",
 
+  /* velocity Dirichlet BC's */
+  YMIR_OPTIONS_I, "velocity-dirichlet-bc", '\0',
+    &vel_dir_bc, COLLIDE_VEL_DIR_BC_WALLSLIDE,
+    "Velocity Dirichlet boundary condition",
+  YMIR_OPTIONS_D, "wallslide-velocity", '\0',
+    &wallslide_vel, 1.0,
+    "Tangential velocity",
+
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
     &solver_iter_max, 100,
@@ -288,6 +379,13 @@ main (int argc, char **argv)
   }
 
   /*
+   * Process Collide Options
+   */
+
+  collide_options.vel_dir_bc = (collide_vel_dir_bc_t) vel_dir_bc;
+  collide_options.wallslide_vel = wallslide_vel;
+
+  /*
    * Initialize Main Program
    */
 
@@ -315,7 +413,7 @@ main (int argc, char **argv)
 
   collide_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                         &domain_options, &temp_options, &visc_options,
-                        vtk_write_input_path);
+                        &collide_options, vtk_write_input_path);
 
   /*
    * Solve Stokes Problem
@@ -325,7 +423,7 @@ main (int argc, char **argv)
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
 
   /* run solver */
-  collide_run_solver (sol_vel_press, stokes_problem,
+  collide_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
                       solver_iter_max, solver_rel_tol);
 
   /* write vtk of solution */
