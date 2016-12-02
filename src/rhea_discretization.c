@@ -332,6 +332,14 @@ rhea_discretization_process_options (rhea_discretization_options_t *opt,
 }
 
 void
+rhea_discretization_set_user_X_fn (rhea_discretization_options_t *opt,
+                                   mangll_X_t X_fn, void *X_data)
+{
+  opt->X_fn = X_fn;
+  opt->X_data = X_data;
+}
+
+void
 rhea_discretization_options_set_boundary (rhea_discretization_options_t *opt,
                                           p4est_t *p4est,
                                           rhea_domain_options_t *domain_options)

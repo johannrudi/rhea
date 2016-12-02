@@ -36,6 +36,13 @@ void                rhea_discretization_process_options (
                                         rhea_domain_options_t *domain_options);
 
 /**
+ * Sets an X-function for geometry transformation of the mesh.
+ */
+void                rhea_discretization_set_user_X_fn (
+                                        rhea_discretization_options_t *opt,
+                                        mangll_X_t X_fn, void *X_data);
+
+/**
  * Sets boundary information in the discretization options object.
  */
 void                rhea_discretization_options_set_boundary (
