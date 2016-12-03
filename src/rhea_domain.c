@@ -601,7 +601,7 @@ rhea_domain_compute_radius_at_elem_center (const double *_sc_restrict x,
   }
 
   /* return mean value of radii at vertices */
-  RHEA_ASSERT ((radii_sum / 8.0) < opt->radius_max);
+  //RHEA_ASSERT ((radii_sum / 8.0) < opt->radius_max); //TODO does not work for custom X-fnc's
   return radii_sum / 8.0;
 }
 
