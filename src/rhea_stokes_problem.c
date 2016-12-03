@@ -5,7 +5,6 @@
 #include <rhea_base.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
-#include <ymir_stokes_op.h>
 #include <ymir_stokes_pc.h>
 
 /******************************************************************************
@@ -159,6 +158,18 @@ ymir_vec_t *
 rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (rhea_stokes_problem_t *stokes_problem)
 {
   return stokes_problem->rhs_vel_nonzero_dirichlet;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_rhs_vel (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->rhs_vel;
+}
+
+ymir_stokes_op_t *
+rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->stokes_op;
 }
 
 /**

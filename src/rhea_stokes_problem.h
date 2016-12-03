@@ -8,6 +8,7 @@
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
 #include <ymir_pressure_elem.h>
+#include <ymir_stokes_op.h>
 
 /* Stokes problem (opaque) */
 typedef struct rhea_stokes_problem rhea_stokes_problem_t;
@@ -59,6 +60,17 @@ void                rhea_stokes_problem_get_viscosity (
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
 
+/**
+ * Gets velocity component of the right-hand side.
+ */
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Gets Stokes operator.
+ */
+ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
+                                    rhea_stokes_problem_t *stokes_problem);
 /**
  * Sets velocity components on the boundary, which are constrained by Dirichlet
  * boundary conditions, to zero.
