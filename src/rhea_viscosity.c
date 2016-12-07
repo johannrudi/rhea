@@ -46,6 +46,11 @@ double              rhea_viscosity_yield_stress =
   RHEA_VISCOSITY_DEFAULT_YIELD_STRESS;
 double              rhea_viscosity_yielding_regularization =
   RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION;
+double              rhea_viscosity_uwkzone_loc;
+double              rhea_viscosity_uwkzone_width;
+double              rhea_viscosity_uwkzone_factor;
+double              rhea_viscosity_uwkzone_um;
+double              rhea_viscosity_uwkzone_lm;
 
 void
 rhea_viscosity_add_options (ymir_options_t * opt_sup)
@@ -102,6 +107,30 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     &(rhea_viscosity_yielding_regularization),
     RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION,
     "Regularization for yielding in [0,1] (0: full yielding .. 1: no yielding)",
+  YMIR_OPTIONS_D, "user-weakzone-location",'\0',
+    &(rhea_viscosity_uwkzone_loc),
+    0.75,
+    "user defined weakzone: z location",
+
+  YMIR_OPTIONS_D, "user-weakzone-width",'\0',
+    &(rhea_viscosity_uwkzone_width),
+    0.05,
+    "user defined weakzone: half-width",
+
+  YMIR_OPTIONS_D, "user-weakzone-factor",'\0',
+    &(rhea_viscosity_uwkzone_factor),
+    0.01,
+    "user defined weakzone: weakzone factor",
+
+  YMIR_OPTIONS_D, "user-weakzone-um",'\0',
+    &(rhea_viscosity_uwkzone_um),
+    0.1,
+    "user defined weakzone: upper mantle factor",
+
+  YMIR_OPTIONS_D, "user-weakzone-lm",'\0',
+    &(rhea_viscosity_uwkzone_lm),
+    1,
+    "user defined weakzone: lower mantle factor",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -142,6 +171,13 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   RHEA_CHECK_ABORT (opt->min <= 0.0 || opt->max <= 0.0 || opt->min < opt->max,
                     "Invalid viscosity lower/upper bounds");
 
+  if (opt->type == RHEA_VISCOSITY_USER_WEAKZONE) {
+    opt->uwkzone_loc = rhea_viscosity_uwkzone_loc ;
+    opt->uwkzone_width = rhea_viscosity_uwkzone_width;
+    opt->uwkzone_factor= rhea_viscosity_uwkzone_factor;
+    opt->uwkzone_um= rhea_viscosity_uwkzone_um;
+    opt->uwkzone_lm= rhea_viscosity_uwkzone_lm;
+  }
   /* store linear viscosity options */
   opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
   opt->upper_mantle_activation_energy =
@@ -306,6 +342,40 @@ rhea_viscosity_linear_node (const double temp,
   return viscosity;
 }
 
+/* compute user defined weakzone viscosity in an element*/
+rhea_visc_user_weakzone (double *_sc_restrict visc_elem,
+                      const double *_sc_restrict x,
+                      const double *_sc_restrict y,
+                      const double *_sc_restrict z,
+                      const int n_nodes_per_el,
+                      const int *_sc_restrict Vmask,
+                      rhea_viscosity_options_t *opt,
+                      const int restrict_to_bounds)
+{
+  int                 nodeid;
+  double              temp;
+
+
+  /* compute viscosity in this element */
+  for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) { /* loop over all
+                                                             * nodes */
+    temp = -1*z[nodeid]+1.75;
+    if (z[nodeid] >= opt->uwkzone_loc)  {
+      if (y[nodeid] >= (temp - opt->uwkzone_width)
+          && y[nodeid] <= (temp+opt->uwkzone_width) )
+        visc_elem[nodeid] = opt->uwkzone_factor;
+      else
+        visc_elem[nodeid] = opt->uwkzone_um;
+    }
+//    if (y[nodeid]<0.203125 || y[nodeid]>0.796875) visc_elem[nodeid] = 0.01;
+    else visc_elem[nodeid] = opt->uwkzone_lm;
+
+
+    /* check viscosity for `nan`, `inf`, and positivity */
+    RHEA_ASSERT (isfinite (visc_elem[nodeid]));
+    RHEA_ASSERT (0.0 < visc_elem[nodeid]);
+  }
+}
 /**
  * Computes linear viscosity in an element.
  */
@@ -401,6 +471,50 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
   }
 }
 
+/* compute user defined weak zones*/
+static void
+rhea_viscosity_user_weakzone (ymir_vec_t *viscosity,
+                        rhea_viscosity_options_t *opt)
+{
+  const int           restrict_to_bounds = 1;
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (viscosity);
+  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+  const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
+  mangll_t           *mangll = mesh->ma;
+  const int           N = ymir_n (mangll->N);
+
+  sc_dmatrix_t       *visc_el_mat;
+  double             *x, *y, *z, *tmp_el,*visc_el_data;
+  ymir_locidx_t     elid;
+
+  /* create work variables */
+  visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  x = RHEA_ALLOC (double, n_nodes_per_el);
+  y = RHEA_ALLOC (double, n_nodes_per_el);
+  z = RHEA_ALLOC (double, n_nodes_per_el);
+  tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
+  visc_el_data = visc_el_mat->e[0];
+
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates of this element at Gauss nodes */
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
+
+    /* compute user defined weak zone viscosity*/
+    rhea_visc_user_weakzone (visc_el_data, x, y, z, n_nodes_per_el,
+                            Vmask, opt, restrict_to_bounds);
+
+    /* set viscosity of this element */
+    rhea_viscosity_set_elem_gauss (viscosity, visc_el_mat, elid);
+  }
+
+  /* destroy */
+  sc_dmatrix_destroy (visc_el_mat);
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+}
 /**
  * Computes the linear viscosity.
  */
@@ -1121,6 +1235,10 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
                         rhea_viscosity_options_t *opt)
 {
   switch (opt->type) {
+  case RHEA_VISCOSITY_USER_WEAKZONE:
+    rhea_viscosity_user_weakzone (viscosity, opt);
+    break;
+
   case RHEA_VISCOSITY_LINEAR:
     rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
     break;
