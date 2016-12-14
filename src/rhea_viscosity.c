@@ -46,11 +46,14 @@ double              rhea_viscosity_yield_stress =
   RHEA_VISCOSITY_DEFAULT_YIELD_STRESS;
 double              rhea_viscosity_yielding_regularization =
   RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION;
-double              rhea_viscosity_uwkzone_loc;
+double              rhea_viscosity_uwkzone_loc_upper;
+double              rhea_viscosity_uwkzone_loc_lower;
+double              rhea_viscosity_uwkzone_loc_left;
+double              rhea_viscosity_uwkzone_loc_right;
 double              rhea_viscosity_uwkzone_width;
 double              rhea_viscosity_uwkzone_factor;
-double              rhea_viscosity_uwkzone_um;
-double              rhea_viscosity_uwkzone_lm;
+double              rhea_viscosity_uwkzone_lith;
+double              rhea_viscosity_uwkzone_mantle;
 
 void
 rhea_viscosity_add_options (ymir_options_t * opt_sup)
@@ -107,11 +110,22 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     &(rhea_viscosity_yielding_regularization),
     RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION,
     "Regularization for yielding in [0,1] (0: full yielding .. 1: no yielding)",
-  YMIR_OPTIONS_D, "user-weakzone-location",'\0',
-    &(rhea_viscosity_uwkzone_loc),
-    0.75,
-    "user defined weakzone: z location",
-
+  YMIR_OPTIONS_D, "user-weakzone-location-upper",'\0',
+    &(rhea_viscosity_uwkzone_loc_upper),
+    0.9,
+    "user defined weakzone: upper bound",
+  YMIR_OPTIONS_D, "user-weakzone-location-lower",'\0',
+    &(rhea_viscosity_uwkzone_loc_lower),
+    0.1,
+    "user defined weakzone: lower bound",
+  YMIR_OPTIONS_D, "user-weakzone-location-left",'\0',
+    &(rhea_viscosity_uwkzone_loc_left),
+    1.0,
+    "user defined weakzone: left bound",
+  YMIR_OPTIONS_D, "user-weakzone-location-right",'\0',
+    &(rhea_viscosity_uwkzone_loc_right),
+    1.0,
+    "user defined weakzone: right bound",
   YMIR_OPTIONS_D, "user-weakzone-width",'\0',
     &(rhea_viscosity_uwkzone_width),
     0.05,
@@ -122,15 +136,15 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     0.01,
     "user defined weakzone: weakzone factor",
 
-  YMIR_OPTIONS_D, "user-weakzone-um",'\0',
-    &(rhea_viscosity_uwkzone_um),
+  YMIR_OPTIONS_D, "user-weakzone-lith",'\0',
+    &(rhea_viscosity_uwkzone_lith),
     0.1,
-    "user defined weakzone: upper mantle factor",
+    "user defined weakzone: lithosphere factor",
 
-  YMIR_OPTIONS_D, "user-weakzone-lm",'\0',
-    &(rhea_viscosity_uwkzone_lm),
+  YMIR_OPTIONS_D, "user-weakzone-mantle",'\0',
+    &(rhea_viscosity_uwkzone_mantle),
     1,
-    "user defined weakzone: lower mantle factor",
+    "user defined weakzone: weak mantle factor",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -171,13 +185,16 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   RHEA_CHECK_ABORT (opt->min <= 0.0 || opt->max <= 0.0 || opt->min < opt->max,
                     "Invalid viscosity lower/upper bounds");
 
-  if (opt->type == RHEA_VISCOSITY_USER_WEAKZONE) {
-    opt->uwkzone_loc = rhea_viscosity_uwkzone_loc ;
+//  if (opt->type == RHEA_VISCOSITY_USER_WEAKZONE) {
+    opt->uwkzone_loc_upper = rhea_viscosity_uwkzone_loc_upper;
+    opt->uwkzone_loc_lower = rhea_viscosity_uwkzone_loc_lower;
+    opt->uwkzone_loc_left = rhea_viscosity_uwkzone_loc_left;
+    opt->uwkzone_loc_right = rhea_viscosity_uwkzone_loc_right;
     opt->uwkzone_width = rhea_viscosity_uwkzone_width;
-    opt->uwkzone_factor= rhea_viscosity_uwkzone_factor;
-    opt->uwkzone_um= rhea_viscosity_uwkzone_um;
-    opt->uwkzone_lm= rhea_viscosity_uwkzone_lm;
-  }
+    opt->uwkzone_factor = rhea_viscosity_uwkzone_factor;
+    opt->uwkzone_lith = rhea_viscosity_uwkzone_lith;
+    opt->uwkzone_mantle = rhea_viscosity_uwkzone_mantle;
+//  }
   /* store linear viscosity options */
   opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
   opt->upper_mantle_activation_energy =
@@ -353,22 +370,24 @@ rhea_visc_user_weakzone (double *_sc_restrict visc_elem,
                       const int restrict_to_bounds)
 {
   int                 nodeid;
-  double              temp;
+  double              zU = opt->uwkzone_loc_upper;
+  double              zL = opt->uwkzone_loc_lower;
+  double              yL = opt->uwkzone_loc_left;
+  double              yR = opt->uwkzone_loc_right;
+  double              temp=zU*yR-zL*yL;
 
 
   /* compute viscosity in this element */
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) { /* loop over all
                                                              * nodes */
-    temp = -1*z[nodeid]+1.75;
-    if (z[nodeid] >= opt->uwkzone_loc)  {
-      if (y[nodeid] >= (temp - opt->uwkzone_width)
-          && y[nodeid] <= (temp+opt->uwkzone_width) )
+    if (z[nodeid] >= zL && z[nodeid] <= zU)  {
+      if ( fabs( (zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - temp )
+          <=(zU-zL)*opt->uwkzone_width )
         visc_elem[nodeid] = opt->uwkzone_factor;
       else
-        visc_elem[nodeid] = opt->uwkzone_um;
+        visc_elem[nodeid] = opt->uwkzone_lith;
     }
-//    if (y[nodeid]<0.203125 || y[nodeid]>0.796875) visc_elem[nodeid] = 0.01;
-    else visc_elem[nodeid] = opt->uwkzone_lm;
+    else visc_elem[nodeid] = opt->uwkzone_mantle;
 
 
     /* check viscosity for `nan`, `inf`, and positivity */

@@ -57,11 +57,14 @@ typedef struct rhea_viscosity_options
   double              max;
 
    /* user defined weak zone */
-  double              uwkzone_loc;
+  double              uwkzone_loc_upper;
+  double              uwkzone_loc_lower;
+  double              uwkzone_loc_left;
+  double              uwkzone_loc_right;
   double              uwkzone_width;
   double              uwkzone_factor;
-  double              uwkzone_um;
-  double              uwkzone_lm;
+  double              uwkzone_lith;
+  double              uwkzone_mantle;
 
 
   /* scaling factor and activation energy in Arrhenius relationship */
