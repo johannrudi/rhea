@@ -53,6 +53,8 @@ typedef struct collide_options
   collide_x_func_t     x_func;
   double              wallslide_vel;
   double              flow_scale;
+  double              uwkzone_loc_upper;
+  double              uwkzone_loc_lower;
 }
 collide_options_t;
 
@@ -410,19 +412,25 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
 {
   collide_options_t  *collide_options = data;
   const double        flow_scale = collide_options->flow_scale;
-
-  const double        inflow_length = 1.0/3.0;
-  double tx;
+  const double        zU = collide_options->uwkzone_loc_upper;
+  const double        zL = collide_options->uwkzone_loc_lower;
+  const double        a = zU-zL, b = 1.0-a, c = 0.5*(zU+zL);
+  const double        shape = 50.0, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
+  double txL = shape*(z-zL),txU = shape*(z-zU);
 
   if (fabs (y) < SC_1000_EPS) {
     vel[0] = 0.0;
     vel[2] = 0.0;
 
-    tx = 20.0*(z-0.75);
-    vel[1] = 2.0 * inflow_length * flow_scale *
-             (exp (tx) - exp (-tx)) /
-             (exp (tx) + exp (-tx)) +
-             inflow_length * flow_scale;
+
+    if (z<=c)
+      vel[1] = shift + scaling *
+             ( (exp (txL) - exp (-txL)) /
+             (exp (txL) + exp (-txL)) );
+    else
+      vel[1] = shift - scaling *
+             ( (exp (txU) - exp (-txU)) /
+             (exp (txU) + exp (-txU)) );
   }
   else {
     vel[0] = 0.0;
@@ -685,6 +693,8 @@ main (int argc, char **argv)
   int                 vel_dir_bc;
   double              wallslide_vel;
   double              flow_scale;
+  double              uwkzone_loc_upper;
+  double              uwkzone_loc_lower;
   int                 x_func;
   collide_options_t   collide_options;
 
@@ -749,6 +759,15 @@ main (int argc, char **argv)
   YMIR_OPTIONS_I, "bound-x-function", '\0',
     &x_func, COLLIDE_X_FUNCTION_IDENTITY,
     "boundary location: surface topography",
+ /* weakzone upper and lower bounds*/
+  YMIR_OPTIONS_D, "user-weakzone-location-upper",'\0',
+    &(uwkzone_loc_upper),
+    0.75,
+    "user defined weakzone: upper bound",
+  YMIR_OPTIONS_D, "user-weakzone-location-lower",'\0',
+    &(uwkzone_loc_lower),
+    0.25,
+    "user defined weakzone: lower bound",
 
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
@@ -797,6 +816,8 @@ main (int argc, char **argv)
   collide_options.vel_dir_bc = (collide_vel_dir_bc_t) vel_dir_bc;
   collide_options.wallslide_vel = wallslide_vel;
   collide_options.flow_scale = flow_scale;
+  collide_options.uwkzone_loc_upper = uwkzone_loc_upper;
+  collide_options.uwkzone_loc_lower = uwkzone_loc_lower;
 
   collide_options.x_func = (collide_x_func_t) x_func;
   /*
