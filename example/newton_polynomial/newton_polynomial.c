@@ -34,7 +34,7 @@
  *   g = (x - a) + f'(x)*(f(x) - b)
  *
  ******************************************************************************
-
+ *
  * HESSIAN:
  *
  *   H(y) := delta_x [g(x)] (y) := [ d g(x + eps*y) / d eps ]_{eps=0}
@@ -48,6 +48,7 @@
  *****************************************************************************/
 
 #include <rhea.h>
+#include <ymir_vtk.h>
 
 /**
  * Computes interpolating quadratic polynomial via Hermite interpolation.
@@ -109,7 +110,7 @@ static void
 newton_polynomial_evaluate (ymir_vec_t *f_vec, ymir_vec_t *x_vec,
                             const double coeff[3], const int derivative)
 {
-  const int           has_shared = (x_vec->coff ? 1 : 0);
+  const int           has_shared = (x_vec->coff != NULL ? 1 : 0);
 
   const sc_dmatrix_t *x_owned_mat = x_vec->dataown;
   const double       *x_owned_data = x_owned_mat->e[0];
@@ -126,6 +127,9 @@ newton_polynomial_evaluate (ymir_vec_t *f_vec, ymir_vec_t *x_vec,
   sc_bint_t           i;
 
   /* check input */
+  RHEA_ASSERT (sc_dmatrix_is_valid (x_vec->dataown));
+  RHEA_ASSERT (!has_shared || sc_dmatrix_is_valid (x_vec->coff));
+  RHEA_ASSERT (!has_shared || f_vec->coff != NULL);
   RHEA_ASSERT ( (f_owned_mat->m * f_owned_mat->n) == size_owned );
   RHEA_ASSERT ( !has_shared ||
                 (f_shared_mat->m * f_shared_mat->n) == size_shared );
@@ -176,6 +180,10 @@ newton_polynomial_evaluate (ymir_vec_t *f_vec, ymir_vec_t *x_vec,
   default:
     RHEA_ABORT_NOT_REACHED ();
   }
+
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (f_vec->dataown));
+  RHEA_ASSERT (!has_shared || sc_dmatrix_is_valid (f_vec->coff));
 }
 
 /* Object containing information about the problem */
@@ -201,6 +209,12 @@ newton_polynomial_compute_misfit (ymir_vec_t *misfit_x,
   ymir_vec_t         *data_a = poly_problem->data_a;
   ymir_vec_t         *data_b = poly_problem->data_b;
 
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (data_a->dataown));
+  RHEA_ASSERT (!data_a->coff || sc_dmatrix_is_valid (data_a->coff));
+  RHEA_ASSERT (sc_dmatrix_is_valid (data_b->dataown));
+  RHEA_ASSERT (!data_b->coff || sc_dmatrix_is_valid (data_b->coff));
+
   /* evaluate polynomial */
   newton_polynomial_evaluate (misfit_y, sol_x, coeff, 0 /* !deriv */);
 
@@ -208,6 +222,12 @@ newton_polynomial_compute_misfit (ymir_vec_t *misfit_x,
   ymir_vec_copy (sol_x, misfit_x);
   ymir_vec_add (-1.0, data_a, misfit_x);
   ymir_vec_add (-1.0, data_b, misfit_y);
+
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (misfit_x->dataown));
+  RHEA_ASSERT (!misfit_x->coff || sc_dmatrix_is_valid (misfit_x->coff));
+  RHEA_ASSERT (sc_dmatrix_is_valid (misfit_y->dataown));
+  RHEA_ASSERT (!misfit_y->coff || sc_dmatrix_is_valid (misfit_x->coff));
 }
 
 /**
@@ -265,6 +285,10 @@ newton_polynomial_compute_negative_gradient (ymir_vec_t *neg_gradient,
   /* destroy */
   ymir_vec_destroy (misfit_x);
   ymir_vec_destroy (misfit_y);
+
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (neg_gradient->dataown));
+  RHEA_ASSERT (!neg_gradient->coff || sc_dmatrix_is_valid (neg_gradient->coff));
 }
 
 /**
@@ -310,7 +334,7 @@ newton_polynomial_apply_hessian_internal (
   ymir_vec_shift (1.0, out);
 
   /* invert Hessian element-wise (stored in `out`) */
-  if (!inverse) {
+  if (inverse) {
     ymir_vec_reciprocal (out);
   }
 
@@ -632,6 +656,24 @@ newton_polynomial_setup_mesh (p4est_t **p4est,
 }
 
 /**
+ * Callback function to set values to coordinates.
+ */
+static void
+newton_polynomial_set_x_coord_fn (double *out, double x, double y, double z,
+                                  ymir_locidx_t nodeid, void *data)
+{
+  *out = x;
+}
+
+static void
+newton_polynomial_set_y_coord_fn (double *out, double x, double y, double z,
+                                  ymir_locidx_t nodeid, void *data)
+{
+  *out = y;
+}
+
+
+/**
  * Sets up a Newton problem.
  */
 static void
@@ -639,31 +681,62 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
                                 ymir_mesh_t *ymir_mesh)
 {
   const char         *this_fn_name = "newton_polynomial_setup_newton";
-  ymir_vec_t         *sol_x, *step_vec, *neg_gradient_vec;
+  ymir_vec_t         *tmp_vec = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
   newton_polynomial_problem_t *poly_problem;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
-  /* create data for Newton problem */
+  /* initialize data for Newton problem */
   poly_problem = RHEA_ALLOC (newton_polynomial_problem_t, 1);
-  //TODO set coeff
-  poly_problem->sol_x = sol_x = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
-  poly_problem->data_a = ymir_vec_template (sol_x);
-  poly_problem->data_b = ymir_vec_template (sol_x);
+  poly_problem->sol_x = ymir_vec_template (tmp_vec);
+
+  /* set coefficient of polynomial function */
+  {
+    const double        start_node = 0.0;
+    const double        start_val = 1.0;
+    const double        start_deriv = 0.2;
+    const double        end_node = 1.0;
+    const double        end_val = 0.0;
+    double             *coeff;
+
+    coeff = newton_polynomial_new_p2_coeff_hermite (
+        start_node, start_val, start_deriv, end_node, end_val);
+
+    poly_problem->coeff[0] = coeff[0];
+    poly_problem->coeff[1] = coeff[1];
+    poly_problem->coeff[2] = coeff[2];
+
+    RHEA_FREE (coeff);
+  }
+
+  /* set coordiantes as data */
+  poly_problem->data_a = ymir_vec_template (tmp_vec);
+  poly_problem->data_b = ymir_vec_template (tmp_vec);
+  ymir_dvec_set_function (
+      poly_problem->data_a, newton_polynomial_set_x_coord_fn, NULL);
+  ymir_dvec_set_function (
+      poly_problem->data_b, newton_polynomial_set_y_coord_fn, NULL);
 
   /* create Newton problem */
-  neg_gradient_vec = ymir_vec_template (sol_x);
-  step_vec = ymir_vec_template (sol_x);
-  *nl_problem = rhea_newton_problem_new (
-      neg_gradient_vec, step_vec,
-      newton_polynomial_evaluate_objective,
-      newton_polynomial_compute_negative_gradient,
-      newton_polynomial_compute_gradient_norm,
-      newton_polynomial_apply_hessian,
-      newton_polynomial_solve_hessian_system,
-      newton_polynomial_update_operator,
-      newton_polynomial_update_hessian,
-      0 /* no multi-component norms */, poly_problem);
+  {
+    ymir_vec_t         *step_vec = ymir_vec_template (tmp_vec);
+    ymir_vec_t         *neg_gradient_vec = ymir_vec_template (tmp_vec);
+
+    *nl_problem = rhea_newton_problem_new (
+        neg_gradient_vec, step_vec,
+        newton_polynomial_evaluate_objective,
+        newton_polynomial_compute_negative_gradient,
+        newton_polynomial_compute_gradient_norm,
+        newton_polynomial_apply_hessian,
+        newton_polynomial_solve_hessian_system,
+        newton_polynomial_update_operator,
+        newton_polynomial_update_hessian,
+        0 /* no multi-component norms */,
+        poly_problem);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (tmp_vec);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
@@ -719,21 +792,17 @@ main (int argc, char **argv)
   /* options */
   ymir_options_t     *opt;
   rhea_domain_options_t         domain_options;
-  rhea_temperature_options_t    temp_options;
-  rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
+  rhea_newton_options_t         newton_options;
   /* options local to this function */
   int                 production_run;
-  int                 solver_iter_max;
-  double              solver_rel_tol;
-  char               *vtk_write_input_path;
   char               *vtk_write_solution_path;
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
   /* Newton */
   rhea_newton_problem_t *nl_problem;
-  ymir_vec_t         *sol_vel_press; //TODO
+  ymir_vec_t         *solution;
 
   /*
    * Initialize Libraries
@@ -768,25 +837,22 @@ main (int argc, char **argv)
   YMIR_OPTIONS_INIFILE, "options-file", 'f',
     ".ini file with option values",
 
-  /* solver options */ //TODO
-  YMIR_OPTIONS_I, "solver-iter-max", '\0',
-    &solver_iter_max, 100,
-    "Maximum number of iterations for Stokes solver",
-  YMIR_OPTIONS_D, "solver-rel-tol", '\0',
-    &solver_rel_tol, 1.0e-6,
-    "Relative tolerance for Stokes solver",
-
   /* performance & monitoring options */
   YMIR_OPTIONS_B, "production-run", '\0',
     &(production_run), 0,
     "Execute as a production run (to reduce some overhead and checks)",
 
+  /* vtk output options */
+  YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
+    &(vtk_write_solution_path), NULL,
+    "File path for vtk files for the solution of the Stokes problem",
+
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
-  /* add sub-options */ //TODO
-//rhea_add_options_all (opt);
-//ymir_options_add_suboptions_solver_stokes (opt);
+  /* add sub-options */
+  rhea_add_options_newton (opt);
+//ymir_options_add_suboptions_solver_stokes (opt); //TODO del
 
   /* parse options */
   {
@@ -810,10 +876,10 @@ main (int argc, char **argv)
       "Parallel environment: MPI size %i, OpenMP size %i\n", mpisize, ompsize);
   ymir_set_up (argc, argv, mpicomm, production_run);
 
-  /* print & process options */ //TODO
+  /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-//rhea_process_options_all (&domain_options, &temp_options,
-//                          &visc_options, &discr_options);
+  rhea_process_options_newton (&domain_options, &discr_options,
+                               &newton_options);
 
   /*
    * Setup Mesh
@@ -832,7 +898,26 @@ main (int argc, char **argv)
    * Solve Newton Problem
    */
 
+  solution = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
+  ymir_vec_set_zero (solution);
+//TODO move following to rhea_newton?
+  newton_polynomial_update_hessian (
+      solution, rhea_newton_problem_get_data (nl_problem));
+  rhea_newton_solve (solution, nl_problem, &newton_options);
 
+  /* write vtk of solution */
+  if (vtk_write_solution_path != NULL) {
+    newton_polynomial_problem_t *poly_problem =
+      (newton_polynomial_problem_t *) rhea_newton_problem_get_data (nl_problem);
+
+    ymir_vtk_write (ymir_mesh, vtk_write_solution_path,
+                    poly_problem->data_a, "data_a",
+                    poly_problem->data_b, "data_b",
+                    solution, "solution", NULL);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (solution);
 
   /*
    * Finalize
