@@ -23,6 +23,11 @@
 void                rhea_add_options_all (ymir_options_t * options);
 
 /**
+ * Defines a particular subset of options and adds them as sub-options.
+ */
+void                rhea_add_options_newton (ymir_options_t *options);
+
+/**
  * Processes all rhea options and stores them.
  */
 void                rhea_process_options_all (
@@ -30,6 +35,14 @@ void                rhea_process_options_all (
                               rhea_temperature_options_t *temperature_options,
                               rhea_viscosity_options_t *viscosity_options,
                               rhea_discretization_options_t *discr_options);
+
+/**
+ * Processes a subset of options and stores them.
+ */
+void                rhea_process_options_newton (
+                              rhea_domain_options_t *domain_options,
+                              rhea_discretization_options_t *discr_options,
+                              rhea_newton_options_t *newton_options);
 
 /**
  * Get whether current program execution is flagged as a production run.
