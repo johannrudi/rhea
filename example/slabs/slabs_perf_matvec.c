@@ -115,7 +115,7 @@ static void
 slabs_perf_matvec_set_random_vec (ymir_vec_t *vec)
 {
 #ifdef YMIR_PETSC
-  slabs_petsc_vec_set_random (vec, YMIR_MESH_PETSCLAYOUT_NONE);
+  ymir_petsc_vec_set_random (vec, YMIR_MESH_PETSCLAYOUT_NONE);
 #else
   YMIR_ABORT_NOT_REACHED ();
 #endif

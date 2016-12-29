@@ -94,7 +94,7 @@ slabs_nonlinear_stokes_problem_new (slabs_stokes_state_t *state,
   slabs_physics_compute_rhs_u_point (rhs_u_point, state, physics_options);
   if (physics_options->rhs_random) { /* if set random rhs (for testing) */
 #ifdef YMIR_PETSC
-    slabs_petsc_vec_set_random (rhs_u_point, YMIR_MESH_PETSCLAYOUT_NONE);
+    ymir_petsc_vec_set_random (rhs_u_point, YMIR_MESH_PETSCLAYOUT_NONE);
 #else
     YMIR_ABORT_NOT_REACHED ();
 #endif
@@ -749,7 +749,7 @@ slabs_nonlinear_stokes_problem_test_current_deriv (
 
   /* compute random vector `y` */
 #ifdef YMIR_PETSC
-  slabs_petsc_vec_set_random (y, YMIR_MESH_PETSCLAYOUT_NONE);
+  ymir_petsc_vec_set_random (y, YMIR_MESH_PETSCLAYOUT_NONE);
 #else
   YMIR_ABORT_NOT_REACHED ();
 #endif
