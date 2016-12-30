@@ -10,6 +10,7 @@
 typedef struct rhea_newton_problem rhea_newton_problem_t;
 
 /* callback functions for Newton's method */
+//TODO add comments explaining in/output
 typedef double    (*rhea_newton_evaluate_objective_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
@@ -44,6 +45,7 @@ typedef void      (*rhea_newton_update_hessian_fn_t) (
 typedef struct rhea_newton_options
 {
   int                 nonzero_initial_guess;
+  int                 abort_failed_step_search;
 
   /* options for the nonlinear solver */
   int                 iter_start;
@@ -70,6 +72,7 @@ typedef struct rhea_newton_options
   double              step_descend_condition_relaxation;
 
   /* output options */
+  int                 status_verbosity;
   int                 print_summary;
 }
 rhea_newton_options_t;

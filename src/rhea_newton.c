@@ -27,7 +27,6 @@ struct rhea_newton_problem
 /* Newton step */
 typedef struct rhea_newton_step
 {
-  ymir_vec_t         *rhs_vec;
   ymir_vec_t         *vec;
   double              length;
 
@@ -110,6 +109,8 @@ rhea_newton_status_t;
 #define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY (0)
 
 #define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
+#define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
+#define RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY (0)
 
 /* initialize options */
 int                 rhea_newton_iter_start = RHEA_NEWTON_DEFAULT_ITER_START;
@@ -257,6 +258,7 @@ void
 rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
 {
   opt->nonzero_initial_guess = RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS;
+  opt->abort_failed_step_search = RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH;
 
   opt->iter_start = RHEA_NEWTON_DEFAULT_ITER_START;
   opt->iter_max = RHEA_NEWTON_DEFAULT_ITER_MAX;
@@ -282,6 +284,7 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->step_descend_condition_relaxation =
     RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION;
 
+  opt->status_verbosity = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
   opt->print_summary = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
 }
 
@@ -304,6 +307,15 @@ rhea_newton_problem_new (
     void *data)
 {
   rhea_newton_problem_t  *nl_problem = RHEA_ALLOC (rhea_newton_problem_t, 1);
+
+  /* check input */
+  RHEA_ASSERT (neg_gradient_vec != NULL);
+  RHEA_ASSERT (step_vec != NULL);
+  RHEA_ASSERT (evaluate_objective != NULL);
+  RHEA_ASSERT (compute_neg_gradient != NULL);
+  RHEA_ASSERT (solve_hessian_sys != NULL);
+  RHEA_ASSERT (update_operator != NULL);
+  RHEA_ASSERT (update_hessian != NULL);
 
   nl_problem->neg_gradient_vec = neg_gradient_vec;
   nl_problem->step_vec = step_vec;
@@ -356,10 +368,8 @@ rhea_newton_problem_get_data (rhea_newton_problem_t *nl_problem)
  */
 static void
 rhea_newton_step_init (rhea_newton_step_t *step,
-                       ymir_vec_t *rhs_vec,
                        ymir_vec_t *step_vec)
 {
-  step->rhs_vec = rhs_vec;
   step->vec = step_vec;
   step->length = -1.0;
 
@@ -527,14 +537,17 @@ rhea_newton_status_copy_curr_to_prev (rhea_newton_status_t *status)
  */
 static void
 rhea_newton_status_compute_curr (rhea_newton_status_t *status,
+                                 int *neg_gradient_updated,
                                  ymir_vec_t *solution,
-                                 ymir_vec_t *neg_gradient,
                                  rhea_newton_problem_t *nl_problem,
                                  const int compute_all)
 {
   double              obj_val = NAN;
   double              grad_norm = NAN;
   double             *grad_norm_comp = NULL;
+  ymir_vec_t         *neg_gradient = nl_problem->neg_gradient_vec;
+
+  *neg_gradient_updated = 0;
 
   /* evaluate objective functional */
   if (RHEA_NEWTON_CONV_CRITERION_OBJECTIVE == status->conv_criterion ||
@@ -548,6 +561,15 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
       compute_all) {
     const int           n_components = status->grad_norm_multi_components;
 
+    RHEA_ASSERT (neg_gradient != NULL);
+    RHEA_ASSERT (nl_problem->compute_gradient_norm != NULL);
+
+    /* compute (negative) gradient */
+    nl_problem->compute_neg_gradient (neg_gradient, solution,
+                                      nl_problem->data);
+    *neg_gradient_updated = 1;
+
+    /* compute norm of gradient */
     if (0 < n_components) {
       grad_norm_comp = RHEA_ALLOC (double, n_components);
     }
@@ -716,24 +738,45 @@ rhea_newton_status_get_reduction_curr (rhea_newton_status_t *status)
  * Prints current Newton status.
  */
 static void
-rhea_newton_status_print_curr (rhea_newton_status_t *status, const int iter,
+rhea_newton_status_print_curr (rhea_newton_status_t *status,
+                               const int print_all,
+                               const int iter,
                                const char *name)
 {
   switch (status->conv_criterion) {
   case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
-    RHEA_GLOBAL_INFOF (
-        "%s: Newton iter %i -- Objective functional %.6e, reduction %.3e\n",
-        name, iter, status->obj_curr, status->obj_reduction);
+    if (!print_all) {
+      RHEA_GLOBAL_INFOF (
+          "Newton iter %i -- %s: Objective functional %.6e, reduction %.3e\n",
+          iter, name, status->obj_curr, status->obj_reduction);
+    }
+    else {
+      RHEA_GLOBAL_INFOF (
+          "Newton iter %i -- %s: Objective functional %.6e, reduction %.3e "
+          "(Gradient norm %.6e, reduction %.3e)\n",
+          iter, name, status->obj_curr, status->obj_reduction,
+          status->grad_norm_curr, status->grad_norm_reduction);
+    }
     break;
   case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-    RHEA_GLOBAL_INFOF (
-        "%s: Newton iter %i -- Gradient norm %.6e, reduction %.3e\n",
-        name, iter, status->grad_norm_curr, status->grad_norm_reduction);
+    if (!print_all) {
+      RHEA_GLOBAL_INFOF (
+          "Newton iter %i -- %s: Gradient norm %.6e, reduction %.3e\n",
+          iter, name, status->grad_norm_curr, status->grad_norm_reduction);
+    }
+    else {
+      RHEA_GLOBAL_INFOF (
+          "Newton iter %i -- %s: Gradient norm %.6e, reduction %.3e "
+          "(Objective functional %.6e, reduction %.3e)\n",
+          iter, name, status->grad_norm_curr, status->grad_norm_reduction,
+          status->obj_curr, status->obj_reduction);
+    }
     break;
   case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
+    RHEA_ASSERT (!print_all);
     RHEA_GLOBAL_INFOF (
-        "%s: Newton iter %i -- Residual norm %.6e, reduction %.3e\n",
-        name, iter, status->grad_norm_curr, status->grad_norm_reduction);
+        "Newton iter %i -- %s: Residual norm %.6e, reduction %.3e\n",
+        iter, name, status->grad_norm_curr, status->grad_norm_reduction);
     break;
   default: /* unknown criterion */
     RHEA_ABORT_NOT_REACHED ();
@@ -878,6 +921,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
 {
   const char         *this_fn_name = "rhea_newton_compute_step";
   const int           iter = step->iter;
+  ymir_vec_t         *rhs = nl_problem->neg_gradient_vec;
   const int           nonzero_initial_guess = 0;
   const int           lin_iter_max = opt->lin_iter_max;
   int                 lin_iter_count = -1;
@@ -893,7 +937,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
 
   /* run solver for the linearized system */
   nl_problem->solve_hessian_sys (
-      step->vec, step->rhs_vec, lin_iter_max, lin_res_norm_rtol,
+      step->vec, rhs, lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, nl_problem->data, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
 
@@ -904,12 +948,12 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
     double              lin_res_norm_curr;
 
     /* compute the inital l^2-norm of the residual of the linearized system */
-    lin_res_norm_init = ymir_vec_norm (step->rhs_vec);
+    lin_res_norm_init = ymir_vec_norm (rhs);
 
     /* compute the new l^2-norm of the residual of the linearized system */
-    lin_residual_vec = ymir_vec_template (step->rhs_vec);
+    lin_residual_vec = ymir_vec_template (rhs);
     nl_problem->apply_hessian (lin_residual_vec, step->vec, nl_problem->data);
-    ymir_vec_add (-1.0, step->rhs_vec, lin_residual_vec);
+    ymir_vec_add (-1.0, rhs, lin_residual_vec);
     lin_res_norm_curr = ymir_vec_norm (lin_residual_vec);
     ymir_vec_destroy (lin_residual_vec);
 
@@ -936,46 +980,50 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
 }
 
 static int
-rhea_newton_search_step_length_check_descend (rhea_newton_step_t *step,
-                                              rhea_newton_status_t *status,
-                                              rhea_newton_options_t *opt,
-                                              const int print_condition)
+rhea_newton_search_step_length_check_descend (
+                                          rhea_newton_status_t *status,
+                                          rhea_newton_options_t *opt,
+                                          const double lin_res_norm_reduction,
+                                          const int iter,
+                                          const int print_condition)
 {
   const char         *this_fn_name = "rhea_newton_search_step_length";
-  const int           iter = step->iter;
-  const double        lin_reduction = step->lin_res_norm_reduction;
   const double        relax = opt->step_descend_condition_relaxation;
-  const double        reduction =
-                        rhea_newton_status_get_reduction_curr (status);
-  double              descend_reduction;
+  double              reduction, descend_reduction;
 
   /* check input */
-  RHEA_ASSERT (0.0 < step->lin_res_norm_reduction);
-  RHEA_ASSERT (step->lin_res_norm_reduction <= 1.0);
+  RHEA_ASSERT (0.0 < lin_res_norm_reduction);
+  RHEA_ASSERT (lin_res_norm_reduction <= 1.0);
   RHEA_ASSERT (0.0 < rhea_newton_status_get_reduction_curr (status));
 
-  descend_reduction = 1.0 - relax * (1.0 - lin_reduction);
+  /* compute actual and required reduction */
+  reduction = rhea_newton_status_get_reduction_curr (status);
+  descend_reduction = 1.0 - relax * (1.0 - lin_res_norm_reduction);
 
+  /* print */
   if (print_condition) {
     RHEA_GLOBAL_INFOF (
         "Newton iter %i -- %s: Descend condition: reduction <= %.3e\n",
         iter, this_fn_name, descend_reduction);
   }
 
+  /* check for descend */
   return (reduction <= descend_reduction);
 }
 
 /**
  * Performs line search for the step length (updates the Jacobian).
  */
-static void
+static int
 rhea_newton_search_step_length (ymir_vec_t *solution,
                                 rhea_newton_step_t *step,
                                 rhea_newton_status_t *status,
+                                int *neg_gradient_updated,
                                 rhea_newton_problem_t *nl_problem,
                                 rhea_newton_options_t *opt)
 {
   const char         *this_fn_name = "rhea_newton_search_step_length";
+  const int           print_all_stats = (1 <= opt->status_verbosity);
   const int           iter = step->iter;
   ymir_vec_t         *solution_prev = ymir_vec_template (solution);
   const int           search_iter_max = opt->step_search_iter_max;
@@ -1004,19 +1052,16 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
     /* update the nonlinear operator at new solution */
     nl_problem->update_operator (solution, nl_problem->data);
 
-    /* compute new Newton right-hand side */
-    nl_problem->compute_neg_gradient (step->rhs_vec, solution,
-                                      nl_problem->data);
-
     /* update status */
-    rhea_newton_status_compute_curr (status, solution, step->rhs_vec,
-                                     nl_problem, 0);
+    rhea_newton_status_compute_curr (status, neg_gradient_updated,
+                                     solution, nl_problem, print_all_stats);
 
     /* check descend condition */
     search_success = rhea_newton_search_step_length_check_descend (
-        step, status, opt, (0 == search_id) /* print only once */);
+        status, opt, step->lin_res_norm_reduction, iter,
+        (0 == search_id) /* print only once */);
 
-    RHEA_GLOBAL_INFOF ("Newton iter %i -- %s: #%02i, step length %.3e, "
+    RHEA_GLOBAL_INFOF ("Newton iter %i -- %s: #%2i, step length %.3e, "
                        "convergence criterion %i, "
                        "current %.3e, previous %.3e\n",
                        iter, this_fn_name, search_id, step->length,
@@ -1025,33 +1070,34 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
                        rhea_newton_status_get_conv_value_prev (status));
 
     /* continue or terminate loop */
-    if (search_success) {
-      /* stop search successfully if descend condition is satisfied */
+    if (search_success) { /* terminate if descend condition is satisfied */
       break;
     }
-    else {
+    else { /* otherwise continue searching */
       /* reduce step length */
       step->length *= step_reduction;
 
-      /* stop search if step length is too low */
+      /* stop search if step length became too low */
       if (step->length < step_length_min) {
         step->length = 0.0;
         break;
       }
+
+      /* put back previous solution to continue loop */
+      if (search_id < search_iter_max) {
+        ymir_vec_copy (solution_prev, solution);
+      }
     }
-  }
+  } /* END: step length search */
 
   /* post-processing depending on whether a step length was found */
-  if (search_success) {
+  if (search_success) { /* if search was successful */
     RHEA_GLOBAL_INFOF (
         "Newton iter %i -- %s: Line search successful, step length %.3e\n",
         iter, this_fn_name, step->length);
-
-    /* update the linearized operator */
-    nl_problem->update_hessian (solution, nl_problem->data);
   }
-  else {
-    /* check and print why search did not succeed */
+  else { /* if search failed */
+    /* check and print reason */
     if (0.0 < step->length) {
       step->length = -1.0;
       RHEA_GLOBAL_INFOF (
@@ -1065,14 +1111,20 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
           "min step length reached\n", iter, this_fn_name);
     }
 
-    /* reverse updates of nonlinear operator */
-    nl_problem->update_operator (solution_prev, nl_problem->data);
+    /* reverse updates of solution and nonlinear operator */
+    if (opt->abort_failed_step_search) {
+      ymir_vec_copy (solution_prev, solution);
+      nl_problem->update_operator (solution, nl_problem->data);
+    }
   }
 
   /* destroy */
   ymir_vec_destroy (solution_prev);
 
   RHEA_GLOBAL_INFOF ("Newton iter %i -- Done %s\n", iter, this_fn_name);
+
+  /* return success of step length search */
+  return search_success;
 }
 
 void
@@ -1081,11 +1133,14 @@ rhea_newton_solve (ymir_vec_t *solution,
                    rhea_newton_options_t *opt)
 {
   const char         *this_fn_name = "rhea_newton_solve";
+  const int           print_all_stats = (1 <= opt->status_verbosity);
   const int           print_summary = opt->print_summary;
   const int           iter_start = opt->iter_start;
   const int           iter_max = opt->iter_max;
   int                 iter;
   const double        rtol = opt->rtol;
+  int                 neg_gradient_updated;
+  int                 step_search_success;
   rhea_newton_step_t  step;
   rhea_newton_status_t  status;
 
@@ -1105,25 +1160,21 @@ rhea_newton_solve (ymir_vec_t *solution,
    */
   {
     /* create step */
-    rhea_newton_step_init (&step, nl_problem->neg_gradient_vec,
-                           nl_problem->step_vec);
-
-    /* compute initial right-hand side */
-    if (opt->nonzero_initial_guess) {
-      nl_problem->compute_neg_gradient (step.rhs_vec, solution,
-                                        nl_problem->data);
-    }
-    else {
-      nl_problem->compute_neg_gradient (step.rhs_vec, NULL, nl_problem->data);
-    }
+    rhea_newton_step_init (&step, nl_problem->step_vec);
 
     /* create status */
     rhea_newton_status_init (&status, nl_problem->grad_norm_multi_components);
 
-    /* compute initial status */
-    rhea_newton_status_compute_curr (&status, solution, step.rhs_vec,
-                                     nl_problem,
-                                     0 /* don't compute all stats TODO ok? */);
+    /* initialize solution vector and status */
+    if (opt->nonzero_initial_guess) { /* if nonzero initial guess */
+      rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
+                                       solution, nl_problem, print_all_stats);
+    }
+    else { /* if zero initial guess */
+      ymir_vec_set_zero (solution);
+      rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
+                                       NULL, nl_problem, print_all_stats);
+    }
     rhea_newton_status_copy_curr_to_init (&status);
   }
 
@@ -1137,7 +1188,8 @@ rhea_newton_solve (ymir_vec_t *solution,
      * Pre-Step Output
      */
     {
-      rhea_newton_status_print_curr (&status, iter, this_fn_name);
+      rhea_newton_status_print_curr (&status, print_all_stats, iter,
+                                     this_fn_name);
 
       //TODO add more output
     }
@@ -1164,6 +1216,12 @@ rhea_newton_solve (ymir_vec_t *solution,
           /* out: */ &step,
           /* in:  */ &status, opt);
 
+      /* compute right-hand side for the step solve */
+      if (!neg_gradient_updated) { /* if (neg.) gradient was not updated */
+        nl_problem->compute_neg_gradient (nl_problem->neg_gradient_vec,
+                                          solution, nl_problem->data);
+      }
+
       /* solve the linearized system to get an inexact Newton step */
       rhea_newton_compute_step (
           /* out: */ &step,
@@ -1171,8 +1229,8 @@ rhea_newton_solve (ymir_vec_t *solution,
 
       /* perform line search to get the step length (updates the solution and
        * the nonlinear operator) */
-      rhea_newton_search_step_length (
-          /* out: */ solution, &step, &status,
+      step_search_success = rhea_newton_search_step_length (
+          /* out: */ solution, &step, &status, &neg_gradient_updated,
           /* in:  */ nl_problem, opt);
     }
 
@@ -1181,16 +1239,16 @@ rhea_newton_solve (ymir_vec_t *solution,
      */
     {
       RHEA_GLOBAL_INFOF (
-          "%s: Newton iter %i -- Step length %g\n",
-          this_fn_name, iter, step.length);
-
-      RHEA_GLOBAL_INFOF (
-          "%s: Newton iter %i -- Linear solver: num iter %i, "
+          "Newton iter %i -- %s: Linear solver: num iter %i, "
           "residual reduction %.3e, prescribed rtol %.3e, "
           "convergence %.3e (= rtol^(1/#iter))\n",
-          this_fn_name, iter, step.lin_iter_count,
+          iter, this_fn_name, step.lin_iter_count,
           step.lin_res_norm_reduction, step.lin_res_norm_rtol,
           step.lin_convergence);
+
+      RHEA_GLOBAL_INFOF (
+          "Newton iter %i -- %s: Step length %g\n",
+          iter, this_fn_name, step.length);
 
       //TODO move summary to the end
       if (print_summary) {
@@ -1200,6 +1258,15 @@ rhea_newton_solve (ymir_vec_t *solution,
             step.lin_iter_count, step.lin_res_norm_reduction,
             step.lin_res_norm_rtol, step.lin_convergence);
       }
+    }
+
+    /*
+     * Abort Check
+     */
+    if (!step_search_success && opt->abort_failed_step_search) {
+      RHEA_GLOBAL_PRODUCTIONF ("%s: Abort due to failed step length search\n",
+                               this_fn_name);
+      break;
     }
 
     /*
@@ -1214,7 +1281,8 @@ rhea_newton_solve (ymir_vec_t *solution,
 
   /* check if max #iterations was reached without convergence */
   if (iter_max == iter && rtol <= rhea_newton_status_get_reduction (&status)) {
-    rhea_newton_status_print_curr (&status, iter, this_fn_name);
+    rhea_newton_status_print_curr (&status, print_all_stats, iter,
+                                   this_fn_name);
     RHEA_GLOBAL_PRODUCTIONF (
         "%s: Maximum number of nonlinear iterations reached (%i)\n",
         this_fn_name, iter_max);
