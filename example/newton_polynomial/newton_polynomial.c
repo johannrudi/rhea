@@ -220,10 +220,10 @@ newton_polynomial_compute_misfit (ymir_vec_t *misfit_x,
   RHEA_ASSERT (!data_b->coff || sc_dmatrix_is_valid (data_b->coff));
 
   /* evaluate polynomial */
-  newton_polynomial_evaluate (misfit_y, sol_x, coeff, 0 /* !deriv */);
-
-  /* compute misfit */
   ymir_vec_copy (sol_x, misfit_x);
+  newton_polynomial_evaluate (misfit_y, misfit_x, coeff, 0 /* !deriv */);
+
+  /* subtract data */
   ymir_vec_add (-1.0, data_a, misfit_x);
   ymir_vec_add (-1.0, data_b, misfit_y);
 
@@ -297,6 +297,10 @@ newton_polynomial_compute_distance (ymir_vec_t *dist, ymir_vec_t *x_vec,
   ymir_vec_destroy (misfit_y);
 }
 
+/******************************************************************************
+ * Callback Functions for Newton Solver
+ *****************************************************************************/
+
 /**
  * Evaluates the objective functional.
  * (Callback function for Newton's method.)
@@ -335,8 +339,8 @@ newton_polynomial_compute_negative_gradient (ymir_vec_t *neg_gradient,
 {
   newton_polynomial_problem_t  *poly_problem = data;
   const double       *coeff = poly_problem->coeff;
-  ymir_vec_t         *misfit_x = ymir_vec_template (poly_problem->sol_x);
-  ymir_vec_t         *misfit_y = ymir_vec_template (poly_problem->sol_x);
+  ymir_vec_t         *misfit_x = ymir_vec_template (poly_problem->data_a);
+  ymir_vec_t         *misfit_y = ymir_vec_template (poly_problem->data_b);
   ymir_vec_t         *sol;
 
   /* check for NULL input (mandatory) */
@@ -348,11 +352,11 @@ newton_polynomial_compute_negative_gradient (ymir_vec_t *neg_gradient,
     sol = solution;
   }
 
-  /* evaluate derivative of polynomial */
-  newton_polynomial_evaluate (neg_gradient, sol, coeff, 1 /* deriv */);
-
   /* compute misfit */
   newton_polynomial_compute_misfit (misfit_x, misfit_y, sol, poly_problem);
+
+  /* evaluate derivative of polynomial */
+  newton_polynomial_evaluate (neg_gradient, sol, coeff, 1 /* deriv */);
 
   /* compute negative gradient */
   ymir_vec_multiply_in (misfit_y, neg_gradient);
@@ -601,223 +605,9 @@ newton_polynomial_update_hessian (ymir_vec_t *solution, void *data)
   }
 }
 
-#if 0
-/* TODO outdated
- * J(x) := 1/2 * || [x ; f(x)] - [a ; b] ||^2
- *
- * A(x) := [x ; f(x)]
- *
- * d/dx A(x) * y = [diag(1) ; diag(f'(x))] * y
- */
-
-typedef struct newton_polynomial_problem
-{
-  double              coeff[3];
-  ymir_vec_t         *x_vec;
-  ymir_vec_t         *xy_rhs_vec;
-}
-newton_polynomial_problem_t;
-
-static void
-newton_polynomial_apply_op (ymir_vec_t *out, ymir_vec_t *in,
-                            newton_polynomial_problem_t *poly_problem)
-{
-  const double       *coeff = poly_problem->coeff;
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (in);
-  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  sc_dmatrix_t       *in_el_mat, *out_el_mat;
-  double             *in_el_data, *out_el_data;
-  ymir_locidx_t       elid;
-  int                 nodeid;
-
-  /* check input */
-//TODO
-//RHEA_ASSERT (visc_vec != NULL);
-
-  /* create work variables */
-  in_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  out_el_mat = sc_dmatrix_new (n_nodes_per_el, 2);
-
-  in_el_data = NULL;
-  out_el_data = out_el_mat->e[0];
-
-  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
-    /* get input */
-    ymir_dvec_get_elem (in, in_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
-    in_el_data = in_el_mat->e[0];
-
-    /* apply operator at each node */
-    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
-      const double        in_val = in_el_data[nodeid];
-      double              f_in, eval_p2d;
-
-      f_in = newton_polynomial_eval_p2 (in_val, coeff);
-
-      out_el_data[2*nodeid    ] = in_val;
-      out_el_data[2*nodeid + 1] = f_in;
-    }
-
-    /* set output */
-    ymir_dvec_set_elem (out, out_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
-  }
-
-  /* destroy */
-  sc_dmatrix_destroy (in_el_mat);
-  sc_dmatrix_destroy (out_el_mat);
-}
-
-static void
-newton_polynomial_apply_jac (ymir_vec_t *out, ymir_vec_t *in,
-                             newton_polynomial_problem_t *poly_problem,
-                             const int inverse)
-{
-  const double       *coeff = poly_problem->coeff;
-  ymir_vec_t         *x_vec = poly_problem->x_vec;
-  ymir_vec_t         *rhs_vec = poly_problem->xy_rhs_vec;
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (in);
-  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  sc_dmatrix_t       *in_el_mat, *out_el_mat;
-  double             *in_el_data, *out_el_data;
-  sc_dmatrix_t       *x_el_mat, *rhs_el_mat;
-  double             *x_el_data, *rhs_el_data;
-  ymir_locidx_t       elid;
-  int                 nodeid;
-
-  /* check input */
-//TODO
-//RHEA_ASSERT (visc_vec != NULL);
-
-  /* create work variables */
-  in_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  out_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  x_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  rhs_el_mat = sc_dmatrix_new (n_nodes_per_el, 2);
-
-  in_el_data = NULL;
-  out_el_data = out_el_mat->e[0];
-  x_el_data = NULL;
-  rhs_el_data = NULL;
-
-  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
-    /* get input */
-    ymir_dvec_get_elem (in, in_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
-    in_el_data = in_el_mat->e[0];
-
-    /* get current solution and right-hand side */
-    ymir_dvec_get_elem (x_vec, x_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
-    x_el_data = x_el_mat->e[0];
-    ymir_dvec_get_elem (rhs_vec, rhs_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
-    rhs_el_data = rhs_el_mat->e[0];
-
-    /* apply operator/Jacobian at each node */
-    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
-      const double        in_val = in_el_data[nodeid];
-      const double        x_val = x_el_data[nodeid];
-      double              f_in, df_x, jac_val;
-
-      f_in = newton_polynomial_eval_p2 (in_val, coeff);
-      df_x = newton_polynomial_eval_p2d (x_val, coeff);
-
-      jac_val = (rhs_el_data[2*nodeid    ] - x_val) +
-                (rhs_el_data[2*nodeid + 1] - f_in) * df_x;
-
-      switch (inverse) {
-      case 0:
-        out_el_data[nodeid] = in_val * jac_val;
-        break;
-      case 1:
-        out_el_data[nodeid] = in_val / jac_val;
-        break;
-      default:
-        RHEA_ABORT_NOT_REACHED ();
-    }
-
-    /* set output */
-    ymir_dvec_set_elem (out, out_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
-  }
-
-  /* destroy */
-  sc_dmatrix_destroy (in_el_mat);
-  sc_dmatrix_destroy (out_el_mat);
-  sc_dmatrix_destroy (x_el_mat);
-  sc_dmatrix_destroy (rhs_el_mat);
-}
-
-void
-newton_polynomial_apply_operator (ymir_vec_t *out, ymir_vec_t *in, void *data)
-{
-  newton_polynomial_problem_t  *poly_problem = data;
-
-  newton_polynomial_apply_op (out, in, poly_problem);
-}
-
-void
-newton_polynomial_apply_jacobian (ymir_vec_t *out, ymir_vec_t *in, void *data)
-{
-  newton_polynomial_problem_t  *poly_problem = data;
-  const int           inverse = 0;
-
-  newton_polynomial_apply_jac (out, in, poly_problem, inverse);
-}
-
-void
-newton_polynomial_update_operator (ymir_vec_t *solution, void *data)
-{
-  return;
-}
-
-void
-newton_polynomial_update_jacobian (ymir_vec_t *solution, void *data)
-{
-  newton_polynomial_problem_t  *poly_problem = data;
-  ymir_vec_t         *x_vec = poly_problem->x_vec;
-
-  ymir_vec_copy (solution, x_vec);
-}
-
-void
-newton_polynomial_compute_residual (ymir_vec_t *residual, ymir_vec_t *solution,
-                                    void *data)
-{
-  newton_polynomial_problem_t  *poly_problem = data;
-  ymir_vec_t         *xy_rhs_vec = poly_problem->xy_rhs_vec;
-
-  newton_polynomial_apply_op (residual, solution, poly_problem);
-  ymir_vec_add (-1.0, xy_rhs_vec, residual);
-}
-
-double
-newton_polynomial_compute_residual_norm (ymir_vec_t *residual, void *data,
-                                         double *res_norm_comp)
-{
-  return ymir_vec_norm (residual);
-}
-
-int
-newton_polynomial_solve_linearized (ymir_vec_t *step,
-                                    ymir_vec_t *residual,
-                                    const int lin_iter_max,
-                                    const double lin_res_norm_rtol,
-                                    const int nonzero_initial_guess,
-                                    void *data,
-                                    int *lin_iter_count)
-{
-  newton_polynomial_problem_t  *poly_problem = data;
-  const int           inverse = 1;
-
-  newton_polynomial_apply_jac (step, residual, poly_problem, inverse);
-
-  /* return iteraton count and "stopping" reason */
-  if (lin_iter_count != NULL) {
-    *lin_iter_count = 1;
-  }
-  return 1;
-}
-#endif
+/******************************************************************************
+ * Main Program
+ *****************************************************************************/
 
 /**
  * Sets up the mesh.
@@ -865,7 +655,6 @@ newton_polynomial_set_y_coord_fn (double *out, double x, double y, double z,
   *out = y;
 }
 
-
 /**
  * Sets up a Newton problem.
  */
@@ -894,7 +683,7 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
   {
     const double        start_node = 0.0;
     const double        start_val = 1.0;
-    const double        start_deriv = 0.2;
+    const double        start_deriv = 0.1;
     const double        end_node = 1.0;
     const double        end_val = 0.0;
     double             *coeff;
@@ -906,7 +695,7 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
     poly_problem->coeff[1] = coeff[1];
     poly_problem->coeff[2] = coeff[2];
 
-    RHEA_GLOBAL_INFOF ("%s: coefficient of polynomial (%.8e, %.8e, %.8e)\n",
+    RHEA_GLOBAL_INFOF ("%s: coefficient of polynomial (%g, %g, %g)\n",
                        this_fn_name, coeff[0], coeff[1], coeff[2]);
 
     RHEA_FREE (coeff);
@@ -1099,47 +888,51 @@ main (int argc, char **argv)
   /*
    * Solve Newton Problem
    */
-  {
+
+  /* create solution vector */
+  solution = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
+
+  /* set initial guess */
+  ymir_vec_set_value (solution, 0.5);
+
+  /* setup Hessian */
+  newton_polynomial_update_hessian (
+      solution, rhea_newton_problem_get_data (nl_problem));
+
+  /* run Newton solver */
+  newton_options.nonzero_initial_guess = 1;
+  newton_options.status_verbosity = 1;
+  rhea_newton_solve (solution, nl_problem, &newton_options);
+
+  /*
+   * Output of Solution
+   */
+
+  if (vtk_write_solution_path != NULL) {
     newton_polynomial_problem_t *poly_problem =
       (newton_polynomial_problem_t *) rhea_newton_problem_get_data (nl_problem);
+    ymir_vec_t         *dist = ymir_vec_template (solution);
 
-    /* create solution vector and set x-coordinates as initial guess */
-    solution = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
-    ymir_vec_copy (poly_problem->data_a, solution);
+    /* compute distance to polynomial */
+    newton_polynomial_compute_distance (dist, solution, poly_problem);
 
-    /* setup Hessian */
-    newton_polynomial_update_hessian (
-        solution, rhea_newton_problem_get_data (nl_problem));
-
-    /* run Newton solver */
-    newton_options.nonzero_initial_guess = 1;
-    rhea_newton_solve (solution, nl_problem, &newton_options);
-
-    /* write vtk of solution */
-    if (vtk_write_solution_path != NULL) {
-      ymir_vec_t         *dist = ymir_vec_template (solution);
-
-      /* compute distance to polynomial */
-      newton_polynomial_compute_distance (dist, solution, poly_problem);
-
-      /* write vtk file */
-      ymir_vtk_write (ymir_mesh, vtk_write_solution_path,
-                      poly_problem->data_a, "data_a",
-                      poly_problem->data_b, "data_b",
-                      solution, "solution",
-                      dist, "distance", NULL);
-
-      /* destroy */
-      ymir_vec_destroy (dist);
-    }
+    /* write vtk file */
+    ymir_vtk_write (ymir_mesh, vtk_write_solution_path,
+                    poly_problem->data_a, "data_a",
+                    poly_problem->data_b, "data_b",
+                    solution, "solution",
+                    dist, "distance", NULL);
 
     /* destroy */
-    ymir_vec_destroy (solution);
+    ymir_vec_destroy (dist);
   }
 
   /*
    * Finalize
    */
+
+  /* destroy */
+  ymir_vec_destroy (solution);
 
   /* destroy Newton problem and mesh */
   newton_polynomial_setup_clear_all (nl_problem, p4est, ymir_mesh,
