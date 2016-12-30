@@ -11,7 +11,7 @@
  *
  * GIVEN DATA: 2-dimensional Cartesian coordinates
  *
- *   d := [a , b],  d \in \R^2
+ *   d := [a , b]^T,  d \in \R^2
  *
  * WANT: Find a minimizer `x` for the objective functional:
  *
@@ -19,7 +19,7 @@
  *
  * where
  *
- *   F(x) := [x , f(x)],  F(x) \in \R^2
+ *   F(x) := [x , f(x)]^T,  F(x) \in \R^2
  *
  ******************************************************************************
  *
@@ -116,14 +116,15 @@ newton_polynomial_evaluate (ymir_vec_t *f_vec, ymir_vec_t *x_vec,
   const double       *x_owned_data = x_owned_mat->e[0];
   const sc_dmatrix_t *x_shared_mat = (has_shared ? x_vec->coff : NULL);
   const double       *x_shared_data = (has_shared ? x_shared_mat->e[0] : NULL);
-  const sc_bint_t     size_owned = x_owned_mat->m * x_owned_mat->n;
-  const sc_bint_t     size_shared = (has_shared ?
-                                     x_shared_mat->m * x_shared_mat->n : 0);
 
   sc_dmatrix_t       *f_owned_mat = f_vec->dataown;
   double             *f_owned_data = f_owned_mat->e[0];
   sc_dmatrix_t       *f_shared_mat = (has_shared ? f_vec->coff : NULL);
   double             *f_shared_data = (has_shared ? f_shared_mat->e[0] : NULL);
+
+  const sc_bint_t     size_owned = x_owned_mat->m * x_owned_mat->n;
+  const sc_bint_t     size_shared = (has_shared ?
+                                     x_shared_mat->m * x_shared_mat->n : 0);
   sc_bint_t           i;
 
   /* check input */
@@ -193,6 +194,9 @@ typedef struct newton_polynomial_problem
   ymir_vec_t         *data_a;
   ymir_vec_t         *data_b;
   ymir_vec_t         *sol_x;
+
+  int                 activate_gradient_check;
+  int                 activate_hessian_check;
 }
 newton_polynomial_problem_t;
 
@@ -228,6 +232,69 @@ newton_polynomial_compute_misfit (ymir_vec_t *misfit_x,
   RHEA_ASSERT (!misfit_x->coff || sc_dmatrix_is_valid (misfit_x->coff));
   RHEA_ASSERT (sc_dmatrix_is_valid (misfit_y->dataown));
   RHEA_ASSERT (!misfit_y->coff || sc_dmatrix_is_valid (misfit_x->coff));
+}
+
+/**
+ * Computes the distance between the data and the polynomial surface.
+ */
+static void
+newton_polynomial_compute_distance (ymir_vec_t *dist, ymir_vec_t *x_vec,
+                                    newton_polynomial_problem_t *poly_problem)
+{
+  const int           has_shared = (x_vec->coff != NULL ? 1 : 0);
+  ymir_vec_t         *misfit_x = ymir_vec_template (x_vec);
+  ymir_vec_t         *misfit_y = ymir_vec_template (x_vec);
+
+  const sc_dmatrix_t *misfit_x_owned_mat = misfit_x->dataown;
+  const double       *misfit_x_owned_data = misfit_x_owned_mat->e[0];
+  const sc_dmatrix_t *misfit_x_shared_mat =
+                        (has_shared ? misfit_x->coff : NULL);
+  const double       *misfit_x_shared_data =
+                        (has_shared ? misfit_x_shared_mat->e[0] : NULL);
+
+  const sc_dmatrix_t *misfit_y_owned_mat = misfit_y->dataown;
+  const double       *misfit_y_owned_data = misfit_y_owned_mat->e[0];
+  const sc_dmatrix_t *misfit_y_shared_mat =
+                        (has_shared ? misfit_y->coff : NULL);
+  const double       *misfit_y_shared_data =
+                        (has_shared ? misfit_y_shared_mat->e[0] : NULL);
+
+  sc_dmatrix_t       *dist_owned_mat = dist->dataown;
+  double             *dist_owned_data = dist_owned_mat->e[0];
+  sc_dmatrix_t       *dist_shared_mat = (has_shared ? dist->coff : NULL);
+  double             *dist_shared_data =
+                        (has_shared ? dist_shared_mat->e[0] : NULL);
+
+  const sc_bint_t     size_owned = dist_owned_mat->m * dist_owned_mat->n;
+  const sc_bint_t     size_shared = (has_shared ?
+                                     dist_shared_mat->m * dist_shared_mat->n :
+                                     0);
+  sc_bint_t           i;
+
+  /* compute misfit */
+  newton_polynomial_compute_misfit (misfit_x, misfit_y, x_vec, poly_problem);
+
+  /* compute distance for owned nodes */
+  for (i = 0; i < size_owned; i++) {
+    const double        dx = misfit_x_owned_data[i];
+    const double        dy = misfit_y_owned_data[i];
+
+    dist_owned_data[i] = sqrt (dx*dx + dy*dy);
+  }
+
+  /* compute distance for shared nodes */
+  if (has_shared) {
+    for (i = 0; i < size_shared; i++) {
+      const double        dx = misfit_x_shared_data[i];
+      const double        dy = misfit_y_shared_data[i];
+
+      dist_shared_data[i] = sqrt (dx*dx + dy*dy);
+    }
+  }
+
+  /* destroy */
+  ymir_vec_destroy (misfit_x);
+  ymir_vec_destroy (misfit_y);
 }
 
 /**
@@ -268,14 +335,24 @@ newton_polynomial_compute_negative_gradient (ymir_vec_t *neg_gradient,
 {
   newton_polynomial_problem_t  *poly_problem = data;
   const double       *coeff = poly_problem->coeff;
-  ymir_vec_t         *misfit_x = ymir_vec_template (solution);
-  ymir_vec_t         *misfit_y = ymir_vec_template (solution);
+  ymir_vec_t         *misfit_x = ymir_vec_template (poly_problem->sol_x);
+  ymir_vec_t         *misfit_y = ymir_vec_template (poly_problem->sol_x);
+  ymir_vec_t         *sol;
+
+  /* check for NULL input (mandatory) */
+  if (solution == NULL) {
+    sol = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_set_zero (sol);
+  }
+  else {
+    sol = solution;
+  }
 
   /* evaluate derivative of polynomial */
-  newton_polynomial_evaluate (neg_gradient, solution, coeff, 1 /* deriv */);
+  newton_polynomial_evaluate (neg_gradient, sol, coeff, 1 /* deriv */);
 
   /* compute misfit */
-  newton_polynomial_compute_misfit (misfit_x, misfit_y, solution, poly_problem);
+  newton_polynomial_compute_misfit (misfit_x, misfit_y, sol, poly_problem);
 
   /* compute negative gradient */
   ymir_vec_multiply_in (misfit_y, neg_gradient);
@@ -285,10 +362,67 @@ newton_polynomial_compute_negative_gradient (ymir_vec_t *neg_gradient,
   /* destroy */
   ymir_vec_destroy (misfit_x);
   ymir_vec_destroy (misfit_y);
+  if (solution == NULL) {
+    ymir_vec_destroy (sol);
+  }
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (neg_gradient->dataown));
   RHEA_ASSERT (!neg_gradient->coff || sc_dmatrix_is_valid (neg_gradient->coff));
+
+  /* check gradient */
+  if (poly_problem->activate_gradient_check) {
+    const char         *this_fn_name =
+                          "newton_polynomial_compute_negative_gradient";
+    ymir_vec_t         *x_vec = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_t         *dir_vec = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_t         *perturb_vec = ymir_vec_template (poly_problem->sol_x);
+    double              deriv_ref, deriv_chk;
+    double              obj_val, perturb_obj_val;
+    double              abs_error, rel_error;
+    int                 n;
+
+    /* set position and direction vectors */
+    if (solution == NULL) {
+      ymir_vec_set_zero (x_vec);
+    }
+    else {
+      ymir_vec_copy (solution, x_vec);
+    }
+#ifdef YMIR_WITH_PETSC
+    ymir_petsc_vec_set_random (dir_vec, YMIR_MESH_PETSCLAYOUT_NONE);
+#else
+    RHEA_ABORT_NOT_REACHED ();
+#endif
+
+    /* compute reference derivative */
+    deriv_ref = ymir_vec_innerprod (neg_gradient, dir_vec);
+    deriv_ref *= -1.0;
+
+    /* compare with finite difference derivative */
+    obj_val = newton_polynomial_evaluate_objective (x_vec, data);
+    for (n = 2; n <= 6; n++) {
+      const double        eps = pow (10.0, (double) -n);
+
+      ymir_vec_copy (x_vec, perturb_vec);
+      ymir_vec_add (eps, dir_vec, perturb_vec);
+      perturb_obj_val = newton_polynomial_evaluate_objective (perturb_vec,
+                                                              data);
+      deriv_chk = (perturb_obj_val - obj_val) / eps;
+
+      abs_error = fabs (deriv_ref - deriv_chk);
+      rel_error = abs_error / fabs (deriv_ref);
+
+      RHEA_GLOBAL_INFOF (
+          "%s: Gradient check: eps %.1e, error abs %.1e, rel %.1e "
+          "(deriv reference %.12e, check %.12e)\n",
+          this_fn_name, eps, abs_error, rel_error, deriv_ref, deriv_chk);
+    }
+
+    ymir_vec_destroy (x_vec);
+    ymir_vec_destroy (dir_vec);
+    ymir_vec_destroy (perturb_vec);
+  }
 }
 
 /**
@@ -406,6 +540,65 @@ newton_polynomial_update_hessian (ymir_vec_t *solution, void *data)
   newton_polynomial_problem_t  *poly_problem = data;
 
   ymir_vec_copy (solution, poly_problem->sol_x);
+
+  /* check Hessian */
+  if (poly_problem->activate_hessian_check) {
+    const char         *this_fn_name = "newton_polynomial_update_hessian";
+    const int           activate_gradent_check =
+                          poly_problem->activate_gradient_check;
+    ymir_vec_t         *x_vec = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_t         *dir_vec = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_t         *perturb_vec = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_t         *H_dir_ref = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_t         *H_dir_chk = ymir_vec_template (poly_problem->sol_x);
+    ymir_vec_t         *grad_x = ymir_vec_template (poly_problem->sol_x);
+    double              abs_error, rel_error;
+    int                 n;
+
+    /* set position and direction vectors */
+    ymir_vec_copy (poly_problem->sol_x, x_vec);
+#ifdef YMIR_WITH_PETSC
+    ymir_petsc_vec_set_random (dir_vec, YMIR_MESH_PETSCLAYOUT_NONE);
+#else
+    RHEA_ABORT_NOT_REACHED ();
+#endif
+
+    /* compute reference Hessian-vector apply */
+    newton_polynomial_apply_hessian (H_dir_ref, dir_vec, data);
+
+    /* compare with finite difference Hessian */
+    poly_problem->activate_gradient_check = 0;
+    newton_polynomial_compute_negative_gradient (grad_x, x_vec, data);
+    ymir_vec_scale (-1.0, grad_x);
+    for (n = 2; n <= 6; n++) {
+      const double        eps = pow (10.0, (double) -n);
+
+      ymir_vec_copy (x_vec, perturb_vec);
+      ymir_vec_add (eps, dir_vec, perturb_vec);
+      newton_polynomial_compute_negative_gradient (H_dir_chk, perturb_vec,
+                                                   data);
+      ymir_vec_scale (-1.0, H_dir_chk);
+      ymir_vec_add (-1.0, grad_x, H_dir_chk);
+      ymir_vec_scale (1.0/eps, H_dir_chk);
+
+      ymir_vec_add (-1.0, H_dir_ref, H_dir_chk);
+      abs_error = ymir_vec_norm (H_dir_chk);
+      rel_error = abs_error / ymir_vec_norm (H_dir_ref);
+
+      RHEA_GLOBAL_INFOF (
+          "%s: Hessian check: eps %.1e, error abs %.1e, rel %.1e\n",
+          this_fn_name, eps, abs_error, rel_error);
+    }
+    poly_problem->activate_gradient_check = activate_gradent_check;
+
+    /* destroy */
+    ymir_vec_destroy (x_vec);
+    ymir_vec_destroy (dir_vec);
+    ymir_vec_destroy (perturb_vec);
+    ymir_vec_destroy (H_dir_ref);
+    ymir_vec_destroy (H_dir_chk);
+    ymir_vec_destroy (grad_x);
+  }
 }
 
 #if 0
@@ -689,6 +882,13 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
   /* initialize data for Newton problem */
   poly_problem = RHEA_ALLOC (newton_polynomial_problem_t, 1);
   poly_problem->sol_x = ymir_vec_template (tmp_vec);
+#ifdef RHEA_ENABLE_DEBUG
+  poly_problem->activate_gradient_check = 1;
+  poly_problem->activate_hessian_check = 1;
+#else
+  poly_problem->activate_gradient_check = 0;
+  poly_problem->activate_hessian_check = 0;
+#endif
 
   /* set coefficient of polynomial function */
   {
@@ -705,6 +905,9 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
     poly_problem->coeff[0] = coeff[0];
     poly_problem->coeff[1] = coeff[1];
     poly_problem->coeff[2] = coeff[2];
+
+    RHEA_GLOBAL_INFOF ("%s: coefficient of polynomial (%.8e, %.8e, %.8e)\n",
+                       this_fn_name, coeff[0], coeff[1], coeff[2]);
 
     RHEA_FREE (coeff);
   }
@@ -852,7 +1055,6 @@ main (int argc, char **argv)
 
   /* add sub-options */
   rhea_add_options_newton (opt);
-//ymir_options_add_suboptions_solver_stokes (opt); //TODO del
 
   /* parse options */
   {
@@ -897,27 +1099,43 @@ main (int argc, char **argv)
   /*
    * Solve Newton Problem
    */
-
-  solution = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
-  ymir_vec_set_zero (solution);
-//TODO move following to rhea_newton?
-  newton_polynomial_update_hessian (
-      solution, rhea_newton_problem_get_data (nl_problem));
-  rhea_newton_solve (solution, nl_problem, &newton_options);
-
-  /* write vtk of solution */
-  if (vtk_write_solution_path != NULL) {
+  {
     newton_polynomial_problem_t *poly_problem =
       (newton_polynomial_problem_t *) rhea_newton_problem_get_data (nl_problem);
 
-    ymir_vtk_write (ymir_mesh, vtk_write_solution_path,
-                    poly_problem->data_a, "data_a",
-                    poly_problem->data_b, "data_b",
-                    solution, "solution", NULL);
-  }
+    /* create solution vector and set x-coordinates as initial guess */
+    solution = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
+    ymir_vec_copy (poly_problem->data_a, solution);
 
-  /* destroy */
-  ymir_vec_destroy (solution);
+    /* setup Hessian */
+    newton_polynomial_update_hessian (
+        solution, rhea_newton_problem_get_data (nl_problem));
+
+    /* run Newton solver */
+    newton_options.nonzero_initial_guess = 1;
+    rhea_newton_solve (solution, nl_problem, &newton_options);
+
+    /* write vtk of solution */
+    if (vtk_write_solution_path != NULL) {
+      ymir_vec_t         *dist = ymir_vec_template (solution);
+
+      /* compute distance to polynomial */
+      newton_polynomial_compute_distance (dist, solution, poly_problem);
+
+      /* write vtk file */
+      ymir_vtk_write (ymir_mesh, vtk_write_solution_path,
+                      poly_problem->data_a, "data_a",
+                      poly_problem->data_b, "data_b",
+                      solution, "solution",
+                      dist, "distance", NULL);
+
+      /* destroy */
+      ymir_vec_destroy (dist);
+    }
+
+    /* destroy */
+    ymir_vec_destroy (solution);
+  }
 
   /*
    * Finalize
