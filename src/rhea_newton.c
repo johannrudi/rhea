@@ -1089,7 +1089,16 @@ rhea_newton_solve (ymir_vec_t *solution,
   rhea_newton_step_t  step;
   rhea_newton_status_t  status;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  if (iter_start == 0) {
+    RHEA_GLOBAL_PRODUCTIONF (
+        "Into %s (max iter %i, rtol %.1e, nonzero guess %i)\n",
+        this_fn_name, iter_max, rtol, opt->nonzero_initial_guess);
+  }
+  else {
+    RHEA_GLOBAL_PRODUCTIONF (
+        "Into %s (iter start %i, iter max %i, rtol %.1e, nonzero guess %i)\n",
+        this_fn_name, iter_start, iter_max, rtol, opt->nonzero_initial_guess);
+  }
 
   /*
    * Initialize
@@ -1100,8 +1109,13 @@ rhea_newton_solve (ymir_vec_t *solution,
                            nl_problem->step_vec);
 
     /* compute initial right-hand side */
-    nl_problem->compute_neg_gradient (step.rhs_vec, solution, nl_problem->data);
-    //TODO allow passing NULL for solution if init guess is 0
+    if (opt->nonzero_initial_guess) {
+      nl_problem->compute_neg_gradient (step.rhs_vec, solution,
+                                        nl_problem->data);
+    }
+    else {
+      nl_problem->compute_neg_gradient (step.rhs_vec, NULL, nl_problem->data);
+    }
 
     /* create status */
     rhea_newton_status_init (&status, nl_problem->grad_norm_multi_components);
@@ -1212,8 +1226,6 @@ rhea_newton_solve (ymir_vec_t *solution,
   {
     /* destroy */
     rhea_newton_status_clear (&status);
-
-    //TODO is there more to destroy?
   }
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
