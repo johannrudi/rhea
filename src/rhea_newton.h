@@ -133,6 +133,14 @@ void               *rhea_newton_problem_get_data (
                                             rhea_newton_problem_t *nl_problem);
 
 /**
+ * Activates/deactivates gradient and Hessian checks.
+ */
+void                rhea_newton_problem_set_checks (
+                                            const int check_gradient,
+                                            const int check_hessian,
+                                            rhea_newton_problem_t *nl_problem);
+
+/**
  * Solves a nonlinear problem with inexact Newton--Krylov.
  */
 void                rhea_newton_solve (ymir_vec_t *solution,

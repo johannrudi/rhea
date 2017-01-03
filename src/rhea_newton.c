@@ -21,6 +21,9 @@ struct rhea_newton_problem
   rhea_newton_update_operator_fn_t  update_operator;
   rhea_newton_update_hessian_fn_t   update_hessian;
 
+  int                 check_gradient;
+  int                 check_hessian;
+
   void               *data;
 };
 
@@ -330,6 +333,9 @@ rhea_newton_problem_new (
 
   nl_problem->grad_norm_multi_components = grad_norm_multi_components;
 
+  nl_problem->check_gradient = 0;
+  nl_problem->check_hessian = 0;
+
   nl_problem->data = data;
 
   return nl_problem;
@@ -357,6 +363,137 @@ void *
 rhea_newton_problem_get_data (rhea_newton_problem_t *nl_problem)
 {
   return nl_problem->data;
+}
+
+void
+rhea_newton_problem_set_checks (const int check_gradient,
+                                const int check_hessian,
+                                rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->check_gradient = (0 < check_gradient);
+  nl_problem->check_hessian = (0 < check_hessian);
+}
+
+/******************************************************************************
+ * Derivative Checks
+ *****************************************************************************/
+
+static void
+rhea_newton_check_gradient (ymir_vec_t *solution,
+                            rhea_newton_problem_t *nl_problem)
+{
+  const char         *this_fn_name = "rhea_newton_check_gradient";
+  ymir_vec_t         *sol_vec = ymir_vec_template (nl_problem->step_vec);
+  ymir_vec_t         *dir_vec = ymir_vec_template (nl_problem->step_vec);
+  ymir_vec_t         *perturb_vec = ymir_vec_template (nl_problem->step_vec);
+  double              grad_dir_ref, grad_dir_chk;
+  double              obj_val, perturb_obj_val;
+  double              abs_error, rel_error;
+  int                 n;
+
+  /* set position and direction vectors */
+  if (solution == NULL) {
+    ymir_vec_set_zero (sol_vec);
+  }
+  else {
+    ymir_vec_copy (solution, sol_vec);
+  }
+#ifdef YMIR_WITH_PETSC
+  ymir_petsc_vec_set_random (dir_vec, YMIR_MESH_PETSCLAYOUT_NONE);
+#else
+  RHEA_ABORT_NOT_REACHED ();
+#endif
+
+  /* compute reference derivative */
+  grad_dir_ref = ymir_vec_innerprod (nl_problem->neg_gradient_vec, dir_vec);
+  grad_dir_ref *= -1.0;
+
+  /* compare with finite difference derivative */
+  obj_val = nl_problem->evaluate_objective (sol_vec, nl_problem->data);
+  for (n = 2; n <= 6; n++) {
+    const double        eps = pow (10.0, (double) -n);
+
+    ymir_vec_copy (sol_vec, perturb_vec);
+    ymir_vec_add (eps, dir_vec, perturb_vec);
+    perturb_obj_val = nl_problem->evaluate_objective (perturb_vec,
+                                                      nl_problem->data);
+    grad_dir_chk = (perturb_obj_val - obj_val) / eps;
+
+    abs_error = fabs (grad_dir_ref - grad_dir_chk);
+    rel_error = abs_error / fabs (grad_dir_ref);
+
+    RHEA_GLOBAL_INFOF ("%s: eps %.1e, error abs %.1e, rel %.1e "
+                       "(grad^T*dir ref %.12e, chk %.12e)\n",
+                       this_fn_name, eps, abs_error, rel_error,
+                       grad_dir_ref, grad_dir_chk);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (sol_vec);
+  ymir_vec_destroy (dir_vec);
+  ymir_vec_destroy (perturb_vec);
+}
+
+static void
+rhea_newton_check_hessian (ymir_vec_t *solution,
+                           rhea_newton_problem_t *nl_problem)
+{
+  const char         *this_fn_name = "rhea_newton_check_hessian";
+  const int           check_gradient = nl_problem->check_gradient;
+  ymir_vec_t         *sol_vec;
+  ymir_vec_t         *dir_vec = ymir_vec_template (nl_problem->step_vec);
+  ymir_vec_t         *perturb_vec = ymir_vec_template (nl_problem->step_vec);
+  ymir_vec_t         *H_dir_ref = ymir_vec_template (nl_problem->step_vec);
+  ymir_vec_t         *H_dir_chk = ymir_vec_template (nl_problem->step_vec);
+  double              abs_error, rel_error;
+  int                 n;
+
+  /* return if check cannot be executed */
+  if (nl_problem->apply_hessian == NULL) {
+    return;
+  }
+
+  /* check input */
+  RHEA_ASSERT (solution != NULL);
+
+  /* set position and direction vectors */
+  sol_vec = solution;
+#ifdef YMIR_WITH_PETSC
+  ymir_petsc_vec_set_random (dir_vec, YMIR_MESH_PETSCLAYOUT_NONE);
+#else
+  RHEA_ABORT_NOT_REACHED ();
+#endif
+
+  /* compute reference Hessian-vector apply */
+  nl_problem->apply_hessian (H_dir_ref, dir_vec, nl_problem->data);
+
+  /* compare with finite difference Hessian */
+  nl_problem->check_gradient = 0;
+  for (n = 2; n <= 6; n++) {
+    const double        eps = pow (10.0, (double) -n);
+
+    ymir_vec_copy (sol_vec, perturb_vec);
+    ymir_vec_add (eps, dir_vec, perturb_vec);
+    nl_problem->compute_neg_gradient (H_dir_chk, perturb_vec,
+                                      nl_problem->data);
+    ymir_vec_scale (-1.0, H_dir_chk);
+    ymir_vec_add (1.0, nl_problem->neg_gradient_vec, H_dir_chk);
+    ymir_vec_scale (1.0/eps, H_dir_chk);
+
+    ymir_vec_add (-1.0, H_dir_ref, H_dir_chk);
+    abs_error = ymir_vec_norm (H_dir_chk);
+    rel_error = abs_error / ymir_vec_norm (H_dir_ref);
+
+    RHEA_GLOBAL_INFOF ("%s: eps %.1e, error abs %.1e, rel %.1e\n",
+                       this_fn_name, eps, abs_error, rel_error);
+  }
+  nl_problem->check_gradient = check_gradient;
+
+  /* destroy */
+  ymir_vec_destroy (dir_vec);
+  ymir_vec_destroy (perturb_vec);
+  ymir_vec_destroy (H_dir_ref);
+  ymir_vec_destroy (H_dir_chk);
 }
 
 /******************************************************************************
@@ -568,6 +705,9 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
     nl_problem->compute_neg_gradient (neg_gradient, solution,
                                       nl_problem->data);
     *neg_gradient_updated = 1;
+    if (nl_problem->check_gradient) {
+      rhea_newton_check_gradient (solution, nl_problem);
+    }
 
     /* compute norm of gradient */
     if (0 < n_components) {
@@ -1220,6 +1360,9 @@ rhea_newton_solve (ymir_vec_t *solution,
       if (!neg_gradient_updated) { /* if (neg.) gradient was not updated */
         nl_problem->compute_neg_gradient (nl_problem->neg_gradient_vec,
                                           solution, nl_problem->data);
+        if (nl_problem->check_gradient) {
+          rhea_newton_check_gradient (solution, nl_problem);
+        }
       }
 
       /* solve the linearized system to get an inexact Newton step */
@@ -1275,6 +1418,9 @@ rhea_newton_solve (ymir_vec_t *solution,
     {
       /* update the Hessian */
       nl_problem->update_hessian (solution, nl_problem->data);
+      if (nl_problem->check_hessian) {
+        rhea_newton_check_hessian (solution, nl_problem);
+      }
     }
 
   } /* END: Newton iter */
