@@ -194,9 +194,6 @@ typedef struct newton_polynomial_problem
   ymir_vec_t         *data_a;
   ymir_vec_t         *data_b;
   ymir_vec_t         *sol_x;
-
-  int                 activate_gradient_check;
-  int                 activate_hessian_check;
 }
 newton_polynomial_problem_t;
 
@@ -373,60 +370,6 @@ newton_polynomial_compute_negative_gradient (ymir_vec_t *neg_gradient,
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (neg_gradient->dataown));
   RHEA_ASSERT (!neg_gradient->coff || sc_dmatrix_is_valid (neg_gradient->coff));
-
-  /* check gradient */
-  if (poly_problem->activate_gradient_check) {
-    const char         *this_fn_name =
-                          "newton_polynomial_compute_negative_gradient";
-    ymir_vec_t         *x_vec = ymir_vec_template (poly_problem->sol_x);
-    ymir_vec_t         *dir_vec = ymir_vec_template (poly_problem->sol_x);
-    ymir_vec_t         *perturb_vec = ymir_vec_template (poly_problem->sol_x);
-    double              deriv_ref, deriv_chk;
-    double              obj_val, perturb_obj_val;
-    double              abs_error, rel_error;
-    int                 n;
-
-    /* set position and direction vectors */
-    if (solution == NULL) {
-      ymir_vec_set_zero (x_vec);
-    }
-    else {
-      ymir_vec_copy (solution, x_vec);
-    }
-#ifdef YMIR_WITH_PETSC
-    ymir_petsc_vec_set_random (dir_vec, YMIR_MESH_PETSCLAYOUT_NONE);
-#else
-    RHEA_ABORT_NOT_REACHED ();
-#endif
-
-    /* compute reference derivative */
-    deriv_ref = ymir_vec_innerprod (neg_gradient, dir_vec);
-    deriv_ref *= -1.0;
-
-    /* compare with finite difference derivative */
-    obj_val = newton_polynomial_evaluate_objective (x_vec, data);
-    for (n = 2; n <= 6; n++) {
-      const double        eps = pow (10.0, (double) -n);
-
-      ymir_vec_copy (x_vec, perturb_vec);
-      ymir_vec_add (eps, dir_vec, perturb_vec);
-      perturb_obj_val = newton_polynomial_evaluate_objective (perturb_vec,
-                                                              data);
-      deriv_chk = (perturb_obj_val - obj_val) / eps;
-
-      abs_error = fabs (deriv_ref - deriv_chk);
-      rel_error = abs_error / fabs (deriv_ref);
-
-      RHEA_GLOBAL_INFOF (
-          "%s: Gradient check: eps %.1e, error abs %.1e, rel %.1e "
-          "(deriv reference %.12e, check %.12e)\n",
-          this_fn_name, eps, abs_error, rel_error, deriv_ref, deriv_chk);
-    }
-
-    ymir_vec_destroy (x_vec);
-    ymir_vec_destroy (dir_vec);
-    ymir_vec_destroy (perturb_vec);
-  }
 }
 
 /**
@@ -544,65 +487,6 @@ newton_polynomial_update_hessian (ymir_vec_t *solution, void *data)
   newton_polynomial_problem_t  *poly_problem = data;
 
   ymir_vec_copy (solution, poly_problem->sol_x);
-
-  /* check Hessian */
-  if (poly_problem->activate_hessian_check) {
-    const char         *this_fn_name = "newton_polynomial_update_hessian";
-    const int           activate_gradent_check =
-                          poly_problem->activate_gradient_check;
-    ymir_vec_t         *x_vec = ymir_vec_template (poly_problem->sol_x);
-    ymir_vec_t         *dir_vec = ymir_vec_template (poly_problem->sol_x);
-    ymir_vec_t         *perturb_vec = ymir_vec_template (poly_problem->sol_x);
-    ymir_vec_t         *H_dir_ref = ymir_vec_template (poly_problem->sol_x);
-    ymir_vec_t         *H_dir_chk = ymir_vec_template (poly_problem->sol_x);
-    ymir_vec_t         *grad_x = ymir_vec_template (poly_problem->sol_x);
-    double              abs_error, rel_error;
-    int                 n;
-
-    /* set position and direction vectors */
-    ymir_vec_copy (poly_problem->sol_x, x_vec);
-#ifdef YMIR_WITH_PETSC
-    ymir_petsc_vec_set_random (dir_vec, YMIR_MESH_PETSCLAYOUT_NONE);
-#else
-    RHEA_ABORT_NOT_REACHED ();
-#endif
-
-    /* compute reference Hessian-vector apply */
-    newton_polynomial_apply_hessian (H_dir_ref, dir_vec, data);
-
-    /* compare with finite difference Hessian */
-    poly_problem->activate_gradient_check = 0;
-    newton_polynomial_compute_negative_gradient (grad_x, x_vec, data);
-    ymir_vec_scale (-1.0, grad_x);
-    for (n = 2; n <= 6; n++) {
-      const double        eps = pow (10.0, (double) -n);
-
-      ymir_vec_copy (x_vec, perturb_vec);
-      ymir_vec_add (eps, dir_vec, perturb_vec);
-      newton_polynomial_compute_negative_gradient (H_dir_chk, perturb_vec,
-                                                   data);
-      ymir_vec_scale (-1.0, H_dir_chk);
-      ymir_vec_add (-1.0, grad_x, H_dir_chk);
-      ymir_vec_scale (1.0/eps, H_dir_chk);
-
-      ymir_vec_add (-1.0, H_dir_ref, H_dir_chk);
-      abs_error = ymir_vec_norm (H_dir_chk);
-      rel_error = abs_error / ymir_vec_norm (H_dir_ref);
-
-      RHEA_GLOBAL_INFOF (
-          "%s: Hessian check: eps %.1e, error abs %.1e, rel %.1e\n",
-          this_fn_name, eps, abs_error, rel_error);
-    }
-    poly_problem->activate_gradient_check = activate_gradent_check;
-
-    /* destroy */
-    ymir_vec_destroy (x_vec);
-    ymir_vec_destroy (dir_vec);
-    ymir_vec_destroy (perturb_vec);
-    ymir_vec_destroy (H_dir_ref);
-    ymir_vec_destroy (H_dir_chk);
-    ymir_vec_destroy (grad_x);
-  }
 }
 
 /******************************************************************************
@@ -671,13 +555,6 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
   /* initialize data for Newton problem */
   poly_problem = RHEA_ALLOC (newton_polynomial_problem_t, 1);
   poly_problem->sol_x = ymir_vec_template (tmp_vec);
-#ifdef RHEA_ENABLE_DEBUG
-  poly_problem->activate_gradient_check = 1;
-  poly_problem->activate_hessian_check = 1;
-#else
-  poly_problem->activate_gradient_check = 0;
-  poly_problem->activate_hessian_check = 0;
-#endif
 
   /* set coefficient of polynomial function */
   {
@@ -726,6 +603,9 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
         0 /* no multi-component norms */,
         poly_problem);
   }
+#ifdef RHEA_ENABLE_DEBUG
+  rhea_newton_problem_set_checks (1 /* grad */, 1 /* Hessian */, *nl_problem);
+#endif
 
   /* destroy */
   ymir_vec_destroy (tmp_vec);
