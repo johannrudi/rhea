@@ -6,26 +6,67 @@
 
 #include <ymir_vec_ops.h>
 
-/* Nonlinear problem (opaque) */
-typedef struct rhea_newton_problem rhea_newton_problem_t;
-
-/* callback functions for Newton's method */
-//TODO add comments explaining in/output
+/**
+ * Callback function for Newton's method.
+ * Evaluates the objective functional at the current solution vector.
+ *
+ * \return              Value of objective functional
+ * \param [in] solution Current solution vector
+ * \param [in] data     User data
+ */
 typedef double    (*rhea_newton_evaluate_objective_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
+/**
+ * Callback function for Newton's method.
+ * Computes the negative gradient at the current solution vector.
+ *
+ * \param [out] neg_gradient  Negative gradient vector
+ * \param [in] solution       Current solution vector
+ * \param [in] data           User data
+ */
 typedef void      (*rhea_newton_compute_negative_gradient_fn_t) (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution, void *data);
 
+/**
+ * Callback function for Newton's method.
+ * Computes norm of the (negative) gradient vector.
+ *
+ * \return                  Norm of the gradient vector
+ * \param [in] neg_gradient Negative gradient vector
+ * \param [in] data         User data
+ * \param [out] norm_comp   Components of the gradient norm
+ */
 typedef double    (*rhea_newton_compute_norm_of_gradient_fn_t) (
                                             ymir_vec_t *neg_gradient,
-                                            void *data, double *res_norm_comp);
+                                            void *data, double *norm_comp);
 
+/**
+ * Callback function for Newton's method.
+ * Applies the Hessian operator to a vector.
+ *
+ * \param [out] out Result of Hessian application
+ * \param [in] in   Input vector
+ * \param [in] data User data
+ */
 typedef void      (*rhea_newton_apply_hessian_fn_t) (
                                             ymir_vec_t *out, ymir_vec_t *in,
                                             void *data);
 
+/**
+ * Callback function for Newton's method.
+ * Inverts the Hessian operator approximatively, i.e., up to a given tolerance.
+ *
+ * \return                            Stopping reason
+ * \param [out] step                  Result of Hessian application
+ * \param [in] neg_gradient           Negative gradient vector (serves as RHS)
+ * \param [in] lin_iter_max           Max #iterations for iterative solver
+ * \param [in] lin_res_norm_rtol      Relative tolerance for iterative solver
+ * \param [in] nonzero_initial_guess  Flag if initial guess is nonzero
+ * \param [in] data                   User data
+ * \param [out] lin_iter_count        Number of iterations taken
+ */
 typedef int       (*rhea_newton_solve_hessian_system_fn_t) (
                                             ymir_vec_t *step,
                                             ymir_vec_t *neg_gradient,
@@ -35,9 +76,23 @@ typedef int       (*rhea_newton_solve_hessian_system_fn_t) (
                                             void *data,
                                             int *lin_iter_count);
 
+/**
+ * Callback function for Newton's method.
+ * Updates the current solution of the (nonlinear) operator.
+ *
+ * \param [in] solution Current solution vector
+ * \param [in] data     User data
+ */
 typedef void      (*rhea_newton_update_operator_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
+/**
+ * Callback function for Newton's method.
+ * Updates the current solution of the Hessian operator.
+ *
+ * \param [in] solution Current solution vector
+ * \param [in] data     User data
+ */
 typedef void      (*rhea_newton_update_hessian_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
@@ -92,6 +147,10 @@ void                rhea_newton_process_options (rhea_newton_options_t *opt);
  */
 void                rhea_newton_options_set_defaults (
                                                   rhea_newton_options_t *opt);
+
+/* Nonlinear problem (opaque) */
+typedef struct rhea_newton_problem rhea_newton_problem_t;
+
 /**
  * Creates a new nonlinear problem.
  */
