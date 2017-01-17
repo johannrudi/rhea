@@ -5,19 +5,6 @@
 #include <rhea_base.h>
 #include <rhea_discretization.h>
 
-/* enumerator for boundary faces */
-typedef enum
-{
-  RHEA_DOMAIN_BOUNDARY_FACE_NONE = -1,
-  RHEA_DOMAIN_BOUNDARY_FACE_BASE = 0,
-  RHEA_DOMAIN_BOUNDARY_FACE_TOP,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE1,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE2,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE3,
-  RHEA_DOMAIN_BOUNDARY_FACE_SIDE4
-}
-rhea_domain_boundary_face_t;
-
 /* constant: reference value for shell radius */
 #define RHEA_DOMAIN_REFERENCE_SHELL_RADIUS (1.0)
 
@@ -614,7 +601,7 @@ rhea_domain_compute_radius_at_elem_center (const double *_sc_restrict x,
   }
 
   /* return mean value of radii at vertices */
-  RHEA_ASSERT ((radii_sum / 8.0) < opt->radius_max);
+  //RHEA_ASSERT ((radii_sum / 8.0) < opt->radius_max); //TODO does not work for custom X-fnc's
   return radii_sum / 8.0;
 }
 

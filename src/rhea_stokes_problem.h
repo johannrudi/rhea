@@ -8,6 +8,7 @@
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
 #include <ymir_pressure_elem.h>
+#include <ymir_stokes_op.h>
 
 /* Stokes problem (opaque) */
 typedef struct rhea_stokes_problem rhea_stokes_problem_t;
@@ -18,6 +19,7 @@ typedef struct rhea_stokes_problem rhea_stokes_problem_t;
 rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     ymir_vec_t *temperature,
                                     ymir_vec_t *weakzone,
+                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
                                     rhea_domain_options_t *domain_options,
@@ -53,6 +55,23 @@ void                rhea_stokes_problem_get_viscosity (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
+ * Gets nonzero Dirichlet values of velocity from Stokes problem.
+ */
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Gets velocity component of the right-hand side.
+ */
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Gets Stokes operator.
+ */
+ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
+                                    rhea_stokes_problem_t *stokes_problem);
+/**
  * Sets velocity components on the boundary, which are constrained by Dirichlet
  * boundary conditions, to zero.
  */
@@ -65,6 +84,7 @@ void                rhea_stokes_problem_velocity_boundary_set_zero (
 rhea_stokes_problem_t *rhea_stokes_problem_linear_new (
                                     ymir_vec_t *temperature,
                                     ymir_vec_t *weakzone,
+                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
                                     rhea_domain_options_t *domain_options,
@@ -88,6 +108,7 @@ void                rhea_stokes_problem_linear_solve (
 rhea_stokes_problem_t *rhea_stokes_problem_nonlinear_new (
                                     ymir_vec_t *temperature,
                                     ymir_vec_t *weakzone,
+                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
                                     rhea_domain_options_t *domain_options,
