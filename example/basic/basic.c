@@ -1,10 +1,20 @@
-/*
- */
+/** BASIC
+ *
+ * Runs rhea's elemental solver components for incompressible Stokes systems
+ * with linear and nonlinear rheologies.
+ *
+ ******************************************************************************
+ * Author:             Johann Rudi <johann@ices.utexas.edu>
+ *****************************************************************************/
 
 #include <rhea.h>
 
 //###DEV### TODO delete
 #include <ymir_stress_op.h>
+
+/******************************************************************************
+ * Main Program
+ *****************************************************************************/
 
 /**
  * Sets up the mesh.
