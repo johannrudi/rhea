@@ -3,6 +3,7 @@
 
 #include <rhea_stokes_problem.h>
 #include <rhea_base.h>
+#include <rhea_newton.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
 #include <ymir_stokes_pc.h>
@@ -457,6 +458,8 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution, void *data)
 {
+//TODO fix compilation bugs
+#if 0
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
   ymir_mesh_t        *mesh = ymir_stress_op_get_mesh (stokes_op->stress_op);
@@ -468,7 +471,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
   //TODO
 
   /* construct the right-hand side */
-  rhs = ymir_stokes_vec_new (mesh, press_elem);
+  rhs = rhea_velocity_pressure_new (mesh, press_elem);
   ymir_stokes_op_construct_rhs_ext (rhs_u_point, NULL, NULL, rhs,
                                     1 /* incompressible */, stokes_op);
   YMIR_ASSERT (sc_dmatrix_is_valid (rhs->dataown));
@@ -513,6 +516,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
 
   /* return norm of residual */
   return norm_res;
+#endif
 }
 
 /**
