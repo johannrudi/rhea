@@ -397,8 +397,6 @@ collide_normal_stress (ymir_cvec_t * vel, ymir_dvec_t * n_tau, ymir_dvec_t * s_t
                        ymir_dvec_t * visc, ymir_velocity_elem_t * vel_elem)
 {
   ymir_mesh_t         *mesh = vel->mesh;
-  ymir_dvec_t         *tau_tensor = ymir_dvec_new (mesh, 6,
-                                                     YMIR_GAUSS_NODE);
   ymir_locidx_t       elid;
   const int           N  = ymir_n (mesh->cnodes->N);
   const int           Np = ymir_np (mesh->cnodes->N);
@@ -1213,7 +1211,6 @@ main (int argc, char **argv)
                              viscosity);
 
 
-
     /* compute 2nd invariant of the strain rate */
     ymir_second_invariant_vec (velocity, edotII, vel_elem);
     ymir_vec_sqrt (edotII, edotII);
@@ -1265,6 +1262,7 @@ main (int argc, char **argv)
                       NULL);
     }
 
+    /* destroy */
     ymir_vec_destroy (edotII);
     ymir_vec_destroy (tauII);
     ymir_vec_destroy (vert_traction);
@@ -1273,10 +1271,13 @@ main (int argc, char **argv)
     ymir_vec_destroy (hori_traction);
     ymir_vec_destroy (hori_n_tau);
     ymir_vec_destroy (hori_s_tau);
-//    ymir_vec_destroy (surf_tauII);
-//    ymir_vec_destroy (surf_normal_stress);
-
- }
+    ymir_vec_destroy (surf_tauII);
+    ymir_vec_destroy (surf_normal_stress);
+    ymir_velocity_elem_destroy (vel_elem);
+    rhea_velocity_destroy (velocity);
+    rhea_pressure_destroy (pressure);
+    rhea_viscosity_destroy (viscosity);
+  }
 
   /* destroy */
   rhea_velocity_pressure_destroy (sol_vel_press);
