@@ -4,6 +4,7 @@
 #include <rhea_stokes_problem.h>
 #include <rhea_base.h>
 #include <rhea_newton.h>
+#include <rhea_stokes_norm.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
 #include <ymir_stokes_pc.h>
@@ -45,6 +46,8 @@ struct rhea_stokes_problem
 
   /* Newton problem */
   rhea_newton_problem_t  *newton_problem;
+  rhea_stokes_norm_type_t norm_type;
+  ymir_Hminus1_norm_op_t *norm_op;
 };
 
 /**
@@ -296,8 +299,7 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
       rhs_vel_press,
       1 /* incompressible */,
       stokes_op);
-  RHEA_ASSERT (sc_dmatrix_is_valid (rhs_vel_press->dataown));
-  RHEA_ASSERT (sc_dmatrix_is_valid (rhs_vel_press->coff));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
   RHEA_ASSERT (ymir_vec_is_not_dirty (rhs_vel_press));
 
   /* fill, and return the structure of the linear Stokes problem */
@@ -471,13 +473,15 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
   /* check input */
 #if RHEA_ENABLE_DEBUG
   RHEA_ASSERT (neg_gradient != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (neg_gradient));
   if (solution != NULL) {
-    RHEA_ASSERT (sc_dmatrix_is_valid (solution->dataown));
-    RHEA_ASSERT (sc_dmatrix_is_valid (solution->coff));
+    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
+    RHEA_ASSERT (rhea_velocity_pressure_is_valid (solution));
     RHEA_ASSERT (ymir_vec_is_not_dirty (solution));
   }
-  RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
-  RHEA_ASSERT (stokes_problem_nl->rhs_vel_press != NULL);
+  RHEA_ASSERT (stokes_op != NULL);
+  RHEA_ASSERT (rhs_vel_press != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (rhs_vel_press));
 #endif
 
   /* construct the right-hand side */
@@ -488,8 +492,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
       rhs_vel_press,
       1 /* incompressible */,
       stokes_op);
-  RHEA_ASSERT (sc_dmatrix_is_valid (rhs_vel_press->dataown));
-  RHEA_ASSERT (sc_dmatrix_is_valid (rhs_vel_press->coff));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
   RHEA_ASSERT (ymir_vec_is_not_dirty (rhs_vel_press));
 
   /* compute the residual (which assumes the role of the negative gradient) */
@@ -509,8 +512,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
     /* set residual to be the right-hand side */
     ymir_vec_copy (rhs_vel_press, neg_gradient);
   }
-  RHEA_ASSERT (sc_dmatrix_is_valid (neg_gradient->dataown));
-  RHEA_ASSERT (sc_dmatrix_is_valid (neg_gradient->coff));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
   RHEA_ASSERT (ymir_vec_is_not_dirty (neg_gradient));
 }
 
@@ -523,56 +525,54 @@ rhea_stokes_problem_nonlinear_compute_gradient_norm (ymir_vec_t *neg_gradient,
                                                      void *data,
                                                      double *norm_comp)
 {
-  //TODO
-  return ymir_vec_norm (neg_gradient);
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  rhea_stokes_norm_type_t norm_type = stokes_problem_nl->norm_type;
+  ymir_Hminus1_norm_op_t *norm_op = stokes_problem_nl->norm_op;
+  ymir_vec_t         *innerprod_arg_left, *innerprod_arg_right;
+  double              ip_vel, ip_press;
 
-#if 0
-  /* compute norm of residual */
-  norm_res = slabs_norm_of_residual (norm_vel, norm_press, neg_gradient,
-                                     stokes_op, stokes_pc, krylov_type,
-                                     norm_type, norm_op);
+  /* check input */
+  RHEA_ASSERT (neg_gradient != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (neg_gradient));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
+  RHEA_ASSERT (stokes_problem_nl->press_elem != NULL);
 
+  /* compute inner products */
+  if (ymir_stokes_pc_block_type == YMIR_STOKES_PC_BLOCK_L) { /* if left PC */
+    ymir_stokes_pc_t   *stokes_pc = stokes_problem_nl->stokes_pc;
 
-  ymir_vec_t         *up_l, *up_r;
-  double              norm_res, nrm_vel, nrm_press;
+    RHEA_ASSERT (stokes_problem_nl->stokes_pc != NULL);
+    RHEA_ASSERT (norm_type != RHEA_STOKES_NORM_HMINUS1_L2); // not implemented
 
-  if (ymir_stokes_pc_block_type == YMIR_STOKES_PC_BLOCK_L) {
-    /* if left preconditioning */
-    YMIR_ASSERT (stokes_pc != NULL);
-    YMIR_ASSERT (norm_type != SL_NORM_FNC_HMINUS1_L2);
-    up_r = ymir_vec_template (residual_up);
+    innerprod_arg_right = ymir_vec_template (neg_gradient);
     if (ymir_stress_op_is_nl (stokes_pc->stokes_op->stress_op)) {
-      ymir_nlstokes_pc_apply_lower (residual_up, up_r, stokes_pc);
+      ymir_nlstokes_pc_apply_lower (neg_gradient, innerprod_arg_right,
+                                    stokes_pc);
     }
     else {
-      ymir_stokes_pc_apply_lower (residual_up, up_r, stokes_pc);
+      ymir_stokes_pc_apply_lower (neg_gradient, innerprod_arg_right, stokes_pc);
     }
-    up_l = up_r;
+    innerprod_arg_left = innerprod_arg_right;
   }
-  else { /* if right or symmetric preconditioning */
-    up_r = residual_up;
-    up_l = residual_up;
+  else { /* otherwise right or symmetric preconditioning */
+    innerprod_arg_left = neg_gradient;
+    innerprod_arg_right = neg_gradient;
   }
-
-  /* compute norm of residual */
-  slabs_norm_innerprod_comp (&nrm_vel, &nrm_press, up_l, up_r, press_elem,
-                             norm_type, norm_op);
-  norm_res = sqrt (nrm_vel + nrm_press);
-  if (norm_vel != NULL) {
-    *norm_vel = sqrt (nrm_vel);
-  }
-  if (norm_press != NULL) {
-    *norm_press = sqrt (nrm_press);
-  }
+  rhea_stokes_norm_innerprod (
+      &ip_vel, &ip_press, innerprod_arg_left, innerprod_arg_right,
+      norm_type, norm_op, stokes_problem_nl->press_elem);
 
   /* destroy */
   if (ymir_stokes_pc_block_type == YMIR_STOKES_PC_BLOCK_L) {
-    ymir_vec_destroy (up_r);
+    ymir_vec_destroy (innerprod_arg_right);
   }
 
-  /* return norm of residual */
-  return norm_res;
-#endif
+  /* calculate norms */
+  if (norm_comp != NULL) {
+    norm_comp[0] = sqrt (ip_vel);
+    norm_comp[1] = sqrt (ip_press);
+  }
+  return sqrt (ip_vel + ip_press);
 }
 
 /**
@@ -588,8 +588,15 @@ rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
   const int           nl = 1;
   const int           dirty = 1;
 
+  /* check input */
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (out));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (in));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (in));
+
+  /* apply */
   ymir_stokes_pc_apply_stokes_op (in, out, stokes_op, nl, dirty);
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (out));
 }
 
 /**
@@ -618,6 +625,7 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
   RHEA_ASSERT (stokes_problem_nl->stokes_pc != NULL);
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (step));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (neg_gradient));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
 
   /* run solver for the linearized Stokes system */
   stop_reason = ymir_stokes_pc_solve (neg_gradient, step,
@@ -626,6 +634,7 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
                                       lin_res_norm_rtol, lin_res_abs_tol,
                                       lin_iter_max,
                                       krylov_gmres_restart /* unused */, &itn);
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (step));
 
   /* return iteraton count and "stopping" reason */
   if (lin_iter_count != NULL) {
