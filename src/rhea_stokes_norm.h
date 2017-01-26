@@ -23,12 +23,12 @@ rhea_stokes_norm_type_t;
  * Computes the norm of a Stokes (i.e., velocity-pressure) vector.
  */
 double              rhea_stokes_norm_compute (
+                                            double *norm_vel,
+                                            double *norm_press,
                                             ymir_vec_t *vec,
                                             rhea_stokes_norm_type_t norm_type,
                                             ymir_Hminus1_norm_op_t *norm_op,
-                                            ymir_pressure_elem_t *press_elem,
-                                            double *norm_vel,
-                                            double *norm_press);
+                                            ymir_pressure_elem_t *press_elem);
 
 /**
  * Computes the inner product of the individual velocity and pressure

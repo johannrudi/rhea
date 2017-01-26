@@ -408,7 +408,10 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
 
   int                 stop_reason, itn;
   double              norm_res_init = NAN, norm_res = NAN;
+  double              norm_res_init_vel = NAN, norm_res_vel = NAN;
+  double              norm_res_init_press = NAN, norm_res_press = NAN;
   double              res_reduction = NAN, conv_factor = NAN;
+  double              res_reduction_vel = NAN, res_reduction_press = NAN;
 
   RHEA_GLOBAL_INFOF ("Into %s (rel tol %.3e, max iter %i)\n",
                      this_fn_name, rel_tol, iter_max);
@@ -421,8 +424,8 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
   /* compute residual with zero inital guess */
   if (out_residual) {
     norm_res_init = rhea_stokes_norm_compute (
-        rhs_vel_press, RHEA_STOKES_NORM_L2_VEC_SP, NULL,
-        stokes_problem_lin->press_elem, NULL, NULL);
+        &norm_res_init_vel, &norm_res_init_press, rhs_vel_press,
+        RHEA_STOKES_NORM_L2_VEC_SP, NULL, stokes_problem_lin->press_elem);
   }
 
   /* run solver for Stokes */
@@ -442,11 +445,13 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
     ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
     ymir_vec_scale (-1.0, residual_vel_press);
     norm_res = rhea_stokes_norm_compute (
-        residual_vel_press, RHEA_STOKES_NORM_L2_VEC_SP, NULL,
-        stokes_problem_lin->press_elem, NULL, NULL);;
+        &norm_res_vel, &norm_res_press, residual_vel_press,
+        RHEA_STOKES_NORM_L2_VEC_SP, NULL, stokes_problem_lin->press_elem);
     ymir_vec_destroy (residual_vel_press);
 
     /* calculate convergence */
+    res_reduction_vel = norm_res_vel/norm_res_init_vel;
+    res_reduction_press = norm_res_press/norm_res_init_press;
     res_reduction = norm_res/norm_res_init;
     conv_factor = exp (log (res_reduction) / ((double) itn));
   }
@@ -459,9 +464,11 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
   /* print output */
   if (out_residual) {
     RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, iterations %i, "
-                       "residual reduction %.3e, convergence %.3e)\n",
+                       "residual reduction %.3e, convergence %.3e, "
+                       "reduction vel %.3e, reduction press %.3e)\n",
                        this_fn_name, stop_reason, itn,
-                       res_reduction, conv_factor);
+                       res_reduction, conv_factor,
+                       res_reduction_vel, res_reduction_press);
   }
   else {
     RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, num iter %i)\n",
