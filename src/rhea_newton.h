@@ -8,6 +8,15 @@
 
 /**
  * Callback function for Newton's method.
+ * Initializes the nonlinear problem.
+ *
+ * \param [in] data     User data
+ */
+typedef void      (*rhea_newton_initialize_fn_t) (
+                                            ymir_vec_t *solution, void *data);
+
+/**
+ * Callback function for Newton's method.
  * Evaluates the objective functional at the current solution vector.
  *
  * \return              Value of objective functional
@@ -96,6 +105,16 @@ typedef void      (*rhea_newton_update_operator_fn_t) (
 typedef void      (*rhea_newton_update_hessian_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
+/* enumerator for convergence critera */
+typedef enum
+{
+  RHEA_NEWTON_CONV_CRITERION_NONE = -1,
+  RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+  RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
+  RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM
+}
+rhea_newton_conv_criterion_t;
+
 /* Newton options */
 typedef struct rhea_newton_options
 {
@@ -157,21 +176,47 @@ typedef struct rhea_newton_problem rhea_newton_problem_t;
 rhea_newton_problem_t *rhea_newton_problem_new (
               ymir_vec_t *neg_gradient_vec,
               ymir_vec_t *step_vec,
-              rhea_newton_evaluate_objective_fn_t evaluate_objective,
               rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
-              rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
-              rhea_newton_apply_hessian_fn_t apply_hessian,
               rhea_newton_solve_hessian_system_fn_t solve_hessian_sys,
-              rhea_newton_update_operator_fn_t update_operator,
-              rhea_newton_update_hessian_fn_t update_hessian,
-              const int grad_norm_multi_components,
               void *data);
 
 /**
  * Destroys a nonlinear problem.
  */
 void                rhea_newton_problem_destroy (
-                                            rhea_newton_problem_t *nl_problem);
+              rhea_newton_problem_t *nl_problem);
+
+/**
+ * Sets callback function for initializing the Newton solver.
+ */
+void                rhea_newton_problem_set_initialize_fn (
+              rhea_newton_initialize_fn_t init,
+              rhea_newton_problem_t *nl_problem);
+
+/**
+ * Sets callback functions related to the convergence criterion.
+ */
+void                rhea_newton_problem_set_conv_criterion_fn (
+              rhea_newton_conv_criterion_t conv_criterion,
+              rhea_newton_evaluate_objective_fn_t evaluate_objective,
+              rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
+              const int grad_norm_multi_components,
+              rhea_newton_problem_t *nl_problem);
+
+/**
+ * Sets callback function for applying the Hessian.
+ */
+void                rhea_newton_problem_set_apply_hessian_fn (
+              rhea_newton_apply_hessian_fn_t apply_hessian,
+              rhea_newton_problem_t *nl_problem);
+
+/**
+ * Sets callback function for updating the nonlinear and Hessian operators.
+ */
+void                rhea_newton_problem_set_update_fn (
+              rhea_newton_update_operator_fn_t update_operator,
+              rhea_newton_update_hessian_fn_t update_hessian,
+              rhea_newton_problem_t *nl_problem);
 
 /**
  * Returns a pointer to the (negative) gradient vector.

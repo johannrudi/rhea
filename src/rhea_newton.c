@@ -7,9 +7,14 @@
 /* Nonlinear problem */
 struct rhea_newton_problem
 {
+  /* vectors (not owned) */
   ymir_vec_t         *neg_gradient_vec;
   ymir_vec_t         *step_vec;
 
+  /* callback functions */
+  rhea_newton_initialize_fn_t  init;
+
+  rhea_newton_conv_criterion_t                conv_criterion;
   rhea_newton_evaluate_objective_fn_t         evaluate_objective;
   rhea_newton_compute_negative_gradient_fn_t  compute_neg_gradient;
   rhea_newton_compute_norm_of_gradient_fn_t   compute_gradient_norm;
@@ -21,10 +26,12 @@ struct rhea_newton_problem
   rhea_newton_update_operator_fn_t  update_operator;
   rhea_newton_update_hessian_fn_t   update_hessian;
 
+  /* data for callback functions */
+  void               *data;
+
+  /* options */
   int                 check_gradient;
   int                 check_hessian;
-
-  void               *data;
 };
 
 /* Newton step */
@@ -41,15 +48,6 @@ typedef struct rhea_newton_step
   double              lin_convergence;
 }
 rhea_newton_step_t;
-
-/* enumerator for convergence critera */
-typedef enum
-{
-  RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
-  RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
-  RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM
-}
-rhea_newton_conv_criterion_t;
 
 /* Newton status */
 typedef struct rhea_newton_status
@@ -297,46 +295,41 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
 
 rhea_newton_problem_t *
 rhea_newton_problem_new (
-    ymir_vec_t *neg_gradient_vec,
-    ymir_vec_t *step_vec,
-    rhea_newton_evaluate_objective_fn_t evaluate_objective,
-    rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
-    rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
-    rhea_newton_apply_hessian_fn_t apply_hessian,
-    rhea_newton_solve_hessian_system_fn_t solve_hessian_sys,
-    rhea_newton_update_operator_fn_t update_operator,
-    rhea_newton_update_hessian_fn_t update_hessian,
-    const int grad_norm_multi_components,
-    void *data)
+              ymir_vec_t *neg_gradient_vec,
+              ymir_vec_t *step_vec,
+              rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
+              rhea_newton_solve_hessian_system_fn_t solve_hessian_sys,
+              void *data)
 {
   rhea_newton_problem_t  *nl_problem = RHEA_ALLOC (rhea_newton_problem_t, 1);
 
   /* check input */
   RHEA_ASSERT (neg_gradient_vec != NULL);
   RHEA_ASSERT (step_vec != NULL);
-  RHEA_ASSERT (evaluate_objective != NULL);
   RHEA_ASSERT (compute_neg_gradient != NULL);
   RHEA_ASSERT (solve_hessian_sys != NULL);
-  RHEA_ASSERT (update_operator != NULL);
-  RHEA_ASSERT (update_hessian != NULL);
 
   nl_problem->neg_gradient_vec = neg_gradient_vec;
   nl_problem->step_vec = step_vec;
 
-  nl_problem->evaluate_objective = evaluate_objective;
-  nl_problem->compute_neg_gradient = compute_neg_gradient;
-  nl_problem->compute_gradient_norm = compute_gradient_norm;
-  nl_problem->apply_hessian = apply_hessian;
-  nl_problem->solve_hessian_sys = solve_hessian_sys;
-  nl_problem->update_operator = update_operator;
-  nl_problem->update_hessian = update_hessian;
+  nl_problem->init = NULL;
 
-  nl_problem->grad_norm_multi_components = grad_norm_multi_components;
+  nl_problem->conv_criterion = RHEA_NEWTON_CONV_CRITERION_NONE;
+  nl_problem->evaluate_objective = NULL;
+  nl_problem->compute_neg_gradient = compute_neg_gradient;
+  nl_problem->compute_gradient_norm = NULL;
+  nl_problem->grad_norm_multi_components = 0;
+
+  nl_problem->apply_hessian = NULL;
+  nl_problem->solve_hessian_sys = solve_hessian_sys;
+
+  nl_problem->update_operator = NULL;
+  nl_problem->update_hessian = NULL;
+
+  nl_problem->data = data;
 
   nl_problem->check_gradient = 0;
   nl_problem->check_hessian = 0;
-
-  nl_problem->data = data;
 
   return nl_problem;
 }
@@ -345,6 +338,60 @@ void
 rhea_newton_problem_destroy (rhea_newton_problem_t *nl_problem)
 {
   RHEA_FREE (nl_problem);
+}
+
+void
+rhea_newton_problem_set_initialize_fn (
+              rhea_newton_initialize_fn_t init,
+              rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->init = init;
+}
+
+void
+rhea_newton_problem_set_conv_criterion_fn (
+              rhea_newton_conv_criterion_t conv_criterion,
+              rhea_newton_evaluate_objective_fn_t evaluate_objective,
+              rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
+              const int grad_norm_multi_components,
+              rhea_newton_problem_t *nl_problem)
+{
+#if RHEA_ENABLE_DEBUG
+  switch (conv_criterion) {
+  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+    RHEA_ASSERT (evaluate_objective != NULL);
+    break;
+  case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
+  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
+    RHEA_ASSERT (compute_gradient_norm != NULL);
+    break;
+  default: /* unknown criterion */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+#endif
+
+  nl_problem->conv_criterion = conv_criterion;
+  nl_problem->evaluate_objective = evaluate_objective;
+  nl_problem->compute_gradient_norm = compute_gradient_norm;
+  nl_problem->grad_norm_multi_components = grad_norm_multi_components;
+}
+
+void
+rhea_newton_problem_set_apply_hessian_fn (
+              rhea_newton_apply_hessian_fn_t apply_hessian,
+              rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->apply_hessian = apply_hessian;
+}
+
+void
+rhea_newton_problem_set_update_fn (
+              rhea_newton_update_operator_fn_t update_operator,
+              rhea_newton_update_hessian_fn_t update_hessian,
+              rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->update_operator = update_operator;
+  nl_problem->update_hessian = update_hessian;
 }
 
 ymir_vec_t *
@@ -527,10 +574,14 @@ rhea_newton_step_init (rhea_newton_step_t *step,
  */
 static void
 rhea_newton_status_init (rhea_newton_status_t *status,
+                         const rhea_newton_conv_criterion_t conv_criterion,
                          const int grad_norm_multi_components)
 {
+  /* check input */
+  RHEA_ASSERT (conv_criterion != RHEA_NEWTON_CONV_CRITERION_NONE);
+
   /* init convergence criterion */
-  status->conv_criterion = RHEA_NEWTON_CONV_CRITERION_OBJECTIVE; //TODO
+  status->conv_criterion = conv_criterion;
 
   /* init valus pertaining to objective values */
   status->obj_init = NAN;
@@ -684,7 +735,8 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
   double             *grad_norm_comp = NULL;
   ymir_vec_t         *neg_gradient = nl_problem->neg_gradient_vec;
 
-  *neg_gradient_updated = 0;
+  /* check input */
+  RHEA_ASSERT (status->conv_criterion != RHEA_NEWTON_CONV_CRITERION_NONE);
 
   /* evaluate objective functional */
   if (RHEA_NEWTON_CONV_CRITERION_OBJECTIVE == status->conv_criterion ||
@@ -720,13 +772,12 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
       RHEA_FREE (grad_norm_comp);
     }
   }
-
-  /* continue only if at least one value was set */
-  if (!isfinite (obj_val) && !isfinite (grad_norm)) {
-    RHEA_ABORT_NOT_REACHED ();
+  else {
+    *neg_gradient_updated = 0;
   }
 
   /* set current status */
+  RHEA_ASSERT (isfinite (obj_val) || isfinite (grad_norm));
   rhea_newton_status_set_curr (status, obj_val, grad_norm, grad_norm_comp);
 }
 
@@ -1152,7 +1203,7 @@ rhea_newton_search_step_length_check_descend (
 }
 
 /**
- * Performs line search for the step length (updates the Jacobian).
+ * Performs line search for the step length (updates the nonlinear operator).
  */
 static int
 rhea_newton_search_step_length (ymir_vec_t *solution,
@@ -1190,7 +1241,9 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
     ymir_vec_add (step->length, step->vec, solution);
 
     /* update the nonlinear operator at new solution */
-    nl_problem->update_operator (solution, nl_problem->data);
+    if (nl_problem->update_operator != NULL) {
+      nl_problem->update_operator (solution, nl_problem->data);
+    }
 
     /* update status */
     rhea_newton_status_compute_curr (status, neg_gradient_updated,
@@ -1254,7 +1307,9 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
     /* reverse updates of solution and nonlinear operator */
     if (opt->abort_failed_step_search) {
       ymir_vec_copy (solution_prev, solution);
-      nl_problem->update_operator (solution, nl_problem->data);
+      if (nl_problem->update_operator != NULL) {
+        nl_problem->update_operator (solution, nl_problem->data);
+      }
     }
   }
 
@@ -1299,11 +1354,18 @@ rhea_newton_solve (ymir_vec_t *solution,
    * Initialize
    */
   {
+    /* call init function of `nl_problem` */
+    if (nl_problem->init != NULL) {
+      nl_problem->init ((opt->nonzero_initial_guess ? solution : NULL),
+                        nl_problem->data);
+    }
+
     /* create step */
     rhea_newton_step_init (&step, nl_problem->step_vec);
 
     /* create status */
-    rhea_newton_status_init (&status, nl_problem->grad_norm_multi_components);
+    rhea_newton_status_init (&status, nl_problem->conv_criterion,
+                             nl_problem->grad_norm_multi_components);
 
     /* initialize solution vector and status */
     if (opt->nonzero_initial_guess) { /* if nonzero initial guess */
@@ -1417,7 +1479,9 @@ rhea_newton_solve (ymir_vec_t *solution,
      */
     {
       /* update the Hessian */
-      nl_problem->update_hessian (solution, nl_problem->data);
+      if (nl_problem->update_hessian != NULL) {
+        nl_problem->update_hessian (solution, nl_problem->data);
+      }
       if (nl_problem->check_hessian) {
         rhea_newton_check_hessian (solution, nl_problem);
       }
