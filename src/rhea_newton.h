@@ -8,7 +8,7 @@
 
 /**
  * Callback function for Newton's method.
- * Initializes the nonlinear problem.
+ * Initializes the nonlinear problem in order to run Newton solver.
  *
  * \param [in] data     User data
  */
