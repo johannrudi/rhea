@@ -467,17 +467,6 @@ newton_polynomial_solve_hessian_system (ymir_vec_t *step,
 }
 
 /**
- * Updates the nonlinear operator, given a trial solution vector (nothing to
- * do in this case).
- * (Callback function for Newton's method.)
- */
-static void
-newton_polynomial_update_operator (ymir_vec_t *solution, void *data)
-{
-  return;
-}
-
-/**
  * Updates the Hessian operator, given a trial solution vector.
  * (Callback function for Newton's method.)
  */
@@ -593,15 +582,18 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
 
     *nl_problem = rhea_newton_problem_new (
         neg_gradient_vec, step_vec,
-        newton_polynomial_evaluate_objective,
         newton_polynomial_compute_negative_gradient,
+        newton_polynomial_solve_hessian_system, poly_problem);
+    rhea_newton_problem_set_conv_criterion_fn (
+        RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+        newton_polynomial_evaluate_objective,
         newton_polynomial_compute_gradient_norm,
-        newton_polynomial_apply_hessian,
-        newton_polynomial_solve_hessian_system,
-        newton_polynomial_update_operator,
-        newton_polynomial_update_hessian,
-        0 /* no multi-component norms */,
-        poly_problem);
+        0 /* no multi-component norms */, *nl_problem);
+    rhea_newton_problem_set_apply_hessian_fn (
+        newton_polynomial_apply_hessian, *nl_problem);
+    rhea_newton_problem_set_update_fn (
+        NULL /* updating nonlinear operator is not necessary */,
+        newton_polynomial_update_hessian, *nl_problem);
   }
 #ifdef RHEA_ENABLE_DEBUG
   rhea_newton_problem_set_checks (1 /* grad */, 1 /* Hessian */, *nl_problem);
