@@ -11,6 +11,7 @@
 /* enumerator for types of Stokes norms */
 typedef enum
 {
+  RHEA_STOKES_NORM_NONE = -1,
   RHEA_STOKES_NORM_L2_VEC_SP,  /* l2-norm for vectors */
   RHEA_STOKES_NORM_L2_PRIMAL,  /* L2-norm for functions (primal space) */
   RHEA_STOKES_NORM_L2_DUAL,    /* L2-norm for functions (dual/residual space) */
