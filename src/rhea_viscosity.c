@@ -1164,11 +1164,6 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   yielding_el_data   = (out_yielding ? yielding_el_mat->e[0] : NULL);
   /* *INDENT-ON* */
 
-  /* get velocity */
-//ymir_stokes_vec_get_velocity (vel_press_vec, vel_vec, press_elem);
-//ymir_vel_dir_separate (vel_vec, NULL, NULL, NULL, vel_dir);
-//TODO delete
-
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates of this element at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
@@ -1237,12 +1232,9 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 }
 
 /******************************************************************************
- *
+ * Viscosity Computation
  *****************************************************************************/
 
-/**
- * Computes viscosity.
- */
 void
 rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *rank1_tensor_scal,
@@ -1253,6 +1245,8 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *velocity,
                         rhea_viscosity_options_t *opt)
 {
+  int                 is_nonlinear = 0;
+
   switch (opt->type) {
   case RHEA_VISCOSITY_USER_WEAKZONE:
     rhea_viscosity_user_weakzone (viscosity, opt);
@@ -1265,21 +1259,10 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
   case RHEA_VISCOSITY_NONLINEAR:
     if ( fabs (opt->stress_exponent - 1.0) < SC_EPS &&
          opt->yield_stress <= 0.0 ) { /* if viscosity would be linear */
-      /* compute just the linear viscosity */
       rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
-
-      /* set (default) values for other output vectors if they exist */
-      if (rank1_tensor_scal != NULL) {
-        ymir_dvec_set_zero (rank1_tensor_scal);
-      }
-      if (bounds_marker != NULL) {
-        ymir_dvec_set_zero (bounds_marker);
-      }
-      if (yielding_marker != NULL) {
-        ymir_dvec_set_zero (yielding_marker);
-      }
     }
     else { /* otherwise viscosity is nonlinear */
+      is_nonlinear = 1;
       rhea_viscosity_nonlinear_vec (viscosity, rank1_tensor_scal,
                                     bounds_marker, yielding_marker,
                                     temperature, weakzone, velocity, opt);
@@ -1289,6 +1272,46 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
   default: /* unknown viscosity type */
     RHEA_ABORT_NOT_REACHED ();
   }
+
+  /* set (default) values for output pertaining to nonlinear viscosity */
+  if (!is_nonlinear) {
+    if (rank1_tensor_scal != NULL) {
+      ymir_dvec_set_zero (rank1_tensor_scal);
+    }
+    if (bounds_marker != NULL) {
+      ymir_dvec_set_zero (bounds_marker);
+    }
+    if (yielding_marker != NULL) {
+      ymir_dvec_set_zero (yielding_marker);
+    }
+  }
+}
+
+/**
+ * Computes viscosity to initialize a nonlinear solver with zero velocity.
+ */
+void
+rhea_viscosity_compute_init_nonlinear (ymir_vec_t *viscosity,
+                                       ymir_vec_t *rank1_tensor_scal,
+                                       ymir_vec_t *bounds_marker,
+                                       ymir_vec_t *yielding_marker,
+                                       ymir_vec_t *temperature,
+                                       ymir_vec_t *weakzone,
+                                       rhea_viscosity_options_t *opt)
+{
+  /* compute linear viscosity */
+  rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
+  if (rank1_tensor_scal != NULL) {
+    ymir_dvec_set_zero (rank1_tensor_scal);
+  }
+  if (bounds_marker != NULL) {
+    ymir_dvec_set_zero (bounds_marker);
+  }
+  if (yielding_marker != NULL) {
+    ymir_dvec_set_zero (yielding_marker);
+  }
+
+  //TODO add different types
 }
 
 /******************************************************************************

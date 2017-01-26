@@ -131,6 +131,18 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
                                             rhea_viscosity_options_t *opt);
 
 /**
+ * Computes viscosity to initialize a nonlinear solver with zero velocity.
+ */
+void                rhea_viscosity_compute_init_nonlinear (
+                                               ymir_vec_t *viscosity,
+                                               ymir_vec_t *rank1_tensor_scal,
+                                               ymir_vec_t *bounds_marker,
+                                               ymir_vec_t *yielding_marker,
+                                               ymir_vec_t *temperature,
+                                               ymir_vec_t *weakzone,
+                                               rhea_viscosity_options_t *opt);
+
+/**
  * Gets the viscosity of one element at Gauss nodes.
  */
 double             *rhea_viscosity_get_elem_gauss (sc_dmatrix_t *visc_el_mat,
