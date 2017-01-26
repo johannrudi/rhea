@@ -352,8 +352,7 @@ collide_normal_stress_elem (sc_dmatrix_t * in, sc_dmatrix_t * out1, sc_dmatrix_t
                              rzd, szd, tzd, in, temptens, tempvec1, tempvec2,
                              tempvec3, 0);
 
-  /* create stress from duvw/dxyz * viscosity, multiply by gauss
-  * weights and Jdet */
+  /* create stress from duvw/dxyz * viscosity */
   for (gp = 0, k = 0; k < N + 1; k++) {
     for (j = 0; j < N + 1; j++) {
       for (i = 0; i < N + 1; i++, gp++) {
@@ -397,8 +396,6 @@ collide_normal_stress (ymir_cvec_t * vel, ymir_dvec_t * n_tau, ymir_dvec_t * s_t
                        ymir_dvec_t * visc, ymir_velocity_elem_t * vel_elem)
 {
   ymir_mesh_t         *mesh = vel->mesh;
-  ymir_dvec_t         *tau_tensor = ymir_dvec_new (mesh, 6,
-                                                     YMIR_GAUSS_NODE);
   ymir_locidx_t       elid;
   const int           N  = ymir_n (mesh->cnodes->N);
   const int           Np = ymir_np (mesh->cnodes->N);
@@ -671,6 +668,28 @@ collide_set_rhs_vel_nonzero_dir_wallslide (
   }
 }
 
+///*
+// * Dirichlet all on one side of the domain: SIDE3 (y=0), and Neumann for z<0.2 to let go residual flow.
+// */
+//static ymir_dir_code_t
+//collide_set_vel_dir_inoutflow (
+//    double X, double Y, double Z,
+//    double nx, double ny, double nz,
+//    ymir_topidx_t face, ymir_locidx_t node_id,
+//    void *data)
+//{
+//  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
+//    return YMIR_VEL_DIRICHLET_ALL;
+//  }
+//  else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE) {
+//     return YMIR_VEL_DIRICHLET_NONE;
+//  }
+//  else {
+//    return YMIR_VEL_DIRICHLET_NORM;
+//  }
+//}
+
+
 /*
  * Dirichlet all on one side of the domain: SIDE3 (y=0).
  */
@@ -685,7 +704,7 @@ collide_set_vel_dir_inoutflow (
     return YMIR_VEL_DIRICHLET_ALL;
   }
   else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE) {
-     return YMIR_VEL_DIRICHLET_NONE;
+     return YMIR_VEL_DIRICHLET_NORM;
   }
   else {
     return YMIR_VEL_DIRICHLET_NORM;
@@ -728,7 +747,7 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
   const double        zU = collide_options->uwkzone_loc_upper;
   const double        zL = collide_options->uwkzone_loc_lower;
   const double        a = zU-zL, b = 1.0-a, c = 0.5*(zU+zL);
-  const double        shape = 5.0, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
+  const double        shape = 40.0, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
   double txL = shape*(z-zL),txU = shape*(z-zU);
 
   if (fabs (y) < SC_1000_EPS) {
@@ -751,6 +770,42 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
     vel[2] = 0.0;
   }
 }
+
+/* write vtk of input data */
+collide_write_input ( ymir_mesh_t *ymir_mesh,
+                      ymir_vec_t *temperature,
+                      ymir_vec_t *weakzone,
+                      rhea_stokes_problem_t *stokes_problem_lin,
+                      rhea_temperature_options_t *temp_options,
+                      const char *vtk_write_input_path)
+{
+  const char         *this_fn_name = "collide_write_input";
+  ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
+  ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+  ymir_vec_t         *rhs_vel = rhea_temperature_new (ymir_mesh);
+
+  rhea_stokes_problem_get_viscosity (viscosity, stokes_problem_lin);
+  rhea_stokes_problem_get_rhs_vel (stokes_problem_lin);
+
+  rhea_temperature_background_compute (background_temp, temp_options);
+
+
+  rhea_vtk_write_input_data (vtk_write_input_path, temperature,
+                             background_temp, weakzone, viscosity, rhs_vel);
+/*
+  if (rhs_vel_nonzero_dirichlet != NULL) {
+    char            path[bufsiz];
+
+    snprintf (path, bufsiz, "%s_vel_nonzero_dirichlet", vtk_write_input_path);
+    ymir_vtk_write (ymir_mesh, path, rhs_vel_nonzero_dirichlet,
+                    "vel_nonzero_dirichlet", NULL);
+  }
+*/
+  rhea_temperature_destroy (background_temp);
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
+
 
 /**
  * Sets up a linear Stokes problem.
@@ -817,51 +872,16 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
         RHEA_ABORT_NOT_REACHED ();
     }
   }
-  /* write vtk of input data */ //TODO better move this into main fnc
-  if (vtk_write_input_path != NULL) {
-    const rhea_viscosity_t  viscosity_type = visc_options->type;
-    ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
-    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
-    ymir_vec_t         *rhs_vel = rhea_velocity_new (ymir_mesh);
-
-    rhea_temperature_background_compute (background_temp, temp_options);
-    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
-      visc_options->type = RHEA_VISCOSITY_LINEAR;
-    }
-    rhea_viscosity_compute (viscosity,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            temperature, weakzone,
-                            NULL /* nl. Stokes input */,
-                            visc_options);
-    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
-      visc_options->type = viscosity_type;
-    }
-    rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
-
-    rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                               background_temp, weakzone, viscosity, rhs_vel);
-/*
-    if (rhs_vel_nonzero_dirichlet != NULL) {
-      char            path[BUFSIZ];
-
-      snprintf (path, BUFSIZ, "%s_vel_nonzero_dirichlet", vtk_write_input_path);
-      ymir_vtk_write (ymir_mesh, path, rhs_vel_nonzero_dirichlet,
-                      "vel_nonzero_dirichlet", NULL);
-    }
-*/
-    rhea_temperature_destroy (background_temp);
-    rhea_viscosity_destroy (viscosity);
-    rhea_velocity_destroy (rhs_vel);
-  }
-
-  /* create Stokes problem */
+  /* create stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       temperature, weakzone, rhs_vel_nonzero_dirichlet,
       ymir_mesh, press_elem,
       domain_options, temp_options, visc_options);
   rhea_stokes_problem_setup_solver (*stokes_problem);
+
+  if (vtk_write_input_path != NULL)
+    collide_write_input (ymir_mesh, temperature, weakzone,
+                        *stokes_problem, temp_options, vtk_write_input_path);
 
   /* destroy */
   rhea_temperature_destroy (temperature);
@@ -870,8 +890,10 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
+
+
 /**
- * Cleans up Stokes problem and mesh.
+ * cleans up stokes problem and mesh.
  */
 static void
 collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
@@ -883,9 +905,9 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
   const char         *this_fn_name = "collide_setup_clear_all";
   ymir_vec_t         *rhs_vel_nonzero_dirichlet = NULL;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("into %s\n", this_fn_name);
 
-  /* destroy Stokes problem */
+  /* destroy stokes problem */
   rhs_vel_nonzero_dirichlet =
     rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
   if (rhs_vel_nonzero_dirichlet != NULL) {
@@ -904,7 +926,7 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
 }
 
 /**
- * Runs Stokes solver.
+ * runs stokes solver.
  */
 static void
 collide_run_solver (ymir_vec_t *sol_vel_press,
@@ -921,7 +943,7 @@ collide_run_solver (ymir_vec_t *sol_vel_press,
   /* run solver */
   rhea_stokes_problem_solve (sol_vel_press, iter_max, rel_tol, stokes_problem);
 
-  /* add nonzero Dirichlet values of the velocity to the solution */
+  /* add nonzero dirichlet values of the velocity to the solution */
   rhs_vel_nonzero_dirichlet =
     rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
   if (rhs_vel_nonzero_dirichlet != NULL) {
@@ -949,7 +971,7 @@ collide_transform_to_dimensional_stress (ymir_vec_t * stress)
 void
 collide_transform_to_dimensional_temperature (ymir_vec_t * temp)
 {
-  YMIR_ABORT_NOT_REACHED (); //TODO implement this
+  YMIR_ABORT_NOT_REACHED (); //todo implement this
 }
 
 void
@@ -1212,7 +1234,7 @@ main (int argc, char **argv)
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                              viscosity);
 
-
+    rhea_output_pressure (vtk_write_solution_path, pressure);
 
     /* compute 2nd invariant of the strain rate */
     ymir_second_invariant_vec (velocity, edotII, vel_elem);
@@ -1265,6 +1287,7 @@ main (int argc, char **argv)
                       NULL);
     }
 
+    /* destroy */
     ymir_vec_destroy (edotII);
     ymir_vec_destroy (tauII);
     ymir_vec_destroy (vert_traction);
@@ -1274,9 +1297,15 @@ main (int argc, char **argv)
     ymir_vec_destroy (hori_n_tau);
     ymir_vec_destroy (hori_s_tau);
 //    ymir_vec_destroy (surf_tauII);
-//    ymir_vec_destroy (surf_normal_stress);
+    ymir_vec_destroy (surf_normal_stress);
 
- }
+    ymir_vec_destroy (surf_tauII);
+    ymir_vec_destroy (surf_normal_stress);
+    ymir_velocity_elem_destroy (vel_elem);
+    rhea_velocity_destroy (velocity);
+    rhea_pressure_destroy (pressure);
+    rhea_viscosity_destroy (viscosity);
+  }
 
   /* destroy */
   rhea_velocity_pressure_destroy (sol_vel_press);
