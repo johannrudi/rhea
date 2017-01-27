@@ -8,9 +8,9 @@
   ignore = untracked
 [submodule "mangll"]
 	path = mangll
-	url =  https://creekcreek@bitbucket.org/ccgo/mangll.git 
+	url = https://bitbucket.org/ccgo/mangll.git
   ignore = untracked
 [submodule "ymir"]
 	path = ymir
-	url =  https://creekcreek@bitbucket.org/ccgo/ymir.git 
+	url = https://bitbucket.org/ccgo/ymir.git
   ignore = untracked
