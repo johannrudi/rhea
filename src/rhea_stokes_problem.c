@@ -32,6 +32,7 @@ struct rhea_stokes_problem
 
   /* data of the Stokes problem */
   ymir_vec_t         *coeff;
+  ymir_vec_t         *sol_vel;            /* nonlinear Stokes only */
   ymir_vec_t         *rank1_tensor_scal;  /* nonlinear Stokes only */
   ymir_vec_t         *bounds_marker;      /* nonlinear Stokes only */
   ymir_vec_t         *yielding_marker;    /* nonlinear Stokes only */
@@ -78,6 +79,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->press_elem = press_elem;
 
   stokes_problem->coeff = NULL;
+  stokes_problem->sol_vel = NULL;
   stokes_problem->rank1_tensor_scal = NULL;
   stokes_problem->bounds_marker = NULL;
   stokes_problem->yielding_marker = NULL;
@@ -352,6 +354,7 @@ rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
   RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
   RHEA_ASSERT (stokes_problem_lin->coeff != NULL);
+  RHEA_ASSERT (stokes_problem_lin->sol_vel == NULL);
   RHEA_ASSERT (stokes_problem_lin->rank1_tensor_scal == NULL);
   RHEA_ASSERT (stokes_problem_lin->bounds_marker == NULL);
   RHEA_ASSERT (stokes_problem_lin->yielding_marker == NULL);
@@ -496,12 +499,12 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
   rhea_stokes_problem_t *stokes_problem_nl = data;
   const int           nonzero_initial_guess = (solution != NULL);
   ymir_vec_t         *coeff = stokes_problem_nl->coeff;
+  ymir_vec_t         *sol_vel = stokes_problem_nl->sol_vel;
   ymir_vec_t         *rank1_tensor_scal = stokes_problem_nl->rank1_tensor_scal;
   ymir_vec_t         *bounds_marker = stokes_problem_nl->bounds_marker;
   ymir_vec_t         *yielding_marker = stokes_problem_nl->yielding_marker;
   ymir_vec_t         *temperature = stokes_problem_nl->temperature;
   ymir_vec_t         *weakzone = stokes_problem_nl->weakzone;
-  ymir_vec_t         *velocity;
 
   RHEA_GLOBAL_INFOF ("Into %s (nonzero initial guess %i)\n",
                      this_fn_name, nonzero_initial_guess);
@@ -513,14 +516,14 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
 
   /* compute viscosity */
   if (nonzero_initial_guess) { /* if a velocity field is given */
-    rhea_velocity_pressure_get_components (&velocity, NULL, solution,
-                                           stokes_problem_nl->press_elem);
+    rhea_velocity_pressure_copy_components (sol_vel, NULL, solution,
+                                            stokes_problem_nl->press_elem);
     rhea_viscosity_compute (
         coeff, rank1_tensor_scal, bounds_marker, yielding_marker,
-        temperature, weakzone, velocity, stokes_problem_nl->visc_options);
+        temperature, weakzone, sol_vel, stokes_problem_nl->visc_options);
   }
   else { /* otherwise assume zero velocity */
-    velocity = NULL;
+    ymir_vec_set_zero (sol_vel);
     rhea_viscosity_compute_init_nonlinear (
         coeff, rank1_tensor_scal, bounds_marker, yielding_marker,
         temperature, weakzone, stokes_problem_nl->visc_options);
@@ -540,11 +543,8 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
       stokes_problem_nl->domain_options->moment_of_inertia);
 
   /* set 4th-order tensor part of the coefficient */
-  if (nonzero_initial_guess) {
-    ymir_stress_op_coeff_compute_rank1_tensor (
-        stokes_problem_nl->stokes_op->stress_op, rank1_tensor_scal, velocity);
-    ymir_vec_destroy (velocity);
-  }
+  ymir_stress_op_coeff_compute_rank1_tensor (
+      stokes_problem_nl->stokes_op->stress_op, rank1_tensor_scal, sol_vel);
 
   /* create Stokes preconditioner */
   stokes_problem_nl->stokes_pc = ymir_nlstokes_pc_new (
@@ -790,12 +790,12 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_vec_t         *coeff = stokes_problem_nl->coeff;
+  ymir_vec_t         *sol_vel = stokes_problem_nl->sol_vel;
   ymir_vec_t         *rank1_tensor_scal = stokes_problem_nl->rank1_tensor_scal;
   ymir_vec_t         *bounds_marker = stokes_problem_nl->bounds_marker;
   ymir_vec_t         *yielding_marker = stokes_problem_nl->yielding_marker;
   ymir_vec_t         *temperature = stokes_problem_nl->temperature;
   ymir_vec_t         *weakzone = stokes_problem_nl->weakzone;
-  ymir_vec_t         *velocity;
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
@@ -803,20 +803,17 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
 
   /* retrieve velocity */
-  rhea_velocity_pressure_get_components (&velocity, NULL, solution,
-                                         stokes_problem_nl->press_elem);
+  rhea_velocity_pressure_copy_components (sol_vel, NULL, solution,
+                                          stokes_problem_nl->press_elem);
 
   /* compute viscosity; transform viscosity to Stokes coefficient */
   rhea_viscosity_compute (
       coeff, rank1_tensor_scal, bounds_marker, yielding_marker,
-      temperature, weakzone, velocity, stokes_problem_nl->visc_options);
+      temperature, weakzone, sol_vel, stokes_problem_nl->visc_options);
   ymir_vec_scale (2.0, coeff);
 
   /* re-setup coefficient data of viscous stress operator */
   ymir_stress_op_setup_geo_coeff (stokes_problem_nl->stokes_op->stress_op);
-
-  /* destroy */
-  ymir_vec_destroy (velocity);
 }
 
 /**
@@ -828,8 +825,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution, void *data)
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
+  ymir_vec_t         *sol_vel = stokes_problem_nl->sol_vel;
   ymir_vec_t         *rank1_tensor_scal = stokes_problem_nl->rank1_tensor_scal;
-  ymir_vec_t         *velocity;
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
@@ -838,12 +835,12 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution, void *data)
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
 
   /* retrieve velocity */
-  rhea_velocity_pressure_get_components (&velocity, NULL, solution,
-                                         stokes_problem_nl->press_elem);
+  rhea_velocity_pressure_copy_components (sol_vel, NULL, solution,
+                                          stokes_problem_nl->press_elem);
 
   /* set 4th-order tensor part of the coefficient */
   ymir_stress_op_coeff_compute_rank1_tensor (
-      stokes_problem_nl->stokes_op->stress_op, rank1_tensor_scal, velocity);
+      stokes_problem_nl->stokes_op->stress_op, rank1_tensor_scal, sol_vel);
 
   /* update Stokes preconditioner */
 #if YMIR_WITH_PETSC
@@ -851,9 +848,6 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution, void *data)
 #else
   RHEA_ABORT_NOT_REACHED ();
 #endif
-
-  /* destroy */
-  ymir_vec_destroy (velocity);
 }
 
 /******************************************************************************
@@ -874,6 +868,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   const char         *this_fn_name = "rhea_stokes_problem_nonlinear_new";
   rhea_stokes_problem_t *stokes_problem_nl;
   ymir_vec_t         *coeff;
+  ymir_vec_t         *sol_vel;
   ymir_vec_t         *rank1_tensor_scal;
   ymir_vec_t         *bounds_marker;
   ymir_vec_t         *yielding_marker;
@@ -899,6 +894,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
 
   /* create coefficient vectors */
   coeff = rhea_viscosity_new (ymir_mesh);
+  sol_vel = rhea_velocity_new (ymir_mesh);
   rank1_tensor_scal = rhea_viscosity_new (ymir_mesh);
   bounds_marker = rhea_viscosity_new (ymir_mesh);
   yielding_marker = rhea_viscosity_new (ymir_mesh);
@@ -935,7 +931,9 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
     rhea_newton_problem_set_update_fn (
         rhea_stokes_problem_nonlinear_update_operator,
         rhea_stokes_problem_nonlinear_update_hessian, newton_problem);
-#ifdef RHEA_ENABLE_DEBUG
+//###DEV### TODO check has errors
+//#ifdef RHEA_ENABLE_DEBUG
+#if 0
     rhea_newton_problem_set_checks (
         1 /* grad */, 1 /* Hessian */, newton_problem);
 #endif
@@ -943,6 +941,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
 
   /* fill and return the structure of the nonlinear Stokes problem */
   stokes_problem_nl->coeff = coeff;
+  stokes_problem_nl->sol_vel = sol_vel;
   stokes_problem_nl->rank1_tensor_scal = rank1_tensor_scal;
   stokes_problem_nl->bounds_marker = bounds_marker;
   stokes_problem_nl->yielding_marker = yielding_marker;
@@ -951,7 +950,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   stokes_problem_nl->rhs_vel_press = rhs_vel_press;
   stokes_problem_nl->newton_options = newton_options;
   stokes_problem_nl->newton_problem = newton_problem;
-  stokes_problem_nl->norm_type = RHEA_STOKES_NORM_NONE; //TODO
+  stokes_problem_nl->norm_type = RHEA_STOKES_NORM_L2_VEC_SP; //TODO
   stokes_problem_nl->norm_op_mass_scaling = NAN; //TODO
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
@@ -971,6 +970,7 @@ rhea_stokes_problem_nonlinear_destroy (
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->newton_problem != NULL);
   RHEA_ASSERT (stokes_problem_nl->coeff != NULL);
+  RHEA_ASSERT (stokes_problem_nl->sol_vel != NULL);
   RHEA_ASSERT (stokes_problem_nl->rank1_tensor_scal != NULL);
   RHEA_ASSERT (stokes_problem_nl->bounds_marker != NULL);
   RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
@@ -990,6 +990,7 @@ rhea_stokes_problem_nonlinear_destroy (
 
   /* destroy vectors */
   rhea_viscosity_destroy (stokes_problem_nl->coeff);
+  rhea_viscosity_destroy (stokes_problem_nl->sol_vel);
   rhea_viscosity_destroy (stokes_problem_nl->rank1_tensor_scal);
   rhea_viscosity_destroy (stokes_problem_nl->bounds_marker);
   rhea_viscosity_destroy (stokes_problem_nl->yielding_marker);
@@ -1021,7 +1022,7 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
   const char         *this_fn_name = "rhea_stokes_problem_nonlinear_solve";
   const int           nonzero_initial_guess = 0;
   const int           status_verbosity = 1;
-//const int           out_residual = !rhea_get_production_run ();
+//const int           out_residual = !rhea_get_production_run (); //TODO del?
   rhea_newton_options_t *newton_options = stokes_problem_nl->newton_options;
   rhea_newton_problem_t *newton_problem = stokes_problem_nl->newton_problem;
 
