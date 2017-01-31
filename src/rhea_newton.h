@@ -19,8 +19,7 @@ typedef void      (*rhea_newton_data_init_fn_t) (ymir_vec_t *solution,
 
 /**
  * Callback function for Newton's method.
- * Clears user data of the nonlinear problem after the Newton solver has
- * finished.
+ * Clears user data of the nonlinear problem after the Newton solve.
  *
  * \param [in] data     User data
  */
