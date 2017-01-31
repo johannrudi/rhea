@@ -485,9 +485,9 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
  * (Callback function for Newton's method.)
  */
 static void
-rhea_stokes_problem_nonlinear_init (ymir_vec_t *solution, void *data)
+rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
 {
-  const char         *this_fn_name = "rhea_stokes_problem_nonlinear_init";
+  const char         *this_fn_name = "rhea_stokes_problem_nonlinear_data_init";
   rhea_stokes_problem_t *stokes_problem_nl = data;
   const int           nonzero_initial_guess = (solution != NULL);
   ymir_vec_t         *coeff = stokes_problem_nl->coeff;
@@ -515,10 +515,10 @@ rhea_stokes_problem_nonlinear_init (ymir_vec_t *solution, void *data)
         temperature, weakzone, velocity, stokes_problem_nl->visc_options);
   }
   else { /* otherwise assume zero velocity */
+    velocity = NULL;
     rhea_viscosity_compute_init_nonlinear (
         coeff, rank1_tensor_scal, bounds_marker, yielding_marker,
         temperature, weakzone, stokes_problem_nl->visc_options);
-    velocity = NULL;
   }
 
   /* transform viscosity to Stokes coefficient */
@@ -550,6 +550,39 @@ rhea_stokes_problem_nonlinear_init (ymir_vec_t *solution, void *data)
     stokes_problem_nl->norm_op = ymir_Hminus1_norm_op_new (
         stokes_problem_nl->ymir_mesh,
         stokes_problem_nl->norm_op_mass_scaling);
+  }
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+}
+
+/**
+ * Clears the data of the nonlinear problem after Newton solve.
+ * (Callback function for Newton's method.)
+ */
+static void
+rhea_stokes_problem_nonlinear_data_clear (void *data)
+{
+  const char         *this_fn_name = "rhea_stokes_problem_nonlinear_data_clear";
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+
+  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+
+  /* destroy Stokes preconditioner */
+  if (stokes_problem_nl->stokes_pc != NULL) {
+    ymir_stokes_pc_destroy (stokes_problem_nl->stokes_pc);
+    stokes_problem_nl->stokes_pc = NULL;
+  }
+
+  /* destroy Stokes operator */
+  if (stokes_problem_nl->stokes_op != NULL) {
+    ymir_stokes_op_destroy (stokes_problem_nl->stokes_op);
+    stokes_problem_nl->stokes_op = NULL;
+  }
+
+  /* destroy H^-1 norm operator */
+  if (stokes_problem_nl->norm_type == RHEA_STOKES_NORM_HMINUS1_L2) {
+    RHEA_ASSERT (stokes_problem_nl->norm_op != NULL);
+    ymir_Hminus1_norm_op_destroy (stokes_problem_nl->norm_op);
   }
 
   RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
@@ -688,7 +721,7 @@ rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
   const int           nl = 1;
-  const int           dirty = 1;
+  const int           dirty = 0;
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
@@ -818,58 +851,6 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution, void *data)
   ymir_vec_destroy (velocity);
 }
 
-/**
- * Clears the data of the nonlinear problem after Newton solve.
- * (Callback function for Newton's method.)
- */
-static void
-rhea_stokes_problem_nonlinear_clear (void *data)
-{
-  rhea_stokes_problem_t *stokes_problem_nl = data;
-  //TODO
-#if 0
-  const char         *this_fn_name = "slabs_nonlinear_stokes_problem_op_clear";
-
-  /* destroy Stokes operator */
-  if (nl_stokes->stokes_op != NULL) {
-    ymir_stress_op_t   *stress_op = nl_stokes->stokes_op->stress_op;
-    ymir_vec_t         *dvisc_dIIe = stress_op->dvdIIe;
-    ymir_vec_t         *rank1_tensor_scal = stress_op->coeff_rank1_tensor_scal;
-
-    YMIR_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-    /* destroy (assume viscosity in Stokes operator is not destroyed) */
-    slabs_stokes_op_destroy (nl_stokes->stokes_op);
-    nl_stokes->stokes_op = NULL;
-    ymir_vec_destroy (dvisc_dIIe);
-    ymir_vec_destroy (rank1_tensor_scal);
-
-    YMIR_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-  }
-
-
-
-
-  const char         *this_fn_name = "slabs_nonlinear_stokes_problem_pc_clear";
-
-  YMIR_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* clear diagonal Schur complement variables */
-  slabs_nl_stokes_problem_clear_schur_diag (nl_stokes);
-
-  /* clear scaling variables */
-  slabs_nl_stokes_problem_clear_scaling ();
-
-  /* destroy Stokes preconditioner */
-  if (nl_stokes->stokes_pc != NULL) {
-    ymir_stokes_pc_destroy (nl_stokes->stokes_pc);
-    nl_stokes->stokes_pc = NULL;
-  }
-
-  YMIR_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-#endif
-}
-
 /******************************************************************************
  * Nonlinear Stokes Problem
  *****************************************************************************/
@@ -932,13 +913,14 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
     newton_problem = rhea_newton_problem_new (
         neg_gradient_vec, step_vec,
         rhea_stokes_problem_nonlinear_compute_negative_gradient,
-        rhea_stokes_problem_nonlinear_solve_hessian_system,
-        stokes_problem_nl);
-    rhea_newton_problem_set_initialize_fn (
-        rhea_stokes_problem_nonlinear_init, newton_problem);
+        rhea_stokes_problem_nonlinear_solve_hessian_system);
+    rhea_newton_problem_set_data_fn (
+        stokes_problem_nl,
+        rhea_stokes_problem_nonlinear_data_init,
+        rhea_stokes_problem_nonlinear_data_clear, newton_problem);
     rhea_newton_problem_set_conv_criterion_fn (
         RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM,
-        NULL /* evaluation of objective is not provided */,
+        NULL /* objective functional is not provided */,
         rhea_stokes_problem_nonlinear_compute_gradient_norm,
         2 /* gradient norms have 2 components */, newton_problem);
     rhea_newton_problem_set_apply_hessian_fn (
@@ -952,7 +934,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
 #endif
   }
 
-  /* fill, and return the structure of the nonlinear Stokes problem */
+  /* fill and return the structure of the nonlinear Stokes problem */
   stokes_problem_nl->coeff = coeff;
   stokes_problem_nl->rank1_tensor_scal = rank1_tensor_scal;
   stokes_problem_nl->bounds_marker = bounds_marker;
@@ -998,13 +980,6 @@ rhea_stokes_problem_nonlinear_destroy (
     rhea_newton_problem_destroy (newton_problem);
   }
 
-  /* destroy Stokes operator and preconditioner */
-  //TODO
-//if (stokes_problem_nl->stokes_pc != NULL) {
-//  ymir_stokes_pc_destroy (stokes_problem_nl->stokes_pc);
-//}
-//ymir_stokes_op_destroy (stokes_problem_nl->stokes_op);
-
   /* destroy vectors */
   rhea_viscosity_destroy (stokes_problem_nl->coeff);
   rhea_viscosity_destroy (stokes_problem_nl->rank1_tensor_scal);
@@ -1026,18 +1001,7 @@ void
 rhea_stokes_problem_nonlinear_setup_solver (
                                     rhea_stokes_problem_t *stokes_problem_nl)
 {
-  const char         *this_fn_name =
-                        "rhea_stokes_problem_nonlinear_setup_solver";
-  ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* check input */
-  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
-
-  //TODO
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  return;
 }
 
 void
