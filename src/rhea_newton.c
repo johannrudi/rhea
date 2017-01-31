@@ -743,17 +743,19 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
 
   /* evaluate objective functional */
   if (RHEA_NEWTON_CONV_CRITERION_OBJECTIVE == status->conv_criterion ||
-      compute_all) {
+      (compute_all && nl_problem->evaluate_objective != NULL)) {
+    RHEA_ASSERT (nl_problem->evaluate_objective != NULL);
     obj_val = nl_problem->evaluate_objective (solution, nl_problem->data);
   }
 
   /* compute gradient norm */
   if (RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM == status->conv_criterion ||
       RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM == status->conv_criterion ||
-      compute_all) {
+      (compute_all && nl_problem->compute_gradient_norm != NULL)) {
     const int           n_components = status->grad_norm_multi_components;
 
     RHEA_ASSERT (neg_gradient != NULL);
+    RHEA_ASSERT (nl_problem->compute_neg_gradient != NULL);
     RHEA_ASSERT (nl_problem->compute_gradient_norm != NULL);
 
     /* compute (negative) gradient */
@@ -1217,7 +1219,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
                                 rhea_newton_options_t *opt)
 {
   const char         *this_fn_name = "rhea_newton_search_step_length";
-  const int           print_all_stats = (1 <= opt->status_verbosity);
+  const int           print_all_conv_criteria = (2 <= opt->status_verbosity);
   const int           iter = step->iter;
   ymir_vec_t         *solution_prev = ymir_vec_template (solution);
   const int           search_iter_max = opt->step_search_iter_max;
@@ -1250,7 +1252,8 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
 
     /* update status */
     rhea_newton_status_compute_curr (status, neg_gradient_updated,
-                                     solution, nl_problem, print_all_stats);
+                                     solution, nl_problem,
+                                     print_all_conv_criteria);
 
     /* check descend condition */
     search_success = rhea_newton_search_step_length_check_descend (
@@ -1331,7 +1334,7 @@ rhea_newton_solve (ymir_vec_t *solution,
                    rhea_newton_options_t *opt)
 {
   const char         *this_fn_name = "rhea_newton_solve";
-  const int           print_all_stats = (1 <= opt->status_verbosity);
+  const int           print_all_conv_criteria = (2 <= opt->status_verbosity);
   const int           print_summary = opt->print_summary;
   const int           iter_start = opt->iter_start;
   const int           iter_max = opt->iter_max;
@@ -1373,12 +1376,14 @@ rhea_newton_solve (ymir_vec_t *solution,
     /* initialize solution vector and status */
     if (opt->nonzero_initial_guess) { /* if nonzero initial guess */
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
-                                       solution, nl_problem, print_all_stats);
+                                       solution, nl_problem,
+                                       print_all_conv_criteria);
     }
     else { /* if zero initial guess */
       ymir_vec_set_zero (solution);
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
-                                       NULL, nl_problem, print_all_stats);
+                                       NULL, nl_problem,
+                                       print_all_conv_criteria);
     }
     rhea_newton_status_copy_curr_to_init (&status);
   }
@@ -1393,7 +1398,7 @@ rhea_newton_solve (ymir_vec_t *solution,
      * Pre-Step Output
      */
     {
-      rhea_newton_status_print_curr (&status, print_all_stats, iter,
+      rhea_newton_status_print_curr (&status, print_all_conv_criteria, iter,
                                      this_fn_name);
 
       //TODO add more output
@@ -1494,7 +1499,7 @@ rhea_newton_solve (ymir_vec_t *solution,
 
   /* check if max #iterations was reached without convergence */
   if (iter_max == iter && rtol <= rhea_newton_status_get_reduction (&status)) {
-    rhea_newton_status_print_curr (&status, print_all_stats, iter,
+    rhea_newton_status_print_curr (&status, print_all_conv_criteria, iter,
                                    this_fn_name);
     RHEA_GLOBAL_PRODUCTIONF (
         "%s: Maximum number of nonlinear iterations reached (%i)\n",
