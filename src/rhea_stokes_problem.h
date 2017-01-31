@@ -24,7 +24,8 @@ rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     ymir_pressure_elem_t *press_elem,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options,
-                                    rhea_viscosity_options_t *visc_options);
+                                    rhea_viscosity_options_t *visc_options,
+                                    void *solver_options);
 
 /**
  * Destroys a Stokes problem.
@@ -89,7 +90,8 @@ rhea_stokes_problem_t *rhea_stokes_problem_linear_new (
                                     ymir_pressure_elem_t *press_elem,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options,
-                                    rhea_viscosity_options_t *visc_options);
+                                    rhea_viscosity_options_t *visc_options,
+                                    void *solver_options /* (unused) */);
 
 void                rhea_stokes_problem_linear_destroy (
                                     rhea_stokes_problem_t *stokes_problem_lin);
@@ -106,25 +108,26 @@ void                rhea_stokes_problem_linear_solve (
 /* Analogous function declarations for a nonlinear Stokes problem */
 
 rhea_stokes_problem_t *rhea_stokes_problem_nonlinear_new (
-                                    ymir_vec_t *temperature,
-                                    ymir_vec_t *weakzone,
-                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
-                                    ymir_mesh_t *ymir_mesh,
-                                    ymir_pressure_elem_t *press_elem,
-                                    rhea_domain_options_t *domain_options,
-                                    rhea_temperature_options_t *temp_options,
-                                    rhea_viscosity_options_t *visc_options);
+                              ymir_vec_t *temperature,
+                              ymir_vec_t *weakzone,
+                              ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                              ymir_mesh_t *ymir_mesh,
+                              ymir_pressure_elem_t *press_elem,
+                              rhea_domain_options_t *domain_options,
+                              rhea_temperature_options_t *temp_options,
+                              rhea_viscosity_options_t *visc_options,
+                              void *solver_options /*rhea_newton_options_t*/);
 
 void                rhea_stokes_problem_nonlinear_destroy (
-                                    rhea_stokes_problem_t *stokes_problem_nl);
+                              rhea_stokes_problem_t *stokes_problem_nl);
 
 void                rhea_stokes_problem_nonlinear_setup_solver (
-                                    rhea_stokes_problem_t *stokes_problem_nl);
+                              rhea_stokes_problem_t *stokes_problem_nl);
 
 void                rhea_stokes_problem_nonlinear_solve (
-                                    ymir_vec_t *sol_vel_press,
-                                    const int iter_max,
-                                    const double rel_tol,
-                                    rhea_stokes_problem_t *stokes_problem_nl);
+                              ymir_vec_t *sol_vel_press,
+                              const int iter_max,
+                              const double rel_tol,
+                              rhea_stokes_problem_t *stokes_problem_nl);
 
 #endif /* RHEA_STOKES_PROBLEM_H */

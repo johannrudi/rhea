@@ -32,9 +32,9 @@ struct rhea_stokes_problem
 
   /* data of the Stokes problem */
   ymir_vec_t         *coeff;
-  ymir_vec_t         *rank1_tensor_scal;
-  ymir_vec_t         *bounds_marker;
-  ymir_vec_t         *yielding_marker;
+  ymir_vec_t         *rank1_tensor_scal;  /* nonlinear Stokes only */
+  ymir_vec_t         *bounds_marker;      /* nonlinear Stokes only */
+  ymir_vec_t         *yielding_marker;    /* nonlinear Stokes only */
   ymir_vel_dir_t     *vel_dir;
   ymir_vec_t         *rhs_vel;
   ymir_vec_t         *rhs_vel_press;
@@ -50,7 +50,8 @@ struct rhea_stokes_problem
   ymir_stokes_op_t   *stokes_op;
   ymir_stokes_pc_t   *stokes_pc;
 
-  /* Newton problem */
+  /* Newton problem (nonlinear Stokes only) */
+  rhea_newton_options_t  *newton_options;
   rhea_newton_problem_t  *newton_problem;
   rhea_stokes_norm_type_t norm_type;
   ymir_Hminus1_norm_op_t *norm_op;
@@ -93,6 +94,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->stokes_op = NULL;
   stokes_problem->stokes_pc = NULL;
 
+  stokes_problem->newton_options = NULL;
   stokes_problem->newton_problem = NULL;
   stokes_problem->norm_type = RHEA_STOKES_NORM_NONE;
   stokes_problem->norm_op = NULL;
@@ -118,19 +120,20 @@ rhea_stokes_problem_new (ymir_vec_t *temperature,
                          ymir_pressure_elem_t *press_elem,
                          rhea_domain_options_t *domain_options,
                          rhea_temperature_options_t *temp_options,
-                         rhea_viscosity_options_t *visc_options)
+                         rhea_viscosity_options_t *visc_options,
+                         void *solver_options)
 {
   if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
     return rhea_stokes_problem_nonlinear_new (
         temperature, weakzone, rhs_vel_nonzero_dirichlet,
         ymir_mesh, press_elem,
-        domain_options, temp_options, visc_options);
+        domain_options, temp_options, visc_options, solver_options);
   }
   else {
     return rhea_stokes_problem_linear_new (
         temperature, weakzone, rhs_vel_nonzero_dirichlet,
         ymir_mesh, press_elem,
-        domain_options, temp_options, visc_options);
+        domain_options, temp_options, visc_options, solver_options);
   }
 }
 
@@ -260,7 +263,8 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
                                 ymir_pressure_elem_t *press_elem,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options,
-                                rhea_viscosity_options_t *visc_options)
+                                rhea_viscosity_options_t *visc_options,
+                                void *solver_options)
 {
   const char         *this_fn_name = "rhea_stokes_problem_linear_new";
   rhea_stokes_problem_t *stokes_problem_lin;
@@ -481,7 +485,8 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
  *****************************************************************************/
 
 /**
- * Initializes the nonlinear problem in order to run Newton solver.
+ * Initializes user data of the nonlinear problem to be able to run the Newton
+ * solver.
  * (Callback function for Newton's method.)
  */
 static void
@@ -863,7 +868,8 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
                                    ymir_pressure_elem_t *press_elem,
                                    rhea_domain_options_t *domain_options,
                                    rhea_temperature_options_t *temp_options,
-                                   rhea_viscosity_options_t *visc_options)
+                                   rhea_viscosity_options_t *visc_options,
+                                   void *solver_options)
 {
   const char         *this_fn_name = "rhea_stokes_problem_nonlinear_new";
   rhea_stokes_problem_t *stokes_problem_nl;
@@ -873,6 +879,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   ymir_vec_t         *yielding_marker;
   ymir_vec_t         *rhs_vel;
   ymir_vec_t         *rhs_vel_press;
+  rhea_newton_options_t *newton_options = solver_options;
   rhea_newton_problem_t *newton_problem;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
@@ -942,6 +949,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   stokes_problem_nl->rhs_vel = rhs_vel;
   stokes_problem_nl->rhs_vel_nonzero_dirichlet = rhs_vel_nonzero_dirichlet;
   stokes_problem_nl->rhs_vel_press = rhs_vel_press;
+  stokes_problem_nl->newton_options = newton_options;
   stokes_problem_nl->newton_problem = newton_problem;
   stokes_problem_nl->norm_type = RHEA_STOKES_NORM_NONE; //TODO
   stokes_problem_nl->norm_op_mass_scaling = NAN; //TODO
@@ -1012,13 +1020,10 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
 {
   const char         *this_fn_name = "rhea_stokes_problem_nonlinear_solve";
   const int           nonzero_initial_guess = 0;
-  const double        abs_tol = 1.0e-100;
-  const int           krylov_gmres_n_vecs = 100;
-  const int           out_residual = !rhea_get_production_run ();
-
-  double              norm_res_init, norm_res;
-  int                 conv_reason;
-  int                 n_iter;
+  const int           status_verbosity = 1;
+//const int           out_residual = !rhea_get_production_run ();
+  rhea_newton_options_t *newton_options = stokes_problem_nl->newton_options;
+  rhea_newton_problem_t *newton_problem = stokes_problem_nl->newton_problem;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s (rel tol %.3e, max iter %i)\n",
                            this_fn_name, rel_tol, iter_max);
@@ -1027,8 +1032,12 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
 
-  //TODO
-  //rhea_newton_solve (solution, nl_problem, &newton_options);
+  /* run Newton solver */
+  newton_options->nonzero_initial_guess = nonzero_initial_guess;
+  newton_options->iter_max = newton_options->iter_start + iter_max;
+  newton_options->rtol = rel_tol;
+  newton_options->status_verbosity = status_verbosity;
+  rhea_newton_solve (sol_vel_press, newton_problem, newton_options);
 
   /* project out nullspaces of solution */
   //TODO
