@@ -56,9 +56,13 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     rhea_domain_options_t *domain_options,
                     rhea_temperature_options_t *temp_options,
                     rhea_viscosity_options_t *visc_options,
+                    rhea_newton_options_t *newton_options,
                     const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "basic_setup_stokes";
+  const rhea_viscosity_t  viscosity_type = visc_options->type;
+  void               *solver_options =
+    (viscosity_type == RHEA_VISCOSITY_NONLINEAR ? newton_options : NULL);
   ymir_vec_t         *temperature, *weakzone;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
@@ -72,7 +76,6 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* write vtk of input data */ //TODO better move this into main fnc
   if (vtk_write_input_path != NULL) {
-    const rhea_viscosity_t  viscosity_type = visc_options->type;
     ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
     ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
     ymir_vec_t         *rhs_vel = rhea_velocity_new (ymir_mesh);
@@ -105,7 +108,7 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   *stokes_problem = rhea_stokes_problem_new (
       temperature, weakzone, NULL /* nonzero vel. Dirichlet values */,
       ymir_mesh, press_elem,
-      domain_options, temp_options, visc_options);
+      domain_options, temp_options, visc_options, solver_options);
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
   /* destroy */
@@ -176,6 +179,7 @@ main (int argc, char **argv)
   rhea_temperature_options_t    temp_options;
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
+  rhea_newton_options_t         newton_options;
   /* options local to this function */
   int                 production_run;
   int                 solver_iter_max;
@@ -276,7 +280,8 @@ main (int argc, char **argv)
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options,
-                            &visc_options, &discr_options);
+                            &visc_options, &discr_options,
+                            &newton_options);
 
   /*
    * Setup Mesh
@@ -291,7 +296,7 @@ main (int argc, char **argv)
 
   basic_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                       &domain_options, &temp_options, &visc_options,
-                      vtk_write_input_path);
+                      &newton_options, vtk_write_input_path);
 
   /*
    * Solve Stokes Problem
