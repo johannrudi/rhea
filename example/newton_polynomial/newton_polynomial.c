@@ -583,7 +583,10 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
     *nl_problem = rhea_newton_problem_new (
         neg_gradient_vec, step_vec,
         newton_polynomial_compute_negative_gradient,
-        newton_polynomial_solve_hessian_system, poly_problem);
+        newton_polynomial_solve_hessian_system);
+    rhea_newton_problem_set_data_fn (
+        poly_problem, NULL /* no init fnc. */, NULL /* no clear fnc. */,
+        *nl_problem);
     rhea_newton_problem_set_conv_criterion_fn (
         RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
         newton_polynomial_evaluate_objective,
