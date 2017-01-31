@@ -31,12 +31,22 @@ int                 rhea_velocity_pressure_check_vec_type (ymir_vec_t *vec);
 int                 rhea_velocity_pressure_is_valid (ymir_vec_t *vec);
 
 /**
- * Gets velocity and pressure of a combined velocity-pressure vector.
- * Tries to obtain a view onto the data if possible.
+ * Creates velocity and pressure vectors and gets data of each component from a
+ * combined velocity-pressure vector.  Tries to obtain a view onto the data if
+ * possible.
  */
 void                rhea_velocity_pressure_get_components (
                                             ymir_vec_t **vel,
                                             ymir_vec_t **press,
+                                            ymir_vec_t *vel_press,
+                                            ymir_pressure_elem_t *press_elem);
+
+/**
+ * Copies velocity and pressure from a combined velocity-pressure vector.
+ */
+void                rhea_velocity_pressure_copy_components (
+                                            ymir_vec_t *vel,
+                                            ymir_vec_t *press,
                                             ymir_vec_t *vel_press,
                                             ymir_pressure_elem_t *press_elem);
 
