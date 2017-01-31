@@ -299,6 +299,25 @@ newton_polynomial_compute_distance (ymir_vec_t *dist, ymir_vec_t *x_vec,
  *****************************************************************************/
 
 /**
+ * Initializes user data of the nonlinear problem to be able to run the Newton
+ * solver.
+ * (Callback function for Newton's method.)
+ */
+static void
+newton_polynomial_data_init (ymir_vec_t *solution, void *data)
+{
+  newton_polynomial_problem_t  *poly_problem = data;
+
+  /* setup Hessian (see also: newton_polynomial_update_hessian (...)) */
+  if (solution != NULL) { /* if nonzero initial guess */
+    ymir_vec_copy (solution, poly_problem->sol_x);
+  }
+  else { /* otherwise assume zero initial guess */
+    ymir_vec_set_value (poly_problem->sol_x, 0.0);
+  }
+}
+
+/**
  * Evaluates the objective functional.
  * (Callback function for Newton's method.)
  */
@@ -585,7 +604,7 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
         newton_polynomial_compute_negative_gradient,
         newton_polynomial_solve_hessian_system);
     rhea_newton_problem_set_data_fn (
-        poly_problem, NULL /* no init fnc. */, NULL /* no clear fnc. */,
+        poly_problem, newton_polynomial_data_init, NULL /* no clear fnc. */,
         *nl_problem);
     rhea_newton_problem_set_conv_criterion_fn (
         RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
@@ -769,10 +788,6 @@ main (int argc, char **argv)
 
   /* set initial guess */
   ymir_vec_set_value (solution, 0.5);
-
-  /* setup Hessian */
-  newton_polynomial_update_hessian (
-      solution, rhea_newton_problem_get_data (nl_problem));
 
   /* run Newton solver */
   newton_options.nonzero_initial_guess = 1;
