@@ -8,12 +8,23 @@
 
 /**
  * Callback function for Newton's method.
- * Initializes the nonlinear problem in order to run Newton solver.
+ * Initializes user data of the nonlinear problem to be able to run the Newton
+ * solver.
+ *
+ * \param [in] solution Solution vector
+ * \param [in] data     User data
+ */
+typedef void      (*rhea_newton_data_init_fn_t) (ymir_vec_t *solution,
+                                                 void *data);
+
+/**
+ * Callback function for Newton's method.
+ * Clears user data of the nonlinear problem after the Newton solver has
+ * finished.
  *
  * \param [in] data     User data
  */
-typedef void      (*rhea_newton_initialize_fn_t) (
-                                            ymir_vec_t *solution, void *data);
+typedef void      (*rhea_newton_data_clear_fn_t) (void *data);
 
 /**
  * Callback function for Newton's method.
@@ -177,8 +188,7 @@ rhea_newton_problem_t *rhea_newton_problem_new (
               ymir_vec_t *neg_gradient_vec,
               ymir_vec_t *step_vec,
               rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
-              rhea_newton_solve_hessian_system_fn_t solve_hessian_sys,
-              void *data);
+              rhea_newton_solve_hessian_system_fn_t solve_hessian_sys);
 
 /**
  * Destroys a nonlinear problem.
@@ -189,8 +199,10 @@ void                rhea_newton_problem_destroy (
 /**
  * Sets callback function for initializing the Newton solver.
  */
-void                rhea_newton_problem_set_initialize_fn (
-              rhea_newton_initialize_fn_t init,
+void                rhea_newton_problem_set_data_fn (
+              void *data,
+              rhea_newton_data_init_fn_t data_init,
+              rhea_newton_data_clear_fn_t data_clear,
               rhea_newton_problem_t *nl_problem);
 
 /**

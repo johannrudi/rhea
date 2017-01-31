@@ -11,9 +11,7 @@ struct rhea_newton_problem
   ymir_vec_t         *neg_gradient_vec;
   ymir_vec_t         *step_vec;
 
-  /* callback functions */
-  rhea_newton_initialize_fn_t  init;
-
+  /* callback functions for Newton algorithm */
   rhea_newton_conv_criterion_t                conv_criterion;
   rhea_newton_evaluate_objective_fn_t         evaluate_objective;
   rhea_newton_compute_negative_gradient_fn_t  compute_neg_gradient;
@@ -26,8 +24,10 @@ struct rhea_newton_problem
   rhea_newton_update_operator_fn_t  update_operator;
   rhea_newton_update_hessian_fn_t   update_hessian;
 
-  /* data for callback functions */
-  void               *data;
+  /* data and related callback functions */
+  void                        *data;
+  rhea_newton_data_init_fn_t   data_init;
+  rhea_newton_data_clear_fn_t  data_clear;
 
   /* options */
   int                 check_gradient;
@@ -298,8 +298,7 @@ rhea_newton_problem_new (
               ymir_vec_t *neg_gradient_vec,
               ymir_vec_t *step_vec,
               rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
-              rhea_newton_solve_hessian_system_fn_t solve_hessian_sys,
-              void *data)
+              rhea_newton_solve_hessian_system_fn_t solve_hessian_sys)
 {
   rhea_newton_problem_t  *nl_problem = RHEA_ALLOC (rhea_newton_problem_t, 1);
 
@@ -312,7 +311,9 @@ rhea_newton_problem_new (
   nl_problem->neg_gradient_vec = neg_gradient_vec;
   nl_problem->step_vec = step_vec;
 
-  nl_problem->init = NULL;
+  nl_problem->data = NULL;
+  nl_problem->data_init = NULL;
+  nl_problem->data_clear = NULL;
 
   nl_problem->conv_criterion = RHEA_NEWTON_CONV_CRITERION_NONE;
   nl_problem->evaluate_objective = NULL;
@@ -325,8 +326,6 @@ rhea_newton_problem_new (
 
   nl_problem->update_operator = NULL;
   nl_problem->update_hessian = NULL;
-
-  nl_problem->data = data;
 
   nl_problem->check_gradient = 0;
   nl_problem->check_hessian = 0;
@@ -341,11 +340,15 @@ rhea_newton_problem_destroy (rhea_newton_problem_t *nl_problem)
 }
 
 void
-rhea_newton_problem_set_initialize_fn (
-              rhea_newton_initialize_fn_t init,
+rhea_newton_problem_set_data_fn (
+              void *data,
+              rhea_newton_data_init_fn_t data_init,
+              rhea_newton_data_clear_fn_t data_clear,
               rhea_newton_problem_t *nl_problem)
 {
-  nl_problem->init = init;
+  nl_problem->data = data;
+  nl_problem->data_init = data_init;
+  nl_problem->data_clear = data_clear;
 }
 
 void
@@ -1354,10 +1357,10 @@ rhea_newton_solve (ymir_vec_t *solution,
    * Initialize
    */
   {
-    /* call init function of `nl_problem` */
-    if (nl_problem->init != NULL) {
-      nl_problem->init ((opt->nonzero_initial_guess ? solution : NULL),
-                        nl_problem->data);
+    /* initialize data */
+    if (nl_problem->data_init != NULL) {
+      nl_problem->data_init ((opt->nonzero_initial_guess ? solution : NULL),
+                             nl_problem->data);
     }
 
     /* create step */
@@ -1504,6 +1507,12 @@ rhea_newton_solve (ymir_vec_t *solution,
   {
     /* destroy */
     rhea_newton_status_clear (&status);
+
+    /* clear data */
+    if (nl_problem->data_clear != NULL) {
+      nl_problem->data_clear (nl_problem->data);
+    }
+
   }
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
