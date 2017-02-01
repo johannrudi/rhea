@@ -433,13 +433,30 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
                             rhea_newton_problem_t *nl_problem)
 {
   const char         *this_fn_name = "rhea_newton_check_gradient";
-  ymir_vec_t         *sol_vec = ymir_vec_template (nl_problem->step_vec);
-  ymir_vec_t         *dir_vec = ymir_vec_template (nl_problem->step_vec);
-  ymir_vec_t         *perturb_vec = ymir_vec_template (nl_problem->step_vec);
+  ymir_vec_t         *sol_vec, *dir_vec, *perturb_vec;
   double              grad_dir_ref, grad_dir_chk;
   double              obj_val, perturb_obj_val;
   double              abs_error, rel_error;
   int                 n;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+
+  /* check input */
+  RHEA_ASSERT (nl_problem->step_vec != NULL);
+  RHEA_ASSERT (nl_problem->neg_gradient_vec != NULL);
+
+  /* return if check cannot be executed */
+  if (nl_problem->evaluate_objective == NULL) {
+    RHEA_GLOBAL_VERBOSEF (
+        "%s: Cannot execute because objective functional is not provided.\n",
+        this_fn_name);
+    return;
+  }
+
+  /* create work vectors */
+  sol_vec = ymir_vec_template (nl_problem->step_vec);
+  dir_vec = ymir_vec_template (nl_problem->step_vec);
+  perturb_vec = ymir_vec_template (nl_problem->step_vec);
 
   /* set position and direction vectors */
   if (solution == NULL) {
@@ -482,6 +499,8 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   ymir_vec_destroy (sol_vec);
   ymir_vec_destroy (dir_vec);
   ymir_vec_destroy (perturb_vec);
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 static void
@@ -490,24 +509,35 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
 {
   const char         *this_fn_name = "rhea_newton_check_hessian";
   const int           check_gradient = nl_problem->check_gradient;
-  ymir_vec_t         *sol_vec;
-  ymir_vec_t         *dir_vec = ymir_vec_template (nl_problem->step_vec);
-  ymir_vec_t         *perturb_vec = ymir_vec_template (nl_problem->step_vec);
-  ymir_vec_t         *H_dir_ref = ymir_vec_template (nl_problem->step_vec);
-  ymir_vec_t         *H_dir_chk = ymir_vec_template (nl_problem->step_vec);
+  ymir_vec_t         *sol_vec, *dir_vec, *perturb_vec;
+  ymir_vec_t         *H_dir_ref, *H_dir_chk;
   double              abs_error, rel_error;
   int                 n;
 
-  /* return if check cannot be executed */
-  if (nl_problem->apply_hessian == NULL) {
-    return;
-  }
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* check input */
   RHEA_ASSERT (solution != NULL);
+  RHEA_ASSERT (nl_problem->step_vec != NULL);
+  RHEA_ASSERT (nl_problem->neg_gradient_vec != NULL);
+  RHEA_ASSERT (nl_problem->compute_neg_gradient != NULL);
+
+  /* return if check cannot be executed */
+  if (nl_problem->apply_hessian == NULL) {
+    RHEA_GLOBAL_VERBOSEF (
+        "%s: Cannot execute because Hessian-apply function is not provided.\n",
+        this_fn_name);
+    return;
+  }
+
+  /* create work vectors */
+  sol_vec = solution;
+  dir_vec = ymir_vec_template (nl_problem->step_vec);
+  perturb_vec = ymir_vec_template (nl_problem->step_vec);
+  H_dir_ref = ymir_vec_template (nl_problem->step_vec);
+  H_dir_chk = ymir_vec_template (nl_problem->step_vec);
 
   /* set position and direction vectors */
-  sol_vec = solution;
 #ifdef YMIR_WITH_PETSC
   ymir_petsc_vec_set_random (dir_vec, YMIR_MESH_PETSCLAYOUT_NONE);
 #else
@@ -544,6 +574,8 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   ymir_vec_destroy (perturb_vec);
   ymir_vec_destroy (H_dir_ref);
   ymir_vec_destroy (H_dir_chk);
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 /******************************************************************************
