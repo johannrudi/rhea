@@ -17,6 +17,7 @@ librhea_installed_headers = \
         src/rhea_stokes_norm.h \
         src/rhea_stokes_problem.h \
         src/rhea_newton.h \
+        src/rhea_newton_check.h \
         src/rhea_vtk.h \
         src/rhea.h
 librhea_internal_headers =
@@ -33,6 +34,7 @@ librhea_compiled_sources = \
         src/rhea_stokes_norm.c \
         src/rhea_stokes_problem.c \
         src/rhea_newton.c \
+        src/rhea_newton_check.c \
         src/rhea_vtk.c \
         src/rhea.c
 

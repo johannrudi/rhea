@@ -255,11 +255,59 @@ void                rhea_newton_problem_set_checks (
                                             const int check_hessian,
                                             rhea_newton_problem_t *nl_problem);
 
+int                 rhea_newton_problem_get_check_gradient (
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_set_check_gradient (
+                                            const int check_gradient,
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_get_check_hessian (
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_set_check_hessian (
+                                            const int check_hessian,
+                                            rhea_newton_problem_t *nl_problem);
+
 /**
  * Solves a nonlinear problem with inexact Newton--Krylov.
  */
 void                rhea_newton_solve (ymir_vec_t *solution,
                                        rhea_newton_problem_t *nl_problem,
                                        rhea_newton_options_t *opt);
+
+/**
+ * Accesses data and callback functions of nonlinear problem.
+ */
+ymir_vec_t         *rhea_newton_problem_get_neg_gradient_vec (
+                                            rhea_newton_problem_t *nl_problem);
+
+ymir_vec_t         *rhea_newton_problem_get_step_vec (
+                                            rhea_newton_problem_t *nl_problem);
+
+void               *rhea_newton_problem_get_data (
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_evaluate_objective_exists (
+                                            rhea_newton_problem_t *nl_problem);
+
+double              rhea_newton_problem_evaluate_objective (
+                                            ymir_vec_t *solution,
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_compute_neg_gradient_exists (
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_compute_neg_gradient (
+                                            ymir_vec_t *neg_gradient,
+                                            ymir_vec_t *solution,
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_apply_hessian_exists (
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_apply_hessian (
+                                            ymir_vec_t *out, ymir_vec_t *in,
+                                            rhea_newton_problem_t *nl_problem);
 
 #endif /* RHEA_NEWTON_H */
