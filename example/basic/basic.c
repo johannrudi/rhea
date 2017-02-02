@@ -322,35 +322,6 @@ main (int argc, char **argv)
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                              viscosity);
 
-    //###DEV### compute a fake nonlinear viscosity using the (linear) solution
-    //TODO delete
-    if (visc_options.type != RHEA_VISCOSITY_NONLINEAR) {
-      const rhea_viscosity_t  viscosity_type = visc_options.type;
-      const double        coeff_tensor_add = ymir_nlstress_op_coeff_tensor_add;
-      ymir_vec_t         *temperature, *weakzone;
-      char                path[BUFSIZ];
-
-      temperature = rhea_temperature_new (ymir_mesh);
-      rhea_temperature_compute (temperature, &temp_options);
-      weakzone = NULL;
-      rhea_stokes_problem_velocity_boundary_set_zero (velocity, stokes_problem);
-
-      visc_options.type = RHEA_VISCOSITY_NONLINEAR;
-      ymir_nlstress_op_coeff_tensor_add = -2.0 * visc_options.min;
-      rhea_viscosity_compute (viscosity,
-                              NULL /* nl. Stokes output */,
-                              NULL /* nl. Stokes output */,
-                              NULL /* nl. Stokes output */,
-                              temperature, weakzone, velocity,
-                              &visc_options);
-      visc_options.type = viscosity_type;
-      ymir_nlstress_op_coeff_tensor_add = coeff_tensor_add;
-      snprintf (path, BUFSIZ, "%s_fake_nl_visc", vtk_write_solution_path);
-      rhea_vtk_write_solution (path, velocity, pressure, viscosity);
-
-      rhea_temperature_destroy (temperature);
-    }
-
     rhea_velocity_destroy (velocity);
     rhea_pressure_destroy (pressure);
     rhea_viscosity_destroy (viscosity);
