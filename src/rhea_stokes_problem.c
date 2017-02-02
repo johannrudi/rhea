@@ -554,8 +554,8 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
   ymir_vec_t         *temperature = stokes_problem_nl->temperature;
   ymir_vec_t         *weakzone = stokes_problem_nl->weakzone;
 
-  RHEA_GLOBAL_INFOF ("Into %s (nonzero initial guess %i)\n",
-                     this_fn_name, nonzero_initial_guess);
+  RHEA_GLOBAL_VERBOSEF ("Into %s (nonzero initial guess %i)\n",
+                        this_fn_name, nonzero_initial_guess);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->stokes_op == NULL);
@@ -593,6 +593,7 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
   /* set 4th-order tensor part of the coefficient */
   ymir_stress_op_coeff_compute_rank1_tensor (
       stokes_problem_nl->stokes_op->stress_op, rank1_tensor_scal, sol_vel);
+  RHEA_ASSERT (ymir_stress_op_is_nl (stokes_problem_nl->stokes_op->stress_op));
 
   /* create Stokes preconditioner */
   stokes_problem_nl->stokes_pc = ymir_nlstokes_pc_new (
@@ -605,7 +606,7 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
         stokes_problem_nl->norm_op_mass_scaling);
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 /**
@@ -618,7 +619,7 @@ rhea_stokes_problem_nonlinear_data_clear (void *data)
   const char         *this_fn_name = "rhea_stokes_problem_nonlinear_data_clear";
   rhea_stokes_problem_t *stokes_problem_nl = data;
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* destroy Stokes preconditioner */
   if (stokes_problem_nl->stokes_pc != NULL) {
@@ -638,7 +639,7 @@ rhea_stokes_problem_nonlinear_data_clear (void *data)
     ymir_Hminus1_norm_op_destroy (stokes_problem_nl->norm_op);
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 /**
@@ -650,12 +651,16 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution, void *data)
 {
+  const char         *this_fn_name =
+    "rhea_stokes_problem_nonlinear_compute_negative_gradient";
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
   ymir_vec_t         *rhs_vel = stokes_problem_nl->rhs_vel;
   ymir_vec_t         *rhs_vel_nonzero_dirichlet =
                         stokes_problem_nl->rhs_vel_nonzero_dirichlet;
   ymir_vec_t         *rhs_vel_press = stokes_problem_nl->rhs_vel_press;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* check input */
 #if RHEA_ENABLE_DEBUG
@@ -701,6 +706,8 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
   }
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
   RHEA_ASSERT (ymir_vec_is_not_dirty (neg_gradient));
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 /**
@@ -712,11 +719,15 @@ rhea_stokes_problem_nonlinear_compute_gradient_norm (ymir_vec_t *neg_gradient,
                                                      void *data,
                                                      double *norm_comp)
 {
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_compute_gradient_norm";
   rhea_stokes_problem_t *stokes_problem_nl = data;
   rhea_stokes_norm_type_t norm_type = stokes_problem_nl->norm_type;
   ymir_Hminus1_norm_op_t *norm_op = stokes_problem_nl->norm_op;
   ymir_vec_t         *innerprod_arg_left, *innerprod_arg_right;
   double              ip_vel, ip_press;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* check input */
   RHEA_ASSERT (neg_gradient != NULL);
@@ -754,6 +765,8 @@ rhea_stokes_problem_nonlinear_compute_gradient_norm (ymir_vec_t *neg_gradient,
   if (ymir_stokes_pc_block_type == YMIR_STOKES_PC_BLOCK_L) {
     ymir_vec_destroy (innerprod_arg_right);
   }
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 
   /* calculate norms */
   if (norm_comp != NULL) {
@@ -801,10 +814,14 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
                                             void *data,
                                             int *lin_iter_count)
 {
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_solve_hessian_system";
   const double        lin_res_abs_tol = 1.0e-100;
   const int           krylov_gmres_restart = 100;
   rhea_stokes_problem_t *stokes_problem_nl = data;
   int                 itn, stop_reason;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
@@ -822,6 +839,8 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
                                       krylov_gmres_restart /* unused */, &itn);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (step));
 
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+
   /* return iteraton count and "stopping" reason */
   if (lin_iter_count != NULL) {
     *lin_iter_count = itn;
@@ -836,6 +855,8 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
 static void
 rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
 {
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_update_operator";
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_vec_t         *coeff = stokes_problem_nl->coeff;
   ymir_vec_t         *sol_vel = stokes_problem_nl->sol_vel;
@@ -845,9 +866,12 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
   ymir_vec_t         *temperature = stokes_problem_nl->temperature;
   ymir_vec_t         *weakzone = stokes_problem_nl->weakzone;
 
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
+  RHEA_ASSERT (ymir_stress_op_is_nl (stokes_problem_nl->stokes_op->stress_op));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
 
   /* retrieve velocity */
@@ -862,6 +886,8 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
 
   /* re-setup coefficient data of viscous stress operator */
   ymir_stress_op_setup_geo_coeff (stokes_problem_nl->stokes_op->stress_op);
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 /**
@@ -871,15 +897,20 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
 static void
 rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution, void *data)
 {
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_update_hessian";
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
   ymir_vec_t         *sol_vel = stokes_problem_nl->sol_vel;
   ymir_vec_t         *rank1_tensor_scal = stokes_problem_nl->rank1_tensor_scal;
 
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
   RHEA_ASSERT (stokes_problem_nl->stokes_pc != NULL);
+  RHEA_ASSERT (ymir_stress_op_is_nl (stokes_problem_nl->stokes_op->stress_op));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
 
   /* retrieve velocity */
@@ -896,6 +927,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution, void *data)
 #else
   RHEA_ABORT_NOT_REACHED ();
 #endif
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 /******************************************************************************
