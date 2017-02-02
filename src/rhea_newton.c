@@ -1080,7 +1080,8 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   double              lin_res_norm_reduction;
   double              lin_conv;
 
-  RHEA_GLOBAL_INFOF ("Newton iter %i -- Into %s\n", iter, this_fn_name);
+  RHEA_GLOBAL_INFOF ("Newton iter %i -- Into %s (max iter %i, rtol %.1e)\n",
+                     iter, this_fn_name, lin_iter_max, lin_res_norm_rtol);
 
   /* check input */
   RHEA_ASSERT (0 <= step->iter);
@@ -1375,6 +1376,16 @@ rhea_newton_solve (ymir_vec_t *solution,
     {
       step.iter = iter;
 
+      /* update Hessian operator */
+      if (iter != iter_start) { /* if this is not the first Newton step */
+        if (nl_problem->update_hessian != NULL) {
+          nl_problem->update_hessian (solution, nl_problem->data);
+        }
+        if (nl_problem->check_hessian) {
+          rhea_newton_check_hessian (solution, nl_problem);
+        }
+      }
+
       /* calculate the accuracy for computing the step, i.e., for solving the
        * linearized system */
       rhea_newton_set_accuracy (
@@ -1441,13 +1452,7 @@ rhea_newton_solve (ymir_vec_t *solution,
      * Setup Next Step
      */
     {
-      /* update the Hessian */
-      if (nl_problem->update_hessian != NULL) {
-        nl_problem->update_hessian (solution, nl_problem->data);
-      }
-      if (nl_problem->check_hessian) {
-        rhea_newton_check_hessian (solution, nl_problem);
-      }
+      //TODO
     }
 
   } /* END: Newton iter */
