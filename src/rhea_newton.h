@@ -310,4 +310,11 @@ void                rhea_newton_problem_apply_hessian (
                                             ymir_vec_t *out, ymir_vec_t *in,
                                             rhea_newton_problem_t *nl_problem);
 
+int                 rhea_newton_problem_update_operator_exists (
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_update_operator (
+                                            ymir_vec_t *solution,
+                                            rhea_newton_problem_t *nl_problem);
+
 #endif /* RHEA_NEWTON_H */

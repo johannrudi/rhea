@@ -483,8 +483,7 @@ rhea_newton_problem_compute_neg_gradient (ymir_vec_t *neg_gradient,
                                           rhea_newton_problem_t *nl_problem)
 {
   RHEA_ASSERT (rhea_newton_problem_compute_neg_gradient_exists (nl_problem));
-  return nl_problem->compute_neg_gradient (neg_gradient, solution,
-                                           nl_problem->data);
+  nl_problem->compute_neg_gradient (neg_gradient, solution, nl_problem->data);
 }
 
 int
@@ -498,7 +497,22 @@ rhea_newton_problem_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
                                    rhea_newton_problem_t *nl_problem)
 {
   RHEA_ASSERT (rhea_newton_problem_apply_hessian_exists (nl_problem));
-  return nl_problem->apply_hessian (out, in, nl_problem->data);
+  nl_problem->apply_hessian (out, in, nl_problem->data);
+}
+
+int
+rhea_newton_problem_update_operator_exists (rhea_newton_problem_t *nl_problem)
+{
+  return (NULL != nl_problem->update_operator);
+}
+
+void
+rhea_newton_problem_update_operator (ymir_vec_t *solution,
+                                     rhea_newton_problem_t *nl_problem)
+{
+  if (NULL != nl_problem->update_operator) {
+    nl_problem->update_operator (solution, nl_problem->data);
+  }
 }
 
 /******************************************************************************
