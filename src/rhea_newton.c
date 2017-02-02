@@ -1348,7 +1348,7 @@ rhea_newton_solve (ymir_vec_t *solution,
    * Iterations Loop
    */
 
-  for (iter = iter_start; iter < iter_max; iter++) { /* BEGIN: Newton iter */
+  for (iter = iter_start; iter <= iter_max; iter++) { /* BEGIN: Newton iter */
 
     /*
      * Pre-Step Output
@@ -1361,12 +1361,18 @@ rhea_newton_solve (ymir_vec_t *solution,
     }
 
     /*
-     * Convergence Check
+     * Check Stopping Criteria
      */
-    if (rhea_newton_status_get_reduction (&status) < rtol) {
+    if (rhea_newton_status_get_reduction (&status) < rtol) { /* if converged */
       RHEA_GLOBAL_PRODUCTIONF (
           "%s: Nonlinear problem converged to rtol (%.3e)\n",
           this_fn_name, rtol);
+      break;
+    }
+    if (iter_max == iter) { /* if max #iterations reached */
+      RHEA_GLOBAL_PRODUCTIONF (
+          "%s: Maximum number of nonlinear iterations reached (%i)\n",
+          this_fn_name, iter_max);
       break;
     }
 
@@ -1456,15 +1462,6 @@ rhea_newton_solve (ymir_vec_t *solution,
     }
 
   } /* END: Newton iter */
-
-  /* check if max #iterations was reached without convergence */
-  if (iter_max == iter && rtol <= rhea_newton_status_get_reduction (&status)) {
-    rhea_newton_status_print_curr (&status, print_all_conv_criteria, iter,
-                                   this_fn_name);
-    RHEA_GLOBAL_PRODUCTIONF (
-        "%s: Maximum number of nonlinear iterations reached (%i)\n",
-        this_fn_name, iter_max);
-  }
 
   /*
    * Finalize
