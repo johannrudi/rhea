@@ -10,6 +10,11 @@
 #include <ymir_pressure_elem.h>
 #include <ymir_stokes_op.h>
 
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_stokes_problem_add_options (ymir_options_t * opt_sup);
+
 /* Stokes problem (opaque) */
 typedef struct rhea_stokes_problem rhea_stokes_problem_t;
 

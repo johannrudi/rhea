@@ -10,6 +10,54 @@
 #include <ymir_stokes_pc.h>
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/* default options */
+#define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_NORM_TYPE \
+  (RHEA_STOKES_NORM_HMINUS1_L2)
+#define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_MASS_SCALING (0.0)
+#define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN (0)
+
+/* initialize options */
+int                 rhea_stokes_problem_nonlinear_norm_type =
+                      RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_NORM_TYPE;
+double              rhea_stokes_problem_nonlinear_norm_mass_scaling =
+                      RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_MASS_SCALING;
+int                 rhea_stokes_problem_nonlinear_check_jacobian =
+                      RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN;
+
+void
+rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "StokesProblem";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_I, "nonlinear-norm-type", '\0',
+    &(rhea_stokes_problem_nonlinear_norm_type),
+    RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_NORM_TYPE,
+    "Norm for convergence checks within nonlinear solver",
+  YMIR_OPTIONS_D, "nonlinear-norm-Hminus1-mass-scaling", '\0',
+    &(rhea_stokes_problem_nonlinear_norm_mass_scaling),
+    RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_MASS_SCALING,
+    "Scalar weight factor multiplying mass matrix of H^-1 norm operator",
+  YMIR_OPTIONS_I, "nonlinear-check-jacobian", '\0',
+    &(rhea_stokes_problem_nonlinear_check_jacobian),
+    RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN,
+    "Check Jacobians during the solve of a nonlinear problem with Newton",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+}
+
+/******************************************************************************
  * General Stokes Problem
  *****************************************************************************/
 
@@ -420,8 +468,8 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
   double              res_reduction = NAN, conv_factor = NAN;
   double              res_reduction_vel = NAN, res_reduction_press = NAN;
 
-  RHEA_GLOBAL_INFOF ("Into %s (rel tol %.3e, max iter %i)\n",
-                     this_fn_name, rel_tol, iter_max);
+  RHEA_GLOBAL_INFOF ("Into %s (max iter %i, rel tol %.3e)\n",
+                     this_fn_name, iter_max, rel_tol);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
@@ -917,6 +965,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
         neg_gradient_vec, step_vec,
         rhea_stokes_problem_nonlinear_compute_negative_gradient,
         rhea_stokes_problem_nonlinear_solve_hessian_system);
+
     rhea_newton_problem_set_data_fn (
         stokes_problem_nl,
         rhea_stokes_problem_nonlinear_data_init,
@@ -931,12 +980,11 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
     rhea_newton_problem_set_update_fn (
         rhea_stokes_problem_nonlinear_update_operator,
         rhea_stokes_problem_nonlinear_update_hessian, newton_problem);
-//###DEV### TODO check has errors
-//#ifdef RHEA_ENABLE_DEBUG
-#if 0
-    rhea_newton_problem_set_checks (
-        1 /* grad */, 1 /* Hessian */, newton_problem);
-#endif
+
+    if (rhea_stokes_problem_nonlinear_check_jacobian) {
+      rhea_newton_problem_set_checks (
+          0 /* grad */, 1 /* Hessian */, newton_problem);
+    }
   }
 
   /* fill and return the structure of the nonlinear Stokes problem */
@@ -950,8 +998,10 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   stokes_problem_nl->rhs_vel_press = rhs_vel_press;
   stokes_problem_nl->newton_options = newton_options;
   stokes_problem_nl->newton_problem = newton_problem;
-  stokes_problem_nl->norm_type = RHEA_STOKES_NORM_L2_VEC_SP; //TODO
-  stokes_problem_nl->norm_op_mass_scaling = NAN; //TODO
+  stokes_problem_nl->norm_type =
+    (rhea_stokes_norm_type_t) rhea_stokes_problem_nonlinear_norm_type;
+  stokes_problem_nl->norm_op_mass_scaling =
+    rhea_stokes_problem_nonlinear_norm_mass_scaling;
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 
@@ -1022,12 +1072,10 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
   const char         *this_fn_name = "rhea_stokes_problem_nonlinear_solve";
   const int           nonzero_initial_guess = 0;
   const int           status_verbosity = 1;
-//const int           out_residual = !rhea_get_production_run (); //TODO del?
   rhea_newton_options_t *newton_options = stokes_problem_nl->newton_options;
   rhea_newton_problem_t *newton_problem = stokes_problem_nl->newton_problem;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s (rel tol %.3e, max iter %i)\n",
-                           this_fn_name, rel_tol, iter_max);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
