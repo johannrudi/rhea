@@ -12,7 +12,7 @@
 /* default options */
 #define RHEA_VISCOSITY_DEFAULT_TYPE (RHEA_VISCOSITY_LINEAR)
 #define RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR \
-  (RHEA_VISCOSITY_INIT_NONLINEAR_TEMP_UM_REL_TO_LM)
+  (RHEA_VISCOSITY_INIT_NONLINEAR_DEFAULT)
 #define RHEA_VISCOSITY_DEFAULT_MODEL_NAME "UWYL_LADD_USHIFT"
 #define RHEA_VISCOSITY_DEFAULT_MIN (1.0e-2)
 #define RHEA_VISCOSITY_DEFAULT_MAX (1.0e+4)
@@ -1299,19 +1299,54 @@ rhea_viscosity_compute_init_nonlinear (ymir_vec_t *viscosity,
                                        ymir_vec_t *weakzone,
                                        rhea_viscosity_options_t *opt)
 {
-  /* compute linear viscosity */
-  rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
-  if (rank1_tensor_scal != NULL) {
-    ymir_dvec_set_zero (rank1_tensor_scal);
-  }
-  if (bounds_marker != NULL) {
-    ymir_dvec_set_zero (bounds_marker);
-  }
-  if (yielding_marker != NULL) {
-    ymir_dvec_set_zero (yielding_marker);
-  }
+  const rhea_viscosity_init_nonlinear_t  type = opt->type_init_nonlinear;
 
-  //TODO add different types
+  switch (type) {
+  case RHEA_VISCOSITY_INIT_NONLINEAR_DEFAULT:
+    {
+      ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (viscosity);
+      ymir_vec_t         *velocity = rhea_velocity_new (ymir_mesh);
+
+      /* compute nonlinear viscosity with zero velocity */
+      ymir_vec_set_zero (velocity);
+      rhea_viscosity_nonlinear_vec (
+          viscosity, rank1_tensor_scal, bounds_marker, yielding_marker,
+          temperature, weakzone, velocity, opt);
+
+      ymir_vec_destroy (velocity);
+    }
+    break;
+
+  case RHEA_VISCOSITY_INIT_NONLINEAR_LIN:
+  case RHEA_VISCOSITY_INIT_NONLINEAR_LIN_RESCALE_UM:
+    {
+      const double        upper_mantle_scaling = opt->upper_mantle_scaling;
+
+      /* compute linear viscosity (possibly rescale upper mantle) */
+      if (RHEA_VISCOSITY_INIT_NONLINEAR_LIN_RESCALE_UM == type) {
+        opt->upper_mantle_scaling = opt->lower_mantle_scaling;
+      }
+      rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
+      if (RHEA_VISCOSITY_INIT_NONLINEAR_LIN_RESCALE_UM == type) {
+        opt->upper_mantle_scaling = upper_mantle_scaling;
+      }
+
+      /* set all other output vectors to zero */
+      if (rank1_tensor_scal != NULL) {
+        ymir_dvec_set_zero (rank1_tensor_scal);
+      }
+      if (bounds_marker != NULL) {
+        ymir_dvec_set_zero (bounds_marker);
+      }
+      if (yielding_marker != NULL) {
+        ymir_dvec_set_zero (yielding_marker);
+      }
+    }
+    break;
+
+  default: /* unknown initial nonlinear viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 /******************************************************************************
