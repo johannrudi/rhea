@@ -225,6 +225,18 @@ rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
   }
 }
 
+ymir_mesh_t *
+rhea_stokes_problem_get_ymir_mesh (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->ymir_mesh;
+}
+
+ymir_pressure_elem_t *
+rhea_stokes_problem_get_press_elem (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->press_elem;
+}
+
 void
 rhea_stokes_problem_get_viscosity (ymir_vec_t *viscosity,
                                    rhea_stokes_problem_t *stokes_problem)

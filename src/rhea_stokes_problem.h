@@ -54,6 +54,18 @@ void                rhea_stokes_problem_solve (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
+ * Gets ymir mesh from Stokes problem.
+ */
+ymir_mesh_t        *rhea_stokes_problem_get_ymir_mesh (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Gets pressure element from Stokes problem.
+ */
+ymir_pressure_elem_t *rhea_stokes_problem_get_press_elem (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
  * Gets viscosity vector from Stokes problem.
  */
 void                rhea_stokes_problem_get_viscosity (
