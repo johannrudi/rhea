@@ -6,8 +6,11 @@
 
 #include <ymir_vec_ops.h>
 
+/******************************************************************************
+ * Callback Function for Newton's Method
+ *****************************************************************************/
+
 /**
- * Callback function for Newton's method.
  * Initializes user data of the nonlinear problem to be able to run the Newton
  * solver.
  *
@@ -18,7 +21,6 @@ typedef void      (*rhea_newton_data_init_fn_t) (ymir_vec_t *solution,
                                                  void *data);
 
 /**
- * Callback function for Newton's method.
  * Clears user data of the nonlinear problem after the Newton solve.
  *
  * \param [in] data     User data
@@ -26,7 +28,6 @@ typedef void      (*rhea_newton_data_init_fn_t) (ymir_vec_t *solution,
 typedef void      (*rhea_newton_data_clear_fn_t) (void *data);
 
 /**
- * Callback function for Newton's method.
  * Evaluates the objective functional at the current solution vector.
  *
  * \return              Value of objective functional
@@ -37,7 +38,6 @@ typedef double    (*rhea_newton_evaluate_objective_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
 /**
- * Callback function for Newton's method.
  * Computes the negative gradient at the current solution vector.
  *
  * \param [out] neg_gradient  Negative gradient vector
@@ -49,7 +49,6 @@ typedef void      (*rhea_newton_compute_negative_gradient_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
 /**
- * Callback function for Newton's method.
  * Computes norm of the (negative) gradient vector.
  *
  * \return                  Norm of the gradient vector
@@ -62,7 +61,6 @@ typedef double    (*rhea_newton_compute_norm_of_gradient_fn_t) (
                                             void *data, double *norm_comp);
 
 /**
- * Callback function for Newton's method.
  * Applies the Hessian operator to a vector.
  *
  * \param [out] out Result of Hessian application
@@ -74,7 +72,6 @@ typedef void      (*rhea_newton_apply_hessian_fn_t) (
                                             void *data);
 
 /**
- * Callback function for Newton's method.
  * Inverts the Hessian operator approximatively, i.e., up to a given tolerance.
  *
  * \return                            Stopping reason
@@ -96,7 +93,6 @@ typedef int       (*rhea_newton_solve_hessian_system_fn_t) (
                                             int *lin_iter_count);
 
 /**
- * Callback function for Newton's method.
  * Updates the current solution of the (nonlinear) operator.
  *
  * \param [in] solution Current solution vector (may be NULL)
@@ -106,7 +102,6 @@ typedef void      (*rhea_newton_update_operator_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
 /**
- * Callback function for Newton's method.
  * Updates the current solution of the Hessian operator.
  *
  * \param [in] solution Current solution vector (may be NULL)
@@ -115,15 +110,20 @@ typedef void      (*rhea_newton_update_operator_fn_t) (
 typedef void      (*rhea_newton_update_hessian_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
-/* enumerator for convergence critera */
-typedef enum
-{
-  RHEA_NEWTON_CONV_CRITERION_NONE = -1,
-  RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
-  RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
-  RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM
-}
-rhea_newton_conv_criterion_t;
+/**
+ * Writes or prints output at the beginning of a Newton step.
+ *
+ * \param [in] solution Solution vector
+ * \param [in] iter     Iteration number of Newton's method
+ * \param [in] data     User data
+ */
+typedef void      (*rhea_newton_output_prestep_fn_t) (ymir_vec_t *solution,
+                                                      const int iter,
+                                                      void *data);
+
+/******************************************************************************
+ * Options
+ *****************************************************************************/
 
 /* Newton options */
 typedef struct rhea_newton_options
@@ -177,6 +177,20 @@ void                rhea_newton_process_options (rhea_newton_options_t *opt);
 void                rhea_newton_options_set_defaults (
                                                   rhea_newton_options_t *opt);
 
+/******************************************************************************
+ * Newton Problem
+ *****************************************************************************/
+
+/* enumerator for convergence critera */
+typedef enum
+{
+  RHEA_NEWTON_CONV_CRITERION_NONE = -1,
+  RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+  RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
+  RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM
+}
+rhea_newton_conv_criterion_t;
+
 /* Nonlinear problem (opaque) */
 typedef struct rhea_newton_problem rhea_newton_problem_t;
 
@@ -222,7 +236,7 @@ void                rhea_newton_problem_set_apply_hessian_fn (
               rhea_newton_problem_t *nl_problem);
 
 /**
- * Sets callback function for updating the nonlinear and Hessian operators.
+ * Sets callback functions for updating the nonlinear and Hessian operators.
  */
 void                rhea_newton_problem_set_update_fn (
               rhea_newton_update_operator_fn_t update_operator,
@@ -230,22 +244,11 @@ void                rhea_newton_problem_set_update_fn (
               rhea_newton_problem_t *nl_problem);
 
 /**
- * Returns a pointer to the (negative) gradient vector.
+ * Sets callback function for output.
  */
-ymir_vec_t         *rhea_newton_problem_get_neg_gradient_vec (
-                                            rhea_newton_problem_t *nl_problem);
-
-/**
- * Returns a pointer to the step vector.
- */
-ymir_vec_t         *rhea_newton_problem_get_step_vec (
-                                            rhea_newton_problem_t *nl_problem);
-
-/**
- * Returns a pointer to the user data.
- */
-void               *rhea_newton_problem_get_data (
-                                            rhea_newton_problem_t *nl_problem);
+void                rhea_newton_problem_set_output_fn (
+              rhea_newton_output_prestep_fn_t output_prestep,
+              rhea_newton_problem_t *nl_problem);
 
 /**
  * Activates/deactivates gradient and Hessian checks.

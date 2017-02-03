@@ -30,6 +30,9 @@ struct rhea_newton_problem
   rhea_newton_data_init_fn_t   data_init;
   rhea_newton_data_clear_fn_t  data_clear;
 
+  /* user output */
+  rhea_newton_output_prestep_fn_t  output_prestep;
+
   /* options */
   int                 check_gradient;
   int                 check_hessian;
@@ -328,6 +331,8 @@ rhea_newton_problem_new (
   nl_problem->update_operator = NULL;
   nl_problem->update_hessian = NULL;
 
+  nl_problem->output_prestep = NULL;
+
   nl_problem->check_gradient = 0;
   nl_problem->check_hessian = 0;
 
@@ -396,6 +401,14 @@ rhea_newton_problem_set_update_fn (
 {
   nl_problem->update_operator = update_operator;
   nl_problem->update_hessian = update_hessian;
+}
+
+void
+rhea_newton_problem_set_output_fn (
+              rhea_newton_output_prestep_fn_t output_prestep,
+              rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->output_prestep = output_prestep;
 }
 
 void
@@ -1361,7 +1374,6 @@ rhea_newton_solve (ymir_vec_t *solution,
   /*
    * Iterations Loop
    */
-
   for (iter = iter_start; iter <= iter_max; iter++) { /* BEGIN: Newton iter */
 
     /*
@@ -1371,7 +1383,10 @@ rhea_newton_solve (ymir_vec_t *solution,
       rhea_newton_status_print_curr (&status, print_all_conv_criteria, iter,
                                      this_fn_name);
 
-      //TODO add more output
+      /* call user output function */
+      if (nl_problem->output_prestep != NULL) {
+        nl_problem->output_prestep (solution, iter, nl_problem->data);
+      }
     }
 
     /*
@@ -1472,7 +1487,7 @@ rhea_newton_solve (ymir_vec_t *solution,
      * Setup Next Step
      */
     {
-      //TODO
+      //TODO call user setup function
     }
 
   } /* END: Newton iter */
