@@ -17,7 +17,5 @@ void                rhea_vtk_write_solution (const char *filepath,
                                              ymir_vec_t *velocity,
                                              ymir_vec_t *pressure,
                                              ymir_vec_t *viscosity);
-int                rhea_output_pressure (const char *filepath,
-                                             ymir_vec_t *pressure);
 
 #endif /* RHEA_VTK_H */
