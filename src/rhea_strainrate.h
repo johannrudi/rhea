@@ -33,4 +33,17 @@ void                rhea_strainrate_compute_sqrt_of_2inv (
                                               ymir_vec_t *strainrate_sqrt_2inv,
                                               ymir_vec_t *velocity);
 
+/**
+ * Computes the square root of the second invariant of the strain rate at Gauss
+ * nodes, given the velocity at GLL nodes.
+ */
+void                rhea_strainrate_compute_sqrt_of_2inv_elem_gauss (
+                                        sc_dmatrix_t *strainrate_2inv_el_mat,
+                                        sc_dmatrix_t *vel_el_mat,
+                                        ymir_vec_t *vel_vec,
+                                        const ymir_locidx_t elid,
+                                        sc_dmatrix_t *tmp_grad_vel,
+                                        sc_dmatrix_t *tmp_dvel,
+                                        sc_dmatrix_t *tmp_vel);
+
 #endif /* RHEA_STRAINRATE_H */

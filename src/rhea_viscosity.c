@@ -6,8 +6,13 @@
 #include <rhea_temperature.h>
 #include <rhea_weakzone.h>
 #include <rhea_velocity.h>
+#include <rhea_strainrate.h>
 #include <ymir_vec_getset.h>
 #include <ymir_stress_op.h>
+
+/******************************************************************************
+ * Options
+ *****************************************************************************/
 
 /* default options */
 #define RHEA_VISCOSITY_DEFAULT_TYPE (RHEA_VISCOSITY_LINEAR)
@@ -241,6 +246,10 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   /* store domain options */
   opt->domain_options = domain_options;
 }
+
+/******************************************************************************
+ * Viscosity Vector
+ *****************************************************************************/
 
 ymir_vec_t *
 rhea_viscosity_new (ymir_mesh_t *ymir_mesh)
@@ -1178,7 +1187,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
     }
 
     /* get velocity; compute 2nd invariant of the strain rate at Gauss nodes */
-    rhea_velocity_get_elem_compute_strain_rate_2inv_gauss (
+    rhea_strainrate_compute_sqrt_of_2inv_elem_gauss (
         strain_rate_2inv_el_mat, vel_el_mat, vel_vec, elid,
         tmp_grad_vel, tmp_dvel, tmp_vel);
 

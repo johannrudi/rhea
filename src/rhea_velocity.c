@@ -57,24 +57,3 @@ rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
   ymir_cvec_get_elem_interp (vel_vec, vel_el_mat, YMIR_STRIDE_NODE,
                              elid, YMIR_GLL_NODE, YMIR_READ);
 }
-
-void
-rhea_velocity_get_elem_compute_strain_rate_2inv_gauss (
-                                        sc_dmatrix_t *strain_rate_2inv_el_mat,
-                                        sc_dmatrix_t *vel_el_mat,
-                                        ymir_vec_t *vel_vec,
-                                        const ymir_locidx_t elid,
-                                        sc_dmatrix_t *tmp_grad_vel,
-                                        sc_dmatrix_t *tmp_dvel,
-                                        sc_dmatrix_t *tmp_vel)
-{
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (vel_vec);
-
-  /* get velocity at GLL nodes */
-  rhea_velocity_get_elem_gll (vel_el_mat, vel_vec, elid);
-
-  /* compute the 2nd invariant of the strain rate at Gauss nodes */
-  ymir_velocity_elem_compute_strain_rate_2inv_gauss (
-      strain_rate_2inv_el_mat, vel_el_mat, mesh, elid,
-      tmp_grad_vel, tmp_dvel, tmp_vel);
-}
