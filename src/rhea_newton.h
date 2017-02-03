@@ -11,7 +11,7 @@
  * Initializes user data of the nonlinear problem to be able to run the Newton
  * solver.
  *
- * \param [in] solution Solution vector
+ * \param [in] solution Solution vector (may be NULL)
  * \param [in] data     User data
  */
 typedef void      (*rhea_newton_data_init_fn_t) (ymir_vec_t *solution,
@@ -30,7 +30,7 @@ typedef void      (*rhea_newton_data_clear_fn_t) (void *data);
  * Evaluates the objective functional at the current solution vector.
  *
  * \return              Value of objective functional
- * \param [in] solution Current solution vector
+ * \param [in] solution Current solution vector (may be NULL)
  * \param [in] data     User data
  */
 typedef double    (*rhea_newton_evaluate_objective_fn_t) (
@@ -41,7 +41,7 @@ typedef double    (*rhea_newton_evaluate_objective_fn_t) (
  * Computes the negative gradient at the current solution vector.
  *
  * \param [out] neg_gradient  Negative gradient vector
- * \param [in] solution       Current solution vector
+ * \param [in] solution       Current solution vector (may be NULL)
  * \param [in] data           User data
  */
 typedef void      (*rhea_newton_compute_negative_gradient_fn_t) (
@@ -99,7 +99,7 @@ typedef int       (*rhea_newton_solve_hessian_system_fn_t) (
  * Callback function for Newton's method.
  * Updates the current solution of the (nonlinear) operator.
  *
- * \param [in] solution Current solution vector
+ * \param [in] solution Current solution vector (may be NULL)
  * \param [in] data     User data
  */
 typedef void      (*rhea_newton_update_operator_fn_t) (
@@ -109,7 +109,7 @@ typedef void      (*rhea_newton_update_operator_fn_t) (
  * Callback function for Newton's method.
  * Updates the current solution of the Hessian operator.
  *
- * \param [in] solution Current solution vector
+ * \param [in] solution Current solution vector (may be NULL)
  * \param [in] data     User data
  */
 typedef void      (*rhea_newton_update_hessian_fn_t) (
