@@ -153,12 +153,12 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     rhea_domain_options_t *domain_options,
                     rhea_temperature_options_t *temp_options,
                     rhea_viscosity_options_t *visc_options,
-                    rhea_newton_options_t *newton_options)
+                    rhea_newton_options_t *newton_options,
+                    char *vtk_write_newton_itn_path)
 {
   const char         *this_fn_name = "basic_setup_stokes";
-  void               *solver_options =
-    (visc_options->type == RHEA_VISCOSITY_NONLINEAR ? newton_options : NULL);
   ymir_vec_t         *temperature, *weakzone;
+  void               *solver_options;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -169,11 +169,23 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* compute weak zone */
   weakzone = NULL;  /* Note: in this example, we do not want weak zones */
 
+  /* set solver-specific variables */
+  if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
+    solver_options = newton_options;
+  }
+  else {
+    solver_options = NULL;
+  }
+
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       temperature, weakzone, NULL /* nonzero vel. Dirichlet values */,
       ymir_mesh, press_elem,
       domain_options, temp_options, visc_options, solver_options);
+  if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
+    rhea_stokes_problem_nonlinear_set_output (vtk_write_newton_itn_path,
+                                              *stokes_problem);
+  }
 
   /* destroy */
   rhea_temperature_destroy (temperature);
@@ -251,6 +263,7 @@ main (int argc, char **argv)
   int                 solver_iter_max;
   double              solver_rel_tol;
   char               *vtk_write_input_path;
+  char               *vtk_write_newton_itn_path;
   char               *vtk_write_solution_path;
   /* mesh */
   p4est_t            *p4est;
@@ -310,6 +323,9 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
     &(vtk_write_input_path), NULL,
     "File path for vtk files for the input of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-newton-itn-path", '\0',
+    &(vtk_write_newton_itn_path), NULL,
+    "File path for vtk files for iterations of Newton's method",
   YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
     &(vtk_write_solution_path), NULL,
     "File path for vtk files for the solution of the Stokes problem",
@@ -362,7 +378,7 @@ main (int argc, char **argv)
 
   basic_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                       &domain_options, &temp_options, &visc_options,
-                      &newton_options);
+                      &newton_options, vtk_write_newton_itn_path);
 
   /* write vtk of input data */
   basic_vtk_write_input_data (vtk_write_input_path, ymir_mesh,

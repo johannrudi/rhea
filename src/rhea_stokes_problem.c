@@ -7,7 +7,55 @@
 #include <rhea_stokes_norm.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
+#include <rhea_vtk.h>
 #include <ymir_stokes_pc.h>
+
+/* enumerator for types of Stokes problems */
+typedef enum
+{
+  RHEA_STOKES_PROBLEM_LINEAR,
+  RHEA_STOKES_PROBLEM_NONLINEAR
+}
+rhea_stokes_problem_type_t;
+
+/* Stokes problem */
+struct rhea_stokes_problem
+{
+  rhea_stokes_problem_type_t  type;
+
+  /* mesh (not owned) */
+  ymir_mesh_t           *ymir_mesh;
+  ymir_pressure_elem_t  *press_elem;
+
+  /* data of the Stokes problem */
+  ymir_vec_t         *coeff;
+  ymir_vec_t         *sol_vel;            /* nonlinear Stokes only */
+  ymir_vec_t         *rank1_tensor_scal;  /* nonlinear Stokes only */
+  ymir_vec_t         *bounds_marker;      /* nonlinear Stokes only */
+  ymir_vec_t         *yielding_marker;    /* nonlinear Stokes only */
+  ymir_vel_dir_t     *vel_dir;
+  ymir_vec_t         *rhs_vel;
+  ymir_vec_t         *rhs_vel_press;
+
+  /* additional data of the Stokes problem (not owned) */
+  ymir_vec_t         *temperature;
+  ymir_vec_t         *weakzone;
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
+  rhea_domain_options_t *domain_options;
+  rhea_viscosity_options_t *visc_options;
+
+  /* Stokes operator and preconditioner */
+  ymir_stokes_op_t   *stokes_op;
+  ymir_stokes_pc_t   *stokes_pc;
+
+  /* Newton problem (nonlinear Stokes only) */
+  rhea_newton_options_t  *newton_options;
+  rhea_newton_problem_t  *newton_problem;
+  rhea_stokes_norm_type_t norm_type;
+  ymir_Hminus1_norm_op_t *norm_op;
+  double                  norm_op_mass_scaling;
+  char                   *vtk_write_newton_itn_path;
+};
 
 /******************************************************************************
  * Options
@@ -61,52 +109,6 @@ rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
  * General Stokes Problem
  *****************************************************************************/
 
-/* enumerator for types of Stokes problems */
-typedef enum
-{
-  RHEA_STOKES_PROBLEM_LINEAR,
-  RHEA_STOKES_PROBLEM_NONLINEAR
-}
-rhea_stokes_problem_type_t;
-
-/* Stokes problem */
-struct rhea_stokes_problem
-{
-  rhea_stokes_problem_type_t  type;
-
-  /* mesh (not owned) */
-  ymir_mesh_t           *ymir_mesh;
-  ymir_pressure_elem_t  *press_elem;
-
-  /* data of the Stokes problem */
-  ymir_vec_t         *coeff;
-  ymir_vec_t         *sol_vel;            /* nonlinear Stokes only */
-  ymir_vec_t         *rank1_tensor_scal;  /* nonlinear Stokes only */
-  ymir_vec_t         *bounds_marker;      /* nonlinear Stokes only */
-  ymir_vec_t         *yielding_marker;    /* nonlinear Stokes only */
-  ymir_vel_dir_t     *vel_dir;
-  ymir_vec_t         *rhs_vel;
-  ymir_vec_t         *rhs_vel_press;
-
-  /* additional data of the Stokes problem (not owned) */
-  ymir_vec_t         *temperature;
-  ymir_vec_t         *weakzone;
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
-  rhea_domain_options_t *domain_options;
-  rhea_viscosity_options_t *visc_options;
-
-  /* Stokes operator and preconditioner */
-  ymir_stokes_op_t   *stokes_op;
-  ymir_stokes_pc_t   *stokes_pc;
-
-  /* Newton problem (nonlinear Stokes only) */
-  rhea_newton_options_t  *newton_options;
-  rhea_newton_problem_t  *newton_problem;
-  rhea_stokes_norm_type_t norm_type;
-  ymir_Hminus1_norm_op_t *norm_op;
-  double                  norm_op_mass_scaling;
-};
-
 /**
  * Creates and initializes a new structure of a Stokes problem.
  */
@@ -149,6 +151,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->norm_type = RHEA_STOKES_NORM_NONE;
   stokes_problem->norm_op = NULL;
   stokes_problem->norm_op_mass_scaling = NAN;
+  stokes_problem->vtk_write_newton_itn_path = NULL;
 
   return stokes_problem;
 }
@@ -944,6 +947,45 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution, void *data)
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
+/**
+ * Writes or prints output at the beginning of a Newton step.
+ * (Callback function for Newton's method.)
+ */
+static void
+rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
+                                              const int iter, void *data)
+{
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_output_prestep";
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  const char         *filepath = stokes_problem_nl->vtk_write_newton_itn_path;
+  ymir_vec_t         *viscosity;
+  char                path[BUFSIZ];
+
+  /* return if nothing to do */
+  if (filepath == NULL) {
+    return;
+  }
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+
+  /* get viscosity */
+  viscosity = rhea_viscosity_new (stokes_problem_nl->ymir_mesh);
+  rhea_stokes_problem_get_viscosity (viscosity, stokes_problem_nl);
+
+  /* write vtk */
+  snprintf (path, BUFSIZ, "%s_itn%02i", filepath, iter);
+  rhea_vtk_write_nonlinear_stokes_iteration (path, solution, viscosity,
+                                             stokes_problem_nl->bounds_marker,
+                                             stokes_problem_nl->yielding_marker,
+                                             stokes_problem_nl->press_elem);
+
+  /* destroy */
+  rhea_viscosity_destroy (viscosity);
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+}
+
 /******************************************************************************
  * Nonlinear Stokes Problem
  *****************************************************************************/
@@ -1026,6 +1068,8 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
     rhea_newton_problem_set_update_fn (
         rhea_stokes_problem_nonlinear_update_operator,
         rhea_stokes_problem_nonlinear_update_hessian, newton_problem);
+    rhea_newton_problem_set_output_fn (
+        rhea_stokes_problem_nonlinear_output_prestep, newton_problem);
 
     if (rhea_stokes_problem_nonlinear_check_jacobian) {
       rhea_newton_problem_set_checks (
@@ -1106,6 +1150,7 @@ void
 rhea_stokes_problem_nonlinear_setup_solver (
                                     rhea_stokes_problem_t *stokes_problem_nl)
 {
+  /* setup happens during nonlinear solve */
   return;
 }
 
@@ -1140,4 +1185,13 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
 //    state->vel_press_vec, lin_stokes->stokes_op, physics_options, 0);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
+
+void
+rhea_stokes_problem_nonlinear_set_output (
+                              char *vtk_write_newton_iteration_path,
+                              rhea_stokes_problem_t *stokes_problem_nl)
+{
+  stokes_problem_nl->vtk_write_newton_itn_path =
+    vtk_write_newton_iteration_path;
 }

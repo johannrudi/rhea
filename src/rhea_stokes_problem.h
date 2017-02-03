@@ -98,6 +98,7 @@ void                rhea_stokes_problem_velocity_boundary_set_zero (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /* Analogous function declarations for a linear Stokes problem */
+//TODO remove these?
 
 rhea_stokes_problem_t *rhea_stokes_problem_linear_new (
                                     ymir_vec_t *temperature,
@@ -123,6 +124,7 @@ void                rhea_stokes_problem_linear_solve (
                                     rhea_stokes_problem_t *stokes_problem_lin);
 
 /* Analogous function declarations for a nonlinear Stokes problem */
+//TODO remove these?
 
 rhea_stokes_problem_t *rhea_stokes_problem_nonlinear_new (
                               ymir_vec_t *temperature,
@@ -145,6 +147,12 @@ void                rhea_stokes_problem_nonlinear_solve (
                               ymir_vec_t *sol_vel_press,
                               const int iter_max,
                               const double rel_tol,
+                              rhea_stokes_problem_t *stokes_problem_nl);
+
+/* Function declarations specific to a nonlinear Stokes problem */
+
+void                rhea_stokes_problem_nonlinear_set_output (
+                              char *vtk_write_newton_iteration_path,
                               rhea_stokes_problem_t *stokes_problem_nl);
 
 #endif /* RHEA_STOKES_PROBLEM_H */
