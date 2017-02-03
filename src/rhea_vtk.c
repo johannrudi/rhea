@@ -8,6 +8,7 @@
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
+#include <rhea_strainrate.h>
 #include <ymir_vtk.h>
 
 void
@@ -23,7 +24,7 @@ rhea_vtk_write_input_data (const char *filepath,
   const int           in_back = (background_temp != NULL ? 1 : 0);
   const int           in_weak = (weakzone != NULL ? 1 : 0);
   const int           in_visc = (viscosity != NULL ? 1 : 0);
-  ymir_mesh_t        *mesh;
+  ymir_mesh_t        *ymir_mesh;
 
   RHEA_GLOBAL_INFOF ("Into %s: Write VTK file \"%s\"\n",
                      this_fn_name, filepath);
@@ -33,41 +34,41 @@ rhea_vtk_write_input_data (const char *filepath,
 
   /* get ymir mesh */
   if (in_temp) {
-    mesh = ymir_vec_get_mesh (temperature);
+    ymir_mesh = ymir_vec_get_mesh (temperature);
   }
   else if (in_back) {
-    mesh = ymir_vec_get_mesh (background_temp);
+    ymir_mesh = ymir_vec_get_mesh (background_temp);
   }
   else if (in_weak) {
-    mesh = ymir_vec_get_mesh (weakzone);
+    ymir_mesh = ymir_vec_get_mesh (weakzone);
   }
   else if (in_visc) {
-    mesh = ymir_vec_get_mesh (viscosity);
+    ymir_mesh = ymir_vec_get_mesh (viscosity);
   }
   else {
-    mesh = ymir_vec_get_mesh (rhs_vel);
+    ymir_mesh = ymir_vec_get_mesh (rhs_vel);
   }
 
   /* create vectors that were not given as input */
   if (!in_temp) {
-    temperature = rhea_temperature_new (mesh);
+    temperature = rhea_temperature_new (ymir_mesh);
     ymir_vec_set_value (temperature, -1.0);
   }
   if (!in_back) {
-    background_temp = rhea_temperature_new (mesh);
+    background_temp = rhea_temperature_new (ymir_mesh);
     ymir_vec_set_value (background_temp, -1.0);
   }
   if (!in_weak) {
-    weakzone = rhea_weakzone_new (mesh);
+    weakzone = rhea_weakzone_new (ymir_mesh);
     ymir_vec_set_value (weakzone, -1.0);
   }
   if (!in_visc) {
-    viscosity = rhea_viscosity_new (mesh);
+    viscosity = rhea_viscosity_new (ymir_mesh);
     ymir_vec_set_value (viscosity, -1.0);
   }
 
   /* write vtk file */
-  ymir_vtk_write (mesh, filepath,
+  ymir_vtk_write (ymir_mesh, filepath,
                   temperature, "temperature",
                   background_temp, "background_temp",
                   weakzone, "weakzone",
@@ -92,50 +93,48 @@ rhea_vtk_write_input_data (const char *filepath,
   RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
-void
-rhea_vtk_write_solution (const char *filepath,
-                         ymir_vec_t *velocity,
-                         ymir_vec_t *pressure,
-                         ymir_vec_t *viscosity)
+static void
+rhea_vtk_write_primary (const char *filepath,
+                        ymir_vec_t *velocity,
+                        ymir_vec_t *pressure)
 {
-  const char         *this_fn_name = "rhea_vtk_write_solution";
+  const char         *this_fn_name = "rhea_vtk_write_primary";
   const int           in_vel = (velocity != NULL ? 1 : 0);
   const int           in_press = (pressure != NULL ? 1 : 0);
-  ymir_mesh_t        *mesh;
+  ymir_mesh_t        *ymir_mesh;
 
-  RHEA_GLOBAL_INFOF ("Into %s: Write VTK file \"%s\"\n",
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
                      this_fn_name, filepath);
 
   /* check input */
-  RHEA_ASSERT (in_vel || in_press || viscosity != NULL);
+  RHEA_ASSERT (in_vel || in_press);
 
   /* get ymir mesh */
   if (in_vel) {
-    mesh = ymir_vec_get_mesh (velocity);
+    ymir_mesh = ymir_vec_get_mesh (velocity);
   }
   else if (in_press) {
-    mesh = ymir_vec_get_mesh (pressure);
+    ymir_mesh = ymir_vec_get_mesh (pressure);
   }
   else {
-    mesh = ymir_vec_get_mesh (viscosity);
+    RHEA_ABORT_NOT_REACHED ();
   }
 
   /* create vectors that were not given as input */
   if (!in_vel) {
-    velocity = rhea_velocity_new (mesh);
+    velocity = rhea_velocity_new (ymir_mesh);
     ymir_vec_set_value (velocity, 0.0);
   }
   if (!in_press) {
-    pressure = ymir_dvec_new (mesh, 1, YMIR_GLL_NODE); /* since no press_elem */
+    pressure = ymir_dvec_new (ymir_mesh, 1, YMIR_GLL_NODE); /* since press_elem
+                                                             * not available */
     ymir_vec_set_value (pressure, 0.0);
   }
 
   /* write vtk file */
-  ymir_vtk_write (mesh, filepath,
+  ymir_vtk_write (ymir_mesh, filepath,
                   velocity, "velocity",
-                  pressure, "pressure",
-                  viscosity, "viscosity",
-                  NULL);
+                  pressure, "pressure", NULL);
 
   /* destroy */
   if (!in_vel) {
@@ -148,3 +147,67 @@ rhea_vtk_write_solution (const char *filepath,
   RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
+static void
+rhea_vtk_write_secondary (const char *filepath,
+                          ymir_vec_t *viscosity,
+                          ymir_vec_t *velocity)
+{
+  const char         *this_fn_name = "rhea_vtk_write_secondary";
+  const int           in_vel = (velocity != NULL ? 1 : 0);
+  ymir_mesh_t        *ymir_mesh;
+  ymir_vec_t         *strainrate_sqrt_2inv;
+
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
+                     this_fn_name, filepath);
+
+  /* check input */
+  RHEA_ASSERT (viscosity != NULL);
+
+  /* get ymir mesh */
+  ymir_mesh = ymir_vec_get_mesh (viscosity);
+
+  /* compute the square root of the 2nd inv. of the strain rate */
+  if (in_vel) {
+    strainrate_sqrt_2inv = rhea_strainrate_2inv_new (ymir_mesh);
+    rhea_strainrate_compute_sqrt_of_2inv (strainrate_sqrt_2inv, velocity);
+  }
+
+  /* write vtk file */
+  if (in_vel) {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    strainrate_sqrt_2inv, "strain_rate_sqrt_2inv",
+                    viscosity, "viscosity", NULL);
+  }
+  else {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    viscosity, "viscosity", NULL);
+  }
+
+  /* destroy */
+  if (in_vel) {
+    rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);
+  }
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+}
+
+void
+rhea_vtk_write_solution (const char *filepath,
+                         ymir_vec_t *velocity,
+                         ymir_vec_t *pressure,
+                         ymir_vec_t *viscosity)
+{
+  const char         *this_fn_name = "rhea_vtk_write_solution";
+  char                path[BUFSIZ];
+
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
+                     this_fn_name, filepath);
+
+  snprintf (path, BUFSIZ, "%s_primary", filepath);
+  rhea_vtk_write_primary (path, velocity, pressure);
+
+  snprintf (path, BUFSIZ, "%s_secondary", filepath);
+  rhea_vtk_write_secondary (path, viscosity, velocity);
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+}
