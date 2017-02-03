@@ -791,6 +791,7 @@ rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
+  RHEA_ASSERT (ymir_stress_op_is_nl (stokes_problem_nl->stokes_op->stress_op));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (out));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (in));
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (in));
