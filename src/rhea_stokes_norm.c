@@ -15,10 +15,10 @@ rhea_stokes_norm_l2_innerprod (double *innerprod_vel,
   ymir_vec_t         *vel_right, *press_right;
 
   /* create component vectors */
-  rhea_velocity_pressure_get_components (&vel_left, &press_left, arg_left,
-                                         press_elem);
-  rhea_velocity_pressure_get_components (&vel_right, &press_right, arg_right,
-                                         press_elem);
+  rhea_velocity_pressure_create_components (&vel_left, &press_left, arg_left,
+                                            press_elem);
+  rhea_velocity_pressure_create_components (&vel_right, &press_right, arg_right,
+                                            press_elem);
 
   /* compute inner product for each component */
   if (innerprod_vel != NULL) {
@@ -68,10 +68,10 @@ rhea_stokes_norm_L2_dual_innerprod (double *innerprod_vel,
   ymir_vec_t         *vel_right_lump, *press_right_lump;
 
   /* create component vectors */
-  rhea_velocity_pressure_get_components (&vel_left, &press_left, arg_left,
-                                         press_elem);
-  rhea_velocity_pressure_get_components (&vel_right, &press_right, arg_right,
-                                         press_elem);
+  rhea_velocity_pressure_create_components (&vel_left, &press_left, arg_left,
+                                            press_elem);
+  rhea_velocity_pressure_create_components (&vel_right, &press_right, arg_right,
+                                            press_elem);
 
   /* invert mass matrices */
   if (innerprod_vel != NULL) {
@@ -123,10 +123,10 @@ rhea_stokes_norm_Hminus1_L2_innerprod (double *innerprod_vel,
   ymir_vec_t         *vel_left, *vel_right;
 
   /* create component vectors */
-  rhea_velocity_pressure_get_components (&vel_left, NULL, arg_left,
-                                         press_elem);
-  rhea_velocity_pressure_get_components (&vel_right, NULL, arg_right,
-                                         press_elem);
+  rhea_velocity_pressure_create_components (&vel_left, NULL, arg_left,
+                                            press_elem);
+  rhea_velocity_pressure_create_components (&vel_right, NULL, arg_right,
+                                            press_elem);
 
   /* compute H^-1 inner product of velocity */
   if (innerprod_vel != NULL) {

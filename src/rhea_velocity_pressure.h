@@ -35,7 +35,7 @@ int                 rhea_velocity_pressure_is_valid (ymir_vec_t *vec);
  * combined velocity-pressure vector.  Tries to obtain a view onto the data if
  * possible.
  */
-void                rhea_velocity_pressure_get_components (
+void                rhea_velocity_pressure_create_components (
                                             ymir_vec_t **vel,
                                             ymir_vec_t **press,
                                             ymir_vec_t *vel_press,
