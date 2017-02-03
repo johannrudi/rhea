@@ -9,9 +9,6 @@
 
 #include <rhea.h>
 
-//###DEV### TODO delete
-#include <ymir_stress_op.h>
-
 /******************************************************************************
  * Main Program
  *****************************************************************************/
@@ -56,13 +53,11 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     rhea_domain_options_t *domain_options,
                     rhea_temperature_options_t *temp_options,
                     rhea_viscosity_options_t *visc_options,
-                    rhea_newton_options_t *newton_options,
-                    const char *vtk_write_input_path)
+                    rhea_newton_options_t *newton_options)
 {
   const char         *this_fn_name = "basic_setup_stokes";
-  const rhea_viscosity_t  viscosity_type = visc_options->type;
   void               *solver_options =
-    (viscosity_type == RHEA_VISCOSITY_NONLINEAR ? newton_options : NULL);
+    (visc_options->type == RHEA_VISCOSITY_NONLINEAR ? newton_options : NULL);
   ymir_vec_t         *temperature, *weakzone;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
@@ -74,42 +69,11 @@ basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* compute weak zone */
   weakzone = NULL;  /* Note: in this example, we do not want weak zones */
 
-  /* write vtk of input data */ //TODO better move this into main fnc
-  if (vtk_write_input_path != NULL) {
-    ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
-    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
-    ymir_vec_t         *rhs_vel = rhea_velocity_new (ymir_mesh);
-
-    rhea_temperature_background_compute (background_temp, temp_options);
-    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
-      visc_options->type = RHEA_VISCOSITY_LINEAR;
-    }
-    rhea_viscosity_compute (viscosity,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            temperature, weakzone,
-                            NULL /* nl. Stokes input */,
-                            visc_options);
-    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
-      visc_options->type = viscosity_type;
-    }
-    rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
-
-    rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                               background_temp, weakzone, viscosity, rhs_vel);
-
-    rhea_temperature_destroy (background_temp);
-    rhea_viscosity_destroy (viscosity);
-    rhea_velocity_destroy (rhs_vel);
-  }
-
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       temperature, weakzone, NULL /* nonzero vel. Dirichlet values */,
       ymir_mesh, press_elem,
       domain_options, temp_options, visc_options, solver_options);
-  rhea_stokes_problem_setup_solver (*stokes_problem);
 
   /* destroy */
   rhea_temperature_destroy (temperature);
@@ -296,7 +260,42 @@ main (int argc, char **argv)
 
   basic_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                       &domain_options, &temp_options, &visc_options,
-                      &newton_options, vtk_write_input_path);
+                      &newton_options);
+
+  /* write vtk of input data */
+  if (vtk_write_input_path != NULL) {
+    const rhea_viscosity_t  viscosity_type = visc_options.type;
+    ymir_vec_t         *temperature = rhea_temperature_new (ymir_mesh);
+    ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
+    ymir_vec_t         *weakzone = NULL;
+    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+    ymir_vec_t         *rhs_vel = rhea_velocity_new (ymir_mesh);
+
+    rhea_temperature_compute (temperature, &temp_options);
+    rhea_temperature_background_compute (background_temp, &temp_options);
+    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
+      visc_options.type = RHEA_VISCOSITY_LINEAR;
+    }
+    rhea_viscosity_compute (viscosity,
+                            NULL /* nl. Stokes output */,
+                            NULL /* nl. Stokes output */,
+                            NULL /* nl. Stokes output */,
+                            temperature, weakzone,
+                            NULL /* nl. Stokes input */,
+                            &visc_options);
+    if (viscosity_type == RHEA_VISCOSITY_NONLINEAR) {
+      visc_options.type = viscosity_type;
+    }
+    rhea_temperature_compute_rhs_vel (rhs_vel, temperature, &temp_options);
+
+    rhea_vtk_write_input_data (vtk_write_input_path, temperature,
+                               background_temp, weakzone, viscosity, rhs_vel);
+
+    rhea_temperature_destroy (temperature);
+    rhea_temperature_destroy (background_temp);
+    rhea_viscosity_destroy (viscosity);
+    rhea_velocity_destroy (rhs_vel);
+  }
 
   /*
    * Solve Stokes Problem
@@ -304,6 +303,9 @@ main (int argc, char **argv)
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  /* setup solver */
+  rhea_stokes_problem_setup_solver (stokes_problem);
 
   /* run solver */
   basic_run_solver (sol_vel_press, stokes_problem,
@@ -315,8 +317,8 @@ main (int argc, char **argv)
     ymir_vec_t         *pressure = rhea_pressure_new (ymir_mesh, press_elem);
     ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
 
-    ymir_stokes_vec_get_components (sol_vel_press, velocity, pressure,
-                                    press_elem);
+    rhea_velocity_pressure_copy_components (velocity, pressure, sol_vel_press,
+                                            press_elem);
     rhea_stokes_problem_get_viscosity (viscosity, stokes_problem);
 
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
