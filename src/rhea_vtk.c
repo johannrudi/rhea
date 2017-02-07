@@ -214,36 +214,30 @@ rhea_vtk_write_solution (const char *filepath,
 
 void
 rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
-                                           ymir_vec_t *velocity_pressure,
+                                           ymir_vec_t *velocity,
+                                           ymir_vec_t *pressure,
                                            ymir_vec_t *viscosity,
                                            ymir_vec_t *bounds_marker,
-                                           ymir_vec_t *yielding_marker,
-                                           ymir_pressure_elem_t *press_elem)
+                                           ymir_vec_t *yielding_marker)
 {
   const char         *this_fn_name =
                         "rhea_vtk_write_nonlinear_stokes_iteration";
   ymir_mesh_t        *ymir_mesh;
-  ymir_vec_t         *velocity, *pressure;
   ymir_vec_t         *strainrate_sqrt_2inv;
 
   RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
                      this_fn_name, filepath);
 
   /* check input */
-  RHEA_ASSERT (velocity_pressure != NULL);
+  RHEA_ASSERT (velocity != NULL);
+  RHEA_ASSERT (pressure != NULL);
   RHEA_ASSERT (viscosity != NULL);
   RHEA_ASSERT (bounds_marker != NULL);
   RHEA_ASSERT (yielding_marker != NULL);
 
   /* create work variables */
-  ymir_mesh = ymir_vec_get_mesh (velocity_pressure);
-  velocity = rhea_velocity_new (ymir_mesh);
-  pressure = rhea_pressure_new (ymir_mesh, press_elem);
+  ymir_mesh = ymir_vec_get_mesh (viscosity);
   strainrate_sqrt_2inv = rhea_strainrate_2inv_new (ymir_mesh);
-
-  /* get velocity and pressure components */
-  rhea_velocity_pressure_copy_components (velocity, pressure, velocity_pressure,
-                                          press_elem);
 
   /* compute sqrt of the 2nd inv. of the strain rate */
   rhea_strainrate_compute_sqrt_of_2inv (strainrate_sqrt_2inv, velocity);
@@ -258,8 +252,6 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
                   yielding_marker, "yielding_marker", NULL);
 
   /* destroy */
-  rhea_velocity_destroy (velocity);
-  rhea_pressure_destroy (pressure);
   rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);
 
   RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);

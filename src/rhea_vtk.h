@@ -21,10 +21,10 @@ void                rhea_vtk_write_solution (const char *filepath,
 
 void                rhea_vtk_write_nonlinear_stokes_iteration (
                                             const char *filepath,
-                                            ymir_vec_t *velocity_pressure,
+                                            ymir_vec_t *velocity,
+                                            ymir_vec_t *pressure,
                                             ymir_vec_t *viscosity,
                                             ymir_vec_t *bounds_marker,
-                                            ymir_vec_t *yielding_marker,
-                                            ymir_pressure_elem_t *press_elem);
+                                            ymir_vec_t *yielding_marker);
 
 #endif /* RHEA_VTK_H */

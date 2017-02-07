@@ -959,7 +959,9 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
                         "rhea_stokes_problem_nonlinear_output_prestep";
   rhea_stokes_problem_t *stokes_problem_nl = data;
   const char         *filepath = stokes_problem_nl->vtk_write_newton_itn_path;
-  ymir_vec_t         *viscosity;
+  ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
+  ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
+  ymir_vec_t         *velocity, *pressure, *viscosity;
   char                path[BUFSIZ];
 
   /* return if nothing to do */
@@ -969,18 +971,21 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
-  /* get viscosity */
-  viscosity = rhea_viscosity_new (stokes_problem_nl->ymir_mesh);
+  /* get fields */
+  rhea_velocity_pressure_create_components (&velocity, &pressure, solution,
+                                            press_elem);
+  viscosity = rhea_viscosity_new (ymir_mesh);
   rhea_stokes_problem_get_viscosity (viscosity, stokes_problem_nl);
 
   /* write vtk */
   snprintf (path, BUFSIZ, "%s_itn%02i", filepath, iter);
-  rhea_vtk_write_nonlinear_stokes_iteration (path, solution, viscosity,
-                                             stokes_problem_nl->bounds_marker,
-                                             stokes_problem_nl->yielding_marker,
-                                             stokes_problem_nl->press_elem);
+  rhea_vtk_write_nonlinear_stokes_iteration (
+      path, velocity, pressure, viscosity,
+      stokes_problem_nl->bounds_marker, stokes_problem_nl->yielding_marker);
 
   /* destroy */
+  rhea_velocity_destroy (velocity);
+  rhea_pressure_destroy (pressure);
   rhea_viscosity_destroy (viscosity);
 
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
