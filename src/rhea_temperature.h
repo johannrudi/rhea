@@ -21,6 +21,10 @@ typedef enum
 }
 rhea_temperature_t;
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /* options of the mantle's temperature */
 typedef struct rhea_temperature_options
 {
@@ -46,6 +50,15 @@ typedef struct rhea_temperature_options
   double              sinker_width;
   double              sinker_scaling;
 
+  /* plume */
+  int                 plume_active;
+  double              plume_center_x;
+  double              plume_center_y;
+  double              plume_center_z;
+  double              plume_decay;
+  double              plume_width;
+  double              plume_scaling;
+
   /* buoyancy right-hand side derived from temperature */
   double              rhs_scaling;
 
@@ -66,6 +79,10 @@ void                rhea_temperature_process_options (
                                         rhea_temperature_options_t *opt,
                                         rhea_domain_options_t *domain_options);
 
+/******************************************************************************
+ * Vector
+ *****************************************************************************/
+
 /**
  * Creates a new temperature vector.
  */
@@ -85,6 +102,10 @@ int                 rhea_temperature_check_vec_type (ymir_vec_t *vec);
  * Checks entries of a vector.
  */
 int                 rhea_temperature_is_valid (ymir_vec_t *vec);
+
+/******************************************************************************
+ * Computation
+ *****************************************************************************/
 
 /**
  * Computes the temperature.

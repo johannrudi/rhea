@@ -8,6 +8,10 @@
 /* constant: seconds in a year (= 365.25*24*3600) */
 #define RHEA_TEMPERATURE_SECONDS_PER_YEAR (31557600.0)
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /* default options */
 #define RHEA_TEMPERATURE_DEFAULT_TYPE_NAME "none"
 #define RHEA_TEMPERATURE_DEFAULT_COLD_PLATE_AGE_YR (50.0e6)        /* [yr] */
@@ -20,6 +24,13 @@
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_DECAY (100.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_WIDTH (0.1)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_SCALING (1.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE (0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY (100.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_WIDTH (0.1)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_SCALING (1.0)
 
 /* initialize options */
 char               *rhea_temperature_type_name =
@@ -44,6 +55,20 @@ double              rhea_temperature_sinker_width =
   RHEA_TEMPERATURE_SINKER_DEFAULT_WIDTH;
 double              rhea_temperature_sinker_scaling =
   RHEA_TEMPERATURE_SINKER_DEFAULT_SCALING;
+int                 rhea_temperature_plume_active =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE;
+double              rhea_temperature_plume_center_x =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X;
+double              rhea_temperature_plume_center_y =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y;
+double              rhea_temperature_plume_center_z =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z;
+double              rhea_temperature_plume_decay =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY;
+double              rhea_temperature_plume_width =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_WIDTH;
+double              rhea_temperature_plume_scaling =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_SCALING;
 
 void
 rhea_temperature_add_options (ymir_options_t * opt_sup)
@@ -96,25 +121,70 @@ rhea_temperature_add_options_sinker (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "center-x", '\0',
     &(rhea_temperature_sinker_center_x),
     RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X,
-    "Center of Sinker: x-coordinate",
+    "Centerr: x-coordinate",
   YMIR_OPTIONS_D, "center-y", '\0',
     &(rhea_temperature_sinker_center_y),
     RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y,
-    "Center of Sinker: y-coordinate",
+    "Centerr: y-coordinate",
   YMIR_OPTIONS_D, "center-z", '\0',
     &(rhea_temperature_sinker_center_z),
     RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z,
-    "Center of Sinker: z-coordinate",
+    "Centerr: z-coordinate",
 
   YMIR_OPTIONS_D, "decay", '\0',
     &(rhea_temperature_sinker_decay), RHEA_TEMPERATURE_SINKER_DEFAULT_DECAY,
     "Decay of temperature",
   YMIR_OPTIONS_D, "width", '\0',
     &(rhea_temperature_sinker_width), RHEA_TEMPERATURE_SINKER_DEFAULT_WIDTH,
-    "Width of sinker where the max temperature is reached",
+    "Width of inner sphere with maximum value",
 
   YMIR_OPTIONS_D, "scaling", '\0',
     &(rhea_temperature_sinker_scaling), RHEA_TEMPERATURE_SINKER_DEFAULT_SCALING,
+    "Scaling factor",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+}
+
+void
+rhea_temperature_add_options_plume (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "TemperaturePlume";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_B, "active", '\0',
+    &(rhea_temperature_plume_active), RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE,
+    "Activate plume",
+
+  YMIR_OPTIONS_D, "center-x", '\0',
+    &(rhea_temperature_plume_center_x),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X,
+    "Center: x-coordinate",
+  YMIR_OPTIONS_D, "center-y", '\0',
+    &(rhea_temperature_plume_center_y),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y,
+    "Center: y-coordinate",
+  YMIR_OPTIONS_D, "center-z", '\0',
+    &(rhea_temperature_plume_center_z),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z,
+    "Center: z-coordinate",
+
+  YMIR_OPTIONS_D, "decay", '\0',
+    &(rhea_temperature_plume_decay), RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY,
+    "Decay of temperature",
+  YMIR_OPTIONS_D, "width", '\0',
+    &(rhea_temperature_plume_width), RHEA_TEMPERATURE_PLUME_DEFAULT_WIDTH,
+    "Width of inner sphere with minimum value",
+
+  YMIR_OPTIONS_D, "scaling", '\0',
+    &(rhea_temperature_plume_scaling), RHEA_TEMPERATURE_PLUME_DEFAULT_SCALING,
     "Scaling factor",
 
   YMIR_OPTIONS_END_OF_LIST);
@@ -161,12 +231,25 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   opt->sinker_width = rhea_temperature_sinker_width;
   opt->sinker_scaling = rhea_temperature_sinker_scaling;
 
+  /* set plume options */
+  opt->plume_active = rhea_temperature_plume_active;
+  opt->plume_center_x = rhea_temperature_plume_center_x;
+  opt->plume_center_y = rhea_temperature_plume_center_y;
+  opt->plume_center_z = rhea_temperature_plume_center_z;
+  opt->plume_decay = rhea_temperature_plume_decay;
+  opt->plume_width = rhea_temperature_plume_width;
+  opt->plume_scaling = rhea_temperature_plume_scaling;
+
   /* set right-hand side options */
   opt->rhs_scaling = rhea_temperature_rhs_scaling;
 
   /* store domain options */
   opt->domain_options = domain_options;
 }
+
+/******************************************************************************
+ * Vector
+ *****************************************************************************/
 
 ymir_vec_t *
 rhea_temperature_new (ymir_mesh_t *ymir_mesh)
@@ -254,14 +337,15 @@ rhea_temperature_cold_plate_hscm (const double radius,
 }
 
 /**
- * Computes the temperature of one sinker that is shaped like a Gaussian:
+ * Computes the temperature anomaly of one (cold) sinker, with values in the
+ * range [0,1], that is shaped like a Gaussian:
  *
- *   T(x) = c * ( 1.0 - exp(-decay * max(0, ||center - x|| - width/2)^2) )
+ *   dT(x) = c * ( 1.0 - exp(-decay * max(0, ||center - x|| - width/2)^2) )
  *
  * where
  *   x      --- 3D coordinates (x,y,z)
  *   center --- coordinates of sinker center
- *   decay  --- decay
+ *   decay  --- exponential decay
  *   width  --- width of min temperature around the center
  *   c      --- scaling factor (typically 1)
  */
@@ -278,15 +362,52 @@ rhea_temperature_sinker (const double x, const double y, const double z,
                (center_y - y) * (center_y - y) +
                (center_z - z) * (center_z - z) );
 
-  /* subtract bubble width */
+  /* subtract sphere width from distance */
   val = SC_MAX (0.0, val - width / 2.0);
 
-  /* compute bubble temperature */
+  /* compute sinker anomaly */
   val = 1.0 - exp (-decay * val * val);
   val *= scaling;
 
-  /* return temperature after bounding to valid interval [0,1] */
+  /* return anomaly factor that will be multiplied by the temperature*/
   return SC_MAX (0.0, SC_MIN (val, 1.0));
+}
+
+/**
+ * Computes the temperature anomaly of one (hot) plume, with values in the
+ * range [1,2], that is shaped like a Gaussian:
+ *
+ *   dT(x) = c * ( exp(-decay * max(0, ||center - x|| - width/2)^2) )
+ *
+ * where
+ *   x      --- 3D coordinates (x,y,z)
+ *   center --- coordinates of plume center
+ *   decay  --- exponential decay
+ *   width  --- width of max temperature around the center
+ *   c      --- scaling factor (typically 1)
+ */
+static double
+rhea_temperature_plume (const double x, const double y, const double z,
+                        const double center_x, const double center_y,
+                        const double center_z, const double decay,
+                        const double width, const double scaling)
+{
+  double              val;
+
+  /* compute distance from center */
+  val = sqrt ( (center_x - x) * (center_x - x) +
+               (center_y - y) * (center_y - y) +
+               (center_z - z) * (center_z - z) );
+
+  /* subtract sphere width from distance */
+  val = SC_MAX (0.0, val - width / 2.0);
+
+  /* compute plume anomaly */
+  val = scaling * exp (-decay * val * val);
+  val += 1.0;
+
+  /* return anomaly factor that will be multiplied by the temperature*/
+  return SC_MAX (1.0, SC_MIN (val, 2.0));
 }
 
 /**
@@ -322,12 +443,20 @@ rhea_temperature_node (const double x, const double y, const double z,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  /* multiply in sinker temperature */
+  /* multiply in sinker anomaly */
   if (opt->sinker_active) {
     temp *= rhea_temperature_sinker (
         x, y, z, opt->sinker_center_x, opt->sinker_center_y,
         opt->sinker_center_z, opt->sinker_decay, opt->sinker_width,
         opt->sinker_scaling);
+  }
+
+  /* multiply in plume anomaly */
+  if (opt->plume_active) {
+    temp *= rhea_temperature_plume (
+        x, y, z, opt->plume_center_x, opt->plume_center_y,
+        opt->plume_center_z, opt->plume_decay, opt->plume_width,
+        opt->plume_scaling);
   }
 
   /* check background temperature for `nan` and `inf` */
