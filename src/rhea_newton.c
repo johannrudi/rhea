@@ -90,6 +90,35 @@ typedef struct rhea_newton_status
 }
 rhea_newton_status_t;
 
+/**
+ * Calculates the reduction of an end value relative to a start value.  Avoids
+ * ill-defined operations like division by zero.  Use, e.g., for checking the
+ * reduction of a residual or objective functional.
+ */
+static double
+rhea_newton_calculate_reduction (const double start_value,
+                                 const double end_value)
+{
+  /* check input */
+  RHEA_ASSERT (isfinite (start_value));
+  RHEA_ASSERT (0.0 <= start_value);
+  RHEA_ASSERT (isfinite (end_value));
+  RHEA_ASSERT (0.0 <= end_value);
+
+  if (end_value < DBL_MIN) { /* if end value is small */
+    /* assume max reduction and set value below machine precision */
+    return pow (SC_EPS, 2.0);
+  }
+  else if (start_value < SC_EPS * end_value) { /* if start value is small */
+    /* assume no reduction */
+    return 1.0;
+  }
+  else { /* if division is well-defined */
+    /* compute reduction */
+    return end_value / start_value;
+  }
+}
+
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -637,10 +666,12 @@ rhea_newton_status_set_curr (rhea_newton_status_t *status,
   status->obj_curr = obj;
 
   if (isfinite (status->obj_prev)) {
-    status->obj_reduction_curr = status->obj_curr / status->obj_prev;
+    status->obj_reduction_curr = rhea_newton_calculate_reduction (
+        status->obj_prev, status->obj_curr);
   }
   if (isfinite (status->obj_init)) {
-    status->obj_reduction = status->obj_curr / status->obj_init;
+    status->obj_reduction = rhea_newton_calculate_reduction (
+        status->obj_init, status->obj_curr);
   }
 
   /* set valus pertaining to gradient norm(s) */
@@ -654,12 +685,12 @@ rhea_newton_status_set_curr (rhea_newton_status_t *status,
   }
 
   if (isfinite (status->grad_norm_prev)) {
-    status->grad_norm_reduction_curr = status->grad_norm_curr /
-                                       status->grad_norm_prev;
+    status->grad_norm_reduction_curr = rhea_newton_calculate_reduction (
+        status->grad_norm_prev, status->grad_norm_curr);
   }
   if (isfinite (status->grad_norm_init)) {
-    status->grad_norm_reduction = status->grad_norm_curr /
-                                  status->grad_norm_init;
+    status->grad_norm_reduction = rhea_newton_calculate_reduction (
+        status->grad_norm_init, status->grad_norm_curr);
   }
 }
 
@@ -1121,7 +1152,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   RHEA_ASSERT (0 <= lin_iter_count);
 
   /* calculate the residual reduction of the linearized solve */
-  if (nl_problem->apply_hessian != NULL) { /* if function provided */
+  if (nl_problem->apply_hessian != NULL) { /* if able to calculate lin reduc */
     ymir_vec_t         *lin_residual_vec;
     double              lin_res_norm_init;
     double              lin_res_norm_curr;
@@ -1136,13 +1167,14 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
     lin_res_norm_curr = ymir_vec_norm (lin_residual_vec);
     ymir_vec_destroy (lin_residual_vec);
 
-    /* calculate residual reduction */
-    lin_res_norm_reduction = lin_res_norm_curr / lin_res_norm_init;
+    /* calculate linear residual reduction */
+    lin_res_norm_reduction = rhea_newton_calculate_reduction (
+        lin_res_norm_init, lin_res_norm_curr);
 
     /* calculate convergence of the linear solver `rtol^(1/#iter)` */
     lin_conv = exp ( log (lin_res_norm_reduction) / ((double) lin_iter_count) );
   }
-  else {
+  else { /* if actual linear reduction cannot be calculated */
     lin_res_norm_reduction = -1.0;
     lin_conv = -1.0;
   }
@@ -1170,14 +1202,17 @@ rhea_newton_search_step_length_check_descend (
   const double        relax = opt->step_descend_condition_relaxation;
   double              reduction, descend_reduction;
 
-  /* check input */
-  RHEA_ASSERT (0.0 < lin_res_norm_reduction);
-  RHEA_ASSERT (lin_res_norm_reduction <= 1.0);
-  RHEA_ASSERT (0.0 < rhea_newton_status_get_reduction_curr (status));
-
-  /* compute actual and required reduction */
+  /* compute actual reduction */
   reduction = rhea_newton_status_get_reduction_curr (status);
-  descend_reduction = 1.0 - relax * (1.0 - lin_res_norm_reduction);
+  RHEA_ASSERT (0.0 <= reduction);
+
+  /* compute required reduction */
+  if (0.0 < lin_res_norm_reduction && lin_res_norm_reduction <= 1.0) {
+    descend_reduction = 1.0 - relax * (1.0 - lin_res_norm_reduction);
+  }
+  else { /* if linear reduction is out of bounds */
+    descend_reduction = 1.0;
+  }
 
   /* print */
   if (print_condition) {
