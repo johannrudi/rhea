@@ -900,7 +900,8 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 {
   const char         *this_fn_name = "collide_setup_stokes";
   ymir_vec_t         *temperature, *weakzone;
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet = NULL;
+  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
+  void               *solver_options = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -913,6 +914,10 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   weakzone = rhea_weakzone_new (ymir_mesh);
   //TODO xi, here you need to provide the weak zone factor
   ymir_vec_set_value (weakzone, 1.0);
+
+  /* compute velocity right-hand side volume forcing */
+  rhs_vel = rhea_velocity_new (ymir_mesh);
+  rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
 
   /* set velocity boundary conditions & nonzero Dirichlet values */
   if (domain_options->velocity_bc_type == RHEA_DOMAIN_VELOCITY_BC_USER) {
@@ -950,20 +955,19 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
         RHEA_ABORT_NOT_REACHED ();
     }
   }
+  else {
+    rhs_vel_nonzero_dirichlet = NULL;
+  }
+
   /* create stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      temperature, weakzone, rhs_vel_nonzero_dirichlet,
-      ymir_mesh, press_elem,
-      domain_options, temp_options, visc_options, NULL /* solver options */);
+      temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
+      ymir_mesh, press_elem, domain_options, visc_options, solver_options);
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
   if (vtk_write_input_path != NULL)
     collide_write_input (ymir_mesh, temperature, weakzone,
                         *stokes_problem, temp_options, vtk_write_input_path);
-
-  /* destroy */
-  rhea_temperature_destroy (temperature);
-  rhea_temperature_destroy (weakzone);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
@@ -981,17 +985,34 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                          rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "collide_setup_clear_all";
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet = NULL;
+  ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
 
   RHEA_GLOBAL_PRODUCTIONF ("into %s\n", this_fn_name);
 
-  /* destroy stokes problem */
+  /* get vectors */
+  temperature = rhea_stokes_problem_get_temperature (stokes_problem);
+  weakzone = rhea_stokes_problem_get_weakzone (stokes_problem);
+  rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
   rhs_vel_nonzero_dirichlet =
     rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
+
+  /* destroy Stokes problem */
+  rhea_stokes_problem_destroy (stokes_problem);
+
+  /* destroy vectors */
+  if (temperature != NULL) {
+    rhea_temperature_destroy (temperature);
+  }
+  if (weakzone != NULL) {
+    rhea_weakzone_destroy (weakzone);
+  }
+  if (rhs_vel != NULL) {
+    rhea_velocity_destroy (rhs_vel);
+  }
   if (rhs_vel_nonzero_dirichlet != NULL) {
     rhea_velocity_destroy (rhs_vel_nonzero_dirichlet);
   }
-  rhea_stokes_problem_destroy (stokes_problem);
 
   /* destroy mesh */
   rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
