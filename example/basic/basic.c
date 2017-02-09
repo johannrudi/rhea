@@ -8,219 +8,13 @@
  *****************************************************************************/
 
 #include <rhea.h>
+#include <example_share_mesh.h>
+#include <example_share_stokes.h>
+#include <example_share_vtk.h>
 
-/******************************************************************************
- * VTK Output
- *****************************************************************************/
-
-/**
- * Writes VTK of input data.
- */
-static void
-basic_vtk_write_input_data (const char *vtk_write_input_path,
-                            ymir_mesh_t *ymir_mesh,
-                            rhea_temperature_options_t *temp_options,
-                            rhea_viscosity_options_t *visc_options)
-{
-  ymir_vec_t         *temperature, *background_temp;
-  ymir_vec_t         *weakzone, *viscosity;
-  ymir_vec_t         *rhs_vel;
-
-  /* exit if nothing to do */
-  if (vtk_write_input_path == NULL) {
-    return;
-  }
-
-  /* create work variables */
-  temperature = rhea_temperature_new (ymir_mesh);
-  background_temp = rhea_temperature_new (ymir_mesh);
-  weakzone = NULL;
-  viscosity = rhea_viscosity_new (ymir_mesh);
-  rhs_vel = rhea_velocity_new (ymir_mesh);
-
-  /* compute fields */
-  rhea_temperature_compute (temperature, temp_options);
-  rhea_temperature_background_compute (background_temp, temp_options);
-  if (visc_options->type == RHEA_VISCOSITY_NONLINEAR) {
-    rhea_viscosity_compute_init_nonlinear (viscosity,
-                                           NULL /* nl. Stokes output */,
-                                           NULL /* nl. Stokes output */,
-                                           NULL /* nl. Stokes output */,
-                                           temperature, weakzone,
-                                           visc_options);
-  }
-  else {
-    rhea_viscosity_compute (viscosity,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            temperature, weakzone,
-                            NULL /* nl. Stokes input */,
-                            visc_options);
-  }
-  rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
-
-  /* write vtk */
-  rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity, rhs_vel);
-
-  /* destroy */
-  rhea_temperature_destroy (temperature);
-  rhea_temperature_destroy (background_temp);
-  rhea_viscosity_destroy (viscosity);
-  rhea_velocity_destroy (rhs_vel);
-}
-
-/**
- * Writes VTK of solution.
- */
-static void
-basic_vtk_write_solution (const char *vtk_write_solution_path,
-                          ymir_vec_t *sol_vel_press,
-                          rhea_stokes_problem_t *stokes_problem)
-{
-  ymir_mesh_t        *ymir_mesh;
-  ymir_pressure_elem_t *press_elem;
-  ymir_vec_t         *velocity, *pressure, *viscosity;
-
-  /* exit if nothing to do */
-  if (vtk_write_solution_path != NULL) {
-    return;
-  }
-
-  /* create work variables */
-  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-  velocity = rhea_velocity_new (ymir_mesh);
-  pressure = rhea_pressure_new (ymir_mesh, press_elem);
-  viscosity = rhea_viscosity_new (ymir_mesh);
-
-  /* get fields */
-  rhea_velocity_pressure_copy_components (velocity, pressure, sol_vel_press,
-                                          press_elem);
-  rhea_stokes_problem_get_viscosity (viscosity, stokes_problem);
-
-  /* write vtk */
-  rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
-                           viscosity);
-
-  /* destroy */
-  rhea_velocity_destroy (velocity);
-  rhea_pressure_destroy (pressure);
-  rhea_viscosity_destroy (viscosity);
-}
 /******************************************************************************
  * Main Program
  *****************************************************************************/
-
-/**
- * Sets up the mesh.
- */
-static void
-basic_setup_mesh (p4est_t **p4est,
-                  ymir_mesh_t **ymir_mesh,
-                  ymir_pressure_elem_t **press_elem,
-                  MPI_Comm mpicomm,
-                  rhea_domain_options_t *domain_options,
-                  rhea_discretization_options_t *discr_options)
-{
-  const char         *this_fn_name = "basic_setup_mesh";
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* create p4est */
-  *p4est = rhea_discretization_p4est_new (mpicomm, discr_options,
-                                          domain_options);
-
-  /* set up boundary, store in `discr_options` */
-  rhea_discretization_options_set_boundary (discr_options, *p4est,
-                                            domain_options);
-
-  /* create ymir mesh and pressure element */
-  rhea_discretization_ymir_mesh_new_from_p4est (ymir_mesh, press_elem, *p4est,
-                                                discr_options);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
-
-/**
- * Sets up a linear Stokes problem.
- */
-static void
-basic_setup_stokes (rhea_stokes_problem_t **stokes_problem,
-                    ymir_mesh_t *ymir_mesh,
-                    ymir_pressure_elem_t *press_elem,
-                    rhea_domain_options_t *domain_options,
-                    rhea_temperature_options_t *temp_options,
-                    rhea_viscosity_options_t *visc_options,
-                    rhea_newton_options_t *newton_options,
-                    char *vtk_write_newton_itn_path)
-{
-  const char         *this_fn_name = "basic_setup_stokes";
-  ymir_vec_t         *temperature, *weakzone;
-  void               *solver_options;
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* compute temperature */
-  temperature = rhea_temperature_new (ymir_mesh);
-  rhea_temperature_compute (temperature, temp_options);
-
-  /* compute weak zone */
-  weakzone = NULL;  /* Note: in this example, we do not want weak zones */
-
-  /* set solver-specific variables */
-  if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
-    solver_options = newton_options;
-  }
-  else {
-    solver_options = NULL;
-  }
-
-  /* create Stokes problem */
-  *stokes_problem = rhea_stokes_problem_new (
-      temperature, weakzone, NULL /* nonzero vel. Dirichlet values */,
-      ymir_mesh, press_elem,
-      domain_options, temp_options, visc_options, solver_options);
-  if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
-    rhea_stokes_problem_nonlinear_set_output (vtk_write_newton_itn_path,
-                                              *stokes_problem);
-  }
-
-  /* destroy */
-  rhea_temperature_destroy (temperature);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
-
-/**
- * Cleans up Stokes problem and mesh.
- */
-static void
-basic_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
-                       p4est_t *p4est,
-                       rhea_discretization_options_t *discr_options)
-{
-  const char         *this_fn_name = "basic_setup_clear_all";
-  ymir_mesh_t        *ymir_mesh;
-  ymir_pressure_elem_t *press_elem;
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* destroy Stokes problem */
-  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-  rhea_stokes_problem_destroy (stokes_problem);
-
-  /* destroy mesh */
-  rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
-  rhea_discretization_p4est_destroy (p4est);
-
-  /* destroy (some) options */
-  rhea_discretization_options_clear (discr_options);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
 
 /**
  * Runs Stokes solver.
@@ -369,20 +163,20 @@ main (int argc, char **argv)
    * Setup Mesh
    */
 
-  basic_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
-                    &domain_options, &discr_options);
+  example_share_mesh_new (&p4est, &ymir_mesh, &press_elem, mpicomm,
+                          &domain_options, &discr_options);
 
   /*
    * Setup Stokes Problem
    */
 
-  basic_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
-                      &domain_options, &temp_options, &visc_options,
-                      &newton_options, vtk_write_newton_itn_path);
+  example_share_stokes_new (&stokes_problem, ymir_mesh, press_elem,
+                            &domain_options, &temp_options, &visc_options,
+                            &newton_options, vtk_write_newton_itn_path);
 
   /* write vtk of input data */
-  basic_vtk_write_input_data (vtk_write_input_path, ymir_mesh,
-                              &temp_options, &visc_options);
+  example_share_vtk_write_input_data (vtk_write_input_path, stokes_problem,
+                                      &temp_options, &visc_options);
 
   /*
    * Solve Stokes Problem
@@ -399,8 +193,8 @@ main (int argc, char **argv)
                     stokes_problem);
 
   /* write vtk of solution */
-  basic_vtk_write_solution (vtk_write_solution_path, sol_vel_press,
-                            stokes_problem);
+  example_share_vtk_write_solution (vtk_write_solution_path, sol_vel_press,
+                                    stokes_problem);
 
   /* destroy */
   rhea_velocity_pressure_destroy (sol_vel_press);
@@ -409,8 +203,13 @@ main (int argc, char **argv)
    * Finalize
    */
 
-  /* destroy Stokes problem and mesh */
-  basic_setup_clear_all (stokes_problem, p4est, &discr_options);
+  /* destroy Stokes problem */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+  example_share_stokes_destroy (stokes_problem);
+
+  /* destroy mesh */
+  example_share_mesh_destroy (ymir_mesh, press_elem, p4est, &discr_options);
 
   /* destroy options */
   ymir_options_global_destroy ();
