@@ -102,7 +102,7 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   /* get fields */
   rhea_velocity_pressure_copy_components (velocity, pressure, sol_vel_press,
                                           press_elem);
-  rhea_stokes_problem_get_viscosity (viscosity, stokes_problem);
+  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
   /* write vtk */
   rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
