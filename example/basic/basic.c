@@ -41,19 +41,17 @@ int
 main (int argc, char **argv)
 {
   const char         *this_fn_name = "basic:main";
-  /* MPI */
+  /* parallel environment */
   MPI_Comm            mpicomm = MPI_COMM_WORLD;
   int                 mpisize, mpirank, ompsize;
-  int                 mpiret;
   /* options */
-  ymir_options_t     *opt;
+  ymir_options_t               *opt;
   rhea_domain_options_t         domain_options;
   rhea_temperature_options_t    temp_options;
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
-  /* options local to this function */
-  int                 production_run;
+  /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
   char               *vtk_write_input_path;
@@ -68,37 +66,19 @@ main (int argc, char **argv)
   ymir_vec_t         *sol_vel_press;
 
   /*
-   * Initialize Libraries
+   * Initialize Program
    */
 
-  /* initialize rhea and sub-packages */
-  rhea_initialize (argc, argv, mpicomm);
+  /* begin program initialization */
+  rhea_init_begin (&mpisize, &mpirank, &ompsize, argc, argv, mpicomm);
 
-  /* get parallel environment */
-  mpiret = MPI_Comm_size (mpicomm, &mpisize); YMIR_CHECK_MPI (mpiret);
-  mpiret = MPI_Comm_rank (mpicomm, &mpirank); YMIR_CHECK_MPI (mpiret);
-
-#ifdef RHEA_ENABLE_OPENMP
-  ompsize = omp_get_max_threads ();
-#else
-  ompsize = 1;
-#endif
-
-  /*
-   * Define & Parse Options
-   */
-
+  /* create options */
   opt = ymir_options_global_new (argv[0] /* program path */);
+  rhea_add_options_base (opt);
 
+  /* add options of this program */
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
-
-  /* basic options */
-  YMIR_OPTIONS_CALLBACK, "help", 'h', 0 /* no callback fn args */,
-    ymir_options_print_usage_and_exit_fn, NULL /* no arg usage */,
-    "Print usage and exit",
-  YMIR_OPTIONS_INIFILE, "options-file", 'f',
-    ".ini file with option values",
 
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
@@ -107,11 +87,6 @@ main (int argc, char **argv)
   YMIR_OPTIONS_D, "solver-rel-tol", '\0',
     &solver_rel_tol, 1.0e-6,
     "Relative tolerance for Stokes solver",
-
-  /* performance & monitoring options */
-  YMIR_OPTIONS_B, "production-run", '\0',
-    &(production_run), 0,
-    "Execute as a production run (to reduce some overhead and checks)",
 
   /* vtk output options */
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
@@ -131,27 +106,17 @@ main (int argc, char **argv)
   rhea_add_options_all (opt);
   ymir_options_add_suboptions_solver_stokes (opt);
 
-  /* parse options */
-  {
-    int                 optret;
-
-    optret = ymir_options_parse (SC_LP_INFO, opt, argc, argv);
-    if (optret < 0) { /* if parsing was not successful */
-      ymir_options_print_usage (SC_LP_INFO, opt, NULL /* args usage */);
-      RHEA_GLOBAL_INFO ("Option parsing failed\n");
-      exit (0);
-    }
-  }
+  /* end program initialization */
+  rhea_init_end (opt);
 
   /*
-   * Initialize Main Program
+   * Print Environment and Options
    */
 
   RHEA_GLOBAL_PRODUCTIONF (
-      "Into %s (production %i)\n", this_fn_name, production_run);
+      "Into %s (production %i)\n", this_fn_name, rhea_get_production_run ());
   RHEA_GLOBAL_PRODUCTIONF (
       "Parallel environment: MPI size %i, OpenMP size %i\n", mpisize, ompsize);
-  ymir_set_up (argc, argv, mpicomm, production_run);
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
