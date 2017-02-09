@@ -4,6 +4,115 @@
 #include <rhea.h>
 #include <ymir.h>
 
+/* default options */
+#define RHEA_DEFAULT_PRODUCTION_RUN (0)
+
+/* initialization parameters */
+int                 rhea_argc = 0;
+char              **rhea_argv = NULL;
+MPI_Comm            rhea_mpicomm = MPI_COMM_NULL;
+int                 rhea_production_run = RHEA_DEFAULT_PRODUCTION_RUN;
+
+void
+rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
+                 int argc, char **argv, MPI_Comm mpicomm)
+{
+  int                 mpiret;
+
+  /* set parameters */
+  rhea_argc = argc;
+  rhea_argv = argv;
+  rhea_mpicomm = mpicomm;
+
+  /* initialize rhea and sub-packages */
+  rhea_initialize (argc, argv, mpicomm);
+
+  /* get MPI environment */
+  if (mpisize != NULL) {
+    mpiret = MPI_Comm_size (mpicomm, mpisize); YMIR_CHECK_MPI (mpiret);
+  }
+  if (mpirank != NULL) {
+    mpiret = MPI_Comm_rank (mpicomm, mpirank); YMIR_CHECK_MPI (mpiret);
+  }
+
+  /* get OpenMP environment */
+  if (ompsize != NULL) {
+#ifdef RHEA_ENABLE_OPENMP
+    *ompsize = omp_get_max_threads ();
+#else
+    *ompsize = 1;
+#endif
+  }
+}
+
+void
+rhea_init_end (ymir_options_t *opt)
+{
+  const int           err_priority = SC_LP_INFO;
+  int                 optret;
+
+  /* check */
+  RHEA_ASSERT (0 < rhea_argc);
+  RHEA_ASSERT (rhea_argv != NULL);
+  RHEA_ASSERT (rhea_mpicomm != MPI_COMM_NULL);
+
+  /* parse options */
+  optret = ymir_options_parse (err_priority, opt, rhea_argc, rhea_argv);
+  if (optret < 0) { /* if parsing was not successful */
+    ymir_options_print_usage (err_priority, opt, NULL /* args usage */);
+    RHEA_GLOBAL_PRODUCTION ("Option parsing failed\n");
+    exit (0);
+  }
+
+  /* set up ymir */
+  ymir_set_up (rhea_argc, rhea_argv, rhea_mpicomm, rhea_production_run);
+}
+
+int
+rhea_get_production_run ()
+{
+  RHEA_ASSERT (rhea_production_run == ymir_get_production_run ());
+  return rhea_production_run;
+}
+
+void
+rhea_set_production_run (const int is_production_run)
+{
+  rhea_production_run = is_production_run;
+  ymir_set_production_run (is_production_run);;
+}
+
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
+void
+rhea_add_options_base (ymir_options_t *opt)
+{
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  /* help message */
+  YMIR_OPTIONS_CALLBACK, "help", 'h', 0 /* no callback fn args */,
+    ymir_options_print_usage_and_exit_fn, NULL /* no arg usage */,
+    "Print usage and exit",
+
+  /* options file */
+  YMIR_OPTIONS_INIFILE, "options-file", 'f',
+    ".ini file with option values",
+
+  /* performance */
+  YMIR_OPTIONS_B, "production-run", '\0',
+    &(rhea_production_run), 0,
+    "Execute as a production run (to reduce some overhead and checks)",
+
+  /* monitoring */
+  //TODO
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+}
+
 void
 rhea_add_options_all (ymir_options_t *options)
 {
@@ -48,16 +157,3 @@ rhea_process_options_newton (rhea_domain_options_t *domain_options,
   rhea_discretization_process_options (discr_options, domain_options);
   rhea_newton_process_options (newton_options);
 }
-
-int
-rhea_get_production_run ()
-{
-  return ymir_get_production_run ();
-}
-
-void
-rhea_set_production_run (const int is_production_run)
-{
-  ymir_set_production_run (is_production_run);;
-}
-

@@ -18,6 +18,38 @@
 #include <rhea_vtk.h>
 
 /**
+ * Begin the initialization of a program powered by rhea.  Should be followed
+ * by calling `rhea_init_end (...)`.
+ *
+ * Initializes the rhea library and dependent libraries.  Retrieves parameters
+ * of the parallel envirionment.
+ */
+void                rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
+                                     int argc, char **argv, MPI_Comm mpicomm);
+
+/**
+ * Ends the initialization of a program powered by rhea.  Should follow after
+ * calling `rhea_init_begin (...)`.
+ *
+ * Parses options and sets up ymir library.
+ */
+void                rhea_init_end (ymir_options_t *opt);
+
+/**
+ * Get whether current program execution is flagged as a production run.
+ */
+int                 rhea_get_production_run ();
+
+/**
+ * Set current program execution as a production run.
+ */
+void                rhea_set_production_run (const int is_production_run);
+
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/**
  * Defines all rhea options and adds them as sub-options.
  */
 void                rhea_add_options_all (ymir_options_t * options);
@@ -44,15 +76,5 @@ void                rhea_process_options_newton (
                               rhea_domain_options_t *domain_options,
                               rhea_discretization_options_t *discr_options,
                               rhea_newton_options_t *newton_options);
-
-/**
- * Get whether current program execution is flagged as a production run.
- */
-int                 rhea_get_production_run ();
-
-/**
- * Set current program execution as a production run.
- */
-void                rhea_set_production_run (const int is_production_run);
 
 #endif /* RHEA_H */
