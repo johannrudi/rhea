@@ -174,7 +174,7 @@ main (int argc, char **argv)
                             &newton_options, vtk_write_newton_itn_path);
 
   /* write vtk of input data */
-  example_share_vtk_write_input_data (vtk_write_input_path, ymir_mesh,
+  example_share_vtk_write_input_data (vtk_write_input_path, stokes_problem,
                                       &temp_options, &visc_options);
 
   /*
