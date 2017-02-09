@@ -5,7 +5,6 @@
 #define RHEA_STOKES_PROBLEM_H
 
 #include <rhea_domain.h>
-#include <rhea_temperature.h>
 #include <rhea_viscosity.h>
 #include <ymir_pressure_elem.h>
 #include <ymir_stokes_op.h>
@@ -24,11 +23,11 @@ typedef struct rhea_stokes_problem rhea_stokes_problem_t;
 rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     ymir_vec_t *temperature,
                                     ymir_vec_t *weakzone,
+                                    ymir_vec_t *rhs_vel,
                                     ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
                                     rhea_domain_options_t *domain_options,
-                                    rhea_temperature_options_t *temp_options,
                                     rhea_viscosity_options_t *visc_options,
                                     void *solver_options);
 
@@ -54,41 +53,40 @@ void                rhea_stokes_problem_solve (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
- * Gets ymir mesh from Stokes problem.
+ * Sets output path for vtk output the iterations of a nonlinear solve.
+ */
+void                rhea_stokes_problem_nonlinear_set_output (
+                              char *vtk_write_newton_iteration_path,
+                              rhea_stokes_problem_t *stokes_problem_nl);
+
+/**
+ * Accesses data of a Stokes problem.
  */
 ymir_mesh_t        *rhea_stokes_problem_get_ymir_mesh (
                                     rhea_stokes_problem_t *stokes_problem);
 
-/**
- * Gets pressure element from Stokes problem.
- */
 ymir_pressure_elem_t *rhea_stokes_problem_get_press_elem (
                                     rhea_stokes_problem_t *stokes_problem);
 
-/**
- * Gets viscosity vector from Stokes problem.
- */
+ymir_vec_t         *rhea_stokes_problem_get_temperature (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+ymir_vec_t         *rhea_stokes_problem_get_weakzone (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
+                                    rhea_stokes_problem_t *stokes_problem);
+
 void                rhea_stokes_problem_get_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 
-/**
- * Gets nonzero Dirichlet values of velocity from Stokes problem.
- */
-ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
-                                    rhea_stokes_problem_t *stokes_problem);
-
-/**
- * Gets velocity component of the right-hand side.
- */
-ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
-                                    rhea_stokes_problem_t *stokes_problem);
-
-/**
- * Gets Stokes operator.
- */
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
                                     rhea_stokes_problem_t *stokes_problem);
+
 /**
  * Sets velocity components on the boundary, which are constrained by Dirichlet
  * boundary conditions, to zero.
@@ -96,63 +94,5 @@ ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
 void                rhea_stokes_problem_velocity_boundary_set_zero (
                                     ymir_vec_t *velocity,
                                     rhea_stokes_problem_t *stokes_problem);
-
-/* Analogous function declarations for a linear Stokes problem */
-//TODO remove these?
-
-rhea_stokes_problem_t *rhea_stokes_problem_linear_new (
-                                    ymir_vec_t *temperature,
-                                    ymir_vec_t *weakzone,
-                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
-                                    ymir_mesh_t *ymir_mesh,
-                                    ymir_pressure_elem_t *press_elem,
-                                    rhea_domain_options_t *domain_options,
-                                    rhea_temperature_options_t *temp_options,
-                                    rhea_viscosity_options_t *visc_options,
-                                    void *solver_options /* (unused) */);
-
-void                rhea_stokes_problem_linear_destroy (
-                                    rhea_stokes_problem_t *stokes_problem_lin);
-
-void                rhea_stokes_problem_linear_setup_solver (
-                                    rhea_stokes_problem_t *stokes_problem_lin);
-
-void                rhea_stokes_problem_linear_solve (
-                                    ymir_vec_t *sol_vel_press,
-                                    const int iter_max,
-                                    const double rel_tol,
-                                    rhea_stokes_problem_t *stokes_problem_lin);
-
-/* Analogous function declarations for a nonlinear Stokes problem */
-//TODO remove these?
-
-rhea_stokes_problem_t *rhea_stokes_problem_nonlinear_new (
-                              ymir_vec_t *temperature,
-                              ymir_vec_t *weakzone,
-                              ymir_vec_t *rhs_vel_nonzero_dirichlet,
-                              ymir_mesh_t *ymir_mesh,
-                              ymir_pressure_elem_t *press_elem,
-                              rhea_domain_options_t *domain_options,
-                              rhea_temperature_options_t *temp_options,
-                              rhea_viscosity_options_t *visc_options,
-                              void *solver_options /*rhea_newton_options_t*/);
-
-void                rhea_stokes_problem_nonlinear_destroy (
-                              rhea_stokes_problem_t *stokes_problem_nl);
-
-void                rhea_stokes_problem_nonlinear_setup_solver (
-                              rhea_stokes_problem_t *stokes_problem_nl);
-
-void                rhea_stokes_problem_nonlinear_solve (
-                              ymir_vec_t *sol_vel_press,
-                              const int iter_max,
-                              const double rel_tol,
-                              rhea_stokes_problem_t *stokes_problem_nl);
-
-/* Function declarations specific to a nonlinear Stokes problem */
-
-void                rhea_stokes_problem_nonlinear_set_output (
-                              char *vtk_write_newton_iteration_path,
-                              rhea_stokes_problem_t *stokes_problem_nl);
 
 #endif /* RHEA_STOKES_PROBLEM_H */

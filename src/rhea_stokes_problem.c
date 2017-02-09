@@ -21,11 +21,21 @@ rhea_stokes_problem_type_t;
 /* Stokes problem */
 struct rhea_stokes_problem
 {
+  /* Stokes problem type */
   rhea_stokes_problem_type_t  type;
+  int                         incompressible;
 
   /* mesh (not owned) */
   ymir_mesh_t           *ymir_mesh;
   ymir_pressure_elem_t  *press_elem;
+
+  /* input data of the Stokes problem (not owned) */
+  ymir_vec_t         *temperature;
+  ymir_vec_t         *weakzone;
+  ymir_vec_t         *rhs_vel;
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
+  rhea_domain_options_t *domain_options;
+  rhea_viscosity_options_t *visc_options;
 
   /* data of the Stokes problem */
   ymir_vec_t         *coeff;
@@ -34,15 +44,7 @@ struct rhea_stokes_problem
   ymir_vec_t         *bounds_marker;      /* nonlinear Stokes only */
   ymir_vec_t         *yielding_marker;    /* nonlinear Stokes only */
   ymir_vel_dir_t     *vel_dir;
-  ymir_vec_t         *rhs_vel;
   ymir_vec_t         *rhs_vel_press;
-
-  /* additional data of the Stokes problem (not owned) */
-  ymir_vec_t         *temperature;
-  ymir_vec_t         *weakzone;
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
-  rhea_domain_options_t *domain_options;
-  rhea_viscosity_options_t *visc_options;
 
   /* Stokes operator and preconditioner */
   ymir_stokes_op_t   *stokes_op;
@@ -56,6 +58,104 @@ struct rhea_stokes_problem
   double                  norm_op_mass_scaling;
   char                   *vtk_write_newton_itn_path;
 };
+
+/**
+ * Creates new velocity boundary conditions.
+ */
+static void
+rhea_stokes_problem_velocity_boundary_create (
+                                        rhea_stokes_problem_t *stokes_problem,
+                                        ymir_mesh_t *ymir_mesh,
+                                        rhea_domain_options_t *domain_options)
+{
+  ymir_vec_t         *dirscal = NULL; //TODO seems to be best choice, isn't it?
+  ymir_vel_dir_t     *vel_dir;
+
+  stokes_problem->vel_dir = rhea_domain_create_velocity_dirichlet_bc (
+      ymir_mesh, dirscal, domain_options);
+}
+
+/**
+ * Destroys velocity boundary conditions (if they exist).
+ */
+static void
+rhea_stokes_problem_velocity_boundary_clear (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  if (stokes_problem->vel_dir != NULL) {
+    if (stokes_problem->vel_dir->scale != NULL) {
+      ymir_vec_destroy (stokes_problem->vel_dir->scale);
+    }
+    ymir_vel_dir_destroy (stokes_problem->vel_dir);
+  }
+}
+
+/**
+ * Creates and initializes a new structure of a Stokes problem.
+ */
+static rhea_stokes_problem_t *
+rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
+                                ymir_mesh_t *ymir_mesh,
+                                ymir_pressure_elem_t *press_elem,
+                                ymir_vec_t *temperature,
+                                ymir_vec_t *weakzone,
+                                ymir_vec_t *rhs_vel,
+                                ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                                rhea_domain_options_t *domain_options,
+                                rhea_viscosity_options_t *visc_options)
+{
+  rhea_stokes_problem_t *stokes_problem = RHEA_ALLOC (rhea_stokes_problem_t, 1);
+
+  /* initialize */
+  stokes_problem->type = type;
+  stokes_problem->incompressible = 1;
+  stokes_problem->ymir_mesh = ymir_mesh;
+  stokes_problem->press_elem = press_elem;
+
+  stokes_problem->temperature = temperature;
+  stokes_problem->weakzone = weakzone;
+  stokes_problem->rhs_vel = rhs_vel;
+  stokes_problem->rhs_vel_nonzero_dirichlet = rhs_vel_nonzero_dirichlet;
+  stokes_problem->domain_options = domain_options;
+  stokes_problem->visc_options = visc_options;
+
+  stokes_problem->coeff = NULL;
+  stokes_problem->sol_vel = NULL;
+  stokes_problem->rank1_tensor_scal = NULL;
+  stokes_problem->bounds_marker = NULL;
+  stokes_problem->yielding_marker = NULL;
+  stokes_problem->vel_dir = NULL;
+  stokes_problem->rhs_vel_press = NULL;
+
+  stokes_problem->stokes_op = NULL;
+  stokes_problem->stokes_pc = NULL;
+
+  stokes_problem->newton_options = NULL;
+  stokes_problem->newton_problem = NULL;
+  stokes_problem->norm_type = RHEA_STOKES_NORM_NONE;
+  stokes_problem->norm_op = NULL;
+  stokes_problem->norm_op_mass_scaling = NAN;
+  stokes_problem->vtk_write_newton_itn_path = NULL;
+
+  /* create velocity boundary conditions */
+  rhea_stokes_problem_velocity_boundary_create (stokes_problem, ymir_mesh,
+                                                domain_options);
+
+  return stokes_problem;
+}
+
+/**
+ * Destroys a structure of a Stokes problem.
+ */
+static void
+rhea_stokes_problem_struct_destroy (rhea_stokes_problem_t *stokes_problem)
+{
+  /* destroy velocity boundary conditions */
+  rhea_stokes_problem_velocity_boundary_clear (stokes_problem);
+
+  /* destroy structure */
+  RHEA_FREE (stokes_problem);
+}
 
 /******************************************************************************
  * Options
@@ -106,270 +206,48 @@ rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
 }
 
 /******************************************************************************
- * General Stokes Problem
- *****************************************************************************/
-
-/**
- * Creates and initializes a new structure of a Stokes problem.
- */
-static rhea_stokes_problem_t *
-rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
-                                ymir_mesh_t *ymir_mesh,
-                                ymir_pressure_elem_t *press_elem,
-                                ymir_vec_t *rhs_vel_nonzero_dirichlet,
-                                ymir_vec_t *temperature,
-                                ymir_vec_t *weakzone,
-                                rhea_domain_options_t *domain_options,
-                                rhea_viscosity_options_t *visc_options)
-{
-  rhea_stokes_problem_t *stokes_problem = RHEA_ALLOC (rhea_stokes_problem_t, 1);
-
-  stokes_problem->type = type;
-  stokes_problem->ymir_mesh = ymir_mesh;
-  stokes_problem->press_elem = press_elem;
-
-  stokes_problem->coeff = NULL;
-  stokes_problem->sol_vel = NULL;
-  stokes_problem->rank1_tensor_scal = NULL;
-  stokes_problem->bounds_marker = NULL;
-  stokes_problem->yielding_marker = NULL;
-  stokes_problem->vel_dir = NULL;
-  stokes_problem->rhs_vel = NULL;
-  stokes_problem->rhs_vel_press = NULL;
-
-  stokes_problem->temperature = temperature;
-  stokes_problem->weakzone = weakzone;
-  stokes_problem->rhs_vel_nonzero_dirichlet = rhs_vel_nonzero_dirichlet;
-  stokes_problem->domain_options = domain_options;
-  stokes_problem->visc_options = visc_options;
-
-  stokes_problem->stokes_op = NULL;
-  stokes_problem->stokes_pc = NULL;
-
-  stokes_problem->newton_options = NULL;
-  stokes_problem->newton_problem = NULL;
-  stokes_problem->norm_type = RHEA_STOKES_NORM_NONE;
-  stokes_problem->norm_op = NULL;
-  stokes_problem->norm_op_mass_scaling = NAN;
-  stokes_problem->vtk_write_newton_itn_path = NULL;
-
-  return stokes_problem;
-}
-
-/**
- * Destroys a structure of a Stokes problem.
- */
-static void
-rhea_stokes_problem_struct_destroy (rhea_stokes_problem_t *stokes_problem)
-{
-  RHEA_FREE (stokes_problem);
-}
-
-rhea_stokes_problem_t *
-rhea_stokes_problem_new (ymir_vec_t *temperature,
-                         ymir_vec_t *weakzone,
-                         ymir_vec_t *rhs_vel_nonzero_dirichlet,
-                         ymir_mesh_t *ymir_mesh,
-                         ymir_pressure_elem_t *press_elem,
-                         rhea_domain_options_t *domain_options,
-                         rhea_temperature_options_t *temp_options,
-                         rhea_viscosity_options_t *visc_options,
-                         void *solver_options)
-{
-  if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
-    return rhea_stokes_problem_nonlinear_new (
-        temperature, weakzone, rhs_vel_nonzero_dirichlet,
-        ymir_mesh, press_elem,
-        domain_options, temp_options, visc_options, solver_options);
-  }
-  else {
-    return rhea_stokes_problem_linear_new (
-        temperature, weakzone, rhs_vel_nonzero_dirichlet,
-        ymir_mesh, press_elem,
-        domain_options, temp_options, visc_options, solver_options);
-  }
-}
-
-void
-rhea_stokes_problem_destroy (rhea_stokes_problem_t *stokes_problem)
-{
-  if (RHEA_STOKES_PROBLEM_NONLINEAR == stokes_problem->type) {
-    rhea_stokes_problem_nonlinear_destroy (stokes_problem);
-  }
-  else {
-    rhea_stokes_problem_linear_destroy (stokes_problem);
-  }
-}
-
-void
-rhea_stokes_problem_setup_solver (rhea_stokes_problem_t *stokes_problem)
-{
-  if (RHEA_STOKES_PROBLEM_NONLINEAR == stokes_problem->type) {
-    rhea_stokes_problem_nonlinear_setup_solver (stokes_problem);
-  }
-  else {
-    rhea_stokes_problem_linear_setup_solver (stokes_problem);
-  }
-}
-
-void
-rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
-                           const int iter_max,
-                           const double rel_tol,
-                           rhea_stokes_problem_t *stokes_problem)
-{
-  if (RHEA_STOKES_PROBLEM_NONLINEAR == stokes_problem->type) {
-    rhea_stokes_problem_nonlinear_solve (sol_vel_press, iter_max, rel_tol,
-                                         stokes_problem);
-  }
-  else {
-    rhea_stokes_problem_linear_solve (sol_vel_press, iter_max, rel_tol,
-                                      stokes_problem);
-  }
-}
-
-ymir_mesh_t *
-rhea_stokes_problem_get_ymir_mesh (rhea_stokes_problem_t *stokes_problem)
-{
-  return stokes_problem->ymir_mesh;
-}
-
-ymir_pressure_elem_t *
-rhea_stokes_problem_get_press_elem (rhea_stokes_problem_t *stokes_problem)
-{
-  return stokes_problem->press_elem;
-}
-
-void
-rhea_stokes_problem_get_viscosity (ymir_vec_t *viscosity,
-                                   rhea_stokes_problem_t *stokes_problem)
-{
-  /* check input */
-  RHEA_ASSERT (stokes_problem->coeff != NULL);
-
-  /* copy Stokes coefficient and divide by 2 */
-  ymir_vec_copy (stokes_problem->coeff, viscosity);
-  ymir_vec_scale (0.5, viscosity);
-}
-
-ymir_vec_t *
-rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
-                                        rhea_stokes_problem_t *stokes_problem)
-{
-  return stokes_problem->rhs_vel_nonzero_dirichlet;
-}
-
-ymir_vec_t *
-rhea_stokes_problem_get_rhs_vel (rhea_stokes_problem_t *stokes_problem)
-{
-  return stokes_problem->rhs_vel;
-}
-
-ymir_stokes_op_t *
-rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)
-{
-  return stokes_problem->stokes_op;
-}
-
-/**
- * Creates new velocity boundary conditions.
- */
-static void
-rhea_stokes_problem_velocity_boundary_create (
-                                        rhea_stokes_problem_t *stokes_problem,
-                                        ymir_mesh_t *ymir_mesh,
-                                        rhea_domain_options_t *domain_options)
-{
-  ymir_vec_t         *dirscal = NULL; //TODO seems to be best choice, isn't it?
-  ymir_vel_dir_t     *vel_dir;
-
-  stokes_problem->vel_dir = rhea_domain_create_velocity_dirichlet_bc (
-      ymir_mesh, dirscal, domain_options);
-}
-
-/**
- * Destroys velocity boundary conditions (if they exist).
- */
-static void
-rhea_stokes_problem_velocity_boundary_clear (
-                                        rhea_stokes_problem_t *stokes_problem)
-{
-  if (stokes_problem->vel_dir != NULL) {
-    if (stokes_problem->vel_dir->scale != NULL) {
-      ymir_vec_destroy (stokes_problem->vel_dir->scale);
-    }
-    ymir_vel_dir_destroy (stokes_problem->vel_dir);
-  }
-}
-
-void
-rhea_stokes_problem_velocity_boundary_set_zero (
-                                        ymir_vec_t *velocity,
-                                        rhea_stokes_problem_t *stokes_problem)
-{
-  /* check input */
-  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
-
-  /* set Dirichlet components to zero if Dirichlet BC's exist */
-  if (stokes_problem->vel_dir != NULL) {
-    ymir_vel_dir_separate (velocity, NULL, NULL, NULL, stokes_problem->vel_dir);
-  }
-}
-
-/******************************************************************************
  * Linear Stokes Problem
  *****************************************************************************/
 
-rhea_stokes_problem_t *
+static rhea_stokes_problem_t *
 rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
                                 ymir_vec_t *weakzone,
+                                ymir_vec_t *rhs_vel,
                                 ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                 ymir_mesh_t *ymir_mesh,
                                 ymir_pressure_elem_t *press_elem,
                                 rhea_domain_options_t *domain_options,
-                                rhea_temperature_options_t *temp_options,
                                 rhea_viscosity_options_t *visc_options,
                                 void *solver_options)
 {
   const char         *this_fn_name = "rhea_stokes_problem_linear_new";
   rhea_stokes_problem_t *stokes_problem_lin;
   ymir_vec_t         *coeff;
-  ymir_vec_t         *rhs_vel;
   ymir_vec_t         *rhs_vel_press;
   ymir_stokes_op_t   *stokes_op;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* check input */
-  RHEA_ASSERT (visc_options->type != RHEA_VISCOSITY_NONLINEAR);
+  RHEA_ASSERT (visc_options->type == RHEA_VISCOSITY_USER_WEAKZONE ||
+               visc_options->type == RHEA_VISCOSITY_LINEAR);
 
   /* initialize Stokes problem structure */
   stokes_problem_lin = rhea_stokes_problem_struct_new (
       RHEA_STOKES_PROBLEM_LINEAR, ymir_mesh, press_elem,
-      temperature, weakzone, rhs_vel_nonzero_dirichlet,
+      temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
       domain_options, visc_options);
 
-  /* create velocity boundary conditions */
-  rhea_stokes_problem_velocity_boundary_create (stokes_problem_lin,
-                                                ymir_mesh, domain_options);
-
-  /* create coefficient */
-  {
-    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
-
-    /* compute viscosity */
-    rhea_viscosity_compute (viscosity,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
-                            temperature, weakzone,
-                            NULL /* nl. Stokes input */,
-                            visc_options);
-
-    /* transform viscosity to Stokes coefficient */
-    coeff = viscosity;
-    ymir_vec_scale (2.0, coeff);
-  }
+  /* create and compute linear coefficient */
+  coeff = rhea_viscosity_new (ymir_mesh);
+  rhea_viscosity_compute (coeff,
+                          NULL /* nl. Stokes output */,
+                          NULL /* nl. Stokes output */,
+                          NULL /* nl. Stokes output */,
+                          temperature, weakzone,
+                          NULL /* nl. Stokes input */,
+                          visc_options);
+  ymir_vec_scale (2.0, coeff);
 
   /* create Stokes operator */
   stokes_op = ymir_stokes_op_new_ext (coeff, stokes_problem_lin->vel_dir,
@@ -379,25 +257,20 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
                                       press_elem, domain_options->center,
                                       domain_options->moment_of_inertia);
 
-  /* create velocity right-hand side forcing */
-  rhs_vel = rhea_velocity_new (ymir_mesh);
-  rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
-
-  /* construct right-hand side for incompressible Stokes system */
+  /* construct right-hand side for Stokes system */
   rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
   ymir_stokes_op_construct_rhs_ext (
-      rhs_vel /* Dirichlet forcing */,
+      rhs_vel /* volume forcing */,
       NULL /* Neumann forcing */,
       rhs_vel_nonzero_dirichlet /* nonzero Dirichlet bndr. */,
-      rhs_vel_press,
-      1 /* incompressible */,
+      rhs_vel_press /* output */,
+      stokes_problem_lin->incompressible,
       stokes_op);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
   RHEA_ASSERT (ymir_vec_is_not_dirty (rhs_vel_press));
 
   /* fill, and return the structure of the linear Stokes problem */
   stokes_problem_lin->coeff = coeff;
-  stokes_problem_lin->rhs_vel = rhs_vel;
   stokes_problem_lin->rhs_vel_press = rhs_vel_press;
   stokes_problem_lin->stokes_op = stokes_op;
 
@@ -406,7 +279,7 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
   return stokes_problem_lin;
 }
 
-void
+static void
 rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
 {
   const char         *this_fn_name = "rhea_stokes_problem_linear_destroy";
@@ -421,10 +294,9 @@ rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
   RHEA_ASSERT (stokes_problem_lin->rank1_tensor_scal == NULL);
   RHEA_ASSERT (stokes_problem_lin->bounds_marker == NULL);
   RHEA_ASSERT (stokes_problem_lin->yielding_marker == NULL);
-  RHEA_ASSERT (stokes_problem_lin->rhs_vel != NULL);
   RHEA_ASSERT (stokes_problem_lin->rhs_vel_press != NULL);
 
-  /* destroy Stokes operator and preconditioner */
+  /* destroy Stokes preconditioner and operator */
   if (stokes_problem_lin->stokes_pc != NULL) {
     ymir_stokes_pc_destroy (stokes_problem_lin->stokes_pc);
   }
@@ -432,11 +304,7 @@ rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
 
   /* destroy vectors */
   rhea_viscosity_destroy (stokes_problem_lin->coeff);
-  rhea_velocity_destroy (stokes_problem_lin->rhs_vel);
   rhea_velocity_pressure_destroy (stokes_problem_lin->rhs_vel_press);
-
-  /* destroy velocity boundary conditions */
-  rhea_stokes_problem_velocity_boundary_clear (stokes_problem_lin);
 
   /* destroy problem structure */
   rhea_stokes_problem_struct_destroy (stokes_problem_lin);
@@ -444,7 +312,7 @@ rhea_stokes_problem_linear_destroy (rhea_stokes_problem_t *stokes_problem_lin)
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
-void
+static void
 rhea_stokes_problem_linear_setup_solver (
                                     rhea_stokes_problem_t *stokes_problem_lin)
 {
@@ -463,7 +331,7 @@ rhea_stokes_problem_linear_setup_solver (
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
-void
+static void
 rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
                                   const int iter_max,
                                   const double rel_tol,
@@ -519,7 +387,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
         RHEA_STOKES_NORM_L2_VEC_SP, NULL, stokes_problem_lin->press_elem);
     ymir_vec_destroy (residual_vel_press);
 
-    /* calculate convergence */
+    /* calculate convergence (note: division by zero is possible) */
     res_reduction_vel = norm_res_vel/norm_res_init_vel;
     res_reduction_press = norm_res_press/norm_res_init_press;
     res_reduction = norm_res/norm_res_init;
@@ -533,12 +401,22 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
 
   /* print output */
   if (out_residual) {
-    RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, iterations %i, "
-                       "residual reduction %.3e, convergence %.3e, "
-                       "reduction vel %.3e, reduction press %.3e)\n",
-                       this_fn_name, stop_reason, itn,
-                       res_reduction, conv_factor,
-                       res_reduction_vel, res_reduction_press);
+    if (stokes_problem_lin->incompressible) {
+      RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, iterations %i, "
+                         "residual reduction %.3e, convergence %.3e, "
+                         "reduction momentum %.3e, norm mass %.3e)\n",
+                         this_fn_name, stop_reason, itn,
+                         res_reduction, conv_factor,
+                         res_reduction_vel, norm_res_press);
+    }
+    else {
+      RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, iterations %i, "
+                         "residual reduction %.3e, convergence %.3e, "
+                         "reduction momentum %.3e, reduction mass %.3e)\n",
+                         this_fn_name, stop_reason, itn,
+                         res_reduction, conv_factor,
+                         res_reduction_vel, res_reduction_press);
+    }
   }
   else {
     RHEA_GLOBAL_INFOF ("Done %s (solver stopping reason %i, num iter %i)\n",
@@ -573,6 +451,7 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
                         this_fn_name, nonzero_initial_guess);
 
   /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->stokes_op == NULL);
   RHEA_ASSERT (stokes_problem_nl->stokes_pc == NULL);
   RHEA_ASSERT (stokes_problem_nl->norm_op == NULL);
@@ -636,6 +515,9 @@ rhea_stokes_problem_nonlinear_data_clear (void *data)
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+
   /* destroy Stokes preconditioner */
   if (stokes_problem_nl->stokes_pc != NULL) {
     ymir_stokes_pc_destroy (stokes_problem_nl->stokes_pc);
@@ -679,6 +561,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
 
   /* check input */
 #if RHEA_ENABLE_DEBUG
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (neg_gradient != NULL);
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (neg_gradient));
   if (solution != NULL) {
@@ -693,11 +576,11 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
 
   /* construct the right-hand side */
   ymir_stokes_op_construct_rhs_ext (
-      rhs_vel /* Dirichlet forcing */,
+      rhs_vel /* volume forcing */,
       NULL /* Neumann forcing */,
       rhs_vel_nonzero_dirichlet /* nonzero Dirichlet bndr. */,
-      rhs_vel_press,
-      1 /* incompressible */,
+      rhs_vel_press /* output */,
+      stokes_problem_nl->incompressible,
       stokes_op);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
   RHEA_ASSERT (ymir_vec_is_not_dirty (rhs_vel_press));
@@ -745,6 +628,7 @@ rhea_stokes_problem_nonlinear_compute_gradient_norm (ymir_vec_t *neg_gradient,
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (neg_gradient != NULL);
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (neg_gradient));
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
@@ -805,6 +689,7 @@ rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
   const int           dirty = 0;
 
   /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
   RHEA_ASSERT (ymir_stress_op_is_nl (stokes_problem_nl->stokes_op->stress_op));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (out));
@@ -971,6 +856,9 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+
   /* get fields */
   rhea_velocity_pressure_create_components (&velocity, &pressure, solution,
                                             press_elem);
@@ -995,14 +883,14 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
  * Nonlinear Stokes Problem
  *****************************************************************************/
 
-rhea_stokes_problem_t *
+static rhea_stokes_problem_t *
 rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
                                    ymir_vec_t *weakzone,
+                                   ymir_vec_t *rhs_vel,
                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                    ymir_mesh_t *ymir_mesh,
                                    ymir_pressure_elem_t *press_elem,
                                    rhea_domain_options_t *domain_options,
-                                   rhea_temperature_options_t *temp_options,
                                    rhea_viscosity_options_t *visc_options,
                                    void *solver_options)
 {
@@ -1013,7 +901,6 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   ymir_vec_t         *rank1_tensor_scal;
   ymir_vec_t         *bounds_marker;
   ymir_vec_t         *yielding_marker;
-  ymir_vec_t         *rhs_vel;
   ymir_vec_t         *rhs_vel_press;
   rhea_newton_options_t *newton_options = solver_options;
   rhea_newton_problem_t *newton_problem;
@@ -1026,12 +913,8 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   /* initialize Stokes problem structure */
   stokes_problem_nl = rhea_stokes_problem_struct_new (
       RHEA_STOKES_PROBLEM_NONLINEAR, ymir_mesh, press_elem,
-      temperature, weakzone, rhs_vel_nonzero_dirichlet,
+      temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
       domain_options, visc_options);
-
-  /* create velocity boundary conditions */
-  rhea_stokes_problem_velocity_boundary_create (stokes_problem_nl,
-                                                ymir_mesh, domain_options);
 
   /* create coefficient vectors */
   coeff = rhea_viscosity_new (ymir_mesh);
@@ -1040,11 +923,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   bounds_marker = rhea_viscosity_new (ymir_mesh);
   yielding_marker = rhea_viscosity_new (ymir_mesh);
 
-  /* create velocity right-hand side forcing */
-  rhs_vel = rhea_velocity_new (ymir_mesh);
-  rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
-
-  /* create right-hand side vector */
+  /* create the right-hand side vector */
   rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
 
   /* create Newton problem */
@@ -1088,8 +967,6 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   stokes_problem_nl->rank1_tensor_scal = rank1_tensor_scal;
   stokes_problem_nl->bounds_marker = bounds_marker;
   stokes_problem_nl->yielding_marker = yielding_marker;
-  stokes_problem_nl->rhs_vel = rhs_vel;
-  stokes_problem_nl->rhs_vel_nonzero_dirichlet = rhs_vel_nonzero_dirichlet;
   stokes_problem_nl->rhs_vel_press = rhs_vel_press;
   stokes_problem_nl->newton_options = newton_options;
   stokes_problem_nl->newton_problem = newton_problem;
@@ -1103,7 +980,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   return stokes_problem_nl;
 }
 
-void
+static void
 rhea_stokes_problem_nonlinear_destroy (
                                     rhea_stokes_problem_t *stokes_problem_nl)
 {
@@ -1119,7 +996,6 @@ rhea_stokes_problem_nonlinear_destroy (
   RHEA_ASSERT (stokes_problem_nl->rank1_tensor_scal != NULL);
   RHEA_ASSERT (stokes_problem_nl->bounds_marker != NULL);
   RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
-  RHEA_ASSERT (stokes_problem_nl->rhs_vel != NULL);
   RHEA_ASSERT (stokes_problem_nl->rhs_vel_press != NULL);
 
   /* destroy Newton problem */
@@ -1139,11 +1015,7 @@ rhea_stokes_problem_nonlinear_destroy (
   rhea_viscosity_destroy (stokes_problem_nl->rank1_tensor_scal);
   rhea_viscosity_destroy (stokes_problem_nl->bounds_marker);
   rhea_viscosity_destroy (stokes_problem_nl->yielding_marker);
-  rhea_velocity_destroy (stokes_problem_nl->rhs_vel);
   rhea_velocity_pressure_destroy (stokes_problem_nl->rhs_vel_press);
-
-  /* destroy velocity boundary conditions */
-  rhea_stokes_problem_velocity_boundary_clear (stokes_problem_nl);
 
   /* destroy problem structure */
   rhea_stokes_problem_struct_destroy (stokes_problem_nl);
@@ -1151,15 +1023,18 @@ rhea_stokes_problem_nonlinear_destroy (
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
-void
+static void
 rhea_stokes_problem_nonlinear_setup_solver (
                                     rhea_stokes_problem_t *stokes_problem_nl)
 {
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+
   /* setup happens during nonlinear solve */
   return;
 }
 
-void
+static void
 rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
                                      const int iter_max,
                                      const double rel_tol,
@@ -1199,4 +1074,157 @@ rhea_stokes_problem_nonlinear_set_output (
 {
   stokes_problem_nl->vtk_write_newton_itn_path =
     vtk_write_newton_iteration_path;
+}
+
+/******************************************************************************
+ * General Stokes Problem
+ *****************************************************************************/
+
+rhea_stokes_problem_t *
+rhea_stokes_problem_new (ymir_vec_t *temperature,
+                         ymir_vec_t *weakzone,
+                         ymir_vec_t *rhs_vel,
+                         ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                         ymir_mesh_t *ymir_mesh,
+                         ymir_pressure_elem_t *press_elem,
+                         rhea_domain_options_t *domain_options,
+                         rhea_viscosity_options_t *visc_options,
+                         void *solver_options)
+{
+  switch (visc_options->type) {
+  case RHEA_VISCOSITY_USER_WEAKZONE:
+  case RHEA_VISCOSITY_LINEAR:
+    return rhea_stokes_problem_linear_new (
+        temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
+        ymir_mesh, press_elem, domain_options, visc_options, solver_options);
+  case RHEA_VISCOSITY_NONLINEAR:
+    return rhea_stokes_problem_nonlinear_new (
+        temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
+        ymir_mesh, press_elem, domain_options, visc_options, solver_options);
+  default: /* not clear which Stokes type to choose */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+void
+rhea_stokes_problem_destroy (rhea_stokes_problem_t *stokes_problem)
+{
+  switch (stokes_problem->type) {
+  case RHEA_STOKES_PROBLEM_LINEAR:
+    rhea_stokes_problem_linear_destroy (stokes_problem);
+    break;
+  case RHEA_STOKES_PROBLEM_NONLINEAR:
+    rhea_stokes_problem_nonlinear_destroy (stokes_problem);
+    break;
+  default: /* unknown Stokes type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+void
+rhea_stokes_problem_setup_solver (rhea_stokes_problem_t *stokes_problem)
+{
+  switch (stokes_problem->type) {
+  case RHEA_STOKES_PROBLEM_LINEAR:
+    rhea_stokes_problem_linear_setup_solver (stokes_problem);
+    break;
+  case RHEA_STOKES_PROBLEM_NONLINEAR:
+    rhea_stokes_problem_nonlinear_setup_solver (stokes_problem);
+    break;
+  default: /* unknown Stokes type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+void
+rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
+                           const int iter_max,
+                           const double rel_tol,
+                           rhea_stokes_problem_t *stokes_problem)
+{
+  switch (stokes_problem->type) {
+  case RHEA_STOKES_PROBLEM_LINEAR:
+    rhea_stokes_problem_linear_solve (sol_vel_press, iter_max, rel_tol,
+                                      stokes_problem);
+    break;
+  case RHEA_STOKES_PROBLEM_NONLINEAR:
+    rhea_stokes_problem_nonlinear_solve (sol_vel_press, iter_max, rel_tol,
+                                         stokes_problem);
+    break;
+  default: /* unknown Stokes type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/******************************************************************************
+ * Access Data of a Stokes Problem
+ *****************************************************************************/
+
+ymir_mesh_t *
+rhea_stokes_problem_get_ymir_mesh (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->ymir_mesh;
+}
+
+ymir_pressure_elem_t *
+rhea_stokes_problem_get_press_elem (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->press_elem;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_temperature (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->temperature;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_weakzone (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->weakzone;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_rhs_vel (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->rhs_vel;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->rhs_vel_nonzero_dirichlet;
+}
+
+void
+rhea_stokes_problem_get_viscosity (ymir_vec_t *viscosity,
+                                   rhea_stokes_problem_t *stokes_problem)
+{
+  /* check input */
+  RHEA_ASSERT (stokes_problem->coeff != NULL);
+
+  /* copy Stokes coefficient and divide by 2 */
+  ymir_vec_copy (stokes_problem->coeff, viscosity);
+  ymir_vec_scale (0.5, viscosity);
+}
+
+ymir_stokes_op_t *
+rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->stokes_op;
+}
+
+void
+rhea_stokes_problem_velocity_boundary_set_zero (
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
+
+  /* set Dirichlet components to zero if Dirichlet BC's exist */
+  if (stokes_problem->vel_dir != NULL) {
+    ymir_vel_dir_separate (velocity, NULL, NULL, NULL, stokes_problem->vel_dir);
+  }
 }
