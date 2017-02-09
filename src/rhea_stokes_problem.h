@@ -80,7 +80,7 @@ ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
 
-void                rhea_stokes_problem_get_viscosity (
+void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 

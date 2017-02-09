@@ -863,7 +863,7 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
   rhea_velocity_pressure_create_components (&velocity, &pressure, solution,
                                             press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
-  rhea_stokes_problem_get_viscosity (viscosity, stokes_problem_nl);
+  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_nl);
 
   /* write vtk */
   snprintf (path, BUFSIZ, "%s_itn%02i", filepath, iter);
@@ -1198,8 +1198,8 @@ rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
 }
 
 void
-rhea_stokes_problem_get_viscosity (ymir_vec_t *viscosity,
-                                   rhea_stokes_problem_t *stokes_problem)
+rhea_stokes_problem_copy_viscosity (ymir_vec_t *viscosity,
+                                    rhea_stokes_problem_t *stokes_problem)
 {
   /* check input */
   RHEA_ASSERT (stokes_problem->coeff != NULL);
