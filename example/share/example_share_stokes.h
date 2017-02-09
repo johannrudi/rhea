@@ -8,8 +8,11 @@
 #ifndef EXAMPLE_SHARE_STOKES_H
 #define EXAMPLE_SHARE_STOKES_H
 
-#include <rhea_stokes_problem.h>
+#include <rhea_domain.h>
 #include <rhea_newton.h>
+#include <rhea_stokes_problem.h>
+#include <rhea_temperature.h>
+#include <rhea_viscosity.h>
 
 /**
  * Creates a new Stokes problem.

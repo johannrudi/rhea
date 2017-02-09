@@ -17,7 +17,7 @@ example_share_mesh_new (p4est_t **p4est,
 {
   const char         *this_fn_name = "example_share_mesh_new";
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* create p4est */
   *p4est = rhea_discretization_p4est_new (mpicomm, discr_options,
@@ -31,7 +31,7 @@ example_share_mesh_new (p4est_t **p4est,
   rhea_discretization_ymir_mesh_new_from_p4est (ymir_mesh, press_elem, *p4est,
                                                 discr_options);
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
 void
@@ -42,7 +42,7 @@ example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
 {
   const char         *this_fn_name = "example_share_mesh_destroy";
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* destroy mesh */
   rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
@@ -51,5 +51,5 @@ example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
   /* destroy (some) options */
   rhea_discretization_options_clear (discr_options);
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
