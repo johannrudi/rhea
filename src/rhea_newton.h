@@ -181,6 +181,9 @@ void                rhea_newton_options_set_defaults (
  * Newton Problem
  *****************************************************************************/
 
+/* Nonlinear problem (opaque) */
+typedef struct rhea_newton_problem rhea_newton_problem_t;
+
 /* enumerator for convergence critera */
 typedef enum
 {
@@ -190,9 +193,6 @@ typedef enum
   RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM
 }
 rhea_newton_conv_criterion_t;
-
-/* Nonlinear problem (opaque) */
-typedef struct rhea_newton_problem rhea_newton_problem_t;
 
 /**
  * Creates a new nonlinear problem.
@@ -280,7 +280,7 @@ void                rhea_newton_solve (ymir_vec_t *solution,
                                        rhea_newton_options_t *opt);
 
 /**
- * Accesses data and callback functions of nonlinear problem.
+ * Accesses data and callback functions of a nonlinear problem.
  */
 ymir_vec_t         *rhea_newton_problem_get_neg_gradient_vec (
                                             rhea_newton_problem_t *nl_problem);

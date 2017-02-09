@@ -1185,7 +1185,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   step->lin_convergence = lin_conv;
 
   RHEA_GLOBAL_INFOF ("Newton iter %i -- Done %s (num iter %i, "
-                     "residual reduction %3.e, prescribed rtol %.3e)\n",
+                     "residual reduction %.1e, prescribed rtol %.1e)\n",
                      iter, this_fn_name, lin_iter_count,
                      lin_res_norm_reduction, lin_res_norm_rtol);
 }
