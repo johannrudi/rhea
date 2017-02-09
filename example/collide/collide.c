@@ -860,10 +860,10 @@ collide_write_input ( ymir_mesh_t *ymir_mesh,
   const char         *this_fn_name = "collide_write_input";
   ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
   ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
-  ymir_vec_t         *rhs_vel = rhea_temperature_new (ymir_mesh);
+  ymir_vec_t         *rhs_vel;
 
-  rhea_stokes_problem_get_viscosity (viscosity, stokes_problem_lin);
-  rhea_stokes_problem_get_rhs_vel (stokes_problem_lin);
+  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_lin);
+  rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem_lin);
 
   rhea_temperature_background_compute (background_temp, temp_options);
 
@@ -880,6 +880,7 @@ collide_write_input ( ymir_mesh_t *ymir_mesh,
   }
 */
   rhea_temperature_destroy (background_temp);
+  rhea_viscosity_destroy (viscosity);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
@@ -1330,7 +1331,7 @@ main (int argc, char **argv)
 
     ymir_stokes_vec_get_components (sol_vel_press, velocity, pressure,
                                     press_elem);
-    rhea_stokes_problem_get_viscosity (viscosity, stokes_problem);
+    rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                              viscosity);
