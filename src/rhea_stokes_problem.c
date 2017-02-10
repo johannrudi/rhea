@@ -229,8 +229,7 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* check input */
-  RHEA_ASSERT (visc_options->type == RHEA_VISCOSITY_USER_WEAKZONE ||
-               visc_options->type == RHEA_VISCOSITY_LINEAR);
+  RHEA_ASSERT (visc_options->type == RHEA_VISCOSITY_LINEAR);
 
   /* initialize Stokes problem structure */
   stokes_problem_lin = rhea_stokes_problem_struct_new (
@@ -1092,7 +1091,6 @@ rhea_stokes_problem_new (ymir_vec_t *temperature,
                          void *solver_options)
 {
   switch (visc_options->type) {
-  case RHEA_VISCOSITY_USER_WEAKZONE:
   case RHEA_VISCOSITY_LINEAR:
     return rhea_stokes_problem_linear_new (
         temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,

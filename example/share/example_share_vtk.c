@@ -45,7 +45,6 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   /* compute viscosity */
   viscosity = rhea_viscosity_new (ymir_mesh);
   switch (visc_options->type) {
-  case RHEA_VISCOSITY_USER_WEAKZONE:
   case RHEA_VISCOSITY_LINEAR:
     rhea_viscosity_compute (viscosity,
                             NULL /* nl. Stokes output */,

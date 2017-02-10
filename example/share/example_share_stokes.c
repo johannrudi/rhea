@@ -42,7 +42,6 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
 
   /* set solver-specific variables */
   switch (visc_options->type) {
-  case RHEA_VISCOSITY_USER_WEAKZONE:
   case RHEA_VISCOSITY_LINEAR:
     solver_options = NULL;
     break;

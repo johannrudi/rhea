@@ -10,7 +10,6 @@
 /* enumerator for types of viscosities */
 typedef enum
 {
-  RHEA_VISCOSITY_USER_WEAKZONE = -1,
   RHEA_VISCOSITY_LINEAR = 0,
   RHEA_VISCOSITY_NONLINEAR = 1
 }
@@ -53,17 +52,6 @@ typedef struct rhea_viscosity_options
   /* lower and upper bounds for the viscosity */
   double              min;
   double              max;
-
-   /* user defined weak zone */
-  double              uwkzone_loc_upper;
-  double              uwkzone_loc_lower;
-  double              uwkzone_loc_left;
-  double              uwkzone_loc_right;
-  double              uwkzone_width;
-  double              uwkzone_factor;
-  double              uwkzone_lith;
-  double              uwkzone_mantle;
-
 
   /* scaling factor and activation energy in Arrhenius relationship */
   double              upper_mantle_scaling;
