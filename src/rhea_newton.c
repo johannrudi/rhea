@@ -786,9 +786,6 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
     grad_norm = nl_problem->compute_gradient_norm (neg_gradient,
                                                    nl_problem->data,
                                                    grad_norm_comp);
-    if (0 < n_components) {
-      RHEA_FREE (grad_norm_comp);
-    }
   }
   else {
     *neg_gradient_updated = 0;
@@ -797,6 +794,11 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
   /* set current status */
   RHEA_ASSERT (isfinite (obj_val) || isfinite (grad_norm));
   rhea_newton_status_set_curr (status, obj_val, grad_norm, grad_norm_comp);
+
+  /* destroy */
+  if (grad_norm_comp != NULL) {
+    RHEA_FREE (grad_norm_comp);
+  }
 }
 
 /**
@@ -944,6 +946,61 @@ rhea_newton_status_get_reduction_curr (rhea_newton_status_t *status)
 }
 
 /**
+ * Helper functions for `rhea_newton_status_print_curr (...)` below.
+ */
+static void
+rhea_newton_status_print_curr_obj (const double value, const double reduction,
+                                   const int iter, const char *name)
+{
+  RHEA_GLOBAL_INFOF (
+      "Newton iter %i -- %s: Objective functional %.3e, reduction %.3e\n",
+      iter, name, value, reduction);
+}
+
+static void
+rhea_newton_status_print_curr_grad (const double value, const double reduction,
+                                    const int iter, const char *name)
+{
+  RHEA_GLOBAL_INFOF (
+      "Newton iter %i -- %s: Gradient norm %.3e, reduction %.3e\n",
+      iter, name, value, reduction);
+}
+
+static void
+rhea_newton_status_print_curr_res (const double value, const double reduction,
+                                   const int iter, const char *name)
+{
+  RHEA_GLOBAL_INFOF (
+      "Newton iter %i -- %s: Residual norm %.3e, reduction %.3e\n",
+      iter, name, value, reduction);
+}
+
+static void
+rhea_newton_status_print_curr_comp (const int n_components,
+                                    const double *value,
+                                    const int iter, const char *name)
+{
+  char                arr2str[BUFSIZ] = "";
+  char               *pos = arr2str;
+  const char         *end = arr2str + sizeof (arr2str);
+  int                 compid;
+
+  /* check input */
+  RHEA_ASSERT (0 < n_components);
+  RHEA_ASSERT (value != NULL);
+
+  /* write array of values to string */
+  pos += snprintf (pos, end - pos, "%.3e", value[0]);
+  for (compid = 1; compid < n_components; compid++) {
+    pos += snprintf (pos, end - pos, ", %.3e", value[compid]);
+  }
+
+  /* print */
+  RHEA_GLOBAL_INFOF (
+      "Newton iter %i -- %s: Component norms [%s]\n", iter, name, arr2str);
+}
+
+/**
  * Prints current Newton status.
  */
 static void
@@ -954,40 +1011,46 @@ rhea_newton_status_print_curr (rhea_newton_status_t *status,
 {
   switch (status->conv_criterion) {
   case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
-    if (!print_all) {
-      RHEA_GLOBAL_INFOF (
-          "Newton iter %i -- %s: Objective functional %.6e, reduction %.3e\n",
-          iter, name, status->obj_curr, status->obj_reduction);
-    }
-    else {
-      RHEA_GLOBAL_INFOF (
-          "Newton iter %i -- %s: Objective functional %.6e, reduction %.3e "
-          "(Gradient norm %.6e, reduction %.3e)\n",
-          iter, name, status->obj_curr, status->obj_reduction,
-          status->grad_norm_curr, status->grad_norm_reduction);
+    rhea_newton_status_print_curr_obj (status->obj_curr, status->obj_reduction,
+                                       iter, name);
+    if (print_all) { /* if print all convergence values */
+      rhea_newton_status_print_curr_grad (status->grad_norm_curr,
+                                          status->grad_norm_reduction,
+                                          iter, name);
+      if (0 < status->grad_norm_multi_components) { /* if print components */
+        rhea_newton_status_print_curr_comp (status->grad_norm_multi_components,
+                                            status->grad_norm_curr_comp,
+                                            iter, name);
+      }
     }
     break;
   case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-    if (!print_all) {
-      RHEA_GLOBAL_INFOF (
-          "Newton iter %i -- %s: Gradient norm %.6e, reduction %.3e\n",
-          iter, name, status->grad_norm_curr, status->grad_norm_reduction);
+    rhea_newton_status_print_curr_grad (status->grad_norm_curr,
+                                        status->grad_norm_reduction,
+                                        iter, name);
+    if (0 < status->grad_norm_multi_components) { /* if print components */
+      rhea_newton_status_print_curr_comp (status->grad_norm_multi_components,
+                                          status->grad_norm_curr_comp,
+                                          iter, name);
     }
-    else {
-      RHEA_GLOBAL_INFOF (
-          "Newton iter %i -- %s: Gradient norm %.6e, reduction %.3e "
-          "(Objective functional %.6e, reduction %.3e)\n",
-          iter, name, status->grad_norm_curr, status->grad_norm_reduction,
-          status->obj_curr, status->obj_reduction);
+    if (print_all) { /* if print all convergence values */
+      rhea_newton_status_print_curr_obj (status->obj_curr,
+                                         status->obj_reduction,
+                                         iter, name);
     }
     break;
   case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
+    rhea_newton_status_print_curr_res (status->grad_norm_curr,
+                                       status->grad_norm_reduction,
+                                       iter, name);
     RHEA_ASSERT (!print_all);
-    RHEA_GLOBAL_INFOF (
-        "Newton iter %i -- %s: Residual norm %.6e, reduction %.3e\n",
-        iter, name, status->grad_norm_curr, status->grad_norm_reduction);
+    if (0 < status->grad_norm_multi_components) { /* if print components */
+      rhea_newton_status_print_curr_comp (status->grad_norm_multi_components,
+                                          status->grad_norm_curr_comp,
+                                          iter, name);
+    }
     break;
-  default: /* unknown criterion */
+  default: /* unknown convergence criterion */
     RHEA_ABORT_NOT_REACHED ();
   }
 }
