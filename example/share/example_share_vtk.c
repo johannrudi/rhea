@@ -85,7 +85,7 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   ymir_vec_t         *velocity, *pressure, *viscosity;
 
   /* exit if nothing to do */
-  if (vtk_write_solution_path != NULL) {
+  if (vtk_write_solution_path == NULL) {
     return;
   }
 
