@@ -43,21 +43,31 @@ typedef struct rhea_temperature_options
 
   /* sinker */
   int                 sinker_active;
-  double              sinker_center_x;
-  double              sinker_center_y;
-  double              sinker_center_z;
+  int                 sinker_random_count;
   double              sinker_decay;
   double              sinker_width;
   double              sinker_scaling;
+  double              sinker_center_x;
+  double              sinker_center_y;
+  double              sinker_center_z;
+  double              sinker_dilatation;
+  double              sinker_translation_x;
+  double              sinker_translation_y;
+  double              sinker_translation_z;
 
   /* plume */
   int                 plume_active;
-  double              plume_center_x;
-  double              plume_center_y;
-  double              plume_center_z;
+  int                 plume_random_count;
   double              plume_decay;
   double              plume_width;
   double              plume_scaling;
+  double              plume_center_x;
+  double              plume_center_y;
+  double              plume_center_z;
+  double              plume_dilatation;
+  double              plume_translation_x;
+  double              plume_translation_y;
+  double              plume_translation_z;
 
   /* buoyancy right-hand side derived from temperature */
   double              rhs_scaling;

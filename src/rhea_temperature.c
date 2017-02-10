@@ -18,19 +18,29 @@
 #define RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S (1.0e-6) /* [m^2/s] */
 #define RHEA_TEMPERATURE_DEFAULT_RHS_SCALING (1.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_ACTIVE (0)
-#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X (0.5)
-#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y (0.5)
-#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z (0.5)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_RANDOM_COUNT (0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_DECAY (100.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_WIDTH (0.1)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_SCALING (1.0)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X (0.5)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y (0.5)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z (0.5)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_DILATATION (1.0)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_X (0.0)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Y (0.0)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Z (0.0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE (0)
-#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X (0.5)
-#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y (0.5)
-#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_RANDOM_COUNT (0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY (100.0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_WIDTH (0.1)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_SCALING (1.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_DILATATION (1.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_X (0.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Y (0.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Z (0.0)
 
 /* initialize options */
 char               *rhea_temperature_type_name =
@@ -41,34 +51,56 @@ double              rhea_temperature_thermal_diffusivity_m2_s =
   RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S;
 double              rhea_temperature_rhs_scaling =
   RHEA_TEMPERATURE_DEFAULT_RHS_SCALING;
+
 int                 rhea_temperature_sinker_active =
   RHEA_TEMPERATURE_SINKER_DEFAULT_ACTIVE;
-double              rhea_temperature_sinker_center_x =
-  RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X;
-double              rhea_temperature_sinker_center_y =
-  RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y;
-double              rhea_temperature_sinker_center_z =
-  RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z;
+int                 rhea_temperature_sinker_random_count =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_RANDOM_COUNT;
 double              rhea_temperature_sinker_decay =
   RHEA_TEMPERATURE_SINKER_DEFAULT_DECAY;
 double              rhea_temperature_sinker_width =
   RHEA_TEMPERATURE_SINKER_DEFAULT_WIDTH;
 double              rhea_temperature_sinker_scaling =
   RHEA_TEMPERATURE_SINKER_DEFAULT_SCALING;
+double              rhea_temperature_sinker_center_x =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X;
+double              rhea_temperature_sinker_center_y =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y;
+double              rhea_temperature_sinker_center_z =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z;
+double              rhea_temperature_sinker_dilatation =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_DILATATION;
+double              rhea_temperature_sinker_translation_x =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_X;
+double              rhea_temperature_sinker_translation_y =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Y;
+double              rhea_temperature_sinker_translation_z =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Z;
+
 int                 rhea_temperature_plume_active =
   RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE;
-double              rhea_temperature_plume_center_x =
-  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X;
-double              rhea_temperature_plume_center_y =
-  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y;
-double              rhea_temperature_plume_center_z =
-  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z;
+int                 rhea_temperature_plume_random_count =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_RANDOM_COUNT;
 double              rhea_temperature_plume_decay =
   RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY;
 double              rhea_temperature_plume_width =
   RHEA_TEMPERATURE_PLUME_DEFAULT_WIDTH;
 double              rhea_temperature_plume_scaling =
   RHEA_TEMPERATURE_PLUME_DEFAULT_SCALING;
+double              rhea_temperature_plume_center_x =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X;
+double              rhea_temperature_plume_center_y =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y;
+double              rhea_temperature_plume_center_z =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z;
+double              rhea_temperature_plume_dilatation =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_DILATATION;
+double              rhea_temperature_plume_translation_x =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_X;
+double              rhea_temperature_plume_translation_y =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Y;
+double              rhea_temperature_plume_translation_z =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Z;
 
 void
 rhea_temperature_add_options (ymir_options_t * opt_sup)
@@ -117,19 +149,10 @@ rhea_temperature_add_options_sinker (ymir_options_t * opt_sup)
   YMIR_OPTIONS_B, "active", '\0',
     &(rhea_temperature_sinker_active), RHEA_TEMPERATURE_SINKER_DEFAULT_ACTIVE,
     "Activate sinker",
-
-  YMIR_OPTIONS_D, "center-x", '\0',
-    &(rhea_temperature_sinker_center_x),
-    RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X,
-    "Centerr: x-coordinate",
-  YMIR_OPTIONS_D, "center-y", '\0',
-    &(rhea_temperature_sinker_center_y),
-    RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y,
-    "Centerr: y-coordinate",
-  YMIR_OPTIONS_D, "center-z", '\0',
-    &(rhea_temperature_sinker_center_z),
-    RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z,
-    "Centerr: z-coordinate",
+  YMIR_OPTIONS_I, "random-count", '\0',
+    &(rhea_temperature_sinker_random_count),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_RANDOM_COUNT,
+    "Number of sinkers to place randomly inside domain",
 
   YMIR_OPTIONS_D, "decay", '\0',
     &(rhea_temperature_sinker_decay), RHEA_TEMPERATURE_SINKER_DEFAULT_DECAY,
@@ -137,10 +160,39 @@ rhea_temperature_add_options_sinker (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "width", '\0',
     &(rhea_temperature_sinker_width), RHEA_TEMPERATURE_SINKER_DEFAULT_WIDTH,
     "Width of inner sphere with maximum value",
-
   YMIR_OPTIONS_D, "scaling", '\0',
     &(rhea_temperature_sinker_scaling), RHEA_TEMPERATURE_SINKER_DEFAULT_SCALING,
     "Scaling factor",
+
+  YMIR_OPTIONS_D, "center-x", '\0',
+    &(rhea_temperature_sinker_center_x),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X,
+    "Center of sigle sinker: x-coordinate",
+  YMIR_OPTIONS_D, "center-y", '\0',
+    &(rhea_temperature_sinker_center_y),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y,
+    "Center of sigle sinker: y-coordinate",
+  YMIR_OPTIONS_D, "center-z", '\0',
+    &(rhea_temperature_sinker_center_z),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z,
+    "Center of sigle sinker: z-coordinate",
+
+  YMIR_OPTIONS_D, "dilatation", '\0',
+    &(rhea_temperature_sinker_dilatation),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_DILATATION,
+    "Move random center points inward or outward relative to domain center",
+  YMIR_OPTIONS_D, "translation-x", '\0',
+    &(rhea_temperature_sinker_translation_x),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_X,
+    "Move random center points in x-direction",
+  YMIR_OPTIONS_D, "translation-y", '\0',
+    &(rhea_temperature_sinker_translation_y),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Y,
+    "Move random center points in y-direction",
+  YMIR_OPTIONS_D, "translation-z", '\0',
+    &(rhea_temperature_sinker_translation_z),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Z,
+    "Move random center points in z-direction",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -162,19 +214,10 @@ rhea_temperature_add_options_plume (ymir_options_t * opt_sup)
   YMIR_OPTIONS_B, "active", '\0',
     &(rhea_temperature_plume_active), RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE,
     "Activate plume",
-
-  YMIR_OPTIONS_D, "center-x", '\0',
-    &(rhea_temperature_plume_center_x),
-    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X,
-    "Center: x-coordinate",
-  YMIR_OPTIONS_D, "center-y", '\0',
-    &(rhea_temperature_plume_center_y),
-    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y,
-    "Center: y-coordinate",
-  YMIR_OPTIONS_D, "center-z", '\0',
-    &(rhea_temperature_plume_center_z),
-    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z,
-    "Center: z-coordinate",
+  YMIR_OPTIONS_I, "random-count", '\0',
+    &(rhea_temperature_plume_random_count),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_RANDOM_COUNT,
+    "Number of plumes to place randomly inside domain",
 
   YMIR_OPTIONS_D, "decay", '\0',
     &(rhea_temperature_plume_decay), RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY,
@@ -182,10 +225,39 @@ rhea_temperature_add_options_plume (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "width", '\0',
     &(rhea_temperature_plume_width), RHEA_TEMPERATURE_PLUME_DEFAULT_WIDTH,
     "Width of inner sphere with minimum value",
-
   YMIR_OPTIONS_D, "scaling", '\0',
     &(rhea_temperature_plume_scaling), RHEA_TEMPERATURE_PLUME_DEFAULT_SCALING,
     "Scaling factor",
+
+  YMIR_OPTIONS_D, "center-x", '\0',
+    &(rhea_temperature_plume_center_x),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X,
+    "Center of single plume: x-coordinate",
+  YMIR_OPTIONS_D, "center-y", '\0',
+    &(rhea_temperature_plume_center_y),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y,
+    "Center of single plume: y-coordinate",
+  YMIR_OPTIONS_D, "center-z", '\0',
+    &(rhea_temperature_plume_center_z),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z,
+    "Center of single plume: z-coordinate",
+
+  YMIR_OPTIONS_D, "dilatation", '\0',
+    &(rhea_temperature_plume_dilatation),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_DILATATION,
+    "Move random center points inward or outward relative to domain center",
+  YMIR_OPTIONS_D, "translation-x", '\0',
+    &(rhea_temperature_plume_translation_x),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_X,
+    "Move random center points in x-direction",
+  YMIR_OPTIONS_D, "translation-y", '\0',
+    &(rhea_temperature_plume_translation_y),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Y,
+    "Move random center points in y-direction",
+  YMIR_OPTIONS_D, "translation-z", '\0',
+    &(rhea_temperature_plume_translation_z),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Z,
+    "Move random center points in z-direction",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -224,21 +296,31 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
 
   /* set sinker options */
   opt->sinker_active = rhea_temperature_sinker_active;
-  opt->sinker_center_x = rhea_temperature_sinker_center_x;
-  opt->sinker_center_y = rhea_temperature_sinker_center_y;
-  opt->sinker_center_z = rhea_temperature_sinker_center_z;
+  opt->sinker_random_count = rhea_temperature_sinker_random_count;
   opt->sinker_decay = rhea_temperature_sinker_decay;
   opt->sinker_width = rhea_temperature_sinker_width;
   opt->sinker_scaling = rhea_temperature_sinker_scaling;
+  opt->sinker_center_x = rhea_temperature_sinker_center_x;
+  opt->sinker_center_y = rhea_temperature_sinker_center_y;
+  opt->sinker_center_z = rhea_temperature_sinker_center_z;
+  opt->sinker_dilatation = rhea_temperature_sinker_dilatation;
+  opt->sinker_translation_x = rhea_temperature_sinker_translation_x;
+  opt->sinker_translation_y = rhea_temperature_sinker_translation_y;
+  opt->sinker_translation_z = rhea_temperature_sinker_translation_z;
 
   /* set plume options */
   opt->plume_active = rhea_temperature_plume_active;
-  opt->plume_center_x = rhea_temperature_plume_center_x;
-  opt->plume_center_y = rhea_temperature_plume_center_y;
-  opt->plume_center_z = rhea_temperature_plume_center_z;
+  opt->plume_random_count = rhea_temperature_plume_random_count;
   opt->plume_decay = rhea_temperature_plume_decay;
   opt->plume_width = rhea_temperature_plume_width;
   opt->plume_scaling = rhea_temperature_plume_scaling;
+  opt->plume_center_x = rhea_temperature_plume_center_x;
+  opt->plume_center_y = rhea_temperature_plume_center_y;
+  opt->plume_center_z = rhea_temperature_plume_center_z;
+  opt->plume_dilatation = rhea_temperature_plume_dilatation;
+  opt->plume_translation_x = rhea_temperature_plume_translation_x;
+  opt->plume_translation_y = rhea_temperature_plume_translation_y;
+  opt->plume_translation_z = rhea_temperature_plume_translation_z;
 
   /* set right-hand side options */
   opt->rhs_scaling = rhea_temperature_rhs_scaling;
@@ -283,7 +365,7 @@ rhea_temperature_is_valid (ymir_vec_t *vec)
 }
 
 /******************************************************************************
- * Temperature Computation
+ * Primitive Temperature Formulas
  *****************************************************************************/
 
 /**
@@ -350,10 +432,15 @@ rhea_temperature_cold_plate_hscm (const double radius,
  *   c      --- scaling factor (typically 1)
  */
 static double
-rhea_temperature_sinker (const double x, const double y, const double z,
-                         const double center_x, const double center_y,
-                         const double center_z, const double decay,
-                         const double width, const double scaling)
+rhea_temperature_sinker (const double x,
+                         const double y,
+                         const double z,
+                         const double center_x,
+                         const double center_y,
+                         const double center_z,
+                         const double decay,
+                         const double width,
+                         const double scaling)
 {
   double              val;
 
@@ -373,11 +460,133 @@ rhea_temperature_sinker (const double x, const double y, const double z,
   return SC_MAX (0.0, SC_MIN (val, 1.0));
 }
 
+/* uniformly random numbers that define points in a unit cube */
+const double rhea_temperature_random_point_x[64] = {
+  0.88438893850986044, 0.14846502294340846, 0.44565621143957523,
+  0.30385162277765243, 0.79848582952154912, 0.23687978322605474,
+  0.97370490267498400, 0.86009887685416064, 0.98523663941483031,
+  0.72034320600074808, 0.88763686588960411, 0.99217530249530528,
+  0.90134812303451162, 0.10843642785551477, 0.56714436189799555,
+  0.66251609843508175, 0.96199376691617278, 0.69631446341112724,
+  0.89003623322821313, 0.11394864199518917, 0.65199716721700318,
+  0.28182023756086683, 0.75591412090796117, 0.11393063867842590,
+  0.05064649767054341, 0.63020512499974968, 0.60315632043989653,
+  0.03542346068278846, 0.10804603661555889, 0.55114033580441879,
+  0.87223550392159788, 0.45964201011136652, 0.45187460904250087,
+  0.74090530289358758, 0.42719355110128809, 0.36835084162880050,
+  0.82905590877880064, 0.65050763538006051, 0.87757393430765984,
+  0.17991487850424015, 0.58109322757849147, 0.86462201253355300,
+  0.52892246632842854, 0.54327994624985110, 0.44454216287347137,
+  0.62945048609947929, 0.34530786221516552, 0.95381302519792688,
+  0.77502781398196741, 0.29553419616487600, 0.78485459109314959,
+  0.32102321708895110, 0.57068285048187828, 0.69913355930120900,
+  0.44621561169122159, 0.67537531841659471, 0.74719694413071300,
+  0.13183066547551237, 0.14573209949629140, 0.82232622218530615,
+  0.49263859846178115, 0.53852557446902116, 0.03642551552548012,
+  0.36503262530574743
+};
+const double rhea_temperature_random_point_y[64] = {
+  0.43898966680559026, 0.61981592726087100, 0.84399951147493613,
+  0.48329456773428559, 0.98748757518935293, 0.70223663266789038,
+  0.97230555568845700, 0.40188339800808559, 0.55947740598727547,
+  0.48403851681234178, 0.19873675009892122, 0.40235161693594812,
+  0.99538177651788629, 0.03611403079535602, 0.96196465780532600,
+  0.52331331841200956, 0.54020403751352009, 0.51971615792087811,
+  0.33020224251402053, 0.31092271345360578, 0.06616012459832676,
+  0.88006625972605623, 0.60329637581534845, 0.97856388515997794,
+  0.46620183379063596, 0.23029916377767379, 0.59987909583285700,
+  0.51381483503827652, 0.45987562894231393, 0.80540431700799764,
+  0.05219215242890096, 0.95853359612900957, 0.33342818646086647,
+  0.50679452405550252, 0.16869027871227116, 0.94181779523988429,
+  0.62659097495527594, 0.72662953230651417, 0.01436214394598578,
+  0.92629426819795000, 0.63715122252522471, 0.05595252940702089,
+  0.69435056062244160, 0.70252027215346380, 0.08539783081264496,
+  0.79617906649845815, 0.94681666716159452, 0.07359563580819994,
+  0.91418782124377351, 0.15184572231448457, 0.27083150215131735,
+  0.82956180439916749, 0.57182963622884753, 0.79625794328157706,
+  0.46566240836511064, 0.90366452636353989, 0.26051150708354609,
+  0.12350083231980058, 0.58504361526871551, 0.72290297326846520,
+  0.65488289844966852, 0.28220516455822231, 0.32624457306031240,
+  0.30914961889591730
+};
+const double rhea_temperature_random_point_z[64] = {
+  0.78172261291716627, 0.26062367939442066, 0.19620491873125200,
+  0.33781204387102370, 0.15904755472239451, 0.37547166269754739,
+  0.64369804942140474, 0.63193079797745710, 0.93359191584220900,
+  0.63903109268123026, 0.39536627395521018, 0.65885648107293115,
+  0.65316328109469035, 0.61809123904697372, 0.74610546941888767,
+  0.25989428148439742, 0.03027016341976874, 0.05903055566448412,
+  0.22970119787111953, 0.22843232213573739, 0.27543137986091693,
+  0.44433035869923465, 0.78326593740403627, 0.84859667547954900,
+  0.32565327494803353, 0.57988497328128900, 0.44842788038391523,
+  0.40773016177263700, 0.45088275367583042, 0.70085007278606060,
+  0.21968131140534608, 0.79004535697943823, 0.05909531268008061,
+  0.19992541313935464, 0.75169459085468726, 0.01717254091071729,
+  0.53874651515721916, 0.09448856392057847, 0.29430262684623720,
+  0.06818043682703453, 0.65126926476494229, 0.81685517377385020,
+  0.21240489628183400, 0.95643455726046889, 0.05734014754125749,
+  0.69119133285814349, 0.52019031821147721, 0.20703194807307400,
+  0.78255064771029959, 0.84791052231378217, 0.22781070481613375,
+  0.82218219460097586, 0.28601827249938028, 0.44158905615122279,
+  0.27903918727461485, 0.90852589884837465, 0.68963784007410900,
+  0.19090285324449119, 0.07336169008046678, 0.92585803801748578,
+  0.89012347796168689, 0.97595751787996410, 0.97301362389282042,
+  0.12091238458062825
+};
+
+/**
+ * Computes the temperature anomaly of 1,...,64 randomly placed sinkers.
+ * Each sinker is defined as in `rhea_temperature_sinker (...)`.
+ */
+static double
+rhea_temperature_sinker_random (const int n_sinkers,
+                                const double x,
+                                const double y,
+                                const double z,
+                                const double decay,
+                                const double width,
+                                const double scaling,
+                                const double dilatation,
+                                const double translation_x,
+                                const double translation_y,
+                                const double translation_z)
+{
+  double              center_x, center_y, center_z, val;
+  int                 i;
+
+  /* check input */
+  RHEA_ASSERT (0.0 < dilatation);
+  RHEA_ASSERT (0 < n_sinkers && n_sinkers <= 64);
+
+  /* compute temperature of each bubble; combine multiplicatively */
+  val = 1.0;
+  for (i = 0; i < n_sinkers; i++) { /* loop over all sinkers */
+    /* get center point */
+    center_x = rhea_temperature_random_point_x[i];
+    center_y = rhea_temperature_random_point_y[i];
+    center_z = rhea_temperature_random_point_z[i];
+
+    /* dilate and translate center point (assumes cube domain) */
+    center_x = dilatation * (center_x - 0.5) + 0.5 + translation_x;
+    center_y = dilatation * (center_y - 0.5) + 0.5 + translation_y;
+    center_z = dilatation * (center_z - 0.5) + 0.5 + translation_z;
+
+    /* multiply in one sinker */
+    val *= rhea_temperature_sinker (x, y, z, center_x, center_y, center_z,
+                                    decay, width, scaling);
+  }
+  RHEA_ASSERT (isfinite (val));
+  RHEA_ASSERT (0.0 <= val && val <= 1.0);
+
+  /* return anomaly factor that will be multiplied by the temperature*/
+  return val;
+}
+
 /**
  * Computes the temperature anomaly of one (hot) plume, with values in the
  * range [1,2], that is shaped like a Gaussian:
  *
- *   dT(x) = c * ( exp(-decay * max(0, ||center - x|| - width/2)^2) )
+ *   dT(x) = 1 + c * exp(-decay * max(0, ||center - x|| - width/2)^2)
  *
  * where
  *   x      --- 3D coordinates (x,y,z)
@@ -387,28 +596,64 @@ rhea_temperature_sinker (const double x, const double y, const double z,
  *   c      --- scaling factor (typically 1)
  */
 static double
-rhea_temperature_plume (const double x, const double y, const double z,
-                        const double center_x, const double center_y,
-                        const double center_z, const double decay,
-                        const double width, const double scaling)
+rhea_temperature_plume (const double x,
+                        const double y,
+                        const double z,
+                        const double center_x,
+                        const double center_y,
+                        const double center_z,
+                        const double decay,
+                        const double width,
+                        const double scaling)
 {
-  double              val;
+  double              sinker_val, val;
 
-  /* compute distance from center */
-  val = sqrt ( (center_x - x) * (center_x - x) +
-               (center_y - y) * (center_y - y) +
-               (center_z - z) * (center_z - z) );
+  /* compute sinker anomaly */
+  sinker_val = rhea_temperature_sinker (x, y, z, center_x, center_y, center_z,
+                                        decay, width, scaling);
 
-  /* subtract sphere width from distance */
-  val = SC_MAX (0.0, val - width / 2.0);
-
-  /* compute plume anomaly */
-  val = scaling * exp (-decay * val * val);
-  val += 1.0;
+  /* transform to plume anomaly */
+  val = 1.0 + scaling - sinker_val;
 
   /* return anomaly factor that will be multiplied by the temperature*/
   return SC_MAX (1.0, SC_MIN (val, 2.0));
 }
+
+/**
+ * Computes the temperature anomaly of 1,...,64 randomly placed plumes.
+ * Each plume is defined as in `rhea_temperature_plume (...)`.
+ */
+static double
+rhea_temperature_plume_random (const int n_plumes,
+                               const double x,
+                               const double y,
+                               const double z,
+                               const double decay,
+                               const double width,
+                               const double scaling,
+                               const double dilatation,
+                               const double translation_x,
+                               const double translation_y,
+                               const double translation_z)
+{
+  double              sinker_val, val;
+
+  /* compute sinker anomaly */
+  sinker_val = rhea_temperature_sinker_random (n_plumes, x, y, z, decay, width,
+                                               scaling, dilatation,
+                                               translation_x, translation_y,
+                                               translation_z);
+
+  /* transform to plume anomaly */
+  val = 1.0 + scaling - sinker_val;
+
+  /* return anomaly factor that will be multiplied by the temperature*/
+  return SC_MAX (1.0, SC_MIN (val, 2.0));
+}
+
+/******************************************************************************
+ * Temperature Computation
+ *****************************************************************************/
 
 /**
  * Computes the temperature at one node.
@@ -445,18 +690,54 @@ rhea_temperature_node (const double x, const double y, const double z,
 
   /* multiply in sinker anomaly */
   if (opt->sinker_active) {
-    temp *= rhea_temperature_sinker (
-        x, y, z, opt->sinker_center_x, opt->sinker_center_y,
-        opt->sinker_center_z, opt->sinker_decay, opt->sinker_width,
-        opt->sinker_scaling);
+    const double        decay = opt->sinker_decay;
+    const double        width = opt->sinker_width;
+    const double        scaling = opt->sinker_scaling;
+
+    if (0 < opt->sinker_random_count) { /* if multiple randomly placed */
+      const double        dilat = opt->sinker_dilatation;
+      const double        transl_x = opt->sinker_translation_x;
+      const double        transl_y = opt->sinker_translation_y;
+      const double        transl_z = opt->sinker_translation_z;
+
+      temp *= rhea_temperature_sinker_random (
+          opt->sinker_random_count, x, y, z,
+          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
+    }
+    else { /* if single sinker */
+      const double        center_x = opt->sinker_center_x;
+      const double        center_y = opt->sinker_center_y;
+      const double        center_z = opt->sinker_center_z;
+
+      temp *= rhea_temperature_sinker (
+          x, y, z, center_x, center_y, center_z, decay, width, scaling);
+    }
   }
 
   /* multiply in plume anomaly */
   if (opt->plume_active) {
-    temp *= rhea_temperature_plume (
-        x, y, z, opt->plume_center_x, opt->plume_center_y,
-        opt->plume_center_z, opt->plume_decay, opt->plume_width,
-        opt->plume_scaling);
+    const double        decay = opt->plume_decay;
+    const double        width = opt->plume_width;
+    const double        scaling = opt->plume_scaling;
+
+    if (0 < opt->plume_random_count) { /* if multiple randomly placed */
+      const double        dilat = opt->plume_dilatation;
+      const double        transl_x = opt->plume_translation_x;
+      const double        transl_y = opt->plume_translation_y;
+      const double        transl_z = opt->plume_translation_z;
+
+      temp *= rhea_temperature_plume_random (
+          opt->plume_random_count, x, y, z,
+          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
+    }
+    else { /* if single plume */
+      const double        center_x = opt->plume_center_x;
+      const double        center_y = opt->plume_center_y;
+      const double        center_z = opt->plume_center_z;
+
+      temp *= rhea_temperature_plume (
+          x, y, z, center_x, center_y, center_z, decay, width, scaling);
+    }
   }
 
   /* check background temperature for `nan` and `inf` */
