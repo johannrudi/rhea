@@ -55,7 +55,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
                             visc_options);
     break;
   case RHEA_VISCOSITY_NONLINEAR:
-    rhea_viscosity_compute_init_nonlinear (viscosity,
+    rhea_viscosity_compute_nonlinear_init (viscosity,
                                            NULL /* nl. Stokes output */,
                                            NULL /* nl. Stokes output */,
                                            NULL /* nl. Stokes output */,

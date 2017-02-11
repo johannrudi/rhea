@@ -3213,7 +3213,7 @@ slabs_viscosity_linear (ymir_dvec_t *viscosity,
 //domain_opt.moment_of_inertia = ;
 
   visc_opt.type = physics_options->viscosity_type;
-  visc_opt.type_init_nonlinear =
+  visc_opt.type_nonlinear_init =
     physics_options->viscosity_type_for_init_nl_stokes;
   visc_opt.model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT;
   visc_opt.min = physics_options->viscosity_min;

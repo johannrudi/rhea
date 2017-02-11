@@ -465,7 +465,7 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
   }
   else { /* otherwise assume zero velocity */
     ymir_vec_set_zero (sol_vel);
-    rhea_viscosity_compute_init_nonlinear (
+    rhea_viscosity_compute_nonlinear_init (
         coeff, rank1_tensor_scal, bounds_marker, yielding_marker,
         temperature, weakzone, stokes_problem_nl->visc_options);
   }
