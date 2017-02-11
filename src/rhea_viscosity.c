@@ -16,8 +16,10 @@
 
 /* default options */
 #define RHEA_VISCOSITY_DEFAULT_TYPE (RHEA_VISCOSITY_LINEAR)
-#define RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR \
-  (RHEA_VISCOSITY_INIT_NONLINEAR_DEFAULT)
+#define RHEA_VISCOSITY_DEFAULT_TYPE_LINEAR (RHEA_VISCOSITY_LINEAR_ARRHENIUS)
+#define RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR (RHEA_VISCOSITY_NONLINEAR_SRW_YLD)
+#define RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR_INIT \
+  (RHEA_VISCOSITY_NONLINEAR_INIT_DEFAULT)
 #define RHEA_VISCOSITY_DEFAULT_MODEL_NAME "UWYL_LADD_USHIFT"
 #define RHEA_VISCOSITY_DEFAULT_MIN (1.0e-2)
 #define RHEA_VISCOSITY_DEFAULT_MAX (1.0e+4)
@@ -31,10 +33,14 @@
 
 /* initialize options */
 int                 rhea_viscosity_type = RHEA_VISCOSITY_DEFAULT_TYPE;
-int                 rhea_viscosity_type_init_nonlinear =
-                      RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR;
+int                 rhea_viscosity_type_linear =
+  RHEA_VISCOSITY_DEFAULT_TYPE_LINEAR;
+int                 rhea_viscosity_type_nonlinear =
+  RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR;
+int                 rhea_viscosity_type_nonlinear_init =
+  RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR_INIT;
 char               *rhea_viscosity_model_name =
-                      RHEA_VISCOSITY_DEFAULT_MODEL_NAME;
+  RHEA_VISCOSITY_DEFAULT_MODEL_NAME;
 double              rhea_viscosity_min = RHEA_VISCOSITY_DEFAULT_MIN;
 double              rhea_viscosity_max = RHEA_VISCOSITY_DEFAULT_MAX;
 double              rhea_viscosity_upper_mantle_scaling =
@@ -63,10 +69,17 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
 
   YMIR_OPTIONS_I, "type", '\0',
     &(rhea_viscosity_type), RHEA_VISCOSITY_DEFAULT_TYPE,
-    "Viscosity type: 0: constant; 1: linear; 2: nonlinear",
+    "Viscosity type: 0: linear; 1: nonlinear",
+  YMIR_OPTIONS_I, "type-linear", '\0',
+    &(rhea_viscosity_type_linear), RHEA_VISCOSITY_DEFAULT_TYPE_LINEAR,
+    "Linear viscosity type: 0: constant; 1: reversed temperature; 2: Arrhenius",
+  YMIR_OPTIONS_I, "type-nonlinear", '\0',
+    &(rhea_viscosity_type_nonlinear), RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR,
+    "Nonlinear viscosity type: 0: strain rate weakening; 1: yielding; "
+    "2: strain rate weakening & yielding",
   YMIR_OPTIONS_I, "init-nonlinear-type", '\0',
-    &(rhea_viscosity_type_init_nonlinear),
-    RHEA_VISCOSITY_DEFAULT_TYPE_INIT_NONLINEAR,
+    &(rhea_viscosity_type_nonlinear_init),
+    RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR_INIT,
     "Viscosity type for initial viscosity when solving a nonlinear problem",
   YMIR_OPTIONS_S, "model", '\0',
     &(rhea_viscosity_model_name), RHEA_VISCOSITY_DEFAULT_MODEL_NAME,
@@ -124,8 +137,11 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
 
   /* set viscosity type */
   opt->type = (rhea_viscosity_t) rhea_viscosity_type;
-  opt->type_init_nonlinear =
-    (rhea_viscosity_init_nonlinear_t) rhea_viscosity_type_init_nonlinear;
+  opt->type_linear = (rhea_viscosity_linear_t) rhea_viscosity_type_linear;
+  opt->type_nonlinear =
+    (rhea_viscosity_nonlinear_t) rhea_viscosity_type_nonlinear;
+  opt->type_nonlinear_init =
+    (rhea_viscosity_nonlinear_init_t) rhea_viscosity_type_nonlinear_init;
 
   /* set viscosity model */
   if (strcmp (rhea_viscosity_model_name, "UWYL") == 0) {
@@ -230,12 +246,27 @@ rhea_viscosity_is_valid (ymir_vec_t *vec)
 }
 
 /******************************************************************************
- * Linear Viscosity
+ * Linear Viscosity Components and Model
  *****************************************************************************/
 
 /**
- * Calculates linear (i.e., temperature dependent) viscosity term from
- * Arrhenius relationship.
+ * Calculates a viscosity that depends linearly on the temperature:
+ *
+ *   visc (T) = 1 - T
+ *
+ *   T --- temperature in [0,1]
+ */
+static double
+rhea_viscosity_linear_tempreverse (const double temp)
+{
+  RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
+
+  return (1.0 - temp);
+}
+
+/**
+ * Calculates a temperature dependent viscosity term from the Arrhenius
+ * relationship:
  *
  *   visc (T) = exp (E * (0.5 - T))
  *
@@ -253,73 +284,141 @@ rhea_viscosity_linear_arrhenius (const double activation_energy,
 }
 
 /**
- * Computes linear viscosity at one node.  It incorporates temperature
- * dependence and weak zones.
+ * Calculates the linear viscosity component.
  */
 static double
-rhea_viscosity_linear_node (const double temp,
-                            const double weak,
-                            const double scaling,
-                            const double activation_energy,
+rhea_viscosity_linear_comp (const double temp,
                             rhea_viscosity_options_t *opt,
-                            const int restrict_to_bounds)
+                            const int is_in_upper_mantle)
 {
-  const rhea_viscosity_model_t  model = opt->model;
+  switch (opt->type_linear) {
+  case RHEA_VISCOSITY_LINEAR_CONST:
+    return 1.0;
+  case RHEA_VISCOSITY_LINEAR_TEMPREVERSE:
+    return rhea_viscosity_linear_tempreverse (temp);
+  case RHEA_VISCOSITY_LINEAR_ARRHENIUS:
+    {
+      double              activation_energy;
+
+      if (is_in_upper_mantle) {
+        activation_energy = opt->upper_mantle_activation_energy;
+      }
+      else {
+        activation_energy = opt->lower_mantle_activation_energy;
+      }
+      return rhea_viscosity_linear_arrhenius (activation_energy, temp);
+    }
+  default: /* unknown linear viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/**
+ * Calculates the linear viscosity according to a specified model.
+ * Incorporates temperature, weak zones, and viscosity bounds.
+ */
+static void
+rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
+                             const double temp, const double weak,
+                             rhea_viscosity_options_t *opt,
+                             const int is_in_upper_mantle,
+                             const int restrict_to_bounds)
+{
   const double        visc_min = opt->min;
   const double        visc_max = opt->max;
+  double              scaling;
 
-  double              viscosity;
+  /* set scaling */
+  if (is_in_upper_mantle) {
+    scaling = opt->upper_mantle_scaling;
+  }
+  else {
+    scaling = opt->lower_mantle_scaling;
+  }
 
-  /* compute viscosity from Arrhenius relationship */
-  viscosity = scaling * rhea_viscosity_linear_arrhenius (activation_energy,
-                                                         temp);
+  /* initialize marker that viscosity bounds are reached */
+  *bounds_active = 0.0;
 
-  /* apply weak zone and restrict to bounds */
-  switch (model) {
+  /* compute linear viscosity component */
+  *viscosity = rhea_viscosity_linear_comp (temp, opt, is_in_upper_mantle);
+
+  /* compose viscosity */
+  switch (opt->model) {
   case RHEA_VISCOSITY_MODEL_UWYL:
-    /* restrict viscosity to upper bound */
-    if (restrict_to_bounds && 0.0 < visc_max && visc_max < viscosity) {
-      viscosity = visc_max;
-    }
+    {
+      /* multiply by scaling factor */
+      *viscosity *= scaling;
 
-    /* multiply by weak zone */
-    viscosity *= weak;
+      /* (U) restrict viscosity to upper bound */
+      if (restrict_to_bounds && 0.0 < visc_max && visc_max < *viscosity) {
+        *viscosity = visc_max;
+        *bounds_active = 1.0;
+      }
 
-    /* restrict viscosity to lower bound */
-    if (restrict_to_bounds && 0.0 < visc_min && viscosity < visc_min) {
-      viscosity = visc_min;
+      /* (W) multiply by weak zone */
+      *viscosity *= weak;
+      /* change upper bound marker if weak zone is present */
+      if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
+        *bounds_active = 0.5;
+      }
+
+      /* (L) restrict viscosity to lower bound */
+      if (restrict_to_bounds && 0.0 < visc_min && *viscosity < visc_min) {
+        *viscosity = visc_min;
+        *bounds_active = -1.0;
+      }
     }
     break;
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-    /* restrict viscosity to upper bound */
-    if (restrict_to_bounds && 0.0 < visc_max && visc_max < viscosity) {
-      viscosity = visc_max;
-    }
+    {
+      /* multiply by scaling factor */
+      if (restrict_to_bounds && 0.0 < visc_min && visc_min < scaling) {
+        *viscosity *= (scaling - visc_min);
+      }
+      else {
+        *viscosity *= scaling;
+      }
 
-    /* multiply by weak zone */
-    viscosity *= weak;
+      /* (U) restrict viscosity to upper bound */
+      if (restrict_to_bounds && 0.0 < visc_max && visc_max < *viscosity) {
+        *viscosity = visc_max;
+        *bounds_active = 1.0;
+      }
 
-    /* restrict viscosity to lower bound */
-    if (restrict_to_bounds && 0.0 < visc_min) {
-      viscosity += visc_min;
+      /* (W) multiply by weak zone */
+      *viscosity *= weak;
+      /* change upper bound marker if weak zone is present */
+      if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
+        *bounds_active = 0.5;
+      }
+
+      /* (L) restrict viscosity to lower bound */
+      if (restrict_to_bounds && 0.0 < visc_min) {
+        if (*viscosity < visc_min) {
+          *bounds_active = -1.0;
+        }
+        *viscosity += visc_min;
+      }
     }
     break;
 
   default: /* unknown viscosity model */
     RHEA_ABORT_NOT_REACHED ();
   }
-
-  /* return viscosity */
-  return viscosity;
 }
+
+/******************************************************************************
+ * Linear Viscosity Vector Computation
+ *****************************************************************************/
 
 /**
  * Computes linear viscosity in an element.
  */
 static void
 rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
+                            double *_sc_restrict bounds_elem,
                             const double *_sc_restrict temp_elem,
                             const double *_sc_restrict weak_elem,
                             const double *_sc_restrict x,
@@ -339,12 +438,9 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
                         domain_options->lm_um_interface_radius;
   const double        interface_smoothing_width =
                         domain_options->lm_um_interface_smoothing_width;
-  const double        um_scaling = opt->upper_mantle_scaling;
-  const double        um_activ_energy = opt->upper_mantle_activation_energy;
-  const double        lm_scaling = opt->lower_mantle_scaling;
-  const double        lm_activ_energy = opt->lower_mantle_activation_energy;
 
-  double              scaling, activ_energy;
+  int                 is_in_upper_mantle;
+  double              bd;
   int                 nodeid;
 
   /* check input */
@@ -352,26 +448,17 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
   RHEA_ASSERT (x != NULL && y != NULL && z != NULL);
   RHEA_ASSERT (Vmask != NULL);
 
-  /* set parameters depending on location in lower or upper mantle */
-  if (rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask, domain_options)) {
-    scaling = um_scaling;
-    activ_energy = um_activ_energy;
-  }
-  else {
-    scaling = lm_scaling;
-    activ_energy = lm_activ_energy;
-  }
+  /* set flag if location is in lower or upper mantle */
+  is_in_upper_mantle = rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask,
+                                                            domain_options);
 
   /* compute viscosity at each node of this element */
   for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+    const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
+    const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
     const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
                                                         z[nodeid],
                                                         domain_options);
-    const int           interface_smoothing =
-      ( 0.0 < interface_smoothing_width &&
-        fabs (r - interface_radius) < interface_smoothing_width );
-    const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
-    const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
 
     /* check temperature for valid range [0,1] */
     RHEA_ASSERT (isfinite (temp));
@@ -381,27 +468,34 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
     /* compute viscosity */
-    if (!interface_smoothing) {
-      /* compute viscosity "sufficiently far" from LM-UM interface or with a
-       * discontinuous LM-UM interface */
-      visc_elem[nodeid] = rhea_viscosity_linear_node (
-          temp, weak, scaling, activ_energy, opt, restrict_to_bounds);
-    }
-    else { /* if close to LM-UM interface and must apply smoothing */
-      const double        c =
-        (interface_smoothing_width + (r - interface_radius)) /
-        (2.0 * interface_smoothing_width);
-      double              visc_lm, visc_um;
+    rhea_viscosity_linear_model (&visc_elem[nodeid], &bd, temp, weak, opt,
+                                 is_in_upper_mantle, restrict_to_bounds);
 
+    /* update viscosity by applying a smooth transition close to the LM-UM
+     * interface (via a convex combination) */
+    if (0.0 < interface_smoothing_width &&
+        fabs (r - interface_radius) < 0.5 * interface_smoothing_width) {
+      const double        v1 = visc_elem[nodeid];
+      double              v2, bd2, c;
+
+      rhea_viscosity_linear_model (&v2, &bd2, temp, weak, opt,
+                                   !is_in_upper_mantle, restrict_to_bounds);
+
+      c = (fabs (r - interface_radius) - 0.5 * interface_smoothing_width) /
+          interface_smoothing_width;
       RHEA_ASSERT (0.0 <= c && c <= 1.0);
 
-      /* compute viscosity with smooth transition around LM-UM interface (via
-       * convex combination) */
-      visc_lm = rhea_viscosity_linear_node (
-          temp, weak, lm_scaling, lm_activ_energy, opt, restrict_to_bounds);
-      visc_um = rhea_viscosity_linear_node (
-          temp, weak, um_scaling, um_activ_energy, opt, restrict_to_bounds);
-      visc_elem[nodeid] = (1.0 - c) * visc_lm + c * visc_um;
+      if (is_in_upper_mantle) {
+        visc_elem[nodeid] = c * v2 + (1.0 - c) * v1;
+      }
+      else {
+        visc_elem[nodeid] = c * v1 + (1.0 - c) * v2;
+      }
+    }
+
+    /* store value in output array if it exists */
+    if (bounds_elem != NULL) {
+      bounds_elem[nodeid] = bd;
     }
 
     /* check viscosity for `nan`, `inf`, and positivity */
@@ -415,6 +509,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
  */
 static void
 rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
+                           ymir_vec_t *bounds_vec,
                            ymir_vec_t *temp_vec,
                            ymir_vec_t *weak_vec,
                            rhea_viscosity_options_t *opt)
@@ -426,9 +521,12 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
   const int           in_temp = (temp_vec != NULL ? 1 : 0);
   const int           in_weak = (weak_vec != NULL ? 1 : 0);
+  const int           out_bounds = (bounds_vec != NULL ? 1 : 0);
 
-  sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *visc_el_mat;
-  double             *temp_el_data, *weak_el_data, *visc_el_data;
+  sc_dmatrix_t       *temp_el_mat, *weak_el_mat;
+  double             *temp_el_data, *weak_el_data;
+  sc_dmatrix_t       *visc_el_mat, *bounds_el_mat;
+  double             *visc_el_data, *bounds_el_data;
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t       elid;
 
@@ -439,6 +537,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   temp_el_mat = (in_temp ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   weak_el_mat = (in_weak ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  bounds_el_mat = (out_bounds ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   x = RHEA_ALLOC (double, n_nodes_per_el);
   y = RHEA_ALLOC (double, n_nodes_per_el);
   z = RHEA_ALLOC (double, n_nodes_per_el);
@@ -447,6 +546,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   temp_el_data = NULL;
   weak_el_data = NULL;
   visc_el_data = visc_el_mat->e[0];
+  bounds_el_data = (out_bounds ? bounds_el_mat->e[0] : NULL);
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates at Gauss nodes */
@@ -462,12 +562,16 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
     }
 
     /* compute linear viscosity */
-    rhea_viscosity_linear_elem (visc_el_data, temp_el_data, weak_el_data,
+    rhea_viscosity_linear_elem (visc_el_data, bounds_el_data,
+                                temp_el_data, weak_el_data,
                                 x, y, z, n_nodes_per_el, Vmask, opt,
                                 restrict_to_bounds);
 
-    /* set viscosity */
+    /* set viscosity and other output vectors */
     rhea_viscosity_set_elem_gauss (visc_vec, visc_el_mat, elid);
+    if (out_bounds) {
+      rhea_viscosity_marker_set_elem_gauss (bounds_vec, bounds_el_mat, elid);
+    }
   }
 
   /* destroy */
@@ -478,6 +582,9 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
     sc_dmatrix_destroy (weak_el_mat);
   }
   sc_dmatrix_destroy (visc_el_mat);
+  if (out_bounds) {
+    sc_dmatrix_destroy (bounds_el_mat);
+  }
   RHEA_FREE (x);
   RHEA_FREE (y);
   RHEA_FREE (z);
@@ -485,7 +592,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
 }
 
 /******************************************************************************
- * Nonlinear Viscosity
+ * Nonlinear Viscosity Components and Model
  *****************************************************************************/
 
 /**
@@ -601,88 +708,92 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,
 }
 
 /**
- * Computes nonlinear viscosity at one node.
+ * Calculates the nonlinear viscosity according to a specified model.
+ * Incorporates temperature, weak zones, viscosity bounds, strain rate
+ * weakening, and yielding.
  */
 static void
-rhea_viscosity_nonlinear_node (double *viscosity, double *rank1_scal,
-                               double *bounds_active, double *yielding_active,
-                               const double temp, const double weak,
-                               const double strain_rate_2inv,
-                               const double scaling, const double activ_energy,
-                               rhea_viscosity_options_t *opt)
+rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
+                                double *bounds_active, double *yielding_active,
+                                const double temp, const double weak,
+                                const double strain_rate_2inv,
+                                rhea_viscosity_options_t *opt)
 {
-  const rhea_viscosity_model_t  model = opt->model;
   const double        visc_min = SC_MAX (0.0, opt->min);
   const double        visc_max = SC_MAX (0.0, opt->max);
+  const double        scaling = opt->upper_mantle_scaling;
   const double        stress_exp = opt->stress_exponent;
   const double        yield_stress = opt->yield_stress;
   const double        yield_reg =
     SC_MIN (SC_MAX (0.0, opt->yielding_regularization), 1.0);
+  double              visc_lin = rhea_viscosity_linear_comp (temp, opt, 1);
+  int                 comp_srw_active = 0;
+  int                 comp_yld_active = 0;
 
-  double              visc_lin =
-    scaling * rhea_viscosity_linear_arrhenius (activ_energy, temp);
+  RHEA_ASSERT (0.0 < visc_max);
+  RHEA_ASSERT (0.0 < visc_lin);
+
+  /* activate nonlinear viscosity components */
+  switch (opt->type_nonlinear) {
+  case RHEA_VISCOSITY_NONLINEAR_SRW:
+    comp_srw_active = 1;
+    break;
+  case RHEA_VISCOSITY_NONLINEAR_YLD:
+    comp_yld_active = 1;
+    break;
+  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:
+    comp_srw_active = 1;
+    comp_yld_active = 1;
+    break;
+  default: /* unknown nonlinear viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 
   /* initialize marker that viscosity bounds are reached */
   *bounds_active = 0.0;
 
-  switch (model) {
+  /* compose viscosity */
+  switch (opt->model) {
   case RHEA_VISCOSITY_MODEL_UWYL:
-    /* Viscosity and its derivative w.r.t. the 2nd invariant of the strain rate
-     * are computed, using the model
-     *
-     *   (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound,
-     *
-     * as follows: TODO update comment
-     *
-     *   visc (e) = max(w*visc_max, visc_min), if e < min(e_min, e_yield)
-     *   visc (e) = w*a * e^((1 - n)/n)    , if e_min <= e < min(e_yield, e_max)
-     *   visc (e) = yield_stress / (2 * e)
-     *              + visc_yield
-     *              * (1 - e_yield / e)    , if e_yield <= e < e_max
-     *   visc (e) = visc_min               , if e_max <= e
-     *
-     *   dvisc/dIIe (e) = 0                , if e < min(e_min, e_yield)
-     *   dvisc/dIIe (e) = w*a * (1-n)/(2*n)
-     *                    * e^((1 - 3*n)/n), if e_min <= e < min(e_yield, e_max)
-     *   dvisc/dIIe (e) = (visc_yield*e_yield/2
-     *                     - yield_stress/4)
-     *                    / e^3            , if e_yield <= e < e_max
-     *   dvisc/dIIe (e) = 0                , if e_max <= e
-     *
-     * where
-     *
-     *   e --- strain rate,
-     *   a --- prefactor,
-     *   w --- weak zone factor,
-     *   n --- stress exponent.
-     */
     {
-      /* compute strain rate weakening viscosity */
-      rhea_viscosity_nonlinear_strain_rate_weakening (
-          viscosity, rank1_scal, visc_lin, strain_rate_2inv, stress_exp);
+      /* multiply by scaling factor */
+      visc_lin *= scaling;
 
-      /* (1) apply upper bound to viscosity */
-      RHEA_ASSERT (0.0 < visc_max);
+      /* compute strain rate weakening viscosity */
+      if (comp_srw_active) {
+        rhea_viscosity_nonlinear_strain_rate_weakening (
+            viscosity, rank1_scal, visc_lin, strain_rate_2inv, stress_exp);
+      }
+      else {
+        *viscosity = visc_lin;
+        *rank1_scal = 0.0;
+      }
+
+      /* (U) apply upper bound to viscosity */
       if (visc_max < *viscosity) {
         *viscosity = visc_max;
         *rank1_scal = 0.0;
         *bounds_active = 1.0;
       }
 
-      /* (2) multiply in weak factor */
+      /* (W) multiply in weak factor */
       *viscosity *= weak;
-
-      /* (3) apply yielding */
-      rhea_viscosity_nonlinear_yielding (
-          viscosity, rank1_scal, yielding_active, strain_rate_2inv,
-          yield_stress, yield_reg);
-
       /* change upper bound marker if weak zone is present */
       if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
         *bounds_active = 0.5;
       }
 
-      /* (4) apply lower bound to viscosity */
+      /* (Y) apply yielding */
+      if (comp_yld_active) {
+        rhea_viscosity_nonlinear_yielding (
+            viscosity, rank1_scal, yielding_active, strain_rate_2inv,
+            yield_stress, yield_reg);
+      }
+      else {
+        *yielding_active = 0.0;
+      }
+
+      /* (L) apply lower bound to viscosity */
       if (0.0 < visc_min && *viscosity < visc_min) {
         *viscosity = visc_min;
         *rank1_scal = 0.0;
@@ -692,57 +803,54 @@ rhea_viscosity_nonlinear_node (double *viscosity, double *rank1_scal,
     break;
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
-    /* Viscosity and its derivative w.r.t. the 2nd invariant of the strain rate
-     * are computed, using the model
-     *
-     *   (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound,
-     *
-     * as follows: TODO update comment
-     *
-     *   visc (e) = w * a * e^((1 - n) / n)           , if e < e_yield
-     *   visc (e) = (yield_stress / 2) / e            , if e_yield <= e
-     *
-     *   dvisc/dIIe (e) = w * a * ((1 - n) / n)
-     *                    * e^((1 - n) / n)
-     *                    / (2 * e^2)                 , if e < e_yield
-     *   dvisc/dIIe (e) = - (yield_stress / 2) / e
-     *                    / (2 * e^2)                 , if e_yield <= e
-     *
-     * where
-     *
-     *   e --- strain rate,
-     *   a --- prefactor,
-     *   w --- weak zone factor,
-     *   n --- stress exponent.
-     */
     {
-      /* compute strain rate weakening viscosity */
-      rhea_viscosity_nonlinear_strain_rate_weakening (
-          viscosity, rank1_scal, visc_lin, strain_rate_2inv, stress_exp);
+      /* multiply by scaling factor */
+      if (0.0 < visc_min && visc_min < scaling) {
+        visc_lin *= (scaling - visc_min);
+      }
+      else {
+        visc_lin *= scaling;
+      }
 
-      /* (1) apply upper bound to viscosity */
-      RHEA_ASSERT (0.0 < visc_max);
+      /* compute strain rate weakening viscosity */
+      if (comp_srw_active) {
+        rhea_viscosity_nonlinear_strain_rate_weakening (
+            viscosity, rank1_scal, visc_lin, strain_rate_2inv, stress_exp);
+      }
+      else {
+        *viscosity = visc_lin;
+        *rank1_scal = 0.0;
+      }
+
+      /* (U) apply upper bound to viscosity */
       if (visc_max < *viscosity) {
         *viscosity = visc_max;
         *rank1_scal = 0.0;
         *bounds_active = 1.0;
       }
 
-      /* (2) multiply in weak factor */
+      /* (W) multiply in weak factor */
       *viscosity *= weak;
-
       /* change upper bound marker if weak zone is present */
       if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
         *bounds_active = 0.5;
       }
 
-      /* (3) apply yielding */
-      rhea_viscosity_nonlinear_yielding (
-          viscosity, rank1_scal, yielding_active, strain_rate_2inv,
-          yield_stress, yield_reg);
+      /* (Y) apply yielding */
+      if (comp_yld_active) {
+        rhea_viscosity_nonlinear_yielding (
+            viscosity, rank1_scal, yielding_active, strain_rate_2inv,
+            yield_stress, yield_reg);
+      }
+      else {
+        *yielding_active = 0.0;
+      }
 
-      /* (4) apply lower bound to viscosity */
+      /* (L) apply lower bound to viscosity */
       if (0.0 < visc_min) {
+        if (*viscosity < visc_min) {
+          *bounds_active = -1.0;
+        }
         *viscosity += visc_min;
         RHEA_ASSERT (
             fabs (ymir_nlstress_op_coeff_tensor_add + 2.0 * visc_min) < SC_EPS);
@@ -751,39 +859,22 @@ rhea_viscosity_nonlinear_node (double *viscosity, double *rank1_scal,
     break;
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-    /* Viscosity and its derivative w.r.t. the 2nd invariant of the strain rate
-     * are computed, using the model
-     *
-     *   (1) upper bound + shift, (2) weak zone, (3) yielding, (4) lower bound,
-     *
-     * as follows:
-     *
-     *   visc (e) = w * a * (e - d)^(1/n) / e         , if e < e_yield
-     *   visc (e) = (yield_stress / 2) / e            , if e_yield <= e
-     *
-     *   dvisc/dIIe (e) = w * a * (e - d)^((1 - n)/n)
-     *                    * (1 / n - 1 + d / e) / e
-     *                    / (2 * e^2)                 , if e < e_yield
-     *   dvisc/dIIe (e) = - (yield_stress / 2) / e
-     *                    / (2 * e^2)                 , if e_yield <= e
-     *
-     * where
-     *
-     *   e --- strain rate,
-     *   a --- prefactor,
-     *   w --- weak zone factor,
-     *   n --- stress exponent,
-     *   d --- shift (greater zero).
-     */
     {
       double              strain_rate_min;
       double              shift;
+
+      /* multiply by scaling factor */
+      if (0.0 < visc_min && visc_min < scaling) {
+        visc_lin *= (scaling - visc_min);
+      }
+      else {
+        visc_lin *= scaling;
+      }
 
       /* compute minimal strain rate for nonlinear viscosity
        *
        *   e_min = a / visc_max * (visc_max * n / a)^(1 / (1 - n))
        */
-      RHEA_ASSERT (0.0 < visc_max);
       strain_rate_min = visc_lin / visc_max
                         * pow ( visc_max * stress_exp / visc_lin,
                                 1.0 / (1.0 - stress_exp) );
@@ -798,31 +889,45 @@ rhea_viscosity_nonlinear_node (double *viscosity, double *rank1_scal,
       shift = SC_MAX (shift, 0.0);
 
       /* compute strain rate weakening viscosity */
-      rhea_viscosity_nonlinear_strain_rate_weakening_shift (
-          viscosity, rank1_scal, visc_lin, strain_rate_2inv, shift, stress_exp);
+      if (comp_srw_active) {
+        rhea_viscosity_nonlinear_strain_rate_weakening_shift (
+            viscosity, rank1_scal, visc_lin, strain_rate_2inv, shift,
+            stress_exp);
+      }
+      else {
+        *viscosity = visc_lin;
+        *rank1_scal = 0.0;
+      }
 
-      /* (1) apply upper bound */
+      /* (U) apply upper bound */
       if (strain_rate_2inv < strain_rate_min) {
         *viscosity = visc_max;
         *rank1_scal = 0.0;
         *bounds_active = 1.0;
       }
 
-      /* (2) multiply in weak factor */
+      /* (W) multiply in weak factor */
       *viscosity *= weak;
-
       /* change upper bound marker if weak zone is present */
       if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
         *bounds_active = 0.5;
       }
 
-      /* (3) apply yielding */
-      rhea_viscosity_nonlinear_yielding (
-          viscosity, rank1_scal, yielding_active, strain_rate_2inv,
-          yield_stress, yield_reg);
+      /* (Y) apply yielding */
+      if (comp_yld_active) {
+        rhea_viscosity_nonlinear_yielding (
+            viscosity, rank1_scal, yielding_active, strain_rate_2inv,
+            yield_stress, yield_reg);
+      }
+      else {
+        *yielding_active = 0.0;
+      }
 
-      /* (4) apply lower bound to viscosity */
+      /* (L) apply lower bound to viscosity */
       if (0.0 < visc_min) {
+        if (*viscosity < visc_min) {
+          *bounds_active = -1.0;
+        }
         *viscosity += visc_min;
         RHEA_ASSERT (
             fabs (ymir_nlstress_op_coeff_tensor_add + 2.0 * visc_min) < SC_EPS);
@@ -834,6 +939,10 @@ rhea_viscosity_nonlinear_node (double *viscosity, double *rank1_scal,
     RHEA_ABORT_NOT_REACHED ();
   }
 }
+
+/******************************************************************************
+ * Nonlinear Viscosity Vector Computation
+ *****************************************************************************/
 
 /**
  * Computes nonlinear viscosity in an element.
@@ -858,28 +967,29 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   const double        temp_default = RHEA_TEMPERATURE_DEFAULT_VALUE;
   const double        weak_default = RHEA_WEAKZONE_DEFAULT_VALUE;
   rhea_domain_options_t  *domain_options = opt->domain_options;
-  const double        um_scaling = opt->upper_mantle_scaling;
-  const double        um_activ_energy = opt->upper_mantle_activation_energy;
-  const double        lm_scaling = opt->lower_mantle_scaling;
-  const double        lm_activ_energy = opt->lower_mantle_activation_energy;
+  const double        interface_radius =
+                        domain_options->lm_um_interface_radius;
+  const double        interface_smoothing_width =
+                        domain_options->lm_um_interface_smoothing_width;
+
+  double              r1, bd, yld;
   int                 nodeid;
 
   /* check input */
   RHEA_ASSERT (visc_elem != NULL);
   RHEA_ASSERT (x != NULL && y != NULL && z != NULL);
   RHEA_ASSERT (Vmask != NULL);
-  //TODO not implemented:
-  RHEA_ASSERT (domain_options->lm_um_interface_smoothing_width <= 0.0);
 
   /* compute viscosity depending on location in lower or upper mantle */
   if (rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask, domain_options)) {
-    double              r1, b, y;
-
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
       const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
       const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
       const double        sr2 = ( strain_rate_2inv_elem != NULL ?
                                   strain_rate_2inv_elem[nodeid] : 1.0 );
+      const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
+                                                          z[nodeid],
+                                                          domain_options);
 
       /* check temperature for valid range [0,1] */
       RHEA_ASSERT (isfinite (temp));
@@ -892,31 +1002,49 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       RHEA_ASSERT (0.0 <= sr2);
 
       /* compute nonlinear viscosity in upper mantle */
-      rhea_viscosity_nonlinear_node (
-          &visc_elem[nodeid], &r1, &b, &y, temp, weak, sr2,
-          um_scaling, um_activ_energy, opt);
+      rhea_viscosity_nonlinear_model (&visc_elem[nodeid], &r1, &bd, &yld,
+                                      temp, weak, sr2, opt);
+
+      /* update viscosity by applying a smooth transition close to the LM-UM
+       * interface (via a convex combination) */
+      if (0.0 < interface_smoothing_width &&
+          fabs (r - interface_radius) < 0.5 * interface_smoothing_width) {
+        const double        v1 = visc_elem[nodeid];
+        double              v2, bd2, c;
+
+        rhea_viscosity_linear_model (&v2, &bd2, temp, weak, opt,
+                                     0 /* lower mantle */, 1 /* bounds on */);
+
+        c = (fabs (r - interface_radius) - 0.5 * interface_smoothing_width) /
+            interface_smoothing_width;
+        RHEA_ASSERT (0.0 <= c && c <= 1.0);
+
+        visc_elem[nodeid] = c * v2 + (1.0 - c) * v1;
+      }
 
       /* store values in output arrays if they exist */
       if (rank1_scal_elem != NULL) {
         rank1_scal_elem[nodeid] = r1;
       }
       if (bounds_elem != NULL) {
-        bounds_elem[nodeid] = b;
+        bounds_elem[nodeid] = bd;
       }
       if (yielding_elem != NULL) {
-        yielding_elem[nodeid] = y;
+        yielding_elem[nodeid] = yld;
       }
     }
   }
   else { /* if element is located in lower mantle */
     const int           restrict_to_bounds = 1;
-    const double        r1 = 0.0;
-    const double        b = 0.0;
-    const double        y = 0.0;
 
+    r1 = 0.0;
+    yld = 0.0;
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
       const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
       const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
+      const double        r = rhea_domain_compute_radius (x[nodeid], y[nodeid],
+                                                          z[nodeid],
+                                                          domain_options);
 
       /* check temperature for valid range [0,1] */
       RHEA_ASSERT (isfinite (temp));
@@ -926,18 +1054,39 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
       /* compute linear viscosity in lower mantle */
-      visc_elem[nodeid] = rhea_viscosity_linear_node (
-          temp, weak, lm_scaling, lm_activ_energy, opt, restrict_to_bounds);
+      rhea_viscosity_linear_model (&visc_elem[nodeid], &bd, temp, weak, opt,
+                                   0 /* lower mantle */, 1 /* bounds on */);
+
+      /* update viscosity by applying a smooth transition close to the LM-UM
+       * interface (via a convex combination) */
+      if (0.0 < interface_smoothing_width &&
+          fabs (r - interface_radius) < 0.5 * interface_smoothing_width) {
+        const double        sr2 = ( strain_rate_2inv_elem != NULL ?
+                                    strain_rate_2inv_elem[nodeid] : 1.0 );
+        const double        v1 = visc_elem[nodeid];
+        double              v2, r1_2, bd2, yld2, c;
+
+        RHEA_ASSERT (isfinite (sr2));
+        RHEA_ASSERT (0.0 <= sr2);
+        rhea_viscosity_nonlinear_model (&v2, &r1_2, &bd2, &yld2,
+                                        temp, weak, sr2, opt);
+
+        c = (fabs (r - interface_radius) - 0.5 * interface_smoothing_width) /
+            interface_smoothing_width;
+        RHEA_ASSERT (0.0 <= c && c <= 1.0);
+
+        visc_elem[nodeid] = c * v1 + (1.0 - c) * v2;
+      }
 
       /* store (default) values in output arrays if they exist */
       if (rank1_scal_elem != NULL) {
         rank1_scal_elem[nodeid] = r1;
       }
       if (bounds_elem != NULL) {
-        bounds_elem[nodeid] = b;
+        bounds_elem[nodeid] = bd;
       }
       if (yielding_elem != NULL) {
-        yielding_elem[nodeid] = y;
+        yielding_elem[nodeid] = yld;
       }
     }
   }
@@ -1108,7 +1257,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 }
 
 /******************************************************************************
- * Viscosity Computation
+ * General Viscosity Computation
  *****************************************************************************/
 
 void
@@ -1121,41 +1270,30 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *velocity,
                         rhea_viscosity_options_t *opt)
 {
-  int                 is_nonlinear = 0;
-
   switch (opt->type) {
   case RHEA_VISCOSITY_LINEAR:
-    rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
-    break;
+    /* compute linear viscosity and set bounds marker */
+    rhea_viscosity_linear_vec (viscosity, bounds_marker,
+                               temperature, weakzone, opt);
 
-  case RHEA_VISCOSITY_NONLINEAR:
-    if ( fabs (opt->stress_exponent - 1.0) < SC_EPS &&
-         opt->yield_stress <= 0.0 ) { /* if viscosity would be linear */
-      rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
-    }
-    else { /* otherwise viscosity is nonlinear */
-      is_nonlinear = 1;
-      rhea_viscosity_nonlinear_vec (viscosity, rank1_tensor_scal,
-                                    bounds_marker, yielding_marker,
-                                    temperature, weakzone, velocity, opt);
-    }
-    break;
-
-  default: /* unknown viscosity type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
-  /* set (default) values for output pertaining to nonlinear viscosity */
-  if (!is_nonlinear) {
+    /* set default values for vectors pertaining to nonlinear viscosity */
     if (rank1_tensor_scal != NULL) {
       ymir_dvec_set_zero (rank1_tensor_scal);
-    }
-    if (bounds_marker != NULL) {
-      ymir_dvec_set_zero (bounds_marker);
     }
     if (yielding_marker != NULL) {
       ymir_dvec_set_zero (yielding_marker);
     }
+    break;
+
+  case RHEA_VISCOSITY_NONLINEAR:
+    /* compute nonlinear viscosity */
+    rhea_viscosity_nonlinear_vec (viscosity, rank1_tensor_scal,
+                                  bounds_marker, yielding_marker,
+                                  temperature, weakzone, velocity, opt);
+    break;
+
+  default: /* unknown viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
   }
 }
 
@@ -1163,7 +1301,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
  * Computes viscosity to initialize a nonlinear solver with zero velocity.
  */
 void
-rhea_viscosity_compute_init_nonlinear (ymir_vec_t *viscosity,
+rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
                                        ymir_vec_t *rank1_tensor_scal,
                                        ymir_vec_t *bounds_marker,
                                        ymir_vec_t *yielding_marker,
@@ -1171,10 +1309,10 @@ rhea_viscosity_compute_init_nonlinear (ymir_vec_t *viscosity,
                                        ymir_vec_t *weakzone,
                                        rhea_viscosity_options_t *opt)
 {
-  const rhea_viscosity_init_nonlinear_t  type = opt->type_init_nonlinear;
+  const rhea_viscosity_nonlinear_init_t  type = opt->type_nonlinear_init;
 
   switch (type) {
-  case RHEA_VISCOSITY_INIT_NONLINEAR_DEFAULT:
+  case RHEA_VISCOSITY_NONLINEAR_INIT_DEFAULT:
     {
       ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (viscosity);
       ymir_vec_t         *velocity = rhea_velocity_new (ymir_mesh);
@@ -1189,26 +1327,24 @@ rhea_viscosity_compute_init_nonlinear (ymir_vec_t *viscosity,
     }
     break;
 
-  case RHEA_VISCOSITY_INIT_NONLINEAR_LIN:
-  case RHEA_VISCOSITY_INIT_NONLINEAR_LIN_RESCALE_UM:
+  case RHEA_VISCOSITY_NONLINEAR_INIT_LIN:
+  case RHEA_VISCOSITY_NONLINEAR_INIT_LIN_RESCALE_UM:
     {
       const double        upper_mantle_scaling = opt->upper_mantle_scaling;
 
       /* compute linear viscosity (possibly rescale upper mantle) */
-      if (RHEA_VISCOSITY_INIT_NONLINEAR_LIN_RESCALE_UM == type) {
+      if (RHEA_VISCOSITY_NONLINEAR_INIT_LIN_RESCALE_UM == type) {
         opt->upper_mantle_scaling = opt->lower_mantle_scaling;
       }
-      rhea_viscosity_linear_vec (viscosity, temperature, weakzone, opt);
-      if (RHEA_VISCOSITY_INIT_NONLINEAR_LIN_RESCALE_UM == type) {
+      rhea_viscosity_linear_vec (viscosity, bounds_marker,
+                                 temperature, weakzone, opt);
+      if (RHEA_VISCOSITY_NONLINEAR_INIT_LIN_RESCALE_UM == type) {
         opt->upper_mantle_scaling = upper_mantle_scaling;
       }
 
       /* set all other output vectors to zero */
       if (rank1_tensor_scal != NULL) {
         ymir_dvec_set_zero (rank1_tensor_scal);
-      }
-      if (bounds_marker != NULL) {
-        ymir_dvec_set_zero (bounds_marker);
       }
       if (yielding_marker != NULL) {
         ymir_dvec_set_zero (yielding_marker);

@@ -7,35 +7,54 @@
 #include <rhea_domain.h>
 #include <ymir_vec_ops.h>
 
-/* enumerator for types of viscosities */
+/* types of viscosities */
 typedef enum
 {
-  RHEA_VISCOSITY_LINEAR = 0,
-  RHEA_VISCOSITY_NONLINEAR = 1
+  RHEA_VISCOSITY_LINEAR,
+  RHEA_VISCOSITY_NONLINEAR
 }
 rhea_viscosity_t;
 
-/* enumerator for types of initial viscosities for nonlinear Stokes problems */
+/* types of linear components in the viscosity */
 typedef enum
 {
-  RHEA_VISCOSITY_INIT_NONLINEAR_DEFAULT,
-  RHEA_VISCOSITY_INIT_NONLINEAR_LIN,
-  RHEA_VISCOSITY_INIT_NONLINEAR_LIN_RESCALE_UM
+  //TODO maybe add another type for user-defined
+  RHEA_VISCOSITY_LINEAR_CONST,        /* constant viscosity */
+  RHEA_VISCOSITY_LINEAR_TEMPREVERSE,  /* reverse tempererature: (1 - T) */
+  RHEA_VISCOSITY_LINEAR_ARRHENIUS     /* Arrhenius relationship */
 }
-rhea_viscosity_init_nonlinear_t;
+rhea_viscosity_linear_t;
 
-/* enumerator for types of viscosity models */
+/* types of nonlinear components in the viscosity */
 typedef enum
 {
-  /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound
+  RHEA_VISCOSITY_NONLINEAR_SRW,     /* strain rate weakening */
+  RHEA_VISCOSITY_NONLINEAR_YLD,     /* yielding */
+  RHEA_VISCOSITY_NONLINEAR_SRW_YLD  /* strain rate weakening & yielding */
+}
+rhea_viscosity_nonlinear_t;
+
+/* types of initial viscosities for nonlinear solvers */
+typedef enum
+{
+  RHEA_VISCOSITY_NONLINEAR_INIT_DEFAULT,
+  RHEA_VISCOSITY_NONLINEAR_INIT_LIN,
+  RHEA_VISCOSITY_NONLINEAR_INIT_LIN_RESCALE_UM
+}
+rhea_viscosity_nonlinear_init_t;
+
+/* types of viscosity models that determine how the components are combined */
+typedef enum
+{
+  /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound;
    * viscosity bounds via cut-off */
   RHEA_VISCOSITY_MODEL_UWYL,
 
-  /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound
+  /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound;
    * upper viscosity bound via cut-off, lower viscosity bound via addition */
   RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT,
 
-  /* (1) upper bound + shift, (2) weak zone, (3) yielding, (4) lower bound
+  /* (1) upper bound + shift, (2) weak zone, (3) yielding, (4) lower bound;
    * upper viscosity bound via shift, lower viscosity bound via addition */
   RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT
 }
@@ -44,9 +63,11 @@ rhea_viscosity_model_t;
 /* options of the mantle's viscosity */
 typedef struct rhea_viscosity_options
 {
-  /* type & model of the viscosity */
+  /* types of linear/nonlinear viscosity components and its composition */
   rhea_viscosity_t                 type;
-  rhea_viscosity_init_nonlinear_t  type_init_nonlinear;
+  rhea_viscosity_linear_t          type_linear;
+  rhea_viscosity_nonlinear_t       type_nonlinear;
+  rhea_viscosity_nonlinear_init_t  type_nonlinear_init;
   rhea_viscosity_model_t           model;
 
   /* lower and upper bounds for the viscosity */
@@ -119,7 +140,7 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
 /**
  * Computes viscosity to initialize a nonlinear solver with zero velocity.
  */
-void                rhea_viscosity_compute_init_nonlinear (
+void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *viscosity,
                                                ymir_vec_t *rank1_tensor_scal,
                                                ymir_vec_t *bounds_marker,
