@@ -6,8 +6,8 @@
 
 #include <ymir_vec_ops.h>
 
-/* constant: default value for weak zone (i.e., no weakening) */
-#define RHEA_WEAKZONE_DEFAULT_VALUE (1.0)
+/* constant: neutral/default value for weak zone (i.e., no weakening) */
+#define RHEA_WEAKZONE_NEUTRAL_VALUE (1.0)
 
 /**
  * Creates a new weak zone vector.
