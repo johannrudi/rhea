@@ -7,16 +7,15 @@
 #include <rhea_domain.h>
 #include <ymir_vec_ops.h>
 
-/* constant: default value for temperature (gives const viscosity due to
- * implementation of function `rhea_viscosity_linear_arrhenius`) */
-#define RHEA_TEMPERATURE_DEFAULT_VALUE (0.5)
+/* constant: neutral/default value for temperature (gives const viscosity due
+ * to implementation of function `rhea_viscosity_linear_arrhenius`) */
+#define RHEA_TEMPERATURE_NEUTRAL_VALUE (0.5)
 
 /* enumerator for types of temperature */
 typedef enum
 {
   RHEA_TEMPERATURE_NONE,
   RHEA_TEMPERATURE_COLD_PLATE,
-  RHEA_TEMPERATURE_2PLATES_POLY2,
   RHEA_TEMPERATURE_IMPORT
 }
 rhea_temperature_t;
@@ -30,6 +29,10 @@ typedef struct rhea_temperature_options
 {
   /* type of the temperature */
   rhea_temperature_t  type;
+
+  /* scale and shift values*/
+  double              scale;
+  double              shift;
 
   /* data imported from file */
   char               *import_path_txt;
