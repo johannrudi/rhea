@@ -7,6 +7,9 @@
 #include <rhea_domain.h>
 #include <ymir_vec_ops.h>
 
+/* constant: neutral/default value for viscosity */
+#define RHEA_VISCOSITY_NEUTRAL_VALUE (1.0)
+
 /* types of viscosities */
 typedef enum
 {
@@ -76,15 +79,15 @@ typedef struct rhea_viscosity_options
 
   /* scaling factor and activation energy in Arrhenius relationship */
   double              upper_mantle_scaling;
-  double              upper_mantle_activation_energy;
+  double              upper_mantle_arrhenius_activation_energy;
   double              lower_mantle_scaling;
-  double              lower_mantle_activation_energy;
+  double              lower_mantle_arrhenius_activation_energy;
 
   /* stress exponent that governs strain rate weakening (aka. `n`) */
   double              stress_exponent;
 
   /* value of viscous stress above which plastic yielding occurs */
-  double              yield_stress;
+  double              yield_strength;
   double              yielding_regularization;
 
   /* options & properties of the computational domain */
