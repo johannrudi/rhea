@@ -6,6 +6,10 @@
 
 #include <ymir_vec_ops.h>
 
+/* constant: neutral/default value for the sqrt of the 2nd invariant of the
+ * strain rate */
+#define RHEA_STRAINRATE_2INV_NEUTRAL_VALUE (1.0)
+
 /**
  * Creates a new second invariant of the strain rate vector.
  */
