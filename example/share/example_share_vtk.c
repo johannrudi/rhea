@@ -21,7 +21,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *temperature, *weakzone;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
-  ymir_vec_t         *background_temp, *viscosity;
+  ymir_vec_t         *background_temp, *viscosity, *bounds_marker;
 
   /* exit if nothing to do */
   if (vtk_write_input_path == NULL) {
@@ -44,11 +44,12 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 
   /* compute viscosity */
   viscosity = rhea_viscosity_new (ymir_mesh);
+  bounds_marker = rhea_viscosity_new (ymir_mesh);
   switch (visc_options->type) {
   case RHEA_VISCOSITY_LINEAR:
     rhea_viscosity_compute (viscosity,
                             NULL /* nl. Stokes output */,
-                            NULL /* nl. Stokes output */,
+                            bounds_marker,
                             NULL /* nl. Stokes output */,
                             temperature, weakzone,
                             NULL /* nl. Stokes input */,
@@ -57,7 +58,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   case RHEA_VISCOSITY_NONLINEAR:
     rhea_viscosity_compute_nonlinear_init (viscosity,
                                            NULL /* nl. Stokes output */,
-                                           NULL /* nl. Stokes output */,
+                                           bounds_marker,
                                            NULL /* nl. Stokes output */,
                                            temperature, weakzone,
                                            visc_options);
@@ -68,11 +69,13 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 
   /* write vtk */
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity, rhs_vel);
+                             background_temp, weakzone, viscosity,
+                             bounds_marker, rhs_vel);
 
   /* destroy */
   rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
+  rhea_viscosity_destroy (bounds_marker);
 }
 
 void

@@ -3220,14 +3220,14 @@ slabs_viscosity_linear (ymir_dvec_t *viscosity,
   visc_opt.max = physics_options->viscosity_max;
   visc_opt.upper_mantle_scaling =
     physics_options->viscosity_scaling;
-  visc_opt.upper_mantle_activation_energy =
+  visc_opt.upper_mantle_arrhenius_activation_energy =
     physics_options->viscosity_temp_decay;
   visc_opt.lower_mantle_scaling =
     physics_options->viscosity_lower_mantle_scaling;
-  visc_opt.lower_mantle_activation_energy =
+  visc_opt.lower_mantle_arrhenius_activation_energy =
     physics_options->viscosity_lower_mantle_temp_decay;
   visc_opt.stress_exponent = physics_options->viscosity_stress_exponent;
-  visc_opt.yield_stress = physics_options->viscosity_stress_yield;
+  visc_opt.yield_strength = physics_options->viscosity_stress_yield;
   visc_opt.domain_options = &domain_opt;
 
   rhea_viscosity_compute (viscosity, NULL, NULL, NULL, temp_vec, weak_vec,

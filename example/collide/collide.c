@@ -955,7 +955,8 @@ collide_write_input ( ymir_mesh_t *ymir_mesh,
 
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity, rhs_vel);
+                             background_temp, weakzone, viscosity, NULL,
+                             rhs_vel);
 /*
   if (rhs_vel_nonzero_dirichlet != NULL) {
     char            path[bufsiz];
