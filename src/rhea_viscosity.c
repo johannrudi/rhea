@@ -1285,8 +1285,20 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 }
 
 /******************************************************************************
- * General Viscosity Computation
+ * Viscosity Computation
  *****************************************************************************/
+
+/* callback function for computing the viscosity */
+rhea_viscosity_compute_fn_t   rhea_viscosity_compute_fn = NULL;
+void                         *rhea_viscosity_compute_fn_data = NULL;
+
+void
+rhea_viscosity_set_viscosity_compute_fn (rhea_viscosity_compute_fn_t fn,
+                                         void *data)
+{
+  rhea_viscosity_compute_fn = fn;
+  rhea_viscosity_compute_fn_data = data;
+}
 
 void
 rhea_viscosity_compute (ymir_vec_t *viscosity,
@@ -1298,6 +1310,14 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *velocity,
                         rhea_viscosity_options_t *opt)
 {
+  /* compute custom viscosity and exit */
+  if (rhea_viscosity_compute_fn != NULL) {
+    rhea_viscosity_compute_fn (viscosity, rank1_tensor_scal, bounds_marker,
+                               yielding_marker, temperature, weakzone,
+                               velocity, opt, rhea_viscosity_compute_fn_data);
+    return;
+  }
+
   switch (opt->type) {
   case RHEA_VISCOSITY_LINEAR:
     /* compute linear viscosity and set bounds marker */
@@ -1347,7 +1367,7 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
 
       /* compute nonlinear viscosity with zero velocity */
       ymir_vec_set_zero (velocity);
-      rhea_viscosity_nonlinear_vec (
+      rhea_viscosity_compute (
           viscosity, rank1_tensor_scal, bounds_marker, yielding_marker,
           temperature, weakzone, velocity, opt);
 

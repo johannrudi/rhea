@@ -13,16 +13,15 @@
 /* types of viscosities */
 typedef enum
 {
-  RHEA_VISCOSITY_LINEAR,
-  RHEA_VISCOSITY_NONLINEAR
+  RHEA_VISCOSITY_LINEAR,    /* linear rheology */
+  RHEA_VISCOSITY_NONLINEAR  /* nonlinear rheology */
 }
 rhea_viscosity_t;
 
 /* types of linear components in the viscosity */
 typedef enum
 {
-  //TODO maybe add another type for user-defined
-  RHEA_VISCOSITY_LINEAR_CONST,        /* constant viscosity */
+  RHEA_VISCOSITY_LINEAR_CONST,        /* constant linear viscosity */
   RHEA_VISCOSITY_LINEAR_TEMPREVERSE,  /* reverse tempererature: (1 - T) */
   RHEA_VISCOSITY_LINEAR_ARRHENIUS     /* Arrhenius relationship */
 }
@@ -32,7 +31,7 @@ rhea_viscosity_linear_t;
 typedef enum
 {
   RHEA_VISCOSITY_NONLINEAR_SRW,     /* strain rate weakening */
-  RHEA_VISCOSITY_NONLINEAR_YLD,     /* yielding */
+  RHEA_VISCOSITY_NONLINEAR_YLD,     /* plastic yielding */
   RHEA_VISCOSITY_NONLINEAR_SRW_YLD  /* strain rate weakening & yielding */
 }
 rhea_viscosity_nonlinear_t;
@@ -63,6 +62,10 @@ typedef enum
 }
 rhea_viscosity_model_t;
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /* options of the mantle's viscosity */
 typedef struct rhea_viscosity_options
 {
@@ -77,22 +80,23 @@ typedef struct rhea_viscosity_options
   double              min;
   double              max;
 
-  /* scaling factor and activation energy in Arrhenius relationship */
+  /* scaling factor */
   double              upper_mantle_scaling;
-  double              upper_mantle_arrhenius_activation_energy;
   double              lower_mantle_scaling;
+
+  /* activation energy in Arrhenius relationship */
+  double              upper_mantle_arrhenius_activation_energy;
   double              lower_mantle_arrhenius_activation_energy;
 
   /* stress exponent that governs strain rate weakening (aka. `n`) */
   double              stress_exponent;
 
-  /* value of viscous stress above which plastic yielding occurs */
+  /* parameters for plastic yielding */
   double              yield_strength;
   double              yielding_regularization;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t  *domain_options;
-
 }
 rhea_viscosity_options_t;
 
@@ -107,6 +111,10 @@ void                rhea_viscosity_add_options (ymir_options_t * opt_sup);
 void                rhea_viscosity_process_options (
                                         rhea_viscosity_options_t *opt,
                                         rhea_domain_options_t *domain_options);
+
+/******************************************************************************
+ * Viscosity Vector
+ *****************************************************************************/
 
 /**
  * Creates a new viscosity vector.
@@ -128,8 +136,61 @@ int                 rhea_viscosity_check_vec_type (ymir_vec_t *vec);
  */
 int                 rhea_viscosity_is_valid (ymir_vec_t *vec);
 
+/******************************************************************************
+ * Viscosity Computation
+ *****************************************************************************/
+
 /**
- * Computes viscosity.
+ * Computes a custom viscosity.  Callback function for viscosity computation.
+ *
+ * \param [out] viscosity         Viscosity (Gauss quadrature nodes)
+ * \param [out] rank1_tensor_scal Scaling for rank-1 fourth-order tensor
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [out] bounds_marker     Marker where min/max viscosity is reached
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [out] yielding_marker   Marker where yielding is applied
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [in] temperature        Temperature (GLL nodes, may be NULL)
+ * \param [in] weakzone           Weak zone factor (Gauss nodes, may be NULL)
+ * \param [in] velocity           Velocity (GLL nodes, may be NULL)
+ * \param [in] opt                Viscosity options
+ * \param [in] data               User data
+ */
+typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
+                                                  ymir_vec_t *rank1_tensor_scal,
+                                                  ymir_vec_t *bounds_marker,
+                                                  ymir_vec_t *yielding_marker,
+                                                  ymir_vec_t *temperature,
+                                                  ymir_vec_t *weakzone,
+                                                  ymir_vec_t *velocity,
+                                                  rhea_viscosity_options_t *opt,
+                                                  void *data);
+
+/**
+ * Sets a custom function that is called whenever the viscosity is computed.
+ *
+ * \param [in] fn   Function name
+ * \param [in] data Function data (may be NULL)
+ */
+void                rhea_viscosity_set_viscosity_compute_fn (
+                                                rhea_viscosity_compute_fn_t fn,
+                                                void *data);
+
+/**
+ * Computes the viscosity.
+ *
+ * \param [out] viscosity         Viscosity (Gauss quadrature nodes)
+ * \param [out] rank1_tensor_scal Scaling for rank-1 fourth-order tensor
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [out] bounds_marker     Marker where min/max viscosity is reached
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [out] yielding_marker   Marker where yielding is applied
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [in] temperature        Temperature (GLL nodes, may be NULL)
+ * \param [in] weakzone           Weak zone factor (Gauss nodes, may be NULL)
+ * \param [in] velocity           Velocity (GLL nodes, may be NULL)
+ * \param [in] opt                Viscosity options
+ * \param [in] data               User data
  */
 void                rhea_viscosity_compute (ymir_vec_t *viscosity,
                                             ymir_vec_t *rank1_tensor_scal,
@@ -141,7 +202,18 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
                                             rhea_viscosity_options_t *opt);
 
 /**
- * Computes viscosity to initialize a nonlinear solver with zero velocity.
+ * Computes the viscosity to initialize a nonlinear solver with zero velocity.
+ *
+ * \param [out] viscosity         Viscosity (Gauss quadrature nodes)
+ * \param [out] rank1_tensor_scal Scaling for rank-1 fourth-order tensor
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [out] bounds_marker     Marker where min/max viscosity is reached
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [out] yielding_marker   Marker where yielding is applied
+ *                                  (Gauss quadrature nodes, may be NULL)
+ * \param [in] temperature        Temperature (GLL nodes, may be NULL)
+ * \param [in] weakzone           Weak zone factor (Gauss nodes, may be NULL)
+ * \param [in] opt                Viscosity options
  */
 void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *viscosity,
@@ -151,6 +223,10 @@ void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *temperature,
                                                ymir_vec_t *weakzone,
                                                rhea_viscosity_options_t *opt);
+
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
 
 /**
  * Gets the viscosity of one element at Gauss nodes.
