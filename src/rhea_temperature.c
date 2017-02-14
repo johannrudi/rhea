@@ -431,28 +431,26 @@ rhea_temperature_cold_plate_hscm (const double radius,
 }
 
 /**
- * Computes the temperature anomaly of one (cold) sinker, with values in the
- * range [0,1], that is shaped like a Gaussian:
+ * Computes a smooth spherical indicator with values in the range [0,1] and
+ * that is shaped like a Gaussian:
  *
- *   dT(x) = c * ( 1.0 - exp(-decay * max(0, ||center - x|| - width/2)^2) )
+ *   Indc(x) = exp ( -decay * max (0, ||center - x|| - width/2)^2 )
  *
  * where
  *   x      --- 3D coordinates (x,y,z)
- *   center --- coordinates of sinker center
+ *   center --- coordinates of sphere center
  *   decay  --- exponential decay
- *   width  --- width of min temperature around the center
- *   c      --- scaling factor (typically 1)
+ *   width  --- width of sphere with max indicator = 1
  */
 static double
-rhea_temperature_sinker (const double x,
-                         const double y,
-                         const double z,
-                         const double center_x,
-                         const double center_y,
-                         const double center_z,
-                         const double decay,
-                         const double width,
-                         const double scaling)
+rhea_temperature_indicator (const double x,
+                            const double y,
+                            const double z,
+                            const double center_x,
+                            const double center_y,
+                            const double center_z,
+                            const double decay,
+                            const double width)
 {
   double              val;
 
@@ -464,12 +462,12 @@ rhea_temperature_sinker (const double x,
   /* subtract sphere width from distance */
   val = SC_MAX (0.0, val - width / 2.0);
 
-  /* compute sinker anomaly */
-  val = 1.0 - exp (-decay * val * val);
-  val *= scaling;
+  /* compute Gaussian indicator */
+  val = exp (-decay * val * val);
+  RHEA_ASSERT (0.0 <= val && val <= 1.0);
 
-  /* return anomaly factor that will be multiplied by the temperature*/
-  return SC_MAX (0.0, SC_MIN (val, 1.0));
+  /* return indicator */
+  return val;
 }
 
 /* uniformly random numbers that define points in a unit cube */
@@ -547,8 +545,89 @@ const double rhea_temperature_random_point_z[64] = {
 };
 
 /**
+ * Computes an indicator value as a superposition of 1,...,64 randomly placed
+ * Gaussian spheres.
+ */
+static double
+rhea_temperature_indicator_random (const int n_spheres,
+                                   const double x,
+                                   const double y,
+                                   const double z,
+                                   const double decay,
+                                   const double width,
+                                   const double dilatation,
+                                   const double translation_x,
+                                   const double translation_y,
+                                   const double translation_z)
+{
+  double              center_x, center_y, center_z, val;
+  int                 i;
+
+  /* check input */
+  RHEA_ASSERT (0.0 < dilatation);
+  RHEA_ASSERT (0 < n_spheres && n_spheres <= 64);
+
+  /* compute temperature of each bubble; combine multiplicatively */
+  val = 0.0;
+  for (i = 0; i < n_spheres; i++) { /* loop over all spheres */
+    /* get center point */
+    center_x = rhea_temperature_random_point_x[i];
+    center_y = rhea_temperature_random_point_y[i];
+    center_z = rhea_temperature_random_point_z[i];
+
+    /* dilate and translate center point (assumes cube domain) */
+    center_x = dilatation * (center_x - 0.5) + 0.5 + translation_x;
+    center_y = dilatation * (center_y - 0.5) + 0.5 + translation_y;
+    center_z = dilatation * (center_z - 0.5) + 0.5 + translation_z;
+
+    /* add indicator value */
+    val += rhea_temperature_indicator (x, y, z, center_x, center_y, center_z,
+                                       decay, width);
+  }
+
+  /* return anomaly factor that will be multiplied by the temperature */
+  return SC_MAX (0.0, SC_MIN (val, 1.0));
+}
+
+/**
+ * Computes the temperature anomaly of one (cold) sinker, with values in the
+ * range [0,1], that is shaped like a Gaussian:
+ *
+ *   dT(x) = c * ( 1.0 - exp(-decay * max(0, ||center - x|| - width/2)^2) )
+ *
+ * where
+ *   x      --- 3D coordinates (x,y,z)
+ *   center --- coordinates of sinker center
+ *   decay  --- exponential decay
+ *   width  --- width of min temperature around the center
+ *   c      --- scaling factor (typically 1)
+ */
+static double
+rhea_temperature_sinker (const double x,
+                         const double y,
+                         const double z,
+                         const double center_x,
+                         const double center_y,
+                         const double center_z,
+                         const double decay,
+                         const double width,
+                         const double scaling)
+{
+  double              val;
+
+  /* get indicator value */
+  val = rhea_temperature_indicator (x, y, z, center_x, center_y, center_z,
+                                    decay, width);
+
+  /* transform indicator to sinker anomaly */
+  val = scaling * (1.0 - val);
+
+  /* return anomaly factor that will be multiplied by the temperature */
+  return SC_MAX (0.0, SC_MIN (val, 1.0));
+}
+
+/**
  * Computes the temperature anomaly of 1,...,64 randomly placed sinkers.
- * Each sinker is defined as in `rhea_temperature_sinker (...)`.
  */
 static double
 rhea_temperature_sinker_random (const int n_sinkers,
@@ -563,35 +642,19 @@ rhea_temperature_sinker_random (const int n_sinkers,
                                 const double translation_y,
                                 const double translation_z)
 {
-  double              center_x, center_y, center_z, val;
-  int                 i;
+  double              val;
 
-  /* check input */
-  RHEA_ASSERT (0.0 < dilatation);
-  RHEA_ASSERT (0 < n_sinkers && n_sinkers <= 64);
+  /* get indicator value */
+  val = rhea_temperature_indicator_random (n_sinkers, x, y, z, decay, width,
+                                           dilatation, translation_x,
+                                           translation_y, translation_z);
 
-  /* compute temperature of each bubble; combine multiplicatively */
-  val = 1.0;
-  for (i = 0; i < n_sinkers; i++) { /* loop over all sinkers */
-    /* get center point */
-    center_x = rhea_temperature_random_point_x[i];
-    center_y = rhea_temperature_random_point_y[i];
-    center_z = rhea_temperature_random_point_z[i];
-
-    /* dilate and translate center point (assumes cube domain) */
-    center_x = dilatation * (center_x - 0.5) + 0.5 + translation_x;
-    center_y = dilatation * (center_y - 0.5) + 0.5 + translation_y;
-    center_z = dilatation * (center_z - 0.5) + 0.5 + translation_z;
-
-    /* multiply in one sinker */
-    val *= rhea_temperature_sinker (x, y, z, center_x, center_y, center_z,
-                                    decay, width, scaling);
-  }
+  /* transform indicator to sinker anomaly */
+  val = scaling * (1.0 - val);
   RHEA_ASSERT (isfinite (val));
-  RHEA_ASSERT (0.0 <= val && val <= 1.0);
 
-  /* return anomaly factor that will be multiplied by the temperature*/
-  return val;
+  /* return anomaly factor that will be multiplied by the temperature */
+  return SC_MAX (0.0, SC_MIN (val, 1.0));
 }
 
 /**
@@ -618,22 +681,21 @@ rhea_temperature_plume (const double x,
                         const double width,
                         const double scaling)
 {
-  double              sinker_val, val;
+  double              val;
 
-  /* compute sinker anomaly */
-  sinker_val = rhea_temperature_sinker (x, y, z, center_x, center_y, center_z,
-                                        decay, width, scaling);
+  /* get indicator value */
+  val = rhea_temperature_indicator (x, y, z, center_x, center_y, center_z,
+                                    decay, width);
 
-  /* transform to plume anomaly */
-  val = 1.0 + scaling - sinker_val;
+  /* transform indicator to plume anomaly */
+  val = 1.0 + scaling * val;
 
-  /* return anomaly factor that will be multiplied by the temperature*/
+  /* return anomaly factor that will be multiplied by the temperature */
   return SC_MAX (1.0, SC_MIN (val, 2.0));
 }
 
 /**
  * Computes the temperature anomaly of 1,...,64 randomly placed plumes.
- * Each plume is defined as in `rhea_temperature_plume (...)`.
  */
 static double
 rhea_temperature_plume_random (const int n_plumes,
@@ -648,18 +710,17 @@ rhea_temperature_plume_random (const int n_plumes,
                                const double translation_y,
                                const double translation_z)
 {
-  double              sinker_val, val;
+  double              val;
 
-  /* compute sinker anomaly */
-  sinker_val = rhea_temperature_sinker_random (n_plumes, x, y, z, decay, width,
-                                               scaling, dilatation,
-                                               translation_x, translation_y,
-                                               translation_z);
+  /* get indicator value */
+  val = rhea_temperature_indicator_random (n_plumes, x, y, z, decay, width,
+                                           dilatation, translation_x,
+                                           translation_y, translation_z);
 
-  /* transform to plume anomaly */
-  val = 1.0 + scaling - sinker_val;
+  /* transform indicator to plume anomaly */
+  val = 1.0 + scaling * val;
 
-  /* return anomaly factor that will be multiplied by the temperature*/
+  /* return anomaly factor that will be multiplied by the temperature */
   return SC_MAX (1.0, SC_MIN (val, 2.0));
 }
 
