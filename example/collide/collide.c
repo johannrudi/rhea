@@ -54,8 +54,15 @@ typedef struct collide_options
   collide_x_func_t     x_func;
   double              wallslide_vel;
   double              flow_scale;
-  double              uwkzone_loc_upper;
-  double              uwkzone_loc_lower;
+
+  double              viscosity_loc_upper;
+  double              viscosity_loc_lower;
+  double              viscosity_loc_left;
+  double              viscosity_loc_right;
+  double              viscosity_width;
+  double              viscosity_factor;
+  double              viscosity_lith;
+  double              viscosity_mantle;
 }
 collide_options_t;
 
@@ -145,39 +152,31 @@ collide_X_fn_profile (mangll_tag_t tag, mangll_locidx_t np,
   }
 }
 
-//TODO this is from src/rhea_viscosity
-//     this function declaration needs to be fixed (is the return `void`?)
-#if 0
-/* compute user defined weakzone viscosity in an element*/
-rhea_visc_user_weakzone (double *_sc_restrict visc_elem,
-                      const double *_sc_restrict x,
-                      const double *_sc_restrict y,
-                      const double *_sc_restrict z,
-                      const int n_nodes_per_el,
-                      const int *_sc_restrict Vmask,
-                      rhea_viscosity_options_t *opt,
-                      const int restrict_to_bounds)
+static void
+collide_viscosity_elem (double *_sc_restrict visc_elem,
+                        const double *_sc_restrict x,
+                        const double *_sc_restrict y,
+                        const double *_sc_restrict z,
+                        const int n_nodes_per_el,
+                        collide_options_t *collide_options)
 {
   int                 nodeid;
-  double              zU = opt->uwkzone_loc_upper;
-  double              zL = opt->uwkzone_loc_lower;
-  double              yL = opt->uwkzone_loc_left;
-  double              yR = opt->uwkzone_loc_right;
+  double              zU = collide_options->viscosity_loc_upper;
+  double              zL = collide_options->viscosity_loc_lower;
+  double              yL = collide_options->viscosity_loc_left;
+  double              yR = collide_options->viscosity_loc_right;
   double              temp=zU*yR-zL*yL;
 
-
   /* compute viscosity in this element */
-  for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) { /* loop over all
-                                                             * nodes */
+  for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
     if (z[nodeid] >= zL && z[nodeid] <= zU)  {
       if ( fabs( (zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - temp )
-          <=(zU-zL)*opt->uwkzone_width )
-        visc_elem[nodeid] = opt->uwkzone_factor;
+          <=(zU-zL)*collide_options->viscosity_width )
+        visc_elem[nodeid] = collide_options->viscosity_factor;
       else
-        visc_elem[nodeid] = opt->uwkzone_lith;
+        visc_elem[nodeid] = collide_options->viscosity_lith;
     }
-    else visc_elem[nodeid] = opt->uwkzone_mantle;
-
+    else visc_elem[nodeid] = collide_options->viscosity_mantle;
 
     /* check viscosity for `nan`, `inf`, and positivity */
     RHEA_ASSERT (isfinite (visc_elem[nodeid]));
@@ -185,38 +184,43 @@ rhea_visc_user_weakzone (double *_sc_restrict visc_elem,
   }
 }
 
-/* compute user defined weak zones*/
 static void
-rhea_viscosity_user_weakzone (ymir_vec_t *viscosity,
-                        rhea_viscosity_options_t *opt)
+collide_viscosity_compute (ymir_vec_t *viscosity,
+                           ymir_vec_t *rank1_tensor_scal,
+                           ymir_vec_t *bounds_marker,
+                           ymir_vec_t *yielding_marker,
+                           ymir_vec_t *temperature,
+                           ymir_vec_t *weakzone,
+                           ymir_vec_t *velocity,
+                           rhea_viscosity_options_t *viscosity_options,
+                           void *data)
 {
-  const int           restrict_to_bounds = 1;
+  collide_options_t  *collide_options = data;
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (viscosity);
   const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-  const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
   mangll_t           *mangll = mesh->ma;
   const int           N = ymir_n (mangll->N);
 
   sc_dmatrix_t       *visc_el_mat;
   double             *x, *y, *z, *tmp_el,*visc_el_data;
-  ymir_locidx_t     elid;
+  ymir_locidx_t       elid;
 
   /* create work variables */
   visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  visc_el_data = visc_el_mat->e[0];
   x = RHEA_ALLOC (double, n_nodes_per_el);
   y = RHEA_ALLOC (double, n_nodes_per_el);
   z = RHEA_ALLOC (double, n_nodes_per_el);
   tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
-  visc_el_data = visc_el_mat->e[0];
 
-  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+  for (elid = 0; elid < n_elements; elid++) {
     /* get coordinates of this element at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
     /* compute user defined weak zone viscosity*/
-    rhea_visc_user_weakzone (visc_el_data, x, y, z, n_nodes_per_el,
-                            Vmask, opt, restrict_to_bounds);
+    collide_viscosity_elem (visc_el_data, x, y, z, n_nodes_per_el,
+                            collide_options);
 
     /* set viscosity of this element */
     rhea_viscosity_set_elem_gauss (viscosity, visc_el_mat, elid);
@@ -229,7 +233,6 @@ rhea_viscosity_user_weakzone (ymir_vec_t *viscosity,
   RHEA_FREE (z);
   RHEA_FREE (tmp_el);
 }
-#endif
 
 static int
 collide_output_pressure(const char *filepath, ymir_vec_t *pressure)
@@ -908,8 +911,8 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
 {
   collide_options_t  *collide_options = data;
   const double        flow_scale = collide_options->flow_scale;
-  const double        zU = collide_options->uwkzone_loc_upper;
-  const double        zL = collide_options->uwkzone_loc_lower;
+  const double        zU = collide_options->viscosity_loc_upper;
+  const double        zL = collide_options->viscosity_loc_lower;
   const double        a = zU-zL, b = 1.0-a, c = 0.5*(zU+zL);
   const double        shape = 40.0, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
   double txL = shape*(z-zL),txU = shape*(z-zU);
@@ -995,13 +998,15 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
-  //TODO xi, is the following computation of temperature what you want?
   rhea_temperature_compute (temperature, temp_options);
 
   /* compute weak zone */
   weakzone = rhea_weakzone_new (ymir_mesh);
-  //TODO xi, here you need to provide the weak zone factor
   ymir_vec_set_value (weakzone, 1.0);
+
+  /* set custom function to compute viscosity */
+  rhea_viscosity_set_viscosity_compute_fn (collide_viscosity_compute,
+                                           collide_options);
 
   /* compute velocity right-hand side volume forcing */
   rhs_vel = rhea_velocity_new (ymir_mesh);
@@ -1216,20 +1221,15 @@ main (int argc, char **argv)
   int                 vel_dir_bc;
   double              wallslide_vel;
   double              flow_scale;
-  double              uwkzone_loc_upper;
-  double              uwkzone_loc_lower;
-//TODO this is from src/rhea_viscosity
-#if 0
-  double              rhea_viscosity_uwkzone_loc_upper;
-  double              rhea_viscosity_uwkzone_loc_lower;
-  double              rhea_viscosity_uwkzone_loc_left;
-  double              rhea_viscosity_uwkzone_loc_right;
-  double              rhea_viscosity_uwkzone_width;
-  double              rhea_viscosity_uwkzone_factor;
-  double              rhea_viscosity_uwkzone_lith;
-  double              rhea_viscosity_uwkzone_mantle;
-#endif
   int                 x_func;
+  double              viscosity_loc_upper;
+  double              viscosity_loc_lower;
+  double              viscosity_loc_left;
+  double              viscosity_loc_right;
+  double              viscosity_width;
+  double              viscosity_factor;
+  double              viscosity_lith;
+  double              viscosity_mantle;
   collide_options_t   collide_options;
 
   /* options local to this function */
@@ -1289,59 +1289,37 @@ main (int argc, char **argv)
   YMIR_OPTIONS_D, "flow-scaling", '\0',
     &flow_scale, 1.0,
     "scaling of velocity BC.",
+
   /* surface location  */
   YMIR_OPTIONS_I, "bound-x-function", '\0',
     &x_func, COLLIDE_X_FUNCTION_IDENTITY,
     "boundary location: surface topography",
- /* weakzone upper and lower bounds*/
-  YMIR_OPTIONS_D, "user-weakzone-location-upper",'\0',
-    &(uwkzone_loc_upper),
-    0.75,
-    "user defined weakzone: upper bound",
-  YMIR_OPTIONS_D, "user-weakzone-location-lower",'\0',
-    &(uwkzone_loc_lower),
-    0.25,
-    "user defined weakzone: lower bound",
 
-//TODO this is from src/rhea_viscosity
-//     there is overlapping in options, don't know what's actually used
-#if 0
-  YMIR_OPTIONS_D, "user-weakzone-location-upper",'\0',
-    &(rhea_viscosity_uwkzone_loc_upper),
-    0.9,
+  /* viscosity */
+  YMIR_OPTIONS_D, "viscosity-location-upper",'\0',
+    &(viscosity_loc_upper), 0.9,
     "user defined weakzone: upper bound",
-  YMIR_OPTIONS_D, "user-weakzone-location-lower",'\0',
-    &(rhea_viscosity_uwkzone_loc_lower),
-    0.1,
+  YMIR_OPTIONS_D, "viscosity-location-lower",'\0',
+    &(viscosity_loc_lower), 0.1,
     "user defined weakzone: lower bound",
-  YMIR_OPTIONS_D, "user-weakzone-location-left",'\0',
-    &(rhea_viscosity_uwkzone_loc_left),
-    1.0,
+  YMIR_OPTIONS_D, "viscosity-location-left",'\0',
+    &(viscosity_loc_left), 1.0,
     "user defined weakzone: left bound",
-  YMIR_OPTIONS_D, "user-weakzone-location-right",'\0',
-    &(rhea_viscosity_uwkzone_loc_right),
-    1.0,
+  YMIR_OPTIONS_D, "viscosity-location-right",'\0',
+    &(viscosity_loc_right), 1.0,
     "user defined weakzone: right bound",
-  YMIR_OPTIONS_D, "user-weakzone-width",'\0',
-    &(rhea_viscosity_uwkzone_width),
-    0.05,
+  YMIR_OPTIONS_D, "viscosity-width",'\0',
+    &(viscosity_width), 0.05,
     "user defined weakzone: half-width",
-
-  YMIR_OPTIONS_D, "user-weakzone-factor",'\0',
-    &(rhea_viscosity_uwkzone_factor),
-    0.01,
+  YMIR_OPTIONS_D, "viscosity-factor",'\0',
+    &(viscosity_factor), 0.01,
     "user defined weakzone: weakzone factor",
-
-  YMIR_OPTIONS_D, "user-weakzone-lith",'\0',
-    &(rhea_viscosity_uwkzone_lith),
-    0.1,
+  YMIR_OPTIONS_D, "viscosity-lith",'\0',
+    &(viscosity_lith), 0.1,
     "user defined weakzone: lithosphere factor",
-
-  YMIR_OPTIONS_D, "user-weakzone-mantle",'\0',
-    &(rhea_viscosity_uwkzone_mantle),
-    1,
+  YMIR_OPTIONS_D, "viscosity-mantle",'\0',
+    &(viscosity_mantle), 1,
     "user defined weakzone: weak mantle factor",
-#endif
 
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
@@ -1390,24 +1368,17 @@ main (int argc, char **argv)
   collide_options.vel_dir_bc = (collide_vel_dir_bc_t) vel_dir_bc;
   collide_options.wallslide_vel = wallslide_vel;
   collide_options.flow_scale = flow_scale;
-  collide_options.uwkzone_loc_upper = uwkzone_loc_upper;
-  collide_options.uwkzone_loc_lower = uwkzone_loc_lower;
 
   collide_options.x_func = (collide_x_func_t) x_func;
 
-//TODO this is from src/rhea_viscosity
-#if 0
-//  if (opt->type == RHEA_VISCOSITY_USER_WEAKZONE) {
-    opt->uwkzone_loc_upper = rhea_viscosity_uwkzone_loc_upper;
-    opt->uwkzone_loc_lower = rhea_viscosity_uwkzone_loc_lower;
-    opt->uwkzone_loc_left = rhea_viscosity_uwkzone_loc_left;
-    opt->uwkzone_loc_right = rhea_viscosity_uwkzone_loc_right;
-    opt->uwkzone_width = rhea_viscosity_uwkzone_width;
-    opt->uwkzone_factor = rhea_viscosity_uwkzone_factor;
-    opt->uwkzone_lith = rhea_viscosity_uwkzone_lith;
-    opt->uwkzone_mantle = rhea_viscosity_uwkzone_mantle;
-//  }
-#endif
+  collide_options.viscosity_loc_upper = viscosity_loc_upper;
+  collide_options.viscosity_loc_lower = viscosity_loc_lower;
+  collide_options.viscosity_loc_left = viscosity_loc_left;
+  collide_options.viscosity_loc_right = viscosity_loc_right;
+  collide_options.viscosity_width = viscosity_width;
+  collide_options.viscosity_factor = viscosity_factor;
+  collide_options.viscosity_lith = viscosity_lith;
+  collide_options.viscosity_mantle = viscosity_mantle;
 
   /*
    * Initialize Main Program
