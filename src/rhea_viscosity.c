@@ -1315,6 +1315,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
     rhea_viscosity_compute_fn (viscosity, rank1_tensor_scal, bounds_marker,
                                yielding_marker, temperature, weakzone,
                                velocity, opt, rhea_viscosity_compute_fn_data);
+    RHEA_ASSERT (rhea_viscosity_is_valid (viscosity));
     return;
   }
 
@@ -1343,6 +1344,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
   default: /* unknown viscosity type */
     RHEA_ABORT_NOT_REACHED ();
   }
+  RHEA_ASSERT (rhea_viscosity_is_valid (viscosity));
 }
 
 /**
