@@ -10,6 +10,14 @@
 #include <ymir_vec_getset.h>
 #include <ymir_stress_op.h>
 
+/* definition of viscosity bounds and yielding markers */
+#define RHEA_VISCOSITY_BOUNDS_OFF (0.0)
+#define RHEA_VISCOSITY_BOUNDS_MIN (-1.0)
+#define RHEA_VISCOSITY_BOUNDS_MAX (+1.0)
+#define RHEA_VISCOSITY_BOUNDS_MAX_WEAK (0.5)
+#define RHEA_VISCOSITY_YIELDING_OFF (0.0)
+#define RHEA_VISCOSITY_YIELDING_ACTIVE (1.0)
+
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -338,7 +346,7 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
   }
 
   /* initialize marker that viscosity bounds are reached */
-  *bounds_active = 0.0;
+  *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
 
   /* compute linear viscosity component */
   *viscosity = rhea_viscosity_linear_comp (temp, opt, is_in_upper_mantle);
@@ -353,20 +361,21 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
       /* (U) restrict viscosity to upper bound */
       if (restrict_to_bounds && 0.0 < visc_max && visc_max < *viscosity) {
         *viscosity = visc_max;
-        *bounds_active = 1.0;
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
       /* (W) multiply by weak zone */
       *viscosity *= weak;
       /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
-        *bounds_active = 0.5;
+      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
+          weak < 0.5) {
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
       }
 
       /* (L) restrict viscosity to lower bound */
       if (restrict_to_bounds && 0.0 < visc_min && *viscosity < visc_min) {
         *viscosity = visc_min;
-        *bounds_active = -1.0;
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
       }
     }
     break;
@@ -385,20 +394,21 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
       /* (U) restrict viscosity to upper bound */
       if (restrict_to_bounds && 0.0 < visc_max && visc_max < *viscosity) {
         *viscosity = visc_max;
-        *bounds_active = 1.0;
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
       /* (W) multiply by weak zone */
       *viscosity *= weak;
       /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
-        *bounds_active = 0.5;
+      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
+          weak < 0.5) {
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
       }
 
       /* (L) restrict viscosity to lower bound */
       if (restrict_to_bounds && 0.0 < visc_min) {
         if (*viscosity < visc_min) {
-          *bounds_active = -1.0;
+          *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
         }
         *viscosity += visc_min;
       }
@@ -685,7 +695,7 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,
 
   /* exit if nothing to do */
   if (yield_strength <= 0.0) {
-    *yielding_active = 0.0;
+    *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
     return;
   }
 
@@ -716,7 +726,7 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,
     }
 
     /* set yielding marker to active */
-    *yielding_active = 1.0;
+    *yielding_active = RHEA_VISCOSITY_YIELDING_ACTIVE;
   }
 }
 
@@ -766,7 +776,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
   }
 
   /* initialize marker that viscosity bounds are reached */
-  *bounds_active = 0.0;
+  *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
 
   /* compose viscosity */
   switch (opt->model) {
@@ -789,14 +799,15 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       if (visc_max < *viscosity) {
         *viscosity = visc_max;
         *rank1_scal = 0.0;
-        *bounds_active = 1.0;
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
       /* (W) multiply in weak factor */
       *viscosity *= weak;
       /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
-        *bounds_active = 0.5;
+      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
+          weak < 0.5) {
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
       }
 
       /* (Y) apply yielding */
@@ -806,14 +817,14 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
             yield_strength, yield_reg);
       }
       else {
-        *yielding_active = 0.0;
+        *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
       }
 
       /* (L) apply lower bound to viscosity */
       if (0.0 < visc_min && *viscosity < visc_min) {
         *viscosity = visc_min;
         *rank1_scal = 0.0;
-        *bounds_active = -1.0;
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
       }
     }
     break;
@@ -842,14 +853,15 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       if (visc_max < *viscosity) {
         *viscosity = visc_max;
         *rank1_scal = 0.0;
-        *bounds_active = 1.0;
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
       /* (W) multiply in weak factor */
       *viscosity *= weak;
       /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
-        *bounds_active = 0.5;
+      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
+          weak < 0.5) {
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
       }
 
       /* (Y) apply yielding */
@@ -859,13 +871,13 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
             yield_strength, yield_reg);
       }
       else {
-        *yielding_active = 0.0;
+        *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
       }
 
       /* (L) apply lower bound to viscosity */
       if (0.0 < visc_min) {
         if (*viscosity < visc_min) {
-          *bounds_active = -1.0;
+          *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
         }
         *viscosity += visc_min;
         RHEA_ASSERT (
@@ -929,14 +941,15 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       if (strainrate_sqrt_2inv < strainrate_min) {
         *viscosity = visc_max;
         *rank1_scal = 0.0;
-        *bounds_active = 1.0;
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
       /* (W) multiply in weak factor */
       *viscosity *= weak;
       /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - 1.0) < SC_EPS && weak < 0.5) {
-        *bounds_active = 0.5;
+      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
+          weak < 0.5) {
+        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
       }
 
       /* (Y) apply yielding */
@@ -946,13 +959,13 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
             yield_strength, yield_reg);
       }
       else {
-        *yielding_active = 0.0;
+        *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
       }
 
       /* (L) apply lower bound to viscosity */
       if (0.0 < visc_min) {
         if (*viscosity < visc_min) {
-          *bounds_active = -1.0;
+          *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
         }
         *viscosity += visc_min;
         RHEA_ASSERT (
@@ -1066,7 +1079,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
     const int           restrict_to_bounds = 1;
 
     r1 = 0.0;
-    yld = 0.0;
+    yld = RHEA_VISCOSITY_YIELDING_OFF;
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
       const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
       const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
@@ -1330,7 +1343,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
       ymir_dvec_set_zero (rank1_tensor_scal);
     }
     if (yielding_marker != NULL) {
-      ymir_dvec_set_zero (yielding_marker);
+      ymir_dvec_set_value (yielding_marker, RHEA_VISCOSITY_YIELDING_OFF);
     }
     break;
 
@@ -1397,7 +1410,7 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
         ymir_dvec_set_zero (rank1_tensor_scal);
       }
       if (yielding_marker != NULL) {
-        ymir_dvec_set_zero (yielding_marker);
+        ymir_dvec_set_value (yielding_marker, RHEA_VISCOSITY_YIELDING_OFF);
       }
     }
     break;
