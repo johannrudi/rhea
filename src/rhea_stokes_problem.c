@@ -846,6 +846,9 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
   ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
   ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
   ymir_vec_t         *velocity, *pressure, *viscosity;
+  const double        domain_vol = stokes_problem_nl->domain_options->volume;
+  double              bounds_vol_min, bounds_vol_max;
+  double              yielding_vol;
   char                path[BUFSIZ];
 
   /* return if nothing to do */
@@ -857,12 +860,32 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+  RHEA_ASSERT (stokes_problem_nl->bounds_marker != NULL);
+  RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
 
   /* get fields */
   rhea_velocity_pressure_create_components (&velocity, &pressure, solution,
                                             press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_nl);
+
+  /* compute statistics */
+  rhea_viscosity_stats_get_bounds_volume (&bounds_vol_min, &bounds_vol_max,
+                                          stokes_problem_nl->bounds_marker);
+  yielding_vol = rhea_viscosity_stats_get_yielding_volume (
+                                          stokes_problem_nl->yielding_marker);
+
+  /* print statistics */
+  RHEA_GLOBAL_VERBOSEF (
+      "%s: Bounds volume abs: min %.8e, max %.8e\n",
+      this_fn_name, bounds_vol_min, bounds_vol_max);
+  RHEA_GLOBAL_VERBOSEF (
+      "%s: Bounds volume rel: min %.3f, max %.3f\n",
+      this_fn_name, bounds_vol_min/domain_vol, bounds_vol_max/domain_vol);
+  RHEA_GLOBAL_VERBOSEF (
+      "%s: Yielding volume abs: %.8e\n", this_fn_name, yielding_vol);
+  RHEA_GLOBAL_VERBOSEF (
+      "%s: Yielding volume rel: %.3f\n", this_fn_name, yielding_vol/domain_vol);
 
   /* write vtk */
   snprintf (path, BUFSIZ, "%s_itn%02i", filepath, iter);
