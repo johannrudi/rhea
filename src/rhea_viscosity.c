@@ -1540,3 +1540,72 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
   ymir_dvec_set_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
                       YMIR_SET);
 }
+
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
+/**
+ * Computes the volume of a filter.  A filter is understood as a vector with
+ * ones where the filter is active and zeros otherwise.
+ */
+static double
+rhea_viscosity_stats_filter_compute_volume (ymir_vec_t *filter)
+{
+  ymir_vec_t         *unit = ymir_vec_template (filter);
+  ymir_vec_t         *mass_out = ymir_vec_template (filter);
+  double              vol;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (filter) && filter->ndfields == 1);
+
+  /* set unit vector */
+  ymir_vec_set_value (unit, 1.0);
+
+  /* integrate to get volume */
+  ymir_mass_apply (filter, mass_out);
+  vol = ymir_vec_innerprod (unit, mass_out);
+
+  /* destroy */
+  ymir_vec_destroy (unit);
+  ymir_vec_destroy (mass_out);
+
+  /* return volume of filter */
+  return vol;
+}
+
+void
+rhea_viscosity_stats_get_bounds_volume (double *vol_min, double *vol_max,
+                                        ymir_vec_t *bounds_marker)
+{
+  ymir_vec_t         *bounds = ymir_vec_template (bounds_marker);
+
+  /* compute volume of active min bounds */
+  if (vol_min != NULL) {
+    ymir_vec_copy (bounds_marker, bounds);
+    ymir_vec_bound_max (bounds, RHEA_VISCOSITY_BOUNDS_OFF);
+    ymir_vec_scale (1.0/RHEA_VISCOSITY_BOUNDS_MIN, bounds);
+    *vol_min = rhea_viscosity_stats_filter_compute_volume (bounds);
+  }
+
+  /* compute volume of active max bounds */
+  if (vol_max != NULL) {
+    ymir_vec_copy (bounds_marker, bounds);
+    ymir_vec_shift (-1.0/RHEA_VISCOSITY_BOUNDS_MAX_WEAK, bounds);
+    ymir_vec_bound_min (bounds, RHEA_VISCOSITY_BOUNDS_OFF);
+    ymir_vec_scale (
+        1.0/(RHEA_VISCOSITY_BOUNDS_MAX - RHEA_VISCOSITY_BOUNDS_MAX_WEAK),
+        bounds);
+    *vol_max = rhea_viscosity_stats_filter_compute_volume (bounds);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (bounds);
+}
+
+double
+rhea_viscosity_stats_get_yielding_volume (ymir_vec_t *yielding_marker)
+{
+  RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
+  return rhea_viscosity_stats_filter_compute_volume (yielding_marker);
+}

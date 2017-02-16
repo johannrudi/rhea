@@ -274,4 +274,22 @@ void                rhea_viscosity_marker_set_elem_gauss (
                                                   sc_dmatrix_t *marker_el_mat,
                                                   const ymir_locidx_t elid);
 
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
+/**
+ * Computes the volume where bounds are active.
+ */
+void                rhea_viscosity_stats_get_bounds_volume (
+                                                  double *vol_min,
+                                                  double *vol_max,
+                                                  ymir_vec_t *bounds_marker);
+
+/**
+ * Computes the volume where yielding is active.
+ */
+double              rhea_viscosity_stats_get_yielding_volume (
+                                                  ymir_vec_t *yielding_marker);
+
 #endif /* RHEA_VISCOSITY_H */
