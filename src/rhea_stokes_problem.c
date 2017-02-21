@@ -849,12 +849,6 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
   const double        domain_vol = stokes_problem_nl->domain_options->volume;
   double              bounds_vol_min, bounds_vol_max;
   double              yielding_vol;
-  char                path[BUFSIZ];
-
-  /* return if nothing to do */
-  if (filepath == NULL) {
-    return;
-  }
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
@@ -876,22 +870,26 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
                                           stokes_problem_nl->yielding_marker);
 
   /* print statistics */
-  RHEA_GLOBAL_VERBOSEF (
+  RHEA_GLOBAL_INFOF (
       "%s: Bounds volume abs: min %.8e, max %.8e\n",
       this_fn_name, bounds_vol_min, bounds_vol_max);
-  RHEA_GLOBAL_VERBOSEF (
+  RHEA_GLOBAL_INFOF (
       "%s: Bounds volume rel: min %.3f, max %.3f\n",
       this_fn_name, bounds_vol_min/domain_vol, bounds_vol_max/domain_vol);
-  RHEA_GLOBAL_VERBOSEF (
+  RHEA_GLOBAL_INFOF (
       "%s: Yielding volume abs: %.8e\n", this_fn_name, yielding_vol);
-  RHEA_GLOBAL_VERBOSEF (
+  RHEA_GLOBAL_INFOF (
       "%s: Yielding volume rel: %.3f\n", this_fn_name, yielding_vol/domain_vol);
 
   /* write vtk */
-  snprintf (path, BUFSIZ, "%s_itn%02i", filepath, iter);
-  rhea_vtk_write_nonlinear_stokes_iteration (
-      path, velocity, pressure, viscosity,
-      stokes_problem_nl->bounds_marker, stokes_problem_nl->yielding_marker);
+  if (filepath != NULL) {
+    char                path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_itn%02i", filepath, iter);
+    rhea_vtk_write_nonlinear_stokes_iteration (
+        path, velocity, pressure, viscosity,
+        stokes_problem_nl->bounds_marker, stokes_problem_nl->yielding_marker);
+  }
 
   /* destroy */
   rhea_velocity_destroy (velocity);
