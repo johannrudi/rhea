@@ -513,9 +513,9 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
     (rhea_domain_velocity_bc_t) rhea_domain_velocity_bc_type;
 
   /* print derived domain properties */
-  RHEA_GLOBAL_INFO ("===================================================\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
   RHEA_GLOBAL_INFOF ("%s\n", this_fn_name);
-  RHEA_GLOBAL_INFO ("---------------------------------------------------\n");
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   RHEA_GLOBAL_INFOF ("  x min:      %g\n", opt->x_min);
   RHEA_GLOBAL_INFOF ("  x max:      %g\n", opt->x_max);
   RHEA_GLOBAL_INFOF ("  y min:      %g\n", opt->y_min);
@@ -550,7 +550,7 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   RHEA_GLOBAL_INFOF ("  moment of inertia: %g, %g, %g\n",
                      opt->moment_of_inertia[0],  opt->moment_of_inertia[1],
                      opt->moment_of_inertia[2]);
-  RHEA_GLOBAL_INFO ("===================================================\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
 }
 
 double
