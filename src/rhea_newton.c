@@ -1191,7 +1191,7 @@ rhea_newton_status_summary_print (char **summary,
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   RHEA_GLOBAL_INFOF (
       "%3i ; %.15e, %.15e ; %i, %i, %i, %.15f ; %i\n",
-      length,
+      length - 1,
       rhea_newton_status_summary_obj_reduction,
       rhea_newton_status_summary_grad_norm_reduction,
       rhea_newton_status_summary_step_search_success,
