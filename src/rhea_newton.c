@@ -1759,9 +1759,10 @@ rhea_newton_solve (ymir_vec_t *solution,
     /* print summary */
     if (print_summary) {
       const int           length = iter_max - iter_start + 1;
+      const int           length_print = iter - iter_start + 1;
       int                 k;
 
-      rhea_newton_status_summary_print (summary, length, this_fn_name);
+      rhea_newton_status_summary_print (summary, length_print, this_fn_name);
 
       /* destroy summary */
       for (k = 0; k < length; k++) {
