@@ -1271,12 +1271,13 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
      */
     if (prog_reduction_active) {
       const double        it2 = (double) iter * iter;
-      const double        itn2 = (double)
+      const double        itp2 = (double)
                             opt->lin_rtol_adaptive_progressive_n_iter *
                             opt->lin_rtol_adaptive_progressive_n_iter;
       const double        eps = SC_1000_EPS;
 
-      prog_reduction = (exp (-it2/itn2) + eps/lin_rtol_max) /
+      lin_rtol_max = opt->lin_rtol_adaptive_max;
+      prog_reduction = (exp (-it2/itp2) + eps/lin_rtol_max) /
                        (1.0 + eps/lin_rtol_max);
       RHEA_ASSERT (0.0 < prog_reduction && prog_reduction <= 1.0);
     }
