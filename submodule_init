@@ -39,7 +39,7 @@ done
 git submodule init
 
 # set user name in bitbucket URLs
-if [ ! -z ${bitbucket_user+x} ]; then # if variable is set
+if [ -n "${bitbucket_user:+SetNotNull}" ]; then # if variable is set and !null
   mangll_url="${URL_PREFIX}${bitbucket_user}@${URL_BASE_MANGLL}"
   ymir_url="${URL_PREFIX}${bitbucket_user}@${URL_BASE_YMIR}"
 
