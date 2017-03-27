@@ -309,6 +309,12 @@ collide_output_pressure(const char *filepath, ymir_vec_t *pressure)
   }
   prsfile = NULL;
 
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+  sc_dmatrix_destroy (elem);
+
   return 0;
 }
 
@@ -577,41 +583,40 @@ collide_normal_stress (ymir_cvec_t * vel, ymir_dvec_t * n_tau, ymir_dvec_t * s_t
   ymir_dvec_set_zero (n_tau);
   ymir_dvec_set_zero (s_tau);
 
-    for (elid = 0; elid < K; elid++)  {
+  for (elid = 0; elid < K; elid++)  {
+    double             *_sc_restrict rxd = mesh->drdx->e[elid];
+    double             *_sc_restrict sxd = mesh->dsdx->e[elid];
+    double             *_sc_restrict txd = mesh->dtdx->e[elid];
+    double             *_sc_restrict ryd = mesh->drdy->e[elid];
+    double             *_sc_restrict syd = mesh->dsdy->e[elid];
+    double             *_sc_restrict tyd = mesh->dtdy->e[elid];
+    double             *_sc_restrict rzd = mesh->drdz->e[elid];
+    double             *_sc_restrict szd = mesh->dsdz->e[elid];
+    double             *_sc_restrict tzd = mesh->dtdz->e[elid];
+    double             *_sc_restrict Jdetd = mesh->Jdet->e[elid];
 
-      double             *_sc_restrict rxd = mesh->drdx->e[elid];
-      double             *_sc_restrict sxd = mesh->dsdx->e[elid];
-      double             *_sc_restrict txd = mesh->dtdx->e[elid];
-      double             *_sc_restrict ryd = mesh->drdy->e[elid];
-      double             *_sc_restrict syd = mesh->dsdy->e[elid];
-      double             *_sc_restrict tyd = mesh->dtdy->e[elid];
-      double             *_sc_restrict rzd = mesh->drdz->e[elid];
-      double             *_sc_restrict szd = mesh->dsdz->e[elid];
-      double             *_sc_restrict tzd = mesh->dtdz->e[elid];
-      double             *_sc_restrict Jdetd = mesh->Jdet->e[elid];
+    ymir_cvec_get_elem_interp (vel, elemin, YMIR_STRIDE_NODE, elid,
+                               YMIR_GLL_NODE, YMIR_COPY);
+    ymir_dvec_get_elem_interp (visc, elemvisc, YMIR_STRIDE_COMP, elid,
+                              YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_WRITE);
+    ymir_dvec_get_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_WRITE);
 
-      ymir_cvec_get_elem_interp (vel, elemin, YMIR_STRIDE_NODE, elid,
-                                 YMIR_GLL_NODE, YMIR_COPY);
-      ymir_dvec_get_elem_interp (visc, elemvisc, YMIR_STRIDE_COMP, elid,
-                                YMIR_GAUSS_NODE, YMIR_READ);
-      ymir_dvec_get_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
-                               YMIR_GAUSS_NODE, YMIR_WRITE);
-      ymir_dvec_get_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
-                               YMIR_GAUSS_NODE, YMIR_WRITE);
+    collide_normal_stress_elem (elemin, elemout1, elemout2, elemout3, n_dir, elemvisc,
+                            vel_elem, rxd, sxd, txd, ryd,
+                            syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
 
-      collide_normal_stress_elem (elemin, elemout1, elemout2, elemout3, n_dir, elemvisc,
-                              vel_elem, rxd, sxd, txd, ryd,
-                              syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
-
-      ymir_dvec_set_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
+    ymir_dvec_set_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_SET);
+    ymir_dvec_set_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_SET);
+    ymir_dvec_set_elem_interp (traction, elemout3, YMIR_STRIDE_NODE, elid,
                                YMIR_GAUSS_NODE, YMIR_SET);
-      ymir_dvec_set_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
-                               YMIR_GAUSS_NODE, YMIR_SET);
-      ymir_dvec_set_elem_interp (traction, elemout3, YMIR_STRIDE_NODE, elid,
-                                 YMIR_GAUSS_NODE, YMIR_SET);
 
-      ymir_read_view_release (elemvisc);
-    }
+    ymir_read_view_release (elemvisc);
+  }
 
   sc_dmatrix_destroy (elemin);
   sc_dmatrix_destroy (elemout1);
@@ -1437,9 +1442,9 @@ main (int argc, char **argv)
 
     ymir_vec_t         *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
                                                      RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-    ymir_vec_t         *surf_tauII = ymir_face_dvec_new (ymir_mesh,
-                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1,
-                                                     YMIR_GAUSS_NODE);
+    //ymir_vec_t         *surf_tauII = ymir_face_dvec_new (ymir_mesh,
+    //                                                 RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1,
+//                                                     YMIR_GAUSS_NODE);
     ymir_vec_t         *vert_n_tau = ymir_dvec_new (ymir_mesh, 1,
                                                      YMIR_GAUSS_NODE);
     ymir_vec_t         *vert_s_tau = ymir_dvec_new (ymir_mesh, 1,
@@ -1459,7 +1464,6 @@ main (int argc, char **argv)
 
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                              viscosity);
-
     collide_output_pressure (vtk_write_solution_path, pressure);
 
     /* compute 2nd invariant of the strain rate */
@@ -1468,7 +1472,7 @@ main (int argc, char **argv)
 
     /* compute 2nd invariant of deviatoric stress tau = 2* (2nd invariant of strain_rate * viscosity )
       and its projection on the surface */
-    ymir_vec_copy (edotII,tauII)
+    ymir_vec_copy (edotII, tauII)
     ymir_vec_multiply_in (viscosity, tauII);
     ymir_vec_scale (2.0, tauII);
 //    ymir_interp_vec (tauII, surf_tauII);
@@ -1487,7 +1491,6 @@ main (int argc, char **argv)
 //    collide_transform_to_dimensional_viscosity (viscosity);
 //    collide_transform_to_dimensional_stress (surf_normal_stress);
 
-
     double vert_n_dir[3] = {0.0, 0.0, 1.0};
     collide_normal_stress (velocity, vert_n_tau, vert_s_tau, vert_traction, vert_n_dir,
                             viscosity, vel_elem);
@@ -1495,7 +1498,7 @@ main (int argc, char **argv)
     collide_normal_stress (velocity, hori_n_tau, hori_s_tau, hori_traction, hori_n_dir,
                             viscosity, vel_elem);
 
-    if (edotII != NULL) {
+    {
       char            path[BUFSIZ];
 
       snprintf (path, BUFSIZ, "%s_stress", vtk_write_solution_path);
@@ -1523,9 +1526,6 @@ main (int argc, char **argv)
     ymir_vec_destroy (hori_n_tau);
     ymir_vec_destroy (hori_s_tau);
 //    ymir_vec_destroy (surf_tauII);
-    ymir_vec_destroy (surf_normal_stress);
-
-    ymir_vec_destroy (surf_tauII);
     ymir_vec_destroy (surf_normal_stress);
     ymir_velocity_elem_destroy (vel_elem);
     rhea_velocity_destroy (velocity);
