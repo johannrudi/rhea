@@ -550,6 +550,7 @@ rhea_discretization_mangll_and_cnodes_new (mangll_t **mangll,
 {
   MPI_Comm            mpicomm = p4est->mpicomm;
   const int           order = opt->order;
+  const mangll_refel_quadrature_type_t  quad_type = MANGLL_REFEL_QUAD_GAUSS;
 
   p4est_ghost_t      *ghost;
   mangll_mesh_t      *mangll_mesh;
@@ -575,11 +576,11 @@ rhea_discretization_mangll_and_cnodes_new (mangll_t **mangll,
     *cnodes = mangll_p8est_cnodes_new (p4est, ghost, order);
 
     /* create mangll structure with continuous geometry */
-    *mangll = mangll_new_continuous (mpicomm, order, mangll_mesh, *cnodes);
+    *mangll = mangll_new_ext (mpicomm, order, quad_type, mangll_mesh, *cnodes);
   }
   else {
     /* create mangll structure with discontinuous geometry */
-    *mangll = mangll_new (mpicomm, order, mangll_mesh, NULL);
+    *mangll = mangll_new_ext (mpicomm, order, quad_type, mangll_mesh, NULL);
   }
 
   /* destroy ghost */
