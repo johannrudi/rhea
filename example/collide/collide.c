@@ -1805,7 +1805,8 @@ collide_test_write_vtk_vel (ymir_vec_t *vel_in, ymir_vec_t *vel_ref,
                   vel_error, "vel_error_mass",
                   vel_ref_nomass, "vel_ref_nomass",
                   vel_chk_nomass, "vel_chk_nomass",
-                  vel_error_nomass, "vel_error_nomass", NULL);
+                  vel_error_nomass, "vel_error_nomass",
+                  mass_lump, "mass_lump", NULL);
 
   /* destroy */
   ymir_vec_destroy (mass_lump);
@@ -1831,13 +1832,24 @@ collide_test_TI_sincos_iso_vel_in_fn (double * vel, double x, double y,
 }
 
 static void
+collide_test_TI_sincos_iso_vel_out_fn (double * vel, double x, double y,
+                                      double z, ymir_locidx_t nodeid,
+                                      void *data)
+{
+  vel[0] = 0.0;
+  vel[1] = +10.0 * M_PI*M_PI * sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = -10.0 * M_PI*M_PI * cos (M_PI * y) * sin (M_PI * z);
+}
+
+
+static void
 collide_test_TI_sincos_aniso_vel_in_fn (double * vel, double x, double y,
                                         double z, ymir_locidx_t nodeid,
                                         void *data)
 {
   vel[0] = 0.0;
-  vel[1] = sin (y) * cos (z);
-  vel[2] = cos (y) * sin (z);
+  vel[1] = sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = cos (M_PI * y) * sin (M_PI * z);
 }
 
 static void
@@ -1846,8 +1858,8 @@ collide_test_TI_sincos_aniso_vel_out_fn (double * vel, double x, double y,
                                          void *data)
 {
   vel[0] = 0.0;
-  vel[1] = 12.0 * sin (y) * cos (z);
-  vel[2] = 12.0 * cos (y) * sin (z);
+  vel[1] = 12.0 * M_PI * M_PI * sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = 12.0 * M_PI * M_PI * cos (M_PI * y) * sin (M_PI * z);
 }
 
 static void
@@ -1895,6 +1907,7 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
   /* compute velocity fields */
   switch (test_type) {
   case COLLIDE_TEST_TI_STRESS_OP_SINCOS_ISO:
+#if 0
     ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_in_fn,
                             NULL);
     stress_op->skip_dir = 1;
@@ -1902,12 +1915,24 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
     /* compute reference velocity field
      * Note that isotropic & anisotropic stress operators give same output. */
     ymir_stress_op_coeff_set_TI_tensor (stress_op, NULL, NULL);
+    RHEA_ASSERT (!ymir_stress_op_is_TI (stress_op));
     ymir_stress_pc_apply_stress_op (vel_in, vel_ref, stress_op, stress_op_nl,
                                     stress_op_dirty);
     ymir_stress_op_coeff_set_TI_tensor (stress_op, coeff_TI_svisc,
                                         coeff_TI_tensor);
+#else
+    ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_out_fn,
+                            NULL);
+    ymir_mass_apply (vel_in, vel_ref);
+
+    ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_in_fn,
+                            NULL);
+    stress_op->skip_dir = 1;
+//    ymir_stress_op_coeff_set_TI_tensor (stress_op, NULL, NULL);
+#endif
 
     /* compute velocity field that will be checked */
+//    RHEA_ASSERT (ymir_stress_op_is_TI (stress_op));
     ymir_stress_pc_apply_stress_op (vel_in, vel_chk, stress_op, stress_op_nl,
                                     stress_op_dirty);
     stress_op->skip_dir = stress_op_skip_dir;
