@@ -47,14 +47,14 @@
 }
 
 {
-  malloc/.../mangll_setup_refence_element/mangll_new_continuous
+  malloc/.../mangll_setup_refence_element/mangll_new_ext
   Memcheck:Leak
   fun:malloc
   ...
   fun:mangll_jacobigq
   fun:mangll_reference_element_new
   fun:mangll_setup_refence_element
-  fun:mangll_new_continuous
+  fun:mangll_new_ext
 }
 
 {

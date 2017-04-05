@@ -981,6 +981,7 @@ slabs_discr_mangll_and_cnodes_new (mangll_t **mangll,
 {
   MPI_Comm            mpicomm = p8est->mpicomm;
   const int           order = discr_options->order;
+  const mangll_refel_quadrature_type_t  quad_type = MANGLL_REFEL_QUAD_GAUSS;
 
   p8est_ghost_t      *ghost;
   mangll_mesh_t      *mangll_mesh;
@@ -1006,11 +1007,11 @@ slabs_discr_mangll_and_cnodes_new (mangll_t **mangll,
     *cnodes = mangll_p8est_cnodes_new (p8est, ghost, discr_options->order);
 
     /* create mangll structure with continuous geometry */
-    *mangll = mangll_new_continuous (mpicomm, order, mangll_mesh, *cnodes);
+    *mangll = mangll_new_ext (mpicomm, order, quad_type, mangll_mesh, *cnodes);
   }
   else {
     /* create mangll structure with discontinuous geometry */
-    *mangll = mangll_new (mpicomm, order, mangll_mesh, NULL);
+    *mangll = mangll_new_ext (mpicomm, order, quad_type, mangll_mesh, NULL);
   }
 
   /* destroy ghost */
@@ -1027,6 +1028,7 @@ slabs_discr_mangll_for_interp_new (mangll_t **mangll,
 {
   MPI_Comm            mpicomm = p8est->mpicomm;
   const int           order = discr_options->order;
+  const mangll_refel_quadrature_type_t  quad_type = MANGLL_REFEL_QUAD_GAUSS;
 
   mangll_mesh_t      *mangll_mesh;
 
@@ -1034,7 +1036,8 @@ slabs_discr_mangll_for_interp_new (mangll_t **mangll,
   mangll_mesh = mangll_p8est_mesh_new_partial (p8est);
 
   /* create mangll structure with discontinuous geometry */
-  *mangll = mangll_for_interpolation_new (mpicomm, order, mangll_mesh);
+  *mangll = mangll_for_interpolation_new (mpicomm, order, quad_type,
+                                          mangll_mesh);
 }
 
 /**
