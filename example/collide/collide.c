@@ -19,7 +19,6 @@
 #include <ymir_stress_op.h>
 #include <ymir_pressure_vec.h>
 
-
 /* basic constants */
 #define COLLIDE_SEC_PER_YEAR (31557600.0)    /* seconds in a year (365.25*24*3600) */
 #define COLLIDE_EARTH_RADIUS (6371.0e3)      /* mean radius of the Earth [m]       */
@@ -28,16 +27,7 @@
 #define COLLIDE_TEMP_DIFF (1400.0)           /* temperature difference [K]         */
 #define COLLIDE_VISC_REP (1.0e20)            /* representative viscosity [Pa s]    */
 
-
 /* enumerator for domain shapes */
-typedef enum
-{
-  COLLIDE_VEL_DIR_BC_WALLSLIDE,
-  COLLIDE_VEL_DIR_BC_INOUTFLOW_SIN,
-  COLLIDE_VEL_DIR_BC_INOUTFLOW_TANH
-}
-collide_vel_dir_bc_t;
-
 typedef enum
 {
   COLLIDE_X_FUNCTION_IDENTITY,
@@ -47,6 +37,32 @@ typedef enum
 }
 collide_x_func_t;
 
+/* enumerator for boundary conditions */
+typedef enum
+{
+  COLLIDE_VEL_DIR_BC_WALLSLIDE,
+  COLLIDE_VEL_DIR_BC_INOUTFLOW_SIN,
+  COLLIDE_VEL_DIR_BC_INOUTFLOW_TANH
+}
+collide_vel_dir_bc_t;
+
+/* enumerator for viscosity types */
+typedef enum
+{
+  COLLIDE_VISC_ISOTROPY,
+  COLLIDE_VISC_TRANSVERSELY_ISOTROPY
+}
+collide_viscosity_anisotropy_t;
+
+/* enumerator for tests */
+typedef enum
+{
+  COLLIDE_TEST_TI_STRESS_OP_NONE = 0,
+  COLLIDE_TEST_TI_STRESS_OP_SINCOS_ISO,
+  COLLIDE_TEST_TI_STRESS_OP_SINCOS_ANISO
+}
+collide_test_TI_stress_op_t;
+
 /* options of collide example */
 typedef struct collide_options
 {
@@ -55,20 +71,30 @@ typedef struct collide_options
   double              wallslide_vel;
   double              flow_scale;
 
+  collide_viscosity_anisotropy_t  viscosity_anisotropy;
   double              viscosity_loc_upper;
   double              viscosity_loc_lower;
   double              viscosity_loc_left;
   double              viscosity_loc_right;
   double              viscosity_width;
   double              viscosity_factor;
+  double              viscosity_TI_shear;
   double              viscosity_lith;
   double              viscosity_mantle;
+
+  collide_test_TI_stress_op_t  test_TI_stress_op;
 }
 collide_options_t;
 
-/**
- * Geometry transformation.
- */
+/* declare the test functions (implemented after main function) */
+static void         collide_test_TI_stress_op (
+                                        rhea_stokes_problem_t *stokes_problem,
+                                        collide_options_t *collide_options,
+                                        const char *vtk_path);
+
+/**************************************
+ * Geometry Transformations
+ *************************************/
 
 static void
 collide_X_fn_identity (mangll_tag_t tag, mangll_locidx_t np,
@@ -152,6 +178,10 @@ collide_X_fn_profile (mangll_tag_t tag, mangll_locidx_t np,
   }
 }
 
+/**************************************
+ * Viscosity Computation
+ *************************************/
+
 static void
 collide_viscosity_elem (double *_sc_restrict visc_elem,
                         const double *_sc_restrict x,
@@ -234,8 +264,102 @@ collide_viscosity_compute (ymir_vec_t *viscosity,
   RHEA_FREE (tmp_el);
 }
 
+static void
+collide_viscosity_TI_elem (double *_sc_restrict TI_svisc_elem,
+                           double *_sc_restrict TI_rotate_elem,
+                           const double *_sc_restrict x,
+                           const double *_sc_restrict y,
+                           const double *_sc_restrict z,
+                           const double *_sc_restrict visc_elem,
+                           const int n_nodes_per_el,
+                           collide_options_t *collide_options)
+{
+  const double        zU = collide_options->viscosity_loc_upper;
+  const double        zL = collide_options->viscosity_loc_lower;
+  const double        yL = collide_options->viscosity_loc_left;
+  const double        yR = collide_options->viscosity_loc_right;
+  const double        tmp = zU*yR - zL*yL;
+  const double        rot = atan2 ((zU-zL), (yR-yL));
+  int                 nodeid;
+
+  for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+    /* set shear viscosity and rotation angle */
+    if ( z[nodeid] >= zL && z[nodeid] <= zU &&
+         fabs( (zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - tmp )
+         <= (zU-zL)*collide_options->viscosity_width ) {
+      TI_svisc_elem[nodeid] = collide_options->viscosity_TI_shear;
+      TI_rotate_elem[nodeid] = rot;
+    }
+    else {
+      TI_svisc_elem[nodeid] = visc_elem[nodeid];
+      TI_rotate_elem[nodeid] = 0.0;
+    }
+
+    /* check shear viscosity for `nan`, `inf`, and positivity */
+    RHEA_ASSERT (isfinite (TI_svisc_elem[nodeid]));
+    RHEA_ASSERT (0.0 < TI_svisc_elem[nodeid]);
+    /* check rotation angle for `nan`, `inf` */
+    RHEA_ASSERT (isfinite (TI_rotate_elem[nodeid]));
+  }
+}
+
+/**
+ * Computes shear viscosity and rotation angle.
+ */
+static void
+collide_viscosity_TI_compute (ymir_vec_t *TI_svisc,
+                              ymir_vec_t *TI_rotate,
+                              ymir_vec_t *viscosity,
+                              collide_options_t *collide_options)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (viscosity);
+  const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  sc_dmatrix_t       *visc_el_mat, *svisc_el_mat, *rotate_el_mat;
+  double             *visc_el_data, *svisc_el_data, *rotate_el_data;
+  double             *x, *y, *z, *tmp_el;
+  ymir_locidx_t       elid;
+
+  /* create work variables */
+  visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  svisc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  svisc_el_data = svisc_el_mat->e[0];
+  rotate_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  rotate_el_data = rotate_el_mat->e[0];
+  x = RHEA_ALLOC (double, n_nodes_per_el);
+  y = RHEA_ALLOC (double, n_nodes_per_el);
+  z = RHEA_ALLOC (double, n_nodes_per_el);
+  tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
+
+  /* compute shear viscosity and rotation angle */
+  for (elid = 0; elid < n_elements; elid++) {
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
+    visc_el_data = rhea_viscosity_get_elem_gauss (visc_el_mat, viscosity, elid);
+
+    collide_viscosity_TI_elem (svisc_el_data, rotate_el_data, x, y, z,
+                               visc_el_data, n_nodes_per_el, collide_options);
+
+    rhea_viscosity_set_elem_gauss (TI_svisc, svisc_el_mat, elid);
+    rhea_viscosity_set_elem_gauss (TI_rotate, rotate_el_mat, elid);
+  }
+
+  /* destroy */
+  sc_dmatrix_destroy (visc_el_mat);
+  sc_dmatrix_destroy (svisc_el_mat);
+  sc_dmatrix_destroy (rotate_el_mat);
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+}
+
+/**************************************
+ * Output Functions
+ *************************************/
+
 static int
-collide_output_pressure(const char *filepath, ymir_vec_t *pressure)
+collide_output_pressure (const char *filepath, ymir_vec_t *pressure)
 {
   const char *this_fn_name = "collide_output_pressure";
 
@@ -308,6 +432,12 @@ collide_output_pressure(const char *filepath, ymir_vec_t *pressure)
     return -1;
   }
   prsfile = NULL;
+
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+  sc_dmatrix_destroy (elem);
 
   return 0;
 }
@@ -577,41 +707,40 @@ collide_normal_stress (ymir_cvec_t * vel, ymir_dvec_t * n_tau, ymir_dvec_t * s_t
   ymir_dvec_set_zero (n_tau);
   ymir_dvec_set_zero (s_tau);
 
-    for (elid = 0; elid < K; elid++)  {
+  for (elid = 0; elid < K; elid++)  {
+    double             *_sc_restrict rxd = mesh->drdx->e[elid];
+    double             *_sc_restrict sxd = mesh->dsdx->e[elid];
+    double             *_sc_restrict txd = mesh->dtdx->e[elid];
+    double             *_sc_restrict ryd = mesh->drdy->e[elid];
+    double             *_sc_restrict syd = mesh->dsdy->e[elid];
+    double             *_sc_restrict tyd = mesh->dtdy->e[elid];
+    double             *_sc_restrict rzd = mesh->drdz->e[elid];
+    double             *_sc_restrict szd = mesh->dsdz->e[elid];
+    double             *_sc_restrict tzd = mesh->dtdz->e[elid];
+    double             *_sc_restrict Jdetd = mesh->Jdet->e[elid];
 
-      double             *_sc_restrict rxd = mesh->drdx->e[elid];
-      double             *_sc_restrict sxd = mesh->dsdx->e[elid];
-      double             *_sc_restrict txd = mesh->dtdx->e[elid];
-      double             *_sc_restrict ryd = mesh->drdy->e[elid];
-      double             *_sc_restrict syd = mesh->dsdy->e[elid];
-      double             *_sc_restrict tyd = mesh->dtdy->e[elid];
-      double             *_sc_restrict rzd = mesh->drdz->e[elid];
-      double             *_sc_restrict szd = mesh->dsdz->e[elid];
-      double             *_sc_restrict tzd = mesh->dtdz->e[elid];
-      double             *_sc_restrict Jdetd = mesh->Jdet->e[elid];
+    ymir_cvec_get_elem_interp (vel, elemin, YMIR_STRIDE_NODE, elid,
+                               YMIR_GLL_NODE, YMIR_COPY);
+    ymir_dvec_get_elem_interp (visc, elemvisc, YMIR_STRIDE_COMP, elid,
+                              YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_WRITE);
+    ymir_dvec_get_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_WRITE);
 
-      ymir_cvec_get_elem_interp (vel, elemin, YMIR_STRIDE_NODE, elid,
-                                 YMIR_GLL_NODE, YMIR_COPY);
-      ymir_dvec_get_elem_interp (visc, elemvisc, YMIR_STRIDE_COMP, elid,
-                                YMIR_GAUSS_NODE, YMIR_READ);
-      ymir_dvec_get_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
-                               YMIR_GAUSS_NODE, YMIR_WRITE);
-      ymir_dvec_get_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
-                               YMIR_GAUSS_NODE, YMIR_WRITE);
+    collide_normal_stress_elem (elemin, elemout1, elemout2, elemout3, n_dir, elemvisc,
+                            vel_elem, rxd, sxd, txd, ryd,
+                            syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
 
-      collide_normal_stress_elem (elemin, elemout1, elemout2, elemout3, n_dir, elemvisc,
-                              vel_elem, rxd, sxd, txd, ryd,
-                              syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
-
-      ymir_dvec_set_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
+    ymir_dvec_set_elem_interp (n_tau, elemout1, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_SET);
+    ymir_dvec_set_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
+                             YMIR_GAUSS_NODE, YMIR_SET);
+    ymir_dvec_set_elem_interp (traction, elemout3, YMIR_STRIDE_NODE, elid,
                                YMIR_GAUSS_NODE, YMIR_SET);
-      ymir_dvec_set_elem_interp (s_tau, elemout2, YMIR_STRIDE_COMP, elid,
-                               YMIR_GAUSS_NODE, YMIR_SET);
-      ymir_dvec_set_elem_interp (traction, elemout3, YMIR_STRIDE_NODE, elid,
-                                 YMIR_GAUSS_NODE, YMIR_SET);
 
-      ymir_read_view_release (elemvisc);
-    }
+    ymir_read_view_release (elemvisc);
+  }
 
   sc_dmatrix_destroy (elemin);
   sc_dmatrix_destroy (elemout1);
@@ -938,18 +1067,23 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
   }
 }
 
-/* write vtk of input data */
-collide_write_input ( ymir_mesh_t *ymir_mesh,
-                      ymir_vec_t *temperature,
-                      ymir_vec_t *weakzone,
-                      rhea_stokes_problem_t *stokes_problem_lin,
-                      rhea_temperature_options_t *temp_options,
-                      const char *vtk_write_input_path)
+/**
+ * Write vtk of input data.
+ */
+collide_write_input (ymir_mesh_t *ymir_mesh,
+                     ymir_vec_t *temperature,
+                     ymir_vec_t *weakzone,
+                     ymir_vec_t *visc_TI_svisc,
+                     ymir_vec_t *visc_TI_rotate,
+                     rhea_stokes_problem_t *stokes_problem_lin,
+                     rhea_temperature_options_t *temp_options,
+                     const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "collide_write_input";
   ymir_vec_t         *background_temp = rhea_temperature_new (ymir_mesh);
   ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
   ymir_vec_t         *rhs_vel;
+  char                path[BUFSIZ];
 
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_lin);
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem_lin);
@@ -960,21 +1094,27 @@ collide_write_input ( ymir_mesh_t *ymir_mesh,
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
                              background_temp, weakzone, viscosity, NULL,
                              rhs_vel);
+
+  if (visc_TI_svisc != NULL && visc_TI_rotate != NULL) {
+    snprintf (path, BUFSIZ, "%s_anisotropic_viscosity", vtk_write_input_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    visc_TI_svisc, "shear_viscosity",
+                    visc_TI_rotate, "rotation_angle", NULL);
+  }
+
 /*
   if (rhs_vel_nonzero_dirichlet != NULL) {
-    char            path[bufsiz];
-
-    snprintf (path, bufsiz, "%s_vel_nonzero_dirichlet", vtk_write_input_path);
+    snprintf (path, BUFSIZ, "%s_vel_nonzero_dirichlet", vtk_write_input_path);
     ymir_vtk_write (ymir_mesh, path, rhs_vel_nonzero_dirichlet,
                     "vel_nonzero_dirichlet", NULL);
   }
 */
+
   rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
-
 
 /**
  * Sets up a linear Stokes problem.
@@ -991,6 +1131,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 {
   const char         *this_fn_name = "collide_setup_stokes";
   ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *coeff_TI_svisc, *TI_rotate = NULL;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
   void               *solver_options = NULL;
 
@@ -1052,23 +1193,58 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
     rhs_vel_nonzero_dirichlet = NULL;
   }
 
-  /* create stokes problem */
+  /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
       ymir_mesh, press_elem, domain_options, visc_options, solver_options);
+
+  /* add the anisotropic viscosity to the viscous stress operator */
+  if (collide_options->viscosity_anisotropy == COLLIDE_VISC_TRANSVERSELY_ISOTROPY) {
+    ymir_stokes_op_t   *stokes_op;
+    ymir_stress_op_t   *stress_op;
+    ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+
+    /* get the viscous stress operator */
+    stokes_op = rhea_stokes_problem_get_stokes_op (*stokes_problem);
+    stress_op = stokes_op->stress_op;
+
+    /* copy viscosity */
+    rhea_stokes_problem_copy_viscosity (viscosity, *stokes_problem);
+
+    /* compute the shear viscosity and rotation angles */
+    coeff_TI_svisc = rhea_viscosity_new (ymir_mesh);
+    TI_rotate = rhea_viscosity_new (ymir_mesh);
+    collide_viscosity_TI_compute (coeff_TI_svisc, TI_rotate,
+                                  viscosity, collide_options);
+    ymir_vec_scale (2.0, coeff_TI_svisc);
+
+    /* update viscous stress operator providing the anisotropic viscosity */
+    ymir_stress_op_coeff_compute_TI_tensor (stress_op, coeff_TI_svisc,
+                                            TI_rotate);
+    /* destroy */
+    rhea_viscosity_destroy (viscosity);
+  }
+
+  /* write vtk of problem input */
+  if (vtk_write_input_path != NULL) {
+    collide_write_input (ymir_mesh, temperature, weakzone, coeff_TI_svisc,
+                         TI_rotate, *stokes_problem, temp_options,
+                         vtk_write_input_path);
+  }
+
+  /* set up Stokes solver */
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
-  if (vtk_write_input_path != NULL)
-    collide_write_input (ymir_mesh, temperature, weakzone,
-                        *stokes_problem, temp_options, vtk_write_input_path);
+  /* destroy */
+  if (TI_rotate != NULL) {
+    rhea_viscosity_destroy (TI_rotate);
+  }
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
-
-
 /**
- * cleans up stokes problem and mesh.
+ * Cleans up Stokes problem and mesh.
  */
 static void
 collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
@@ -1079,6 +1255,7 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
 {
   const char         *this_fn_name = "collide_setup_clear_all";
   ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *visc_TI_svisc;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
 
   RHEA_GLOBAL_PRODUCTIONF ("into %s\n", this_fn_name);
@@ -1089,6 +1266,19 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
   rhs_vel_nonzero_dirichlet =
     rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
+
+  /* destroy anisotropic viscosity */
+  {
+    ymir_stokes_op_t    *stokes_op;
+    ymir_vec_t          *visc_TI_svisc;
+
+    stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
+    visc_TI_svisc = stokes_op->stress_op->coeff_TI_svisc;
+
+    if (visc_TI_svisc != NULL) {
+      rhea_viscosity_destroy (visc_TI_svisc);
+    }
+  }
 
   /* destroy Stokes problem */
   rhea_stokes_problem_destroy (stokes_problem);
@@ -1222,22 +1412,25 @@ main (int argc, char **argv)
   double              wallslide_vel;
   double              flow_scale;
   int                 x_func;
+  int                 viscosity_anisotropy;
   double              viscosity_loc_upper;
   double              viscosity_loc_lower;
   double              viscosity_loc_left;
   double              viscosity_loc_right;
   double              viscosity_width;
   double              viscosity_factor;
+  double              viscosity_TI_shear;
   double              viscosity_lith;
   double              viscosity_mantle;
+  int                 test_TI_stress_op;
   collide_options_t   collide_options;
-
   /* options local to this function */
   int                 production_run;
   int                 solver_iter_max;
   double              solver_rel_tol;
   char               *vtk_write_input_path;
   char               *vtk_write_solution_path;
+  char               *vtk_write_test_path;
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -1296,6 +1489,9 @@ main (int argc, char **argv)
     "boundary location: surface topography",
 
   /* viscosity */
+  YMIR_OPTIONS_I, "viscosity-anisotropy",'\0',
+    &(viscosity_anisotropy), COLLIDE_VISC_ISOTROPY,
+    "0: isotropy, 1: transversely isotropy",
   YMIR_OPTIONS_D, "viscosity-location-upper",'\0',
     &(viscosity_loc_upper), 0.9,
     "user defined weakzone: upper bound",
@@ -1314,6 +1510,9 @@ main (int argc, char **argv)
   YMIR_OPTIONS_D, "viscosity-factor",'\0',
     &(viscosity_factor), 0.01,
     "user defined weakzone: weakzone factor",
+  YMIR_OPTIONS_D, "viscosity-TI-shear",'\0',
+    &(viscosity_TI_shear), 10.0,
+    "user defined weakzone: weakzone factor",
   YMIR_OPTIONS_D, "viscosity-lith",'\0',
     &(viscosity_lith), 0.1,
     "user defined weakzone: lithosphere factor",
@@ -1329,6 +1528,11 @@ main (int argc, char **argv)
     &solver_rel_tol, 1.0e-6,
     "Relative tolerance for Stokes solver",
 
+  /* tests */
+  YMIR_OPTIONS_I, "test-TI-stress-op", '\0',
+    &(test_TI_stress_op), COLLIDE_TEST_TI_STRESS_OP_NONE,
+    "Runs test of anisotropic viscosity for the viscous stress operator",
+
   /* performance & monitoring options */
   YMIR_OPTIONS_B, "production-run", '\0',
     &(production_run), 0,
@@ -1341,6 +1545,9 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
     &(vtk_write_solution_path), NULL,
     "File path for vtk files for the solution of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-test-path", '\0',
+    &(vtk_write_test_path), NULL,
+    "File path for vtk files for test results",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -1371,14 +1578,19 @@ main (int argc, char **argv)
 
   collide_options.x_func = (collide_x_func_t) x_func;
 
+  collide_options.viscosity_anisotropy = (collide_viscosity_anisotropy_t) viscosity_anisotropy;
   collide_options.viscosity_loc_upper = viscosity_loc_upper;
   collide_options.viscosity_loc_lower = viscosity_loc_lower;
   collide_options.viscosity_loc_left = viscosity_loc_left;
   collide_options.viscosity_loc_right = viscosity_loc_right;
   collide_options.viscosity_width = viscosity_width;
   collide_options.viscosity_factor = viscosity_factor;
+  collide_options.viscosity_TI_shear = viscosity_TI_shear;
   collide_options.viscosity_lith = viscosity_lith;
   collide_options.viscosity_mantle = viscosity_mantle;
+
+  collide_options.test_TI_stress_op =
+    (collide_test_TI_stress_op_t) test_TI_stress_op;
 
   /*
    * Initialize Main Program
@@ -1412,6 +1624,18 @@ main (int argc, char **argv)
                         &collide_options, vtk_write_input_path);
 
   /*
+   * Run Tests
+   */
+
+  if (collide_options.test_TI_stress_op != COLLIDE_TEST_TI_STRESS_OP_NONE) {
+    char            path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_stress_op", vtk_write_test_path);
+    collide_test_TI_stress_op (stokes_problem, &collide_options,
+                               (vtk_write_test_path != NULL ? path : NULL));
+  }
+
+  /*
    * Solve Stokes Problem
    */
 
@@ -1437,9 +1661,9 @@ main (int argc, char **argv)
 
     ymir_vec_t         *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
                                                      RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-    ymir_vec_t         *surf_tauII = ymir_face_dvec_new (ymir_mesh,
-                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1,
-                                                     YMIR_GAUSS_NODE);
+    //ymir_vec_t         *surf_tauII = ymir_face_dvec_new (ymir_mesh,
+    //                                                 RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1,
+//                                                     YMIR_GAUSS_NODE);
     ymir_vec_t         *vert_n_tau = ymir_dvec_new (ymir_mesh, 1,
                                                      YMIR_GAUSS_NODE);
     ymir_vec_t         *vert_s_tau = ymir_dvec_new (ymir_mesh, 1,
@@ -1459,7 +1683,6 @@ main (int argc, char **argv)
 
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                              viscosity);
-
     collide_output_pressure (vtk_write_solution_path, pressure);
 
     /* compute 2nd invariant of the strain rate */
@@ -1468,7 +1691,7 @@ main (int argc, char **argv)
 
     /* compute 2nd invariant of deviatoric stress tau = 2* (2nd invariant of strain_rate * viscosity )
       and its projection on the surface */
-    ymir_vec_copy (edotII,tauII)
+    ymir_vec_copy (edotII, tauII)
     ymir_vec_multiply_in (viscosity, tauII);
     ymir_vec_scale (2.0, tauII);
 //    ymir_interp_vec (tauII, surf_tauII);
@@ -1487,7 +1710,6 @@ main (int argc, char **argv)
 //    collide_transform_to_dimensional_viscosity (viscosity);
 //    collide_transform_to_dimensional_stress (surf_normal_stress);
 
-
     double vert_n_dir[3] = {0.0, 0.0, 1.0};
     collide_normal_stress (velocity, vert_n_tau, vert_s_tau, vert_traction, vert_n_dir,
                             viscosity, vel_elem);
@@ -1495,7 +1717,7 @@ main (int argc, char **argv)
     collide_normal_stress (velocity, hori_n_tau, hori_s_tau, hori_traction, hori_n_dir,
                             viscosity, vel_elem);
 
-    if (edotII != NULL) {
+    {
       char            path[BUFSIZ];
 
       snprintf (path, BUFSIZ, "%s_stress", vtk_write_solution_path);
@@ -1524,9 +1746,6 @@ main (int argc, char **argv)
     ymir_vec_destroy (hori_s_tau);
 //    ymir_vec_destroy (surf_tauII);
     ymir_vec_destroy (surf_normal_stress);
-
-    ymir_vec_destroy (surf_tauII);
-    ymir_vec_destroy (surf_normal_stress);
     ymir_velocity_elem_destroy (vel_elem);
     rhea_velocity_destroy (velocity);
     rhea_pressure_destroy (pressure);
@@ -1554,4 +1773,207 @@ main (int argc, char **argv)
   rhea_finalize ();
 
   return 0;
+}
+
+/******************************************************************************
+ * Tests
+ *****************************************************************************/
+
+static void
+collide_test_write_vtk_vel (ymir_vec_t *vel_in, ymir_vec_t *vel_ref,
+                            ymir_vec_t *vel_chk, ymir_vec_t *vel_error,
+                            const char *vtk_path)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_ref);
+  ymir_vec_t         *mass_lump = ymir_cvec_new (ymir_mesh, 1);
+  ymir_vec_t         *vel_ref_nomass = ymir_vec_clone (vel_ref);
+  ymir_vec_t         *vel_chk_nomass = ymir_vec_clone (vel_chk);
+  ymir_vec_t         *vel_error_nomass = ymir_vec_clone (vel_error);
+
+  /* invert mass matrix approximately */
+  ymir_mass_lump (mass_lump);
+  ymir_vec_fabs (mass_lump, mass_lump);
+  ymir_vec_divide_in1 (mass_lump, vel_ref_nomass);
+  ymir_vec_divide_in1 (mass_lump, vel_chk_nomass);
+  ymir_vec_divide_in1 (mass_lump, vel_error_nomass);
+
+  /* write vtk */
+  ymir_vtk_write (ymir_mesh, vtk_path,
+                  vel_in, "vel_in",
+                  vel_ref, "vel_ref_mass",
+                  vel_chk, "vel_chk_mass",
+                  vel_error, "vel_error_mass",
+                  vel_ref_nomass, "vel_ref_nomass",
+                  vel_chk_nomass, "vel_chk_nomass",
+                  vel_error_nomass, "vel_error_nomass",
+                  mass_lump, "mass_lump", NULL);
+
+  /* destroy */
+  ymir_vec_destroy (mass_lump);
+  rhea_velocity_destroy (vel_ref_nomass);
+  rhea_velocity_destroy (vel_chk_nomass);
+  rhea_velocity_destroy (vel_error_nomass);
+}
+
+static void
+collide_test_TI_sincos_iso_vel_in_fn (double * vel, double x, double y,
+                                      double z, ymir_locidx_t nodeid,
+                                      void *data)
+{
+  vel[0] = 0.0;
+  vel[1] = + sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = - cos (M_PI * y) * sin (M_PI * z);
+
+  /* Note: The velocity field after applying the stress operator is
+   *   vel[0] = 0.0;
+   *   vel[1] = +10.0 * M_PI*M_PI * sin (M_PI * y) * cos (M_PI * z);
+   *   vel[2] = -10.0 * M_PI*M_PI * cos (M_PI * y) * sin (M_PI * z);
+   */
+}
+
+static void
+collide_test_TI_sincos_iso_vel_out_fn (double * vel, double x, double y,
+                                      double z, ymir_locidx_t nodeid,
+                                      void *data)
+{
+  vel[0] = 0.0;
+  vel[1] = +10.0 * M_PI*M_PI * sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = -10.0 * M_PI*M_PI * cos (M_PI * y) * sin (M_PI * z);
+}
+
+
+static void
+collide_test_TI_sincos_aniso_vel_in_fn (double * vel, double x, double y,
+                                        double z, ymir_locidx_t nodeid,
+                                        void *data)
+{
+  vel[0] = 0.0;
+  vel[1] = sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = cos (M_PI * y) * sin (M_PI * z);
+}
+
+static void
+collide_test_TI_sincos_aniso_vel_out_fn (double * vel, double x, double y,
+                                         double z, ymir_locidx_t nodeid,
+                                         void *data)
+{
+  vel[0] = 0.0;
+  vel[1] = 12.0 * M_PI * M_PI * sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = 12.0 * M_PI * M_PI * cos (M_PI * y) * sin (M_PI * z);
+}
+
+static void
+collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
+                           collide_options_t *collide_options,
+                           const char *vtk_path)
+{
+  const char         *this_fn_name = "collide_test_TI_stress_op";
+  const collide_test_TI_stress_op_t
+    test_type = collide_options->test_TI_stress_op;
+  const int           stress_op_nl = 0;
+  const int           stress_op_dirty = 0;
+  ymir_mesh_t        *ymir_mesh;
+  ymir_stokes_op_t   *stokes_op;
+  ymir_stress_op_t   *stress_op;
+  int                 stress_op_skip_dir;
+  ymir_vec_t         *coeff_TI_svisc, *coeff_TI_tensor;
+  ymir_vec_t         *vel_in, *vel_ref, *vel_chk;
+  ymir_vec_t         *vel_error;
+  double              abs_error, rel_error;
+
+  /* check input */
+  RHEA_ASSERT (test_type != COLLIDE_TEST_TI_STRESS_OP_NONE);
+
+  /* get the ymir mesh */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+
+  /* get the viscous stress operator */
+  stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
+  stress_op = stokes_op->stress_op;
+  stress_op_skip_dir = stress_op->skip_dir;
+
+  /* get the variables pertaining to the anisotropic viscosity */
+  coeff_TI_svisc = stress_op->coeff_TI_svisc;
+  coeff_TI_tensor = stress_op->coeff_TI_tensor;
+  RHEA_ASSERT (coeff_TI_svisc != NULL);
+  RHEA_ASSERT (coeff_TI_tensor != NULL);
+
+  /* create velocity fields */
+  vel_in = rhea_velocity_new (ymir_mesh);
+  vel_ref = rhea_velocity_new (ymir_mesh);
+  vel_chk = rhea_velocity_new (ymir_mesh);
+  vel_error = rhea_velocity_new (ymir_mesh);
+
+  /* compute velocity fields */
+  switch (test_type) {
+  case COLLIDE_TEST_TI_STRESS_OP_SINCOS_ISO:
+#if 0
+    ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_in_fn,
+                            NULL);
+    stress_op->skip_dir = 1;
+
+    /* compute reference velocity field
+     * Note that isotropic & anisotropic stress operators give same output. */
+    ymir_stress_op_coeff_set_TI_tensor (stress_op, NULL, NULL);
+    RHEA_ASSERT (!ymir_stress_op_is_TI (stress_op));
+    ymir_stress_pc_apply_stress_op (vel_in, vel_ref, stress_op, stress_op_nl,
+                                    stress_op_dirty);
+    ymir_stress_op_coeff_set_TI_tensor (stress_op, coeff_TI_svisc,
+                                        coeff_TI_tensor);
+#else
+    ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_out_fn,
+                            NULL);
+    ymir_mass_apply (vel_in, vel_ref);
+
+    ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_in_fn,
+                            NULL);
+    stress_op->skip_dir = 1;
+//    ymir_stress_op_coeff_set_TI_tensor (stress_op, NULL, NULL);
+#endif
+
+    /* compute velocity field that will be checked */
+//    RHEA_ASSERT (ymir_stress_op_is_TI (stress_op));
+    ymir_stress_pc_apply_stress_op (vel_in, vel_chk, stress_op, stress_op_nl,
+                                    stress_op_dirty);
+    stress_op->skip_dir = stress_op_skip_dir;
+    break;
+
+  case COLLIDE_TEST_TI_STRESS_OP_SINCOS_ANISO:
+    /* compute reference velocity field (output) */
+    ymir_cvec_set_function (vel_in, collide_test_TI_sincos_aniso_vel_out_fn,
+                            NULL);
+    ymir_mass_apply (vel_in, vel_ref);
+
+    /* compute velocity field that will be checked (stress_op * input) */
+    ymir_cvec_set_function (vel_in, collide_test_TI_sincos_aniso_vel_in_fn,
+                            NULL);
+    stress_op->skip_dir = 1;
+    ymir_stress_pc_apply_stress_op (vel_in, vel_chk, stress_op, stress_op_nl,
+                                    stress_op_dirty);
+    stress_op->skip_dir = stress_op_skip_dir;
+    break;
+
+  default:
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* calculate error in output vectors */
+  ymir_vec_copy (vel_chk, vel_error);
+  ymir_vec_add (-1.0, vel_ref, vel_error);
+  abs_error = ymir_vec_norm (vel_error);
+  rel_error = abs_error / ymir_vec_norm (vel_ref);
+
+  RHEA_GLOBAL_INFOF ("%s (test type %i): abs error %1.3e rel error %1.3e\n",
+                     this_fn_name, test_type, abs_error, rel_error);
+
+  /* write vtk */
+  if (vtk_path != NULL) {
+    collide_test_write_vtk_vel (vel_in, vel_ref, vel_chk, vel_error, vtk_path);
+  }
+
+  /* destroy */
+  rhea_velocity_destroy (vel_in);
+  rhea_velocity_destroy (vel_ref);
+  rhea_velocity_destroy (vel_chk);
+  rhea_velocity_destroy (vel_error);
 }
