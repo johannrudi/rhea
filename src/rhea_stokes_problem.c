@@ -258,15 +258,13 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
 
   /* construct right-hand side for Stokes system */
   rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  ymir_stokes_op_construct_rhs_ext (
-      rhs_vel /* volume forcing */,
-      NULL /* Neumann forcing */,
-      rhs_vel_nonzero_dirichlet /* nonzero Dirichlet bndr. */,
-      rhs_vel_press /* output */,
-      stokes_problem_lin->incompressible,
-      stokes_op);
+  ymir_stokes_pc_construct_rhs (
+      rhs_vel_press             /* output: right-hand side */,
+      rhs_vel                   /* input: volume forcing */,
+      NULL                      /* input: Neumann forcing */,
+      rhs_vel_nonzero_dirichlet /* input: nonzero Dirichlet boundary */,
+      stokes_problem_lin->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
-  RHEA_ASSERT (ymir_vec_is_not_dirty (rhs_vel_press));
 
   /* fill, and return the structure of the linear Stokes problem */
   stokes_problem_lin->coeff = coeff;
@@ -574,15 +572,13 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
 #endif
 
   /* construct the right-hand side */
-  ymir_stokes_op_construct_rhs_ext (
-      rhs_vel /* volume forcing */,
-      NULL /* Neumann forcing */,
-      rhs_vel_nonzero_dirichlet /* nonzero Dirichlet bndr. */,
-      rhs_vel_press /* output */,
-      stokes_problem_nl->incompressible,
-      stokes_op);
+  ymir_stokes_pc_construct_rhs (
+      rhs_vel_press             /* output: right-hand side */,
+      rhs_vel                   /* input: volume forcing */,
+      NULL                      /* input: Neumann forcing */,
+      rhs_vel_nonzero_dirichlet /* input: nonzero Dirichlet boundary */,
+      stokes_problem_nl->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
-  RHEA_ASSERT (ymir_vec_is_not_dirty (rhs_vel_press));
 
   /* compute the residual (which assumes the role of the negative gradient) */
   if (solution != NULL) {
