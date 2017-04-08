@@ -798,8 +798,8 @@ collide_physics_compute_normal_boundary_stress (ymir_vec_t *stress_bndr_norm,
   RHEA_ASSERT (ymir_vec_is_not_dirty (rhs_u_point));
 
   /* construct the right-hand side */
-  ymir_stokes_op_construct_rhs_ext (rhs_u_point, NULL, NULL, rhs,
-                                    1 /* incompressible */, stokes_op);
+  ymir_stokes_pc_construct_rhs (rhs, rhs_u_point, NULL, NULL,
+                                1 /* incompressible */, stokes_op, 0);
   RHEA_ASSERT (sc_dmatrix_is_valid (rhs->dataown));
   RHEA_ASSERT (sc_dmatrix_is_valid (rhs->coff));
   RHEA_ASSERT (ymir_vec_is_not_dirty (rhs));
