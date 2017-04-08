@@ -4555,9 +4555,9 @@ slabs_test_stress (MPI_Comm mpicomm,
   ymir_vec_set_value (in, 1.0);
 
   /* apply stress operator */
-  stress_op->skip_dir = 1;
+  stress_op->skip_dir = 1; //TODO deprecated
   ymir_stress_op_apply (in, out, stress_op);
-  stress_op->skip_dir = 0;
+  stress_op->skip_dir = 0; //TODO deprecated
   YMIR_ASSERT (sc_dmatrix_is_valid (out->data));
 
   /* compute min and max absolute value of output vector */
