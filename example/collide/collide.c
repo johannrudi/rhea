@@ -1837,8 +1837,8 @@ collide_test_TI_sincos_iso_vel_out_fn (double * vel, double x, double y,
                                       void *data)
 {
   vel[0] = 0.0;
-  vel[1] = +10.0 * M_PI*M_PI * sin (M_PI * y) * cos (M_PI * z);
-  vel[2] = -10.0 * M_PI*M_PI * cos (M_PI * y) * sin (M_PI * z);
+  vel[1] = +10.0 * M_PI * M_PI * sin (M_PI * y) * cos (M_PI * z);
+  vel[2] = -10.0 * M_PI * M_PI * cos (M_PI * y) * sin (M_PI * z);
 }
 
 
@@ -1895,8 +1895,8 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
   /* get the variables pertaining to the anisotropic viscosity */
   coeff_TI_svisc = stress_op->coeff_TI_svisc;
   coeff_TI_tensor = stress_op->coeff_TI_tensor;
-  RHEA_ASSERT (coeff_TI_svisc != NULL);
-  RHEA_ASSERT (coeff_TI_tensor != NULL);
+//  RHEA_ASSERT (coeff_TI_svisc != NULL);
+//  RHEA_ASSERT (coeff_TI_tensor != NULL);
 
   /* create velocity fields */
   vel_in = rhea_velocity_new (ymir_mesh);
@@ -1928,7 +1928,6 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
     ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_in_fn,
                             NULL);
     stress_op->skip_dir = 1;
-//    ymir_stress_op_coeff_set_TI_tensor (stress_op, NULL, NULL);
 #endif
 
     /* compute velocity field that will be checked */
