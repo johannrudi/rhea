@@ -58,6 +58,7 @@ collide_viscosity_anisotropy_t;
 typedef enum
 {
   COLLIDE_TEST_TI_STRESS_OP_NONE = 0,
+  COLLIDE_TEST_TI_STRESS_OP_SINCOS_SAME_OUTPUT,
   COLLIDE_TEST_TI_STRESS_OP_SINCOS_ISO,
   COLLIDE_TEST_TI_STRESS_OP_SINCOS_ANISO
 }
@@ -1780,6 +1781,33 @@ main (int argc, char **argv)
  *****************************************************************************/
 
 static void
+collide_test_compute_error_vel (double * abs_error, double * rel_error,
+                                ymir_vec_t *vel_error, ymir_vec_t *vel_ref,
+                                ymir_vec_t *vel_chk,
+                                ymir_stress_op_t * stress_op)
+{
+  ymir_vec_t         *vel_ref_zero_bndr = ymir_vec_clone (vel_ref);
+
+  /* calculate error vector */
+  ymir_vec_copy (vel_chk, vel_error);
+  ymir_vec_add (-1.0, vel_ref, vel_error);
+
+  /* set boundary values to zero */
+  if (ymir_stress_op_has_dirichlet (stress_op)) {
+    ymir_vel_dir_separate (vel_error, NULL, NULL, NULL, stress_op->vel_dir);
+    ymir_vel_dir_separate (vel_ref_zero_bndr, NULL, NULL, NULL,
+                           stress_op->vel_dir);
+  }
+
+  /* take norm of error vector to get a value for absolute and relative errors */
+  *abs_error = ymir_vec_norm (vel_error);
+  *rel_error = *abs_error / ymir_vec_norm (vel_ref_zero_bndr);
+
+  /* destroy */
+  ymir_vec_destroy (vel_ref_zero_bndr);
+}
+
+static void
 collide_test_write_vtk_vel (ymir_vec_t *vel_in, ymir_vec_t *vel_ref,
                             ymir_vec_t *vel_chk, ymir_vec_t *vel_error,
                             const char *vtk_path)
@@ -1823,12 +1851,6 @@ collide_test_TI_sincos_iso_vel_in_fn (double * vel, double x, double y,
   vel[0] = 0.0;
   vel[1] = + sin (M_PI * y) * cos (M_PI * z);
   vel[2] = - cos (M_PI * y) * sin (M_PI * z);
-
-  /* Note: The velocity field after applying the stress operator is
-   *   vel[0] = 0.0;
-   *   vel[1] = +10.0 * M_PI*M_PI * sin (M_PI * y) * cos (M_PI * z);
-   *   vel[2] = -10.0 * M_PI*M_PI * cos (M_PI * y) * sin (M_PI * z);
-   */
 }
 
 static void
@@ -1875,7 +1897,6 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
   ymir_mesh_t        *ymir_mesh;
   ymir_stokes_op_t   *stokes_op;
   ymir_stress_op_t   *stress_op;
-  int                 stress_op_skip_dir;
   ymir_vec_t         *coeff_TI_svisc, *coeff_TI_tensor;
   ymir_vec_t         *vel_in, *vel_ref, *vel_chk;
   ymir_vec_t         *vel_error;
@@ -1890,13 +1911,10 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
   /* get the viscous stress operator */
   stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
   stress_op = stokes_op->stress_op;
-  stress_op_skip_dir = stress_op->skip_dir;
 
   /* get the variables pertaining to the anisotropic viscosity */
   coeff_TI_svisc = stress_op->coeff_TI_svisc;
   coeff_TI_tensor = stress_op->coeff_TI_tensor;
-  RHEA_ASSERT (coeff_TI_svisc != NULL);
-  RHEA_ASSERT (coeff_TI_tensor != NULL);
 
   /* create velocity fields */
   vel_in = rhea_velocity_new (ymir_mesh);
@@ -1906,36 +1924,36 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
 
   /* compute velocity fields */
   switch (test_type) {
-  case COLLIDE_TEST_TI_STRESS_OP_SINCOS_ISO:
-#if 0
+  case COLLIDE_TEST_TI_STRESS_OP_SINCOS_SAME_OUTPUT:
     ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_in_fn,
                             NULL);
-    stress_op->skip_dir = 1;
 
-    /* compute reference velocity field
-     * Note that isotropic & anisotropic stress operators give same output. */
+    /* compute reference velocity field (here: without anisotropy)
+     * (Note that isotropic & anisotropic stress operators give same output) */
     ymir_stress_op_coeff_set_TI_tensor (stress_op, NULL, NULL);
     RHEA_ASSERT (!ymir_stress_op_is_TI (stress_op));
     ymir_stress_pc_apply_stress_op (vel_in, vel_ref, stress_op, stress_op_nl,
                                     stress_op_dirty);
     ymir_stress_op_coeff_set_TI_tensor (stress_op, coeff_TI_svisc,
                                         coeff_TI_tensor);
-#else
+    RHEA_ASSERT (ymir_stress_op_is_TI (stress_op));
+
+    /* compute velocity field that will be checked */
+    ymir_stress_pc_apply_stress_op (vel_in, vel_chk, stress_op, stress_op_nl,
+                                    stress_op_dirty);
+    break;
+
+  case COLLIDE_TEST_TI_STRESS_OP_SINCOS_ISO:
+    /* compute reference velocity field (output) */
     ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_out_fn,
                             NULL);
     ymir_mass_apply (vel_in, vel_ref);
 
+    /* compute velocity field that will be checked (stress_op * input) */
     ymir_cvec_set_function (vel_in, collide_test_TI_sincos_iso_vel_in_fn,
                             NULL);
-    stress_op->skip_dir = 1;
-//    ymir_stress_op_coeff_set_TI_tensor (stress_op, NULL, NULL);
-#endif
-
-    /* compute velocity field that will be checked */
-//    RHEA_ASSERT (ymir_stress_op_is_TI (stress_op));
     ymir_stress_pc_apply_stress_op (vel_in, vel_chk, stress_op, stress_op_nl,
                                     stress_op_dirty);
-    stress_op->skip_dir = stress_op_skip_dir;
     break;
 
   case COLLIDE_TEST_TI_STRESS_OP_SINCOS_ANISO:
@@ -1947,22 +1965,17 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
     /* compute velocity field that will be checked (stress_op * input) */
     ymir_cvec_set_function (vel_in, collide_test_TI_sincos_aniso_vel_in_fn,
                             NULL);
-    stress_op->skip_dir = 1;
     ymir_stress_pc_apply_stress_op (vel_in, vel_chk, stress_op, stress_op_nl,
                                     stress_op_dirty);
-    stress_op->skip_dir = stress_op_skip_dir;
     break;
 
   default:
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  /* calculate error in output vectors */
-  ymir_vec_copy (vel_chk, vel_error);
-  ymir_vec_add (-1.0, vel_ref, vel_error);
-  abs_error = ymir_vec_norm (vel_error);
-  rel_error = abs_error / ymir_vec_norm (vel_ref);
-
+  /* calculate error */
+  collide_test_compute_error_vel (&abs_error, &rel_error, vel_error,
+                                  vel_ref, vel_chk, stress_op);
   RHEA_GLOBAL_INFOF ("%s (test type %i): abs error %1.3e rel error %1.3e\n",
                      this_fn_name, test_type, abs_error, rel_error);
 
