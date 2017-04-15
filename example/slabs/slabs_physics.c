@@ -5902,7 +5902,6 @@ slabs_physics_compute_normal_boundary_stress (ymir_vec_t *stress_bndr_norm,
   ymir_mesh_t        *mesh = up->mesh;
   ymir_pressure_elem_t  *press_elem = stokes_op->press_elem;
   ymir_stress_op_t   *stress_op = stokes_op->stress_op;
-  const int           skip_dir = stress_op->skip_dir;
   const ymir_topidx_t face_id = stress_bndr_norm->meshnum;
 
   ymir_vec_t         *rhs = ymir_stokes_vec_new (mesh, press_elem);
@@ -5920,27 +5919,21 @@ slabs_physics_compute_normal_boundary_stress (ymir_vec_t *stress_bndr_norm,
   YMIR_ASSERT (ymir_vec_is_not_dirty (rhs_u_point));
 
   /* construct the right-hand side */
-  ymir_stokes_op_construct_rhs_ext (rhs_u_point, NULL, NULL, rhs,
-                                    1 /* incompressible */, stokes_op);
+  ymir_stokes_pc_construct_rhs (rhs, rhs_u_point, NULL, NULL,
+                                1 /* incompressible */, stokes_op, 0);
   YMIR_ASSERT (sc_dmatrix_is_valid (rhs->dataown));
   YMIR_ASSERT (sc_dmatrix_is_valid (rhs->coff));
   YMIR_ASSERT (ymir_vec_is_not_dirty (rhs));
-
-  /* turn off boundary constraints */
-  stress_op->skip_dir = 1;
 
   /* compute (unconstrained) residual
    *   r_mom  = A * u + B^T * p - f
    *   r_mass = B * u
    */
-  ymir_stokes_pc_apply_stokes_op (up, residual_up, stokes_op, 0, 0);
+  ymir_stokes_pc_apply_skip_dir_stokes_op (up, residual_up, stokes_op, 0, 0);
   ymir_vec_add (-1.0, rhs, residual_up);
   YMIR_ASSERT (sc_dmatrix_is_valid (residual_up->dataown));
   YMIR_ASSERT (sc_dmatrix_is_valid (residual_up->coff));
   ymir_vec_destroy (rhs);
-
-  /* restore boundary constraints */
-  stress_op->skip_dir = skip_dir;
 
   /* get the velocity component of the residual */
   ymir_stokes_vec_get_velocity (residual_up, residual_u, stokes_op->press_elem);

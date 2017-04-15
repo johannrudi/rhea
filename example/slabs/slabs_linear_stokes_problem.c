@@ -185,8 +185,8 @@ slabs_linear_stokes_problem_new (slabs_stokes_state_t *state,
 
   /* construct right-hand side for incompressible Stokes system */
   rhs = ymir_stokes_vec_new (mesh, press_elem);
-  ymir_stokes_op_construct_rhs_ext (rhs_u_point, NULL, NULL, rhs,
-                                    1 /* incompressible */, stokes_op);
+  ymir_stokes_pc_construct_rhs (rhs, rhs_u_point, NULL, NULL,
+                                1 /* incompressible */, stokes_op, 0);
 
   /*
    * Create Linear Stokes Problem

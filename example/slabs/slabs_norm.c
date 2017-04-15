@@ -714,8 +714,8 @@ slabs_norm_compute_residual (ymir_vec_t *residual_up,
 
   /* construct the right-hand side */
   rhs = ymir_stokes_vec_new (mesh, press_elem);
-  ymir_stokes_op_construct_rhs_ext (rhs_u_point, NULL, NULL, rhs,
-                                    1 /* incompressible */, stokes_op);
+  ymir_stokes_pc_construct_rhs (rhs, rhs_u_point, NULL, NULL,
+                                1 /* incompressible */, stokes_op, 0);
   YMIR_ASSERT (sc_dmatrix_is_valid (rhs->dataown));
   YMIR_ASSERT (sc_dmatrix_is_valid (rhs->coff));
   YMIR_ASSERT (ymir_vec_is_not_dirty (rhs));
