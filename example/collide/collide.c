@@ -42,7 +42,8 @@ typedef enum
 {
   COLLIDE_VEL_DIR_BC_WALLSLIDE,
   COLLIDE_VEL_DIR_BC_INOUTFLOW_SIN,
-  COLLIDE_VEL_DIR_BC_INOUTFLOW_TANH
+  COLLIDE_VEL_DIR_BC_INOUTFLOW_TANH,
+  COLLIDE_VEL_DIR_BC_DOUBLE_UNIPUSH
 }
 collide_vel_dir_bc_t;
 
@@ -68,8 +69,9 @@ typedef struct collide_options
 {
   collide_vel_dir_bc_t vel_dir_bc;
   collide_x_func_t     x_func;
-  double              wallslide_vel;
   double              flow_scale;
+  double              velocity_bc_upper;
+  double              velocity_bc_lower;
 
   collide_viscosity_anisotropy_t  viscosity_anisotropy;
   double              viscosity_loc_upper;
@@ -936,7 +938,7 @@ collide_set_vel_dir_wallslide (
     ymir_topidx_t face, ymir_locidx_t node_id,
     void *data)
 {
-  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 && 0.5 < Z) {
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 & 0.5 < Z) {
     return YMIR_VEL_DIRICHLET_ALL;
   }
   else {
@@ -950,12 +952,12 @@ collide_set_rhs_vel_nonzero_dir_wallslide (
     ymir_locidx_t nid, void *data)
 {
   collide_options_t  *collide_options = data;
-  const double        wallslide_vel = collide_options->wallslide_vel;
+  const double        flow_scale = collide_options->flow_scale;
 
   if (fabs (y) < SC_1000_EPS && 0.5 < z) {
     vel[0] = 0.0;
     vel[1] = 0.0;
-    vel[2] = wallslide_vel * sin (2.0 * M_PI * z);
+    vel[2] = flow_scale * sin (2.0 * M_PI * z);
   }
   else {
     vel[0] = 0.0;
@@ -963,28 +965,6 @@ collide_set_rhs_vel_nonzero_dir_wallslide (
     vel[2] = 0.0;
   }
 }
-
-///*
-// * Dirichlet all on one side of the domain: SIDE3 (y=0), and Neumann for z<0.2 to let go residual flow.
-// */
-//static ymir_dir_code_t
-//collide_set_vel_dir_inoutflow (
-//    double X, double Y, double Z,
-//    double nx, double ny, double nz,
-//    ymir_topidx_t face, ymir_locidx_t node_id,
-//    void *data)
-//{
-//  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
-//    return YMIR_VEL_DIRICHLET_ALL;
-//  }
-//  else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE) {
-//     return YMIR_VEL_DIRICHLET_NONE;
-//  }
-//  else {
-//    return YMIR_VEL_DIRICHLET_NORM;
-//  }
-//}
-
 
 /*
  * Dirichlet all on one side of the domain: SIDE3 (y=0).
@@ -1040,8 +1020,8 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
 {
   collide_options_t  *collide_options = data;
   const double        flow_scale = collide_options->flow_scale;
-  const double        zU = collide_options->viscosity_loc_upper;
-  const double        zL = collide_options->viscosity_loc_lower;
+  const double        zU = collide_options->velocity_bc_upper;
+  const double        zL = collide_options->velocity_bc_lower;
   const double        a = zU-zL, b = 1.0-a, c = 0.5*(zU+zL);
   const double        shape = 40.0, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
   double txL = shape*(z-zL),txU = shape*(z-zU);
@@ -1067,6 +1047,48 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
   }
 }
 
+static ymir_dir_code_t
+collide_set_vel_dir_double_unipush (
+    double X, double Y, double Z,
+    double nx, double ny, double nz,
+    ymir_topidx_t face, ymir_locidx_t node_id,
+    void *data)
+{
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 || face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE4) {
+    return YMIR_VEL_DIRICHLET_ALL;
+  }
+  else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE || face == RHEA_DOMAIN_BOUNDARY_FACE_TOP) {
+     return YMIR_VEL_DIRICHLET_NONE;
+  }
+  else {
+    return YMIR_VEL_DIRICHLET_NORM;
+  }
+}
+
+void
+collide_set_rhs_vel_nonzero_dir_double_unipush (
+    double *vel, double x, double y, double z,
+    ymir_locidx_t nid, void *data)
+{
+  collide_options_t  *collide_options = data;
+  const double        flow_scale = collide_options->flow_scale;
+
+  if (fabs (y) < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[1] = flow_scale;
+    vel[2] = 0.0;
+  }
+  else if (fabs (y-2.0) < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[1] = -flow_scale;
+    vel[2] = 0.0;
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
 /**
  * Write vtk of input data.
  */
@@ -1183,6 +1205,16 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
         rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
         ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
                                 collide_set_rhs_vel_nonzero_dir_inoutflow_tanh,
+                                collide_options);
+        break;
+
+      case COLLIDE_VEL_DIR_BC_DOUBLE_UNIPUSH:
+        rhea_domain_set_user_velocity_dirichlet_bc (
+            collide_set_vel_dir_double_unipush, NULL /* no data necessary */,
+            0 /* TODO don't need this flag */);
+        rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
+        ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
+                                collide_set_rhs_vel_nonzero_dir_double_unipush,
                                 collide_options);
         break;
       default: /* BC not set */
@@ -1409,8 +1441,9 @@ main (int argc, char **argv)
   rhea_newton_options_t         newton_options;
   /* collide options */
   int                 vel_dir_bc;
-  double              wallslide_vel;
   double              flow_scale;
+  double              velocity_bc_upper;
+  double              velocity_bc_lower;
   int                 x_func;
   int                 viscosity_anisotropy;
   double              viscosity_loc_upper;
@@ -1476,12 +1509,15 @@ main (int argc, char **argv)
   YMIR_OPTIONS_I, "velocity-dirichlet-bc", '\0',
     &vel_dir_bc, COLLIDE_VEL_DIR_BC_WALLSLIDE,
     "Velocity Dirichlet boundary condition",
-  YMIR_OPTIONS_D, "wallslide-velocity", '\0',
-    &wallslide_vel, 1.0,
-    "Tangential velocity",
   YMIR_OPTIONS_D, "flow-scaling", '\0',
     &flow_scale, 1.0,
     "scaling of velocity BC.",
+  YMIR_OPTIONS_D, "velocity-bc-upper", '\0',
+    &velocity_bc_upper, 1.0,
+    "location of velocity BC: upper bound",
+  YMIR_OPTIONS_D, "velocity-bc-lower", '\0',
+    &velocity_bc_lower, 0.0,
+    "location of velocity BC: lower bound",
 
   /* surface location  */
   YMIR_OPTIONS_I, "bound-x-function", '\0',
@@ -1573,8 +1609,9 @@ main (int argc, char **argv)
    */
 
   collide_options.vel_dir_bc = (collide_vel_dir_bc_t) vel_dir_bc;
-  collide_options.wallslide_vel = wallslide_vel;
   collide_options.flow_scale = flow_scale;
+  collide_options.velocity_bc_upper = velocity_bc_upper;
+  collide_options.velocity_bc_lower = velocity_bc_lower;
 
   collide_options.x_func = (collide_x_func_t) x_func;
 
@@ -1685,6 +1722,7 @@ main (int argc, char **argv)
                              viscosity);
     collide_output_pressure (vtk_write_solution_path, pressure);
 
+#if 0
     /* compute 2nd invariant of the strain rate */
     ymir_second_invariant_vec (velocity, edotII, vel_elem);
     ymir_vec_sqrt (edotII, edotII);
@@ -1734,7 +1772,7 @@ main (int argc, char **argv)
                       surf_normal_stress, "surf_normal_stress",
                       NULL);
     }
-
+#endif
     /* destroy */
     ymir_vec_destroy (edotII);
     ymir_vec_destroy (tauII);
@@ -1780,7 +1818,7 @@ main (int argc, char **argv)
  *****************************************************************************/
 
 static void
-collide_test_write_vtk_vel (ymir_vec_t *vel_in, ymir_vec_t *vel_ref,
+collide_test_TI_write_vtk_vel (ymir_vec_t *vel_in, ymir_vec_t *vel_ref,
                             ymir_vec_t *vel_chk, ymir_vec_t *vel_error,
                             const char *vtk_path)
 {
@@ -1967,7 +2005,7 @@ collide_test_TI_stress_op (rhea_stokes_problem_t *stokes_problem,
 
   /* write vtk */
   if (vtk_path != NULL) {
-    collide_test_write_vtk_vel (vel_in, vel_ref, vel_chk, vel_error, vtk_path);
+    collide_test_TI_write_vtk_vel (vel_in, vel_ref, vel_chk, vel_error, vtk_path);
   }
 
   /* destroy */
