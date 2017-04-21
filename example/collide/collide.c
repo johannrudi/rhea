@@ -1033,14 +1033,26 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
   if (fabs (y) < SC_1000_EPS) {
     vel[0] = 0.0;
     vel[2] = 0.0;
-
-
+    if (y < SC_1000_EPS)  {
+      if (z<=c)
+        vel[1] = shift + scaling *
+               ( (exp (txL) - exp (-txL)) /
+               (exp (txL) + exp (-txL)) );
+      else
+        vel[1] = shift - scaling *
+               ( (exp (txU) - exp (-txU)) /
+               (exp (txU) + exp (-txU)) );
+    }
+  }
+  else if ((2.0 - y) < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[2] = 0.0;
     if (z<=c)
-      vel[1] = shift + scaling *
+      vel[1] = -shift - scaling *
              ( (exp (txL) - exp (-txL)) /
              (exp (txL) + exp (-txL)) );
     else
-      vel[1] = shift - scaling *
+      vel[1] = -shift + scaling *
              ( (exp (txU) - exp (-txU)) /
              (exp (txU) + exp (-txU)) );
   }
