@@ -256,15 +256,8 @@ rhea_stokes_problem_linear_new (ymir_vec_t *temperature,
                                       press_elem, domain_options->center,
                                       domain_options->moment_of_inertia);
 
-  /* construct right-hand side for Stokes system */
+  /* create right-hand side */
   rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  ymir_stokes_pc_construct_rhs (
-      rhs_vel_press             /* output: right-hand side */,
-      rhs_vel                   /* input: volume forcing */,
-      NULL                      /* input: Neumann forcing */,
-      rhs_vel_nonzero_dirichlet /* input: nonzero Dirichlet boundary */,
-      stokes_problem_lin->incompressible, stokes_op, 0 /* !linearized */);
-  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
   /* fill, and return the structure of the linear Stokes problem */
   stokes_problem_lin->coeff = coeff;
@@ -315,12 +308,26 @@ rhea_stokes_problem_linear_setup_solver (
 {
   const char         *this_fn_name = "rhea_stokes_problem_linear_setup_solver";
   ymir_stokes_op_t   *stokes_op = stokes_problem_lin->stokes_op;
+  ymir_vec_t         *rhs_vel_press = stokes_problem_lin->rhs_vel_press;
+  ymir_vec_t         *rhs_vel = stokes_problem_lin->rhs_vel;
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet =
+                        stokes_problem_lin->rhs_vel_nonzero_dirichlet;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
   RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
+  RHEA_ASSERT (stokes_problem_lin->rhs_vel_press != NULL);
+
+  /* construct right-hand side for Stokes system */
+  ymir_stokes_pc_construct_rhs (
+      rhs_vel_press             /* output: right-hand side */,
+      rhs_vel                   /* input: volume forcing */,
+      NULL                      /* input: Neumann forcing */,
+      rhs_vel_nonzero_dirichlet /* input: nonzero Dirichlet boundary */,
+      stokes_problem_lin->incompressible, stokes_op, 0 /* !linearized */);
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
   /* build Stokes preconditioner */
   stokes_problem_lin->stokes_pc = ymir_stokes_pc_new (stokes_op);
