@@ -385,24 +385,45 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
     break;
 
   case RHEA_DOMAIN_BOX:
-    conn = p8est_connectivity_new_brick (domain_options->box_x_extension,
-                                         domain_options->box_y_extension,
-                                         domain_options->box_z_extension,
+    RHEA_ASSERT (isfinite (domain_options->x_min));
+    RHEA_ASSERT (isfinite (domain_options->y_min));
+    RHEA_ASSERT (isfinite (domain_options->z_min));
+    RHEA_ASSERT (isfinite (domain_options->x_max));
+    RHEA_ASSERT (isfinite (domain_options->y_max));
+    RHEA_ASSERT (isfinite (domain_options->z_max));
+    RHEA_ASSERT (domain_options->x_min < domain_options->x_max);
+    RHEA_ASSERT (domain_options->y_min < domain_options->y_max);
+    RHEA_ASSERT (domain_options->z_min < domain_options->z_max);
+    RHEA_ASSERT (0 < domain_options->box_subdivision_x);
+    RHEA_ASSERT (0 < domain_options->box_subdivision_y);
+    RHEA_ASSERT (0 < domain_options->box_subdivision_z);
+
+    conn = p8est_connectivity_new_brick (domain_options->box_subdivision_x,
+                                         domain_options->box_subdivision_y,
+                                         domain_options->box_subdivision_z,
                                          0, 0, 0);
-    /* scale coordinates of vertices, s.t. the domain has unit height:
-     *   x component: [0, x_ext] -> 1/z_ext * [0, x_ext]
-     *   y component: [0, y_ext] -> 1/z_ext * [0, y_ext]
-     *   z component: [0, z_ext] -> 1/z_ext * [0, z_ext]
+    /* scale & shift reference coordinates of vertices such that
+     *   x component: [0, subdivision_x] -> [x_min, x_max]
+     *   y component: [0, subdivision_y] -> [y_min, y_max]
+     *   z component: [0, subdivision_z] -> [z_min, z_max]
      */
     {
-      p4est_topidx_t  vi;
-      double         *vertices = conn->vertices;
-      double          scale = 1.0 / ((double) domain_options->box_z_extension);
+      const double        xmin = domain_options->x_min;
+      const double        ymin = domain_options->y_min;
+      const double        zmin = domain_options->z_min;
+      const double        xmax = domain_options->x_max;
+      const double        ymax = domain_options->y_max;
+      const double        zmax = domain_options->z_max;
+      const double        subx = (double) domain_options->box_subdivision_x;
+      const double        suby = (double) domain_options->box_subdivision_y;
+      const double        subz = (double) domain_options->box_subdivision_z;
+      double             *vertices = conn->vertices;
+      p4est_topidx_t      vi;
 
       for (vi = 0; vi < conn->num_vertices; vi++) { /* loop over all vertices */
-        vertices[3 * vi    ] *= scale;
-        vertices[3 * vi + 1] *= scale;
-        vertices[3 * vi + 2] *= scale;
+        vertices[3*vi    ] = (xmax - xmin) * vertices[3*vi    ] / subx + xmin;
+        vertices[3*vi + 1] = (ymax - ymin) * vertices[3*vi + 1] / suby + ymin;
+        vertices[3*vi + 2] = (zmax - zmin) * vertices[3*vi + 2] / subz + zmin;
       }
     }
     break;
@@ -419,38 +440,42 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
      *   z component: [0, 1] -> [ 1  , 2  ]
      */
     {
-      p4est_topidx_t  vi;
       double         *vertices = conn->vertices;
+      p4est_topidx_t  vi;
 
       for (vi = 0; vi < conn->num_vertices; vi++) { /* loop over all vertices */
-        vertices[3 * vi    ] -= 0.5;
-        vertices[3 * vi + 1] -= 0.5;
-        vertices[3 * vi + 2] += 1.0;
+        vertices[3*vi    ] -= 0.5;
+        vertices[3*vi + 1] -= 0.5;
+        vertices[3*vi + 2] += 1.0;
       }
     }
     break;
 
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    conn = p8est_connectivity_new_brick (domain_options->box_x_extension,
-                                         domain_options->box_y_extension,
-                                         domain_options->box_z_extension,
+    RHEA_ASSERT (0 < domain_options->box_subdivision_x);
+    RHEA_ASSERT (0 < domain_options->box_subdivision_y);
+    RHEA_ASSERT (0 < domain_options->box_subdivision_z);
+
+    conn = p8est_connectivity_new_brick (domain_options->box_subdivision_x,
+                                         domain_options->box_subdivision_y,
+                                         domain_options->box_subdivision_z,
                                          0, 0, 0);
     /* shift coordinates of vertices, so (modified) shell_X fnc can be used:
-     *   x component: [0, x_ext] -> 1/z_ext * [-x_ext/2, x_ext/2]
-     *   y component: [0, y_ext] -> 1/z_ext * [-y_ext/2, y_ext/2]
-     *   z component: [0, z_ext] ->           [ 1      , 2   ]
+     *   x component: [0, subdiv_x] -> 1/subdiv_z * [-subdiv_x/2, subdiv_x/2]
+     *   y component: [0, subdiv_y] -> 1/subdiv_z * [-subdiv_y/2, subdiv_y/2]
+     *   z component: [0, subdiv_z] ->              [ 1         , 2         ]
      */
     {
-      p4est_topidx_t  vi;
-      double         *vertices = conn->vertices;
-      double          x_ext = (double) domain_options->box_x_extension;
-      double          y_ext = (double) domain_options->box_y_extension;
-      double          scale = 1.0 / ((double) domain_options->box_z_extension);
+      const double        subx = (double) domain_options->box_subdivision_x;
+      const double        suby = (double) domain_options->box_subdivision_y;
+      const double        subz = (double) domain_options->box_subdivision_z;
+      double             *vertices = conn->vertices;
+      p4est_topidx_t      vi;
 
       for (vi = 0; vi < conn->num_vertices; vi++) { /* loop over all vertices */
-        vertices[3 * vi    ] = scale * (vertices[3 * vi    ] - 0.5 * x_ext);
-        vertices[3 * vi + 1] = scale * (vertices[3 * vi + 1] - 0.5 * y_ext);
-        vertices[3 * vi + 2] = scale * vertices[3 * vi + 2] + 1.0;
+        vertices[3*vi    ] = (vertices[3*vi    ] - 0.5 * subx) / subz;
+        vertices[3*vi + 1] = (vertices[3*vi + 1] - 0.5 * suby) / subz;
+        vertices[3*vi + 2] = (vertices[3*vi + 2] / subz) + 1.0;
       }
     }
     break;

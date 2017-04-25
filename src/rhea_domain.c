@@ -15,9 +15,12 @@ int                 rhea_domain_velocity_bc_user_nonzero = -1;
 
 /* default options */
 #define RHEA_DOMAIN_DEFAULT_SHAPE_NAME "cube"
-#define RHEA_DOMAIN_DEFAULT_BOX_X_EXTENSION (1)
-#define RHEA_DOMAIN_DEFAULT_BOX_Y_EXTENSION (16)
-#define RHEA_DOMAIN_DEFAULT_BOX_Z_EXTENSION (16)
+#define RHEA_DOMAIN_DEFAULT_BOX_LENGTH_X (NAN)
+#define RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Y (NAN)
+#define RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Z (NAN)
+#define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_X (1)
+#define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Y (16)
+#define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Z (16)
 #define RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M (6371.0e3)
 #define RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH_M (2866.95e3)
 #define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M (660.0e3)
@@ -27,12 +30,18 @@ int                 rhea_domain_velocity_bc_user_nonzero = -1;
 
 /* initialize options */
 char               *rhea_domain_shape_name = RHEA_DOMAIN_DEFAULT_SHAPE_NAME;
-int                 rhea_domain_box_x_extension =
-  RHEA_DOMAIN_DEFAULT_BOX_X_EXTENSION;
-int                 rhea_domain_box_y_extension =
-  RHEA_DOMAIN_DEFAULT_BOX_Y_EXTENSION;
-int                 rhea_domain_box_z_extension =
-  RHEA_DOMAIN_DEFAULT_BOX_Z_EXTENSION;
+double              rhea_domain_box_length_x =
+  RHEA_DOMAIN_DEFAULT_BOX_LENGTH_X;
+double              rhea_domain_box_length_y =
+  RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Y;
+double              rhea_domain_box_length_z =
+  RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Z;
+int                 rhea_domain_box_subdivision_x =
+  RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_X;
+int                 rhea_domain_box_subdivision_y =
+  RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Y;
+int                 rhea_domain_box_subdivision_z =
+  RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Z;
 double              rhea_domain_earth_radius_m =
   RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M;
 double              rhea_domain_mantle_depth_m =
@@ -57,15 +66,28 @@ rhea_domain_add_options (ymir_options_t * opt_sup)
     &(rhea_domain_shape_name), RHEA_DOMAIN_DEFAULT_SHAPE_NAME,
     "Shape of domain: cube, box, shell, cube_spherical, box_spherical",
 
-  YMIR_OPTIONS_I, "box-x-extension", '\0',
-    &(rhea_domain_box_x_extension), RHEA_DOMAIN_DEFAULT_BOX_X_EXTENSION,
-    "For 'box' domain: Integer that determines extension in x-direction",
-  YMIR_OPTIONS_I, "box-y-extension", '\0',
-    &(rhea_domain_box_y_extension), RHEA_DOMAIN_DEFAULT_BOX_Y_EXTENSION,
-    "For 'box' domain: Integer that determines extension in y-direction",
-  YMIR_OPTIONS_I, "box-z-extension", '\0',
-    &(rhea_domain_box_z_extension), RHEA_DOMAIN_DEFAULT_BOX_Z_EXTENSION,
-    "For 'box' domain: Integer that determines extension in z-direction",
+  YMIR_OPTIONS_D, "box-length-x", '\0',
+    &(rhea_domain_box_length_x), RHEA_DOMAIN_DEFAULT_BOX_LENGTH_X,
+    "For 'box' domain: Length along x-axis; if not given, value is set "
+    "automatically to avoid mesh anisotropies",
+  YMIR_OPTIONS_D, "box-length-y", '\0',
+    &(rhea_domain_box_length_y), RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Y,
+    "For 'box' domain: Length along y-axis; if not given, value is set "
+    "automatically to avoid mesh anisotropies",
+  YMIR_OPTIONS_D, "box-length-z", '\0',
+    &(rhea_domain_box_length_z), RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Z,
+    "For 'box' domain: Length along z-axis; if not given, value is set "
+    "automatically to avoid mesh anisotropies",
+
+  YMIR_OPTIONS_I, "box-subdivision-x", '\0',
+    &(rhea_domain_box_subdivision_x), RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_X,
+    "For 'box' domain: Integer determining subdivision into cubes along x-axis",
+  YMIR_OPTIONS_I, "box-subdivision-y", '\0',
+    &(rhea_domain_box_subdivision_y), RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Y,
+    "For 'box' domain: Integer determining subdivision into cubes along x-axis",
+  YMIR_OPTIONS_I, "box-subdivision-z", '\0',
+    &(rhea_domain_box_subdivision_z), RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Z,
+    "For 'box' domain: Integer determining subdivision into cubes along x-axis",
 
   YMIR_OPTIONS_D, "earth-radius", '\0',
     &(rhea_domain_earth_radius_m), RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M,
@@ -111,9 +133,6 @@ rhea_domain_compute_bounds (rhea_domain_options_t *opt)
 {
   const double        radius_min_m = opt->radius_min_m;
   const double        radius_max_m = opt->radius_max_m;
-  const double        box_x_ext = (double) opt->box_x_extension;
-  const double        box_y_ext = (double) opt->box_y_extension;
-  const double        box_z_ext = (double) opt->box_z_extension;
 
   /* set radius bounds for all domain shapes */
   opt->radius_max = RHEA_DOMAIN_REFERENCE_SHELL_RADIUS;
@@ -133,33 +152,44 @@ rhea_domain_compute_bounds (rhea_domain_options_t *opt)
   switch (opt->shape) {
   case RHEA_DOMAIN_CUBE:
     opt->x_min = 0.0;
-    opt->x_max = 1.0;
     opt->y_min = 0.0;
-    opt->y_max = 1.0;
     opt->z_min = 0.0;
+    opt->x_max = 1.0;
+    opt->y_max = 1.0;
     opt->z_max = 1.0;
     opt->lon_min = -M_PI/8.0;
     opt->lon_max = +M_PI/8.0;
     break;
   case RHEA_DOMAIN_BOX:
+    RHEA_ASSERT (isfinite (opt->box_length_x) && 0.0 < opt->box_length_x);
+    RHEA_ASSERT (isfinite (opt->box_length_y) && 0.0 < opt->box_length_y);
+    RHEA_ASSERT (isfinite (opt->box_length_z) && 0.0 < opt->box_length_z);
     opt->x_min = 0.0;
-    opt->x_max = box_x_ext / box_z_ext;
     opt->y_min = 0.0;
-    opt->y_max = box_y_ext / box_z_ext;
     opt->z_min = 0.0;
-    opt->z_max = 1.0;
-    opt->lon_min = -M_PI/8.0 * box_y_ext / box_z_ext;
-    opt->lon_max = +M_PI/8.0 * box_y_ext / box_z_ext;
+    opt->x_max = opt->box_length_x;
+    opt->y_max = opt->box_length_y;
+    opt->z_max = opt->box_length_z;
+    opt->lon_min = -M_PI/8.0 * opt->box_length_y;
+    opt->lon_max = +M_PI/8.0 * opt->box_length_y;
     break;
   case RHEA_DOMAIN_SHELL:
+    /* keep all default values (above) */
     break;
   case RHEA_DOMAIN_CUBE_SPHERICAL:
     opt->lon_min = -M_PI/8.0;
     opt->lon_max = +M_PI/8.0;
     break;
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    opt->lon_min = -M_PI/8.0 * box_y_ext / box_z_ext;
-    opt->lon_max = +M_PI/8.0 * box_y_ext / box_z_ext;
+    RHEA_ASSERT (0 < opt->box_subdivision_y);
+    RHEA_ASSERT (0 < opt->box_subdivision_z);
+    {
+      const double        suby = (double) opt->box_subdivision_y;
+      const double        subz = (double) opt->box_subdivision_z;
+
+      opt->lon_min = -M_PI/8.0 * suby / subz;
+      opt->lon_max = +M_PI/8.0 * suby / subz;
+    }
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
@@ -212,18 +242,18 @@ rhea_domain_compute_volume (rhea_domain_options_t *opt)
   case RHEA_DOMAIN_BOX_SPHERICAL: /* (volume shell / 24 * (dx*dy)/dz^2 */
     RHEA_ASSERT (isfinite (opt->radius_min));
     RHEA_ASSERT (isfinite (opt->radius_max));
-    RHEA_ASSERT (isfinite (opt->box_x_extension));
-    RHEA_ASSERT (isfinite (opt->box_y_extension));
-    RHEA_ASSERT (isfinite (opt->box_z_extension));
+    RHEA_ASSERT (isfinite (opt->box_subdivision_x));
+    RHEA_ASSERT (isfinite (opt->box_subdivision_y));
+    RHEA_ASSERT (isfinite (opt->box_subdivision_z));
     {
       const double        rmin = opt->radius_min;
       const double        rmax = opt->radius_max;
-      const double        box_x_ext = (double) opt->box_x_extension;
-      const double        box_y_ext = (double) opt->box_y_extension;
-      const double        box_z_ext = (double) opt->box_z_extension;
+      const double        subx = (double) opt->box_subdivision_x;
+      const double        suby = (double) opt->box_subdivision_y;
+      const double        subz = (double) opt->box_subdivision_z;
 
       opt->volume = 1.0 / 18.0 * M_PI * (rmax*rmax*rmax - rmin*rmin*rmin) *
-                    (box_x_ext * box_y_ext) / (box_z_ext * box_z_ext);
+                    (subx*suby) / (subz*subz);
     }
     break;
   default: /* unknown domain shape */
@@ -379,7 +409,7 @@ rhea_domain_align_radius_with_mesh (double radius, const int level,
     break;
   case RHEA_DOMAIN_BOX:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    n_domain_subdiv = opt->box_z_extension;
+    n_domain_subdiv = opt->box_subdivision_z;
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
@@ -447,22 +477,69 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
     RHEA_ABORT ("Unknown domain shape name");
   }
 
-  /* set extension of box domain */
+  /* set length and subdivision of the domain */
   switch (opt->shape) {
-  case RHEA_DOMAIN_BOX:
-  case RHEA_DOMAIN_BOX_SPHERICAL:
-    /* for box-type domains, set from input  */
-    opt->box_x_extension = rhea_domain_box_x_extension;
-    opt->box_y_extension = rhea_domain_box_y_extension;
-    opt->box_z_extension = rhea_domain_box_z_extension;
-    break;
   case RHEA_DOMAIN_CUBE:
-  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    /* set default values */
+    opt->box_subdivision_x = 1;
+    opt->box_subdivision_y = 1;
+    opt->box_subdivision_z = 1;
+    opt->box_length_x = 1.0;
+    opt->box_length_y = 1.0;
+    opt->box_length_z = 1.0;
+    break;
+  case RHEA_DOMAIN_BOX:
+    /* set all values from input */
+    opt->box_subdivision_x = rhea_domain_box_subdivision_x;
+    opt->box_subdivision_y = rhea_domain_box_subdivision_y;
+    opt->box_subdivision_z = rhea_domain_box_subdivision_z;
+    if (isfinite (rhea_domain_box_length_x) && 0.0 < rhea_domain_box_length_x) {
+      opt->box_length_x = rhea_domain_box_length_x;
+    }
+    else { /* if invalid, set default value */
+      opt->box_length_x = (double) opt->box_subdivision_x /
+                          (double) opt->box_subdivision_z;
+    }
+    if (isfinite (rhea_domain_box_length_y) && 0.0 < rhea_domain_box_length_y) {
+      opt->box_length_y = rhea_domain_box_length_y;
+    }
+    else { /* if invalid, set default value */
+      opt->box_length_y = (double) opt->box_subdivision_y /
+                          (double) opt->box_subdivision_z;
+    }
+    if (isfinite (rhea_domain_box_length_z) && 0.0 < rhea_domain_box_length_z) {
+      opt->box_length_z = rhea_domain_box_length_z;
+    }
+    else { /* if invalid, set default value */
+      opt->box_length_z = 1.0;
+    }
+    break;
   case RHEA_DOMAIN_SHELL:
-    /* for all other domains, set to a default value */
-    opt->box_x_extension = 1;
-    opt->box_y_extension = 1;
-    opt->box_z_extension = 1;
+    /* set default values */
+    opt->box_subdivision_x = 0;
+    opt->box_subdivision_y = 0;
+    opt->box_subdivision_z = 0;
+    opt->box_length_x = NAN;
+    opt->box_length_y = NAN;
+    opt->box_length_z = NAN;
+    break;
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    /* set default values */
+    opt->box_subdivision_x = 1;
+    opt->box_subdivision_y = 1;
+    opt->box_subdivision_z = 1;
+    opt->box_length_x = NAN;
+    opt->box_length_y = NAN;
+    opt->box_length_z = NAN;
+    break;
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    /* set partially from input */
+    opt->box_subdivision_x = rhea_domain_box_subdivision_x;
+    opt->box_subdivision_y = rhea_domain_box_subdivision_y;
+    opt->box_subdivision_z = rhea_domain_box_subdivision_z;
+    opt->box_length_x = NAN;
+    opt->box_length_y = NAN;
+    opt->box_length_z = NAN;
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
@@ -512,7 +589,7 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   opt->velocity_bc_type =
     (rhea_domain_velocity_bc_t) rhea_domain_velocity_bc_type;
 
-  /* print derived domain properties */
+  /* print domain properties */
   RHEA_GLOBAL_INFO ("========================================\n");
   RHEA_GLOBAL_INFOF ("%s\n", this_fn_name);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");

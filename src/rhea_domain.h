@@ -78,23 +78,28 @@ rhea_domain_boundary_t;
 /* options & properties of a computational domain */
 typedef struct rhea_domain_options
 {
-  /* shape of the domain */
+  /* shape of the domain (input) */
   rhea_domain_shape_t shape;
 
-  /* extension in each Cartesian direction for `box` domain */
-  double              box_x_extension;
-  double              box_y_extension;
-  double              box_z_extension;
+  /* length in each Cartesian direction for `box` domain (input) */
+  double              box_length_x;
+  double              box_length_y;
+  double              box_length_z;
+
+  /* subdivision of box into cubes along each Cartesian direction (input) */
+  int                 box_subdivision_x;
+  int                 box_subdivision_y;
+  int                 box_subdivision_z;
 
   /* the domain knows the location of the lower-upper mantle interface,
-   * which causes discontinuous material properties */
+   * which causes discontinuous material properties (input) */
   double              lm_um_interface_radius;
   double              lm_um_interface_smoothing_width;
 
-  /* velocity boundary conditions */
+  /* velocity boundary conditions (input) */
   rhea_domain_velocity_bc_t  velocity_bc_type;
 
-  /* nondimensional properties of the domain */
+  /* nondimensional properties of the domain (computed) */
   double              x_min;
   double              x_max;
   double              y_min;
@@ -109,7 +114,7 @@ typedef struct rhea_domain_options
   double              center[3];
   double              moment_of_inertia[3];
 
-  /* dimensional properties of the domain */
+  /* dimensional properties of the domain (input) */
   double              radius_min_m;
   double              radius_max_m;
 }
