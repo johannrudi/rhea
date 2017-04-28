@@ -11,23 +11,31 @@
 #define RHEA_STRAINRATE_2INV_NEUTRAL_VALUE (1.0)
 
 /**
- * Creates a new second invariant of the strain rate vector.
+ * Creates a new (second invariant of) strain rate tensor.
  */
+ymir_vec_t         *rhea_strainrate_new (ymir_mesh_t *ymir_mesh);
+
 ymir_vec_t         *rhea_strainrate_2inv_new (ymir_mesh_t *ymir_mesh);
 
 /**
- * Destroys a second invariant of the strain rate vector.
+ * Destroys a (second invariant of) strain rate tensor.
  */
+void                rhea_strainrate_destroy (ymir_vec_t *strainrate);
+
 void                rhea_strainrate_2inv_destroy (ymir_vec_t *strainrate_2inv);
 
 /**
  * Checks whether a vector is of the right type.
  */
+int                 rhea_strainrate_check_vec_type (ymir_vec_t *vec);
+
 int                 rhea_strainrate_2inv_check_vec_type (ymir_vec_t *vec);
 
 /**
  * Checks entries of a vector.
  */
+int                 rhea_strainrate_is_valid (ymir_vec_t *vec);
+
 int                 rhea_strainrate_2inv_is_valid (ymir_vec_t *vec);
 
 /**

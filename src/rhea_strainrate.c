@@ -7,6 +7,34 @@
 #include <ymir_velocity_elem.h>
 
 ymir_vec_t *
+rhea_strainrate_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 6, YMIR_GAUSS_NODE);
+}
+
+void
+rhea_strainrate_destroy (ymir_vec_t *strainrate)
+{
+  ymir_vec_destroy (strainrate);
+}
+
+int
+rhea_strainrate_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_dvec (vec) &&
+      vec->ndfields == 6 &&
+      vec->node_type == YMIR_GAUSS_NODE
+  );
+}
+
+int
+rhea_strainrate_is_valid (ymir_vec_t *vec)
+{
+  return sc_dmatrix_is_valid (vec->dataown);
+}
+
+ymir_vec_t *
 rhea_strainrate_2inv_new (ymir_mesh_t *ymir_mesh)
 {
   return ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
