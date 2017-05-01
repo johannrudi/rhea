@@ -980,7 +980,7 @@ collide_set_vel_dir_inoutflow (
     ymir_topidx_t face, ymir_locidx_t node_id,
     void *data)
 {
-  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 || face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE4) {
     return YMIR_VEL_DIRICHLET_ALL;
   }
   else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE) {
@@ -1023,11 +1023,13 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
     ymir_locidx_t nid, void *data)
 {
   collide_options_t  *collide_options = data;
+  const double        maxy = 4.0;
+  const double        maxz = 2.0;
   const double        flow_scale = collide_options->flow_scale;
   const double        zU = collide_options->velocity_bc_upper;
   const double        zL = collide_options->velocity_bc_lower;
-  const double        a = zU-zL, b = 1.0-a, c = 0.5*(zU+zL);
-  const double        shape = 40.0, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
+  const double        a = zU - zL, b = maxz - a, c = 0.5 * (zU+zL);
+  const double        shape = 2.0 * M_PI, scaling = 0.5 * (b+a) * flow_scale, shift = 0.5 * (b-a) * flow_scale;
   double txL = shape*(z-zL),txU = shape*(z-zU);
 
   if (fabs (y) < SC_1000_EPS) {
@@ -1044,7 +1046,7 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
                (exp (txU) + exp (-txU)) );
     }
   }
-  else if ((2.0 - y) < SC_1000_EPS) {
+  else if ((maxy - y) < SC_1000_EPS) {
     vel[0] = 0.0;
     vel[2] = 0.0;
     if (z<=c)
@@ -1727,7 +1729,7 @@ main (int argc, char **argv)
 
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                              viscosity);
-    collide_output_pressure (vtk_write_solution_path, pressure);
+//    collide_output_pressure (vtk_write_solution_path, pressure);
 
     rhea_pressure_destroy (pressure);
     rhea_viscosity_destroy (viscosity);
