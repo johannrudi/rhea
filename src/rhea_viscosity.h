@@ -80,6 +80,9 @@ typedef struct rhea_viscosity_options
   double              min;
   double              max;
 
+  /* shift of viscosity to introduce convexity to energy min. problem */
+  double              shift;
+
   /* scaling factor */
   double              upper_mantle_scaling;
   double              lower_mantle_scaling;
@@ -222,6 +225,19 @@ void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *yielding_marker,
                                                ymir_vec_t *temperature,
                                                ymir_vec_t *weakzone,
+                                               rhea_viscosity_options_t *opt);
+
+/**
+ * Returns the value by which the whole viscosity is shifted.
+ */
+double              rhea_viscosity_get_visc_shift (
+                                               rhea_viscosity_options_t *opt);
+
+/**
+ * Returns the value by which the projection part of the (linearized) viscosity
+ * coefficient is shifted.
+ */
+double              rhea_viscosity_get_visc_shift_proj (
                                                rhea_viscosity_options_t *opt);
 
 /******************************************************************************

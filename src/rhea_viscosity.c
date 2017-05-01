@@ -31,6 +31,7 @@
 #define RHEA_VISCOSITY_DEFAULT_MODEL_NAME "UWYL_LADD_USHIFT"
 #define RHEA_VISCOSITY_DEFAULT_MIN (1.0e-2)
 #define RHEA_VISCOSITY_DEFAULT_MAX (1.0e+4)
+#define RHEA_VISCOSITY_DEFAULT_SHIFT (0.0)
 #define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING (4.0e+3)
 #define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY (17.5)
 #define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING (4.0e+5)
@@ -51,6 +52,7 @@ char               *rhea_viscosity_model_name =
   RHEA_VISCOSITY_DEFAULT_MODEL_NAME;
 double              rhea_viscosity_min = RHEA_VISCOSITY_DEFAULT_MIN;
 double              rhea_viscosity_max = RHEA_VISCOSITY_DEFAULT_MAX;
+double              rhea_viscosity_shift = RHEA_VISCOSITY_DEFAULT_SHIFT;
 double              rhea_viscosity_upper_mantle_scaling =
   RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING;
 double              rhea_viscosity_upper_mantle_arrhenius_activation_energy =
@@ -99,6 +101,10 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "max", '\0',
     &(rhea_viscosity_max), RHEA_VISCOSITY_DEFAULT_MAX,
     "Upper bound for viscosity",
+
+  YMIR_OPTIONS_D, "shift", '\0',
+    &(rhea_viscosity_shift), RHEA_VISCOSITY_DEFAULT_SHIFT,
+    "Shift of viscosity to introduce convexity to energy min. problem",
 
   YMIR_OPTIONS_D, "upper-mantle-scaling", '\0',
     &(rhea_viscosity_upper_mantle_scaling),
@@ -171,6 +177,9 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   RHEA_CHECK_ABORT (opt->min <= 0.0 || opt->max <= 0.0 || opt->min < opt->max,
                     "Invalid viscosity lower/upper bounds");
 
+  /* set viscosity shift */
+  opt->shift = rhea_viscosity_shift;
+
   /* store linear viscosity options */
   opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
   opt->upper_mantle_arrhenius_activation_energy =
@@ -194,25 +203,6 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   opt->stress_exponent = rhea_viscosity_stress_exponent;
   opt->yield_strength = rhea_viscosity_yield_strength;
   opt->yielding_regularization = rhea_viscosity_yielding_regularization;
-
-  /* set additive component of nonlinear viscous stress coefficient */
-  if (opt->type == RHEA_VISCOSITY_NONLINEAR) {
-    switch (opt->model) {
-    case RHEA_VISCOSITY_MODEL_UWYL:
-      break;
-    case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
-    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-      if (0 < opt->min) {
-        ymir_nlstress_op_coeff_tensor_add = -2.0 * opt->min;
-        RHEA_GLOBAL_INFOF (
-            "%s: Overriding option ymir_nlstress_op_coeff_tensor_add = %g\n",
-            this_fn_name, ymir_nlstress_op_coeff_tensor_add);
-      }
-      break;
-    default: /* unknown viscosity model */
-      RHEA_ABORT_NOT_REACHED ();
-    }
-  }
 
   /* store domain options */
   opt->domain_options = domain_options;
@@ -880,8 +870,6 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
           *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
         }
         *viscosity += visc_min;
-        RHEA_ASSERT (
-            fabs (ymir_nlstress_op_coeff_tensor_add + 2.0 * visc_min) < SC_EPS);
       }
     }
     break;
@@ -968,8 +956,6 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
           *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
         }
         *viscosity += visc_min;
-        RHEA_ASSERT (
-            fabs (ymir_nlstress_op_coeff_tensor_add + 2.0 * visc_min) < SC_EPS);
       }
     }
     break;
@@ -1418,6 +1404,39 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
   default: /* unknown initial nonlinear viscosity type */
     RHEA_ABORT_NOT_REACHED ();
   }
+}
+
+double
+rhea_viscosity_get_visc_shift (rhea_viscosity_options_t *opt)
+{
+  return opt->shift;
+}
+
+double
+rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
+{
+  double              shift_proj;
+
+  if (opt->type == RHEA_VISCOSITY_NONLINEAR) {
+    switch (opt->model) {
+    case RHEA_VISCOSITY_MODEL_UWYL:
+      shift_proj = 0.0;
+      break;
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
+      if (0 < opt->min) {
+        shift_proj = -2.0 * opt->min;
+      }
+      else {
+        shift_proj = 0.0;
+      }
+      break;
+    default: /* unknown viscosity model */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+
+  return shift_proj;
 }
 
 /******************************************************************************
