@@ -1439,6 +1439,17 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
   return shift_proj;
 }
 
+double
+rhea_viscosity_get_yield_strength (rhea_viscosity_options_t *opt)
+{
+  if (isfinite (opt->yield_strength)) {
+    return SC_MIN (0.0, opt->yield_strength);
+  }
+  else {
+    return 0.0;
+  }
+}
+
 /******************************************************************************
  * Get & Set Functions
  *****************************************************************************/

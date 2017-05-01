@@ -240,6 +240,12 @@ double              rhea_viscosity_get_visc_shift (
 double              rhea_viscosity_get_visc_shift_proj (
                                                rhea_viscosity_options_t *opt);
 
+/**
+ * Returns the yield strength.
+ */
+double              rhea_viscosity_get_yield_strength (
+                                               rhea_viscosity_options_t *opt);
+
 /******************************************************************************
  * Get & Set Functions
  *****************************************************************************/
