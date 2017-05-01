@@ -7,23 +7,31 @@
 #include <ymir_vec_ops.h>
 
 /**
- * Creates a new second invariant of the stress vector.
+ * Creates a new (second invariant of) stress tensor.
  */
+ymir_vec_t         *rhea_stress_new (ymir_mesh_t *ymir_mesh);
+
 ymir_vec_t         *rhea_stress_2inv_new (ymir_mesh_t *ymir_mesh);
 
 /**
- * Destroys a second invariant of the stress vector.
+ * Destroys a (second invariant of) stress tensor.
  */
+void                rhea_stress_destroy (ymir_vec_t *stress);
+
 void                rhea_stress_2inv_destroy (ymir_vec_t *stress_2inv);
 
 /**
  * Checks whether a vector is of the right type.
  */
+int                 rhea_stress_check_vec_type (ymir_vec_t *vec);
+
 int                 rhea_stress_2inv_check_vec_type (ymir_vec_t *vec);
 
 /**
  * Checks entries of a vector.
  */
+int                 rhea_stress_is_valid (ymir_vec_t *vec);
+
 int                 rhea_stress_2inv_is_valid (ymir_vec_t *vec);
 
 /**

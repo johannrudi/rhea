@@ -7,6 +7,34 @@
 #include <rhea_viscosity.h>
 
 ymir_vec_t *
+rhea_stress_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 6, YMIR_GAUSS_NODE);
+}
+
+void
+rhea_stress_destroy (ymir_vec_t *stress)
+{
+  ymir_vec_destroy (stress);
+}
+
+int
+rhea_stress_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_dvec (vec) &&
+      vec->ndfields == 6 &&
+      vec->node_type == YMIR_GAUSS_NODE
+  );
+}
+
+int
+rhea_stress_is_valid (ymir_vec_t *vec)
+{
+  return sc_dmatrix_is_valid (vec->dataown);
+}
+
+ymir_vec_t *
 rhea_stress_2inv_new (ymir_mesh_t *ymir_mesh)
 {
   return ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
