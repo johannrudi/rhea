@@ -9,6 +9,14 @@
 #include <ymir_pressure_elem.h>
 #include <ymir_stokes_op.h>
 
+/* enumerator for linearization type */
+typedef enum
+{
+  RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON,
+  RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL
+}
+rhea_stokes_problem_nonlinear_linearization_t;
+
 /**
  * Defines options and adds them as sub-options.
  */
