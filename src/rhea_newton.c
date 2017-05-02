@@ -560,6 +560,24 @@ rhea_newton_problem_update_operator (ymir_vec_t *solution,
   }
 }
 
+int
+rhea_newton_problem_update_hessian_exists (rhea_newton_problem_t *nl_problem)
+{
+  return (NULL != nl_problem->update_hessian);
+}
+
+void
+rhea_newton_problem_update_hessian (ymir_vec_t *solution,
+                                    ymir_vec_t *step_vec,
+                                    const double step_length,
+                                    rhea_newton_problem_t *nl_problem)
+{
+  if (NULL != nl_problem->update_hessian) {
+    nl_problem->update_hessian (solution, step_vec, step_length,
+                                nl_problem->data);
+  }
+}
+
 /******************************************************************************
  * Newton Step
  *****************************************************************************/
@@ -1472,13 +1490,11 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
 
   /* search for step length */
   for (k = search_iter_start; k <= search_iter_max; k++) {
-    /* move solution into step direction */
+    /* move solution in step direction */
     ymir_vec_add (step->length, step->vec, solution);
 
     /* update the nonlinear operator at new solution */
-    if (nl_problem->update_operator != NULL) {
-      nl_problem->update_operator (solution, nl_problem->data);
-    }
+    rhea_newton_problem_update_operator (solution, nl_problem);
 
     /* update status */
     rhea_newton_status_compute_curr (status, neg_gradient_updated,
@@ -1543,9 +1559,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
     /* reverse updates of solution and nonlinear operator */
     if (opt->abort_failed_step_search) {
       ymir_vec_copy (solution_prev, solution);
-      if (nl_problem->update_operator != NULL) {
-        nl_problem->update_operator (solution, nl_problem->data);
-      }
+      rhea_newton_problem_update_operator (solution, nl_problem);
     }
   }
 
@@ -1578,12 +1592,13 @@ rhea_newton_solve (ymir_vec_t *solution,
 
   if (iter_start == 0) {
     RHEA_GLOBAL_PRODUCTIONF (
-        "Into %s (max iter %i, rtol %.1e, nonzero guess %i)\n",
+        "Into %s (max iter %i, rtol %.1e, nonzero init guess %i)\n",
         this_fn_name, iter_max, rtol, opt->nonzero_initial_guess);
   }
   else {
     RHEA_GLOBAL_PRODUCTIONF (
-        "Into %s (iter start %i, iter max %i, rtol %.1e, nonzero guess %i)\n",
+        "Into %s (iter start %i, iter max %i, rtol %.1e, "
+        "nonzero init guess %i)\n",
         this_fn_name, iter_start, iter_max, rtol, opt->nonzero_initial_guess);
   }
 
@@ -1674,9 +1689,8 @@ rhea_newton_solve (ymir_vec_t *solution,
     {
       /* update Hessian operator */
       if (iter != iter_start) { /* if this is not the first Newton step */
-        if (nl_problem->update_hessian != NULL) {
-          nl_problem->update_hessian (solution, nl_problem->data);
-        }
+        rhea_newton_problem_update_hessian (solution, step.vec, step.length,
+                                            nl_problem);
         if (nl_problem->check_hessian) {
           rhea_newton_check_hessian (solution, nl_problem);
         }

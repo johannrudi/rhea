@@ -104,11 +104,17 @@ typedef void      (*rhea_newton_update_operator_fn_t) (
 /**
  * Updates the current solution of the Hessian operator.
  *
- * \param [in] solution Current solution vector (may be NULL)
- * \param [in] data     User data
+ * \param [in] solution     Current solution vector (may be NULL)
+ * \param [in] step_vec     Recent step vector, which (together with step
+ *                          length) resulted in current solution (may be NULL)
+ * \param [in] step_length  Step length corresponding to step vector
+ * \param [in] data         User data
  */
 typedef void      (*rhea_newton_update_hessian_fn_t) (
-                                            ymir_vec_t *solution, void *data);
+                                            ymir_vec_t *solution,
+                                            ymir_vec_t *step_vec,
+                                            const double step_length,
+                                            void *data);
 
 /**
  * Writes or prints output at the beginning of a Newton step.
@@ -318,6 +324,15 @@ int                 rhea_newton_problem_update_operator_exists (
 
 void                rhea_newton_problem_update_operator (
                                             ymir_vec_t *solution,
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_update_hessian_exists (
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_update_hessian (
+                                            ymir_vec_t *solution,
+                                            ymir_vec_t *step_vec,
+                                            const double step_length,
                                             rhea_newton_problem_t *nl_problem);
 
 #endif /* RHEA_NEWTON_H */
