@@ -37,7 +37,7 @@
 #define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING (4.0e+5)
 #define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY (17.5)
 #define RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT (3.0)
-#define RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH (-1.0)
+#define RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH (NAN)
 #define RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION (0.0)
 
 /* initialize options */
@@ -684,7 +684,7 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,
   RHEA_ASSERT (yield_reg <= 0.0 || yield_reg <= 1.0);
 
   /* exit if nothing to do */
-  if (yield_strength <= 0.0) {
+  if ( !(isfinite (yield_strength) && 0.0 < yield_strength) ) {
     *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
     return;
   }
@@ -739,31 +739,13 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
   const double        yield_strength = opt->yield_strength;
   const double        yield_reg =
     SC_MIN (SC_MAX (0.0, opt->yielding_regularization), 1.0);
+  const int           has_srw = rhea_viscosity_has_strain_rate_weakening (opt);
+  const int           has_yld = rhea_viscosity_has_yielding (opt);
   double              visc_lin = rhea_viscosity_linear_comp (temp, opt, 1);
-  int                 comp_srw_active = 0;
-  int                 comp_yld_active = 0;
 
   RHEA_ASSERT (0.0 < visc_max);
   RHEA_ASSERT (0.0 <= visc_lin);
   RHEA_ASSERT (0.0 < visc_lin || 0.0 < visc_min);
-
-  /* activate nonlinear viscosity components */
-  switch (opt->type_nonlinear) {
-  case RHEA_VISCOSITY_NONLINEAR_SRW:
-    comp_srw_active = 1;
-    break;
-  case RHEA_VISCOSITY_NONLINEAR_YLD:
-    comp_yld_active = 1;
-    break;
-  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:
-    comp_srw_active = 1;
-    if (0.0 < yield_strength) {
-      comp_yld_active = 1;
-    }
-    break;
-  default: /* unknown nonlinear viscosity type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
 
   /* initialize marker that viscosity bounds are reached */
   *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
@@ -776,7 +758,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       visc_lin *= scaling;
 
       /* compute strain rate weakening viscosity */
-      if (comp_srw_active) {
+      if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
             viscosity, rank1_scal, visc_lin, strainrate_sqrt_2inv, stress_exp);
       }
@@ -801,7 +783,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       }
 
       /* (Y) apply yielding */
-      if (comp_yld_active) {
+      if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
             viscosity, rank1_scal, yielding_active, strainrate_sqrt_2inv,
             yield_strength, yield_reg);
@@ -830,7 +812,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       }
 
       /* compute strain rate weakening viscosity */
-      if (comp_srw_active) {
+      if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
             viscosity, rank1_scal, visc_lin, strainrate_sqrt_2inv, stress_exp);
       }
@@ -855,7 +837,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       }
 
       /* (Y) apply yielding */
-      if (comp_yld_active) {
+      if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
             viscosity, rank1_scal, yielding_active, strainrate_sqrt_2inv,
             yield_strength, yield_reg);
@@ -915,7 +897,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       }
 
       /* compute strain rate weakening viscosity */
-      if (comp_srw_active) {
+      if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening_shift (
             viscosity, rank1_scal, visc_lin, strainrate_sqrt_2inv, shift,
             stress_exp);
@@ -941,7 +923,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       }
 
       /* (Y) apply yielding */
-      if (comp_yld_active) {
+      if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
             viscosity, rank1_scal, yielding_active, strainrate_sqrt_2inv,
             yield_strength, yield_reg);
@@ -999,7 +981,9 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   const double        interface_smoothing_width =
                         domain_options->lm_um_interface_smoothing_width;
 
-  double              r1, bd, yld;
+  double              r1 = 0.0;
+  double              bd = RHEA_VISCOSITY_BOUNDS_OFF;
+  double              yld = RHEA_VISCOSITY_YIELDING_OFF;
   int                 nodeid;
 
   /* check input */
@@ -1064,8 +1048,6 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   else { /* if element is located in lower mantle */
     const int           restrict_to_bounds = 1;
 
-    r1 = 0.0;
-    yld = RHEA_VISCOSITY_YIELDING_OFF;
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
       const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
       const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
@@ -1439,14 +1421,45 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
   return shift_proj;
 }
 
+int
+rhea_viscosity_has_strain_rate_weakening (rhea_viscosity_options_t *opt)
+{
+  const int           is_valid = (isfinite (opt->stress_exponent) &&
+                                  0.0 < opt->stress_exponent &&
+                                  SC_EPS < fabs (1.0 - opt->stress_exponent));
+
+  switch (opt->type_nonlinear) {
+  case RHEA_VISCOSITY_NONLINEAR_SRW:      return is_valid;
+  case RHEA_VISCOSITY_NONLINEAR_YLD:      return 0;
+  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:  return is_valid;
+  default: /* unknown nonlinear viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+int
+rhea_viscosity_has_yielding (rhea_viscosity_options_t *opt)
+{
+  const int           is_valid = (isfinite (opt->yield_strength) &&
+                                  0.0 < opt->yield_strength);
+
+  switch (opt->type_nonlinear) {
+  case RHEA_VISCOSITY_NONLINEAR_SRW:      return 0;
+  case RHEA_VISCOSITY_NONLINEAR_YLD:      return is_valid;
+  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:  return is_valid;
+  default: /* unknown nonlinear viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
 double
 rhea_viscosity_get_yield_strength (rhea_viscosity_options_t *opt)
 {
-  if (isfinite (opt->yield_strength)) {
-    return SC_MIN (0.0, opt->yield_strength);
+  if (rhea_viscosity_has_yielding (opt)) {
+    return opt->yield_strength;
   }
   else {
-    return 0.0;
+    return NAN;
   }
 }
 

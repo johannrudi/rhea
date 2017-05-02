@@ -241,6 +241,17 @@ double              rhea_viscosity_get_visc_shift_proj (
                                                rhea_viscosity_options_t *opt);
 
 /**
+ * Returns whether strain rate weakening physics are enabled.
+ */
+int                 rhea_viscosity_has_strain_rate_weakening (
+                                                rhea_viscosity_options_t *opt);
+
+/**
+ * Returns whether yielding physics are enabled.
+ */
+int                 rhea_viscosity_has_yielding (rhea_viscosity_options_t *opt);
+
+/**
  * Returns the yield strength.
  */
 double              rhea_viscosity_get_yield_strength (
