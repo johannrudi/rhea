@@ -77,7 +77,6 @@ include example/basic/Makefile.am
 include example/collide/Makefile.am
 include example/newton_polynomial/Makefile.am
 include example/yielding/Makefile.am
-include example/slabs/Makefile.am
 ##endif
 
 # lint static syntax checker
