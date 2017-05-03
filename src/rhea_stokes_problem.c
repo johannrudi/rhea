@@ -508,8 +508,8 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
     RHEA_ASSERT (ymir_stress_op_has_linearized (stress_op));
     RHEA_ASSERT (ymir_stress_op_get_coeff_type (stress_op) ==
                  YMIR_STRESS_OP_COEFF_ISOTROPIC_SCAL);
-    RHEA_ASSERT (ymir_stress_op_get_coeff_shift (stress_op) ==
-                 rhea_viscosity_get_visc_shift (visc_options));
+    RHEA_ASSERT (fabs (ymir_stress_op_get_coeff_shift (stress_op) -
+                       rhea_viscosity_get_visc_shift (visc_options)) < SC_EPS);
 
     ymir_vec_scale (2.0, coeff);
     ymir_stress_op_set_coeff_scal (stress_op, coeff);
@@ -567,8 +567,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
   /* get viscous stress operator */
   stress_op = stokes_op->stress_op;
   RHEA_ASSERT (ymir_stress_op_has_linearized (stress_op));
-  RHEA_ASSERT (ymir_stress_op_get_coeff_shift_proj (stress_op) ==
-               rhea_viscosity_get_visc_shift_proj (visc_options));
+  RHEA_ASSERT (fabs (ymir_stress_op_get_coeff_shift (stress_op) -
+                     rhea_viscosity_get_visc_shift (visc_options)) < SC_EPS);
 
   /*
    * Set Linearized Part of the Viscous Stress Coefficient
@@ -593,6 +593,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         /* retrieve velocity */
         rhea_velocity_pressure_copy_components (
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+        RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
 
         /* compute and normalize strain rate tensor */
         ymir_stress_op_optimized_compute_strain_rate (
@@ -631,6 +632,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         /* retrieve velocity of current solution */
         rhea_velocity_pressure_copy_components (
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+        RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
 
         /*
          * Primal-Dual Stress Tensor Update via Step:
@@ -655,6 +657,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
           /* retrieve velocity of step */
           rhea_velocity_pressure_copy_components (
               step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
+          RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
 
           /* compute previous solution velocity (before step) */
           ymir_vec_copy (sol_vel, prev_vel);
