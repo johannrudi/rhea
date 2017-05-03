@@ -490,7 +490,8 @@ newton_polynomial_solve_hessian_system (ymir_vec_t *step,
  * (Callback function for Newton's method.)
  */
 static void
-newton_polynomial_update_hessian (ymir_vec_t *solution, void *data)
+newton_polynomial_update_hessian (ymir_vec_t *solution, ymir_vec_t *step_vec,
+                                  const double step_length, void *data)
 {
   newton_polynomial_problem_t  *poly_problem = data;
 
