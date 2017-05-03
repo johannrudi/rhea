@@ -102,7 +102,7 @@ rhea_add_options_base (ymir_options_t *opt)
     ".ini file with option values",
 
   /* performance */
-  YMIR_OPTIONS_B, "production-run", '\0',
+  YMIR_OPTIONS_B, "production-run", 'p',
     &(rhea_production_run), 0,
     "Execute as a production run (to reduce some overhead and checks)",
 
