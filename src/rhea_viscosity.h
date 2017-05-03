@@ -146,21 +146,21 @@ int                 rhea_viscosity_is_valid (ymir_vec_t *vec);
 /**
  * Computes a custom viscosity.  Callback function for viscosity computation.
  *
- * \param [out] viscosity         Viscosity (Gauss quadrature nodes)
- * \param [out] rank1_tensor_scal Scaling for rank-1 fourth-order tensor
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [out] bounds_marker     Marker where min/max viscosity is reached
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [out] yielding_marker   Marker where yielding is applied
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [in] temperature        Temperature (GLL nodes, may be NULL)
- * \param [in] weakzone           Weak zone factor (Gauss nodes, may be NULL)
- * \param [in] velocity           Velocity (GLL nodes, may be NULL)
- * \param [in] opt                Viscosity options
- * \param [in] data               User data
+ * \param [out] viscosity       Viscosity (Gauss quadrature nodes)
+ * \param [out] proj_scal       Scaling for rank-1 fourth-order tensor
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [out] bounds_marker   Marker where min/max viscosity is reached
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [out] yielding_marker Marker where yielding is applied
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [in] temperature      Temperature (GLL nodes, may be NULL)
+ * \param [in] weakzone         Weak zone factor (Gauss nodes, may be NULL)
+ * \param [in] velocity         Velocity (GLL nodes, may be NULL)
+ * \param [in] opt              Viscosity options
+ * \param [in] data             User data
  */
 typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
-                                                  ymir_vec_t *rank1_tensor_scal,
+                                                  ymir_vec_t *proj_scal,
                                                   ymir_vec_t *bounds_marker,
                                                   ymir_vec_t *yielding_marker,
                                                   ymir_vec_t *temperature,
@@ -182,21 +182,21 @@ void                rhea_viscosity_set_viscosity_compute_fn (
 /**
  * Computes the viscosity.
  *
- * \param [out] viscosity         Viscosity (Gauss quadrature nodes)
- * \param [out] rank1_tensor_scal Scaling for rank-1 fourth-order tensor
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [out] bounds_marker     Marker where min/max viscosity is reached
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [out] yielding_marker   Marker where yielding is applied
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [in] temperature        Temperature (GLL nodes, may be NULL)
- * \param [in] weakzone           Weak zone factor (Gauss nodes, may be NULL)
- * \param [in] velocity           Velocity (GLL nodes, may be NULL)
- * \param [in] opt                Viscosity options
- * \param [in] data               User data
+ * \param [out] viscosity       Viscosity (Gauss quadrature nodes)
+ * \param [out] proj_scal       Scaling for rank-1 fourth-order tensor
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [out] bounds_marker   Marker where min/max viscosity is reached
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [out] yielding_marker Marker where yielding is applied
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [in] temperature      Temperature (GLL nodes, may be NULL)
+ * \param [in] weakzone         Weak zone factor (Gauss nodes, may be NULL)
+ * \param [in] velocity         Velocity (GLL nodes, may be NULL)
+ * \param [in] opt              Viscosity options
+ * \param [in] data             User data
  */
 void                rhea_viscosity_compute (ymir_vec_t *viscosity,
-                                            ymir_vec_t *rank1_tensor_scal,
+                                            ymir_vec_t *proj_scal,
                                             ymir_vec_t *bounds_marker,
                                             ymir_vec_t *yielding_marker,
                                             ymir_vec_t *temperature,
@@ -207,20 +207,20 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
 /**
  * Computes the viscosity to initialize a nonlinear solver with zero velocity.
  *
- * \param [out] viscosity         Viscosity (Gauss quadrature nodes)
- * \param [out] rank1_tensor_scal Scaling for rank-1 fourth-order tensor
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [out] bounds_marker     Marker where min/max viscosity is reached
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [out] yielding_marker   Marker where yielding is applied
- *                                  (Gauss quadrature nodes, may be NULL)
- * \param [in] temperature        Temperature (GLL nodes, may be NULL)
- * \param [in] weakzone           Weak zone factor (Gauss nodes, may be NULL)
- * \param [in] opt                Viscosity options
+ * \param [out] viscosity       Viscosity (Gauss quadrature nodes)
+ * \param [out] proj_scal       Scaling for rank-1 fourth-order tensor
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [out] bounds_marker   Marker where min/max viscosity is reached
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [out] yielding_marker Marker where yielding is applied
+ *                                (Gauss quadrature nodes, may be NULL)
+ * \param [in] temperature      Temperature (GLL nodes, may be NULL)
+ * \param [in] weakzone         Weak zone factor (Gauss nodes, may be NULL)
+ * \param [in] opt              Viscosity options
  */
 void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *viscosity,
-                                               ymir_vec_t *rank1_tensor_scal,
+                                               ymir_vec_t *proj_scal,
                                                ymir_vec_t *bounds_marker,
                                                ymir_vec_t *yielding_marker,
                                                ymir_vec_t *temperature,
@@ -278,18 +278,18 @@ void                rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec,
 /**
  * Gets the rank-1 4th-order tensor of one element at Gauss nodes.
  */
-double             *rhea_viscosity_rank1_scal_get_elem_gauss (
-                                              sc_dmatrix_t *rank1_scal_el_mat,
-                                              ymir_vec_t *rank1_scal_vec,
-                                              const ymir_locidx_t elid);
+double             *rhea_viscosity_proj_scal_get_elem_gauss (
+                                                sc_dmatrix_t *proj_scal_el_mat,
+                                                ymir_vec_t *proj_scal_vec,
+                                                const ymir_locidx_t elid);
 
 /**
  * Sets the rank-1 4th-order tensor of one element at Gauss nodes.
  */
-void                rhea_viscosity_rank1_scal_set_elem_gauss (
-                                              ymir_vec_t *rank1_scal_vec,
-                                              sc_dmatrix_t *rank1_scal_el_mat,
-                                              const ymir_locidx_t elid);
+void                rhea_viscosity_proj_scal_set_elem_gauss (
+                                                ymir_vec_t *proj_scal_vec,
+                                                sc_dmatrix_t *proj_scal_el_mat,
+                                                const ymir_locidx_t elid);
 
 /**
  * Gets a marker of one element at Gauss nodes.

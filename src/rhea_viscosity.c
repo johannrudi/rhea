@@ -602,7 +602,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
 static void
 rhea_viscosity_nonlinear_strain_rate_weakening (
                                             double *viscosity,
-                                            double *rank1_scal,
+                                            double *proj_scal,
                                             const double visc_in,
                                             const double strainrate_sqrt_2inv,
                                             const double stress_exp)
@@ -619,11 +619,11 @@ rhea_viscosity_nonlinear_strain_rate_weakening (
   *viscosity = visc_in * pow (strainrate_sqrt_2inv, 1.0/stress_exp) /
                strainrate_sqrt_2inv;
 
-  /* compute scaling of the rank-1 4th-order tensor
+  /* compute scaling of the projection tensor
    *
-   *   rank1_scal = (1 - n) / n
+   *   proj_scal = (1 - n) / n
    */
-  *rank1_scal = (1.0 - stress_exp) / stress_exp;
+  *proj_scal = (1.0 - stress_exp) / stress_exp;
 }
 
 /**
@@ -633,7 +633,7 @@ rhea_viscosity_nonlinear_strain_rate_weakening (
 static void
 rhea_viscosity_nonlinear_strain_rate_weakening_shift (
                                             double *viscosity,
-                                            double *rank1_scal,
+                                            double *proj_scal,
                                             const double visc_in,
                                             const double strainrate_sqrt_2inv,
                                             const double shift,
@@ -653,15 +653,15 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
   *viscosity = visc_in * pow (strainrate_sqrt_2inv - shift, 1.0/stress_exp) /
                strainrate_sqrt_2inv;
 
-  /* compute scaling of the rank-1 4th-order tensor
+  /* compute scaling of the projection tensor
    *
-   *   rank1_scal = (sqrt(strainrate_2inv)/n - sqrt(strainrate_2inv) + shift) /
-   *                (sqrt(strainrate_2inv) - shift)
-   *              = (1 - n) / n + shift / (n * (sqrt(strainrate_2inv) - shift))
+   *   proj_scal = (sqrt(strainrate_2inv)/n - sqrt(strainrate_2inv) + shift) /
+   *               (sqrt(strainrate_2inv) - shift)
+   *             = (1 - n) / n + shift / (n * (sqrt(strainrate_2inv) - shift))
    */
-  *rank1_scal = (1.0 - stress_exp) / stress_exp +
-                shift / (stress_exp * (strainrate_sqrt_2inv - shift));
-  *rank1_scal = SC_MIN ( SC_MAX (-1.0, *rank1_scal), 0.0);
+  *proj_scal = (1.0 - stress_exp) / stress_exp +
+               shift / (stress_exp * (strainrate_sqrt_2inv - shift));
+  *proj_scal = SC_MIN ( SC_MAX (-1.0, *proj_scal), 0.0);
 }
 
 /**
@@ -669,7 +669,7 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
  */
 static void
 rhea_viscosity_nonlinear_yielding (double *viscosity,
-                                   double *rank1_scal,
+                                   double *proj_scal,
                                    double *yielding_active,
                                    const double strainrate_sqrt_2inv,
                                    const double yield_strength,
@@ -679,7 +679,7 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,
 
   /* check input */
   RHEA_ASSERT (0.0 <= *viscosity);
-  RHEA_ASSERT (-1.0 < *rank1_scal && *rank1_scal <= 0.0);
+  RHEA_ASSERT (-1.0 < *proj_scal && *proj_scal <= 0.0);
   RHEA_ASSERT (0.0 <= strainrate_sqrt_2inv);
   RHEA_ASSERT (yield_reg <= 0.0 || yield_reg <= 1.0);
 
@@ -700,19 +700,19 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,
   /* apply yielding if yield strenght is exceeded */
   if (yield_strength < visc_stress) {
     const double        v = *viscosity;
-    const double        r1 = *rank1_scal;
+    const double        ps = *proj_scal;
     const double        vy = (yield_strength / 2.0) / strainrate_sqrt_2inv;
-    const double        r1y = -1.0;
+    const double        psy = -1.0;
 
     if (0.0 < yield_reg) { /* if regularize yielding via convex combination */
       *viscosity = yield_reg * v + (1.0 - yield_reg) * vy;
       RHEA_ASSERT (0.0 < *viscosity);
-      *rank1_scal = (yield_reg * v * r1 + (1.0 - yield_reg) * vy * r1y) /
-                    *viscosity;
+      *proj_scal = (yield_reg * v * ps + (1.0 - yield_reg) * vy * psy) /
+                   *viscosity;
     }
     else { /* if standard yielding without regularization is applied */
       *viscosity = vy;
-      *rank1_scal = r1y;
+      *proj_scal = psy;
     }
 
     /* set yielding marker to active */
@@ -726,7 +726,7 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,
  * weakening, and yielding.
  */
 static void
-rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
+rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
                                 double *bounds_active, double *yielding_active,
                                 const double temp, const double weak,
                                 const double strainrate_sqrt_2inv,
@@ -760,17 +760,17 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
-            viscosity, rank1_scal, visc_lin, strainrate_sqrt_2inv, stress_exp);
+            viscosity, proj_scal, visc_lin, strainrate_sqrt_2inv, stress_exp);
       }
       else {
         *viscosity = visc_lin;
-        *rank1_scal = 0.0;
+        *proj_scal = 0.0;
       }
 
       /* (U) apply upper bound to viscosity */
       if (visc_max < *viscosity) {
         *viscosity = visc_max;
-        *rank1_scal = 0.0;
+        *proj_scal = 0.0;
         *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
@@ -785,7 +785,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, rank1_scal, yielding_active, strainrate_sqrt_2inv,
+            viscosity, proj_scal, yielding_active, strainrate_sqrt_2inv,
             yield_strength, yield_reg);
       }
       else {
@@ -795,7 +795,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       /* (L) apply lower bound to viscosity */
       if (0.0 < visc_min && *viscosity < visc_min) {
         *viscosity = visc_min;
-        *rank1_scal = 0.0;
+        *proj_scal = 0.0;
         *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
       }
     }
@@ -814,17 +814,17 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
-            viscosity, rank1_scal, visc_lin, strainrate_sqrt_2inv, stress_exp);
+            viscosity, proj_scal, visc_lin, strainrate_sqrt_2inv, stress_exp);
       }
       else {
         *viscosity = visc_lin;
-        *rank1_scal = 0.0;
+        *proj_scal = 0.0;
       }
 
       /* (U) apply upper bound to viscosity */
       if (visc_max < *viscosity) {
         *viscosity = visc_max;
-        *rank1_scal = 0.0;
+        *proj_scal = 0.0;
         *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
@@ -839,7 +839,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, rank1_scal, yielding_active, strainrate_sqrt_2inv,
+            viscosity, proj_scal, yielding_active, strainrate_sqrt_2inv,
             yield_strength, yield_reg);
       }
       else {
@@ -899,18 +899,18 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening_shift (
-            viscosity, rank1_scal, visc_lin, strainrate_sqrt_2inv, shift,
+            viscosity, proj_scal, visc_lin, strainrate_sqrt_2inv, shift,
             stress_exp);
       }
       else {
         *viscosity = visc_lin;
-        *rank1_scal = 0.0;
+        *proj_scal = 0.0;
       }
 
       /* (U) apply upper bound */
       if (strainrate_sqrt_2inv < strainrate_min) {
         *viscosity = visc_max;
-        *rank1_scal = 0.0;
+        *proj_scal = 0.0;
         *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
       }
 
@@ -925,7 +925,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, rank1_scal, yielding_active, strainrate_sqrt_2inv,
+            viscosity, proj_scal, yielding_active, strainrate_sqrt_2inv,
             yield_strength, yield_reg);
       }
       else {
@@ -956,7 +956,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *rank1_scal,
  */
 static void
 rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
-                               double *_sc_restrict rank1_scal_elem,
+                               double *_sc_restrict proj_scal_elem,
                                double *_sc_restrict bounds_elem,
                                double *_sc_restrict yielding_elem,
                                const double *_sc_restrict temp_elem,
@@ -981,7 +981,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   const double        interface_smoothing_width =
                         domain_options->lm_um_interface_smoothing_width;
 
-  double              r1 = 0.0;
+  double              ps = 0.0;
   double              bd = RHEA_VISCOSITY_BOUNDS_OFF;
   double              yld = RHEA_VISCOSITY_YIELDING_OFF;
   int                 nodeid;
@@ -1013,7 +1013,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       RHEA_ASSERT (0.0 <= strt);
 
       /* compute nonlinear viscosity in upper mantle */
-      rhea_viscosity_nonlinear_model (&visc_elem[nodeid], &r1, &bd, &yld,
+      rhea_viscosity_nonlinear_model (&visc_elem[nodeid], &ps, &bd, &yld,
                                       temp, weak, strt, opt);
 
       /* update viscosity by applying a smooth transition close to the LM-UM
@@ -1034,8 +1034,8 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       }
 
       /* store values in output arrays if they exist */
-      if (rank1_scal_elem != NULL) {
-        rank1_scal_elem[nodeid] = r1;
+      if (proj_scal_elem != NULL) {
+        proj_scal_elem[nodeid] = ps;
       }
       if (bounds_elem != NULL) {
         bounds_elem[nodeid] = bd;
@@ -1073,11 +1073,11 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
         const double        strt = (in_strt ? strt_sqrt_2inv_elem[nodeid] :
                                               strt_default);
         const double        v1 = visc_elem[nodeid];
-        double              v2, r1_2, bd2, yld2, c;
+        double              v2, ps_2, bd2, yld2, c;
 
         RHEA_ASSERT (isfinite (strt));
         RHEA_ASSERT (0.0 <= strt);
-        rhea_viscosity_nonlinear_model (&v2, &r1_2, &bd2, &yld2,
+        rhea_viscosity_nonlinear_model (&v2, &ps_2, &bd2, &yld2,
                                         temp, weak, strt, opt);
 
         c = (fabs (r - interface_radius) - 0.5 * interface_smoothing_width) /
@@ -1088,8 +1088,8 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       }
 
       /* store (default) values in output arrays if they exist */
-      if (rank1_scal_elem != NULL) {
-        rank1_scal_elem[nodeid] = r1;
+      if (proj_scal_elem != NULL) {
+        proj_scal_elem[nodeid] = ps;
       }
       if (bounds_elem != NULL) {
         bounds_elem[nodeid] = bd;
@@ -1107,11 +1107,12 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
     RHEA_ASSERT (isfinite (visc_elem[nodeid]));
     RHEA_ASSERT (0.0 < visc_elem[nodeid]);
 
-    /* check rank-1 tensor scaling for `nan`, `inf`, and valid range [-1,0] */
-    if (rank1_scal_elem != NULL) {
-      RHEA_ASSERT (isfinite (rank1_scal_elem[nodeid]));
-      RHEA_ASSERT (-1.0 <= rank1_scal_elem[nodeid]);
-      RHEA_ASSERT (rank1_scal_elem[nodeid] <= 0.0);
+    /* check projection tensor scaling for `nan`, `inf`, and
+     * valid range [-1,0] */
+    if (proj_scal_elem != NULL) {
+      RHEA_ASSERT (isfinite (proj_scal_elem[nodeid]));
+      RHEA_ASSERT (-1.0 <= proj_scal_elem[nodeid]);
+      RHEA_ASSERT (proj_scal_elem[nodeid] <= 0.0);
     }
 
     /* check bounds marker for `nan`, `inf`, and valid range [-1,1] */
@@ -1136,7 +1137,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
  */
 static void
 rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
-                              ymir_vec_t *rank1_scal_vec,
+                              ymir_vec_t *proj_scal_vec,
                               ymir_vec_t *bounds_vec,
                               ymir_vec_t *yielding_vec,
                               ymir_vec_t *temp_vec,
@@ -1150,16 +1151,16 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
   const int           in_temp = (temp_vec != NULL);
   const int           in_weak = (weak_vec != NULL);
-  const int           out_rank1 = (rank1_scal_vec != NULL);
+  const int           out_proj = (proj_scal_vec != NULL);
   const int           out_bounds = (bounds_vec != NULL);
   const int           out_yielding = (yielding_vec != NULL);
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *vel_el_mat,
                      *strt_sqrt_2inv_el_mat;
   double             *temp_el_data, *weak_el_data, *strt_sqrt_2inv_el_data;
-  sc_dmatrix_t       *visc_el_mat, *rank1_scal_el_mat,
+  sc_dmatrix_t       *visc_el_mat, *proj_scal_el_mat,
                      *bounds_el_mat, *yielding_el_mat;
-  double             *visc_el_data, *rank1_scal_el_data,
+  double             *visc_el_data, *proj_scal_el_data,
                      *bounds_el_data, *yielding_el_data;
   sc_dmatrix_t       *tmp_grad_vel, *tmp_dvel, *tmp_vel;
   double             *x, *y, *z, *tmp_el;
@@ -1176,10 +1177,10 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   weak_el_mat = (in_weak ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   vel_el_mat  = sc_dmatrix_new (n_nodes_per_el, 3);
   strt_sqrt_2inv_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  visc_el_mat        = sc_dmatrix_new (n_nodes_per_el, 1);
-  rank1_scal_el_mat  = (out_rank1 ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
-  bounds_el_mat      = (out_bounds ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
-  yielding_el_mat    = (out_yielding ? sc_dmatrix_new (n_nodes_per_el, 1) :
+  visc_el_mat      = sc_dmatrix_new (n_nodes_per_el, 1);
+  proj_scal_el_mat = (out_proj ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
+  bounds_el_mat    = (out_bounds ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
+  yielding_el_mat  = (out_yielding ? sc_dmatrix_new (n_nodes_per_el, 1) :
                                        NULL);
   tmp_grad_vel = sc_dmatrix_new (n_nodes_per_el, 9);
   tmp_dvel     = sc_dmatrix_new (n_nodes_per_el, 3);
@@ -1192,10 +1193,10 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   temp_el_data           = NULL;
   weak_el_data           = NULL;
   strt_sqrt_2inv_el_data = strt_sqrt_2inv_el_mat->e[0];
-  visc_el_data       = visc_el_mat->e[0];
-  rank1_scal_el_data = (out_rank1 ? rank1_scal_el_mat->e[0] : NULL);
-  bounds_el_data     = (out_bounds ? bounds_el_mat->e[0] : NULL);
-  yielding_el_data   = (out_yielding ? yielding_el_mat->e[0] : NULL);
+  visc_el_data      = visc_el_mat->e[0];
+  proj_scal_el_data = (out_proj ? proj_scal_el_mat->e[0] : NULL);
+  bounds_el_data    = (out_bounds ? bounds_el_mat->e[0] : NULL);
+  yielding_el_data  = (out_yielding ? yielding_el_mat->e[0] : NULL);
   /* *INDENT-ON* */
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
@@ -1218,15 +1219,15 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 
     /* compute nonlinear viscosity */
     rhea_viscosity_nonlinear_elem (
-        visc_el_data, rank1_scal_el_data, bounds_el_data, yielding_el_data,
+        visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
         temp_el_data, weak_el_data, strt_sqrt_2inv_el_data, x, y, z,
         n_nodes_per_el, Vmask, opt);
 
     /* set viscosity and other output vectors */
     rhea_viscosity_set_elem_gauss (visc_vec, visc_el_mat, elid);
-    if (out_rank1) {
-      rhea_viscosity_rank1_scal_set_elem_gauss (rank1_scal_vec,
-                                                rank1_scal_el_mat, elid);
+    if (out_proj) {
+      rhea_viscosity_proj_scal_set_elem_gauss (proj_scal_vec, proj_scal_el_mat,
+                                               elid);
     }
     if (out_bounds) {
       rhea_viscosity_marker_set_elem_gauss (bounds_vec, bounds_el_mat, elid);
@@ -1247,8 +1248,8 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   sc_dmatrix_destroy (vel_el_mat);
   sc_dmatrix_destroy (strt_sqrt_2inv_el_mat);
   sc_dmatrix_destroy (visc_el_mat);
-  if (out_rank1) {
-    sc_dmatrix_destroy (rank1_scal_el_mat);
+  if (out_proj) {
+    sc_dmatrix_destroy (proj_scal_el_mat);
   }
   if (out_bounds) {
     sc_dmatrix_destroy (bounds_el_mat);
@@ -1283,7 +1284,7 @@ rhea_viscosity_set_viscosity_compute_fn (rhea_viscosity_compute_fn_t fn,
 
 void
 rhea_viscosity_compute (ymir_vec_t *viscosity,
-                        ymir_vec_t *rank1_tensor_scal,
+                        ymir_vec_t *proj_scal,
                         ymir_vec_t *bounds_marker,
                         ymir_vec_t *yielding_marker,
                         ymir_vec_t *temperature,
@@ -1293,7 +1294,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
 {
   /* compute custom viscosity and exit */
   if (rhea_viscosity_compute_fn != NULL) {
-    rhea_viscosity_compute_fn (viscosity, rank1_tensor_scal, bounds_marker,
+    rhea_viscosity_compute_fn (viscosity, proj_scal, bounds_marker,
                                yielding_marker, temperature, weakzone,
                                velocity, opt, rhea_viscosity_compute_fn_data);
     RHEA_ASSERT (rhea_viscosity_is_valid (viscosity));
@@ -1307,8 +1308,8 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
                                temperature, weakzone, opt);
 
     /* set default values for vectors pertaining to nonlinear viscosity */
-    if (rank1_tensor_scal != NULL) {
-      ymir_dvec_set_zero (rank1_tensor_scal);
+    if (proj_scal != NULL) {
+      ymir_dvec_set_zero (proj_scal);
     }
     if (yielding_marker != NULL) {
       ymir_dvec_set_value (yielding_marker, RHEA_VISCOSITY_YIELDING_OFF);
@@ -1317,7 +1318,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
 
   case RHEA_VISCOSITY_NONLINEAR:
     /* compute nonlinear viscosity */
-    rhea_viscosity_nonlinear_vec (viscosity, rank1_tensor_scal,
+    rhea_viscosity_nonlinear_vec (viscosity, proj_scal,
                                   bounds_marker, yielding_marker,
                                   temperature, weakzone, velocity, opt);
     break;
@@ -1333,7 +1334,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
  */
 void
 rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
-                                       ymir_vec_t *rank1_tensor_scal,
+                                       ymir_vec_t *proj_scal,
                                        ymir_vec_t *bounds_marker,
                                        ymir_vec_t *yielding_marker,
                                        ymir_vec_t *temperature,
@@ -1351,7 +1352,7 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
       /* compute nonlinear viscosity with zero velocity */
       ymir_vec_set_zero (velocity);
       rhea_viscosity_compute (
-          viscosity, rank1_tensor_scal, bounds_marker, yielding_marker,
+          viscosity, proj_scal, bounds_marker, yielding_marker,
           temperature, weakzone, velocity, opt);
 
       ymir_vec_destroy (velocity);
@@ -1374,8 +1375,8 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
       }
 
       /* set all other output vectors to zero */
-      if (rank1_tensor_scal != NULL) {
-        ymir_dvec_set_zero (rank1_tensor_scal);
+      if (proj_scal != NULL) {
+        ymir_dvec_set_zero (proj_scal);
       }
       if (yielding_marker != NULL) {
         ymir_dvec_set_value (yielding_marker, RHEA_VISCOSITY_YIELDING_OFF);
@@ -1503,43 +1504,43 @@ rhea_viscosity_set_elem_gauss (ymir_vec_t *visc_vec, sc_dmatrix_t *visc_el_mat,
 }
 
 double *
-rhea_viscosity_rank1_scal_get_elem_gauss (sc_dmatrix_t *rank1_scal_el_mat,
-                                          ymir_vec_t *rank1_scal_vec,
-                                          const ymir_locidx_t elid)
+rhea_viscosity_proj_scal_get_elem_gauss (sc_dmatrix_t *proj_scal_el_mat,
+                                         ymir_vec_t *proj_scal_vec,
+                                         const ymir_locidx_t elid)
 {
 #ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (proj_scal_vec);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
-  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
+  YMIR_ASSERT_IS_DVEC (proj_scal_vec);
+  RHEA_ASSERT (proj_scal_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (proj_scal_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (proj_scal_el_mat->n == 1);
 #endif
 
-  ymir_dvec_get_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
+  ymir_dvec_get_elem (proj_scal_vec, proj_scal_el_mat, YMIR_STRIDE_NODE,
                       elid, YMIR_READ);
-  return rank1_scal_el_mat->e[0];
+  return proj_scal_el_mat->e[0];
 }
 
 void
-rhea_viscosity_rank1_scal_set_elem_gauss (ymir_vec_t *rank1_scal_vec,
-                                          sc_dmatrix_t *rank1_scal_el_mat,
-                                          const ymir_locidx_t elid)
+rhea_viscosity_proj_scal_set_elem_gauss (ymir_vec_t *proj_scal_vec,
+                                         sc_dmatrix_t *proj_scal_el_mat,
+                                         const ymir_locidx_t elid)
 {
 #ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (rank1_scal_vec);
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (proj_scal_vec);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (rank1_scal_vec);
-  RHEA_ASSERT (rank1_scal_vec->node_type == YMIR_GAUSS_NODE);
-  RHEA_ASSERT (rank1_scal_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (rank1_scal_el_mat->n == 1);
+  YMIR_ASSERT_IS_DVEC (proj_scal_vec);
+  RHEA_ASSERT (proj_scal_vec->node_type == YMIR_GAUSS_NODE);
+  RHEA_ASSERT (proj_scal_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (proj_scal_el_mat->n == 1);
 #endif
 
-  ymir_dvec_set_elem (rank1_scal_vec, rank1_scal_el_mat, YMIR_STRIDE_NODE,
+  ymir_dvec_set_elem (proj_scal_vec, proj_scal_el_mat, YMIR_STRIDE_NODE,
                       elid, YMIR_SET);
 }
 
