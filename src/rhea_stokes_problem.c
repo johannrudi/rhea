@@ -417,7 +417,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
     ymir_vec_t         *residual_vel_press = ymir_vec_template (rhs_vel_press);
 
     ymir_stokes_pc_apply_stokes_op (sol_vel_press, residual_vel_press,
-                                    stokes_problem_lin->stokes_op, 0, 0);
+                                    stokes_problem_lin->stokes_op, 0, 1);
     ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
     ymir_vec_scale (-1.0, residual_vel_press);
     norm_res = rhea_stokes_norm_compute (
@@ -996,7 +996,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
      *   b --- right-hand side
      *   F --- Stokes operator
      *   x --- velocity-pressure vector */
-    ymir_stokes_pc_apply_stokes_op (solution, neg_gradient, stokes_op, 0, 0);
+    ymir_stokes_pc_apply_stokes_op (solution, neg_gradient, stokes_op, 0, 1);
     ymir_vec_add (-1.0, rhs_vel_press, neg_gradient);
     ymir_vec_scale (-1.0, neg_gradient);
   }
@@ -1093,7 +1093,7 @@ rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
   const int           linearized = 1;
-  const int           dirty = 0;
+  const int           dirty = 1;
 
   /* check input */
 #ifdef RHEA_ENABLE_DEBUG
