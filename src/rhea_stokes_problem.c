@@ -531,6 +531,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
   const char         *this_fn_name =
                         "rhea_stokes_problem_nonlinear_update_hessian";
   rhea_stokes_problem_t *stokes_problem_nl = data;
+  rhea_stokes_problem_nonlinear_linearization_t linearization_type =
+    stokes_problem_nl->linearization_type;
   rhea_viscosity_options_t *visc_options = stokes_problem_nl->visc_options;
   ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
   const int           solution_exists = (solution != NULL);
@@ -543,8 +545,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
 
   RHEA_GLOBAL_VERBOSEF (
       "Into %s (linearization %i, sol %i, step %i)\n",
-      this_fn_name, (int) stokes_problem_nl->linearization_type,
-      solution_exists, step_exists);
+      this_fn_name, (int) linearization_type, solution_exists, step_exists);
 
   /* check input */
 #ifdef RHEA_ENABLE_DEBUG
@@ -574,7 +575,12 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
    * Set Linearized Part of the Viscous Stress Coefficient
    */
 
-  switch (stokes_problem_nl->linearization_type) {
+  switch (linearization_type) {
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
+    RHEA_ASSERT (ymir_stress_op_get_coeff_type_linearized (stress_op) ==
+                 YMIR_STRESS_OP_COEFF_ISOTROPIC_SCAL);
+    break;
+
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
     {
       ymir_vec_t         *proj_scal = stokes_problem_nl->proj_scal;
@@ -611,15 +617,32 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
     break;
 
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
     {
       ymir_vec_t         *sol_stress = stokes_problem_nl->sol_stress;
       ymir_vec_t         *proj_scal = stokes_problem_nl->proj_scal;
       ymir_vec_t         *proj_tens_stress = rhea_stress_new (ymir_mesh);
       ymir_vec_t         *proj_tens_strain = rhea_strainrate_new (ymir_mesh);
+#ifdef RHEA_ENABLE_DEBUG
+      ymir_stress_op_coeff_t  coeff_type_linearized;
+
+      /* check coefficient type */
+      if (linearization_type ==
+          RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL) {
+        coeff_type_linearized = YMIR_STRESS_OP_COEFF_ANISOTROPIC_PPR2;
+      }
+      else if (linearization_type ==
+          RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM) {
+        coeff_type_linearized = YMIR_STRESS_OP_COEFF_ANISOTROPIC_PPR2S;
+      }
+      else {
+        RHEA_ABORT_NOT_REACHED ();
+      }
+      RHEA_ASSERT (ymir_stress_op_get_coeff_type_linearized (stress_op) ==
+                   coeff_type_linearized);
+#endif
 
       /* check input */
-      RHEA_ASSERT (ymir_stress_op_get_coeff_type_linearized (stress_op) ==
-                   YMIR_STRESS_OP_COEFF_ANISOTROPIC_PPR2);
       RHEA_ASSERT (stokes_problem_nl->sol_stress != NULL);
       RHEA_ASSERT (stokes_problem_nl->proj_scal != NULL);
       RHEA_ASSERT (rhea_stress_check_vec_type (sol_stress));
@@ -808,11 +831,17 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
   /* set coefficient types */
   coeff_type = YMIR_STRESS_OP_COEFF_ISOTROPIC_SCAL;
   switch (stokes_problem_nl->linearization_type) {
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
+    coeff_type_linearized = YMIR_STRESS_OP_COEFF_ISOTROPIC_SCAL;
+    break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
     coeff_type_linearized = YMIR_STRESS_OP_COEFF_ANISOTROPIC_PPR1;
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
     coeff_type_linearized = YMIR_STRESS_OP_COEFF_ANISOTROPIC_PPR2;
+    break;
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
+    coeff_type_linearized = YMIR_STRESS_OP_COEFF_ANISOTROPIC_PPR2S;
     break;
   default: /* unknown linearization type */
     RHEA_ABORT_NOT_REACHED ();
@@ -1252,11 +1281,14 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
 
   /* create linearization data */
   switch (linearization_type) {
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
+    break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
     proj_scal = rhea_viscosity_new (ymir_mesh);
     proj_tens = rhea_strainrate_new (ymir_mesh);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
     sol_stress = rhea_stress_new (ymir_mesh);
     proj_scal = rhea_viscosity_new (ymir_mesh);
     break;
@@ -1356,6 +1388,8 @@ rhea_stokes_problem_nonlinear_destroy (
 
   /* destroy linearization data */
   switch (stokes_problem_nl->linearization_type) {
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
+    break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
     RHEA_ASSERT (stokes_problem_nl->proj_scal != NULL);
     RHEA_ASSERT (stokes_problem_nl->proj_tens != NULL);
@@ -1363,6 +1397,7 @@ rhea_stokes_problem_nonlinear_destroy (
     rhea_strainrate_destroy (stokes_problem_nl->proj_tens);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
     RHEA_ASSERT (stokes_problem_nl->sol_stress != NULL);
     RHEA_ASSERT (stokes_problem_nl->proj_scal != NULL);
     rhea_stress_destroy (stokes_problem_nl->sol_stress);
