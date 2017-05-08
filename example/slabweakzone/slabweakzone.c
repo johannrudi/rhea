@@ -651,13 +651,16 @@ static void
 slabs_temperature_compute (ymir_vec_t *temperature,
                            slabs_options_t *slabs_options)
 {
-  slabs_temp_options_t * temp_options = slabs_options->slabs_temp_options;
+  const char         *this_fn_name = "slabs_temperature_compute";
   double              trench_lon;
   double              dip_angle;
   double              subd_depth, subd_width;
   double              start_node, start_val, start_deriv, end_node, end_val;
   double              *poly2_coeff;
   slabs_2plates_poly2_geo_coeff_t geo;
+  slabs_temp_options_t * temp_options = slabs_options->slabs_temp_options;
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* set parameters according to physics options */
   trench_lon = temp_options->temp_2plates_trench_longitude;
@@ -695,6 +698,8 @@ slabs_temperature_compute (ymir_vec_t *temperature,
                           slabs_temperature_set_fn,
                           slabs_options);
   YMIR_FREE (poly2_coeff);
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
 /**************************************
@@ -944,8 +949,7 @@ slabs_weakzone_elem (double *_sc_restrict weak_elem,
 void
 slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
 {
-  slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
-
+  const char         *this_fn_name = "slabs_weakzone_compute";
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (weakzone);
   const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
@@ -961,6 +965,9 @@ slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
   double              subdu_depth, subdu_width;
   double              *poly2_coeff;
   slabs_2plates_poly2_geo_coeff_t geo;
+  slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* set parameters according to weakzone options */
   subdu_lon = weak_options->weakzone_2plates_subdu_longitude;
@@ -1023,8 +1030,9 @@ slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
   RHEA_FREE (y);
   RHEA_FREE (z);
   RHEA_FREE (tmp_el);
-
   YMIR_FREE (poly2_coeff);  //TO FIND OUT: if I use RHEA_FREE, there is memory leak stderr
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
 /**************************************
@@ -1332,7 +1340,7 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
   RHEA_FREE (y);
   RHEA_FREE (z);
   RHEA_FREE (tmp_el);
-  RHEA_FREE (poly2_coeff);
+  YMIR_FREE (poly2_coeff);
 }
 
 /* Computes shear viscosity and rotation angle.*/
@@ -1348,16 +1356,9 @@ slabs_TI_viscosity_compute ( ymir_mesh_t *ymir_mesh,  ymir_vec_t *TI_svisc,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   slabs_weakzone_compute (weakzone, slabs_options);
-  ymir_vec_set_value (TI_svisc, 1.0);
-//  ymir_vec_multiply_in (weakzone, TI_svisc);
-//  ymir_vec_multiply (viscosity, weakzone, TI_svisc);
+  ymir_vec_multiply (viscosity, weakzone, TI_svisc);
 
-      snprintf (path, BUFSIZ, "%s_test_TI_viscosity", vtk_write_input_path);
-      ymir_vtk_write (ymir_mesh, path,
-                      viscosity, "viscosity",
-                      weakzone, "weakzone",
-                      TI_svisc, "shear_viscosity",
-                      NULL);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
 /* setup the TI shear viscosity and tensor in stress operator */
@@ -1368,28 +1369,20 @@ slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
                                ymir_vec_t *coeff_TI_svisc,
                                ymir_vec_t *TI_rotate)
 {
+  const char         *this_fn_name = "slabs_stokes_problem_setup_TI";
   ymir_stokes_op_t   *stokes_op;
   ymir_stress_op_t   *stress_op;
   ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
   ymir_vec_t         *weakzone = rhea_viscosity_new (ymir_mesh);
 
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
   /* copy viscosity */
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
   /* compute the shear viscosity and rotation angles */
-//  slabs_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, weakzone, slabs_options);
+  slabs_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, weakzone, slabs_options);
 
-
-//  slabs_weakzone_compute (weakzone, slabs_options);
-  ymir_vec_set_value (coeff_TI_svisc, 1.0);
-  {
-  char      path[BUFSIZ], *vtk_write_input_path="/scratch/02600/xiliu/rhea/Slabweakzone/Tests/test1_TI/input";
-      snprintf (path, BUFSIZ, "%s_test_TI_viscosity", vtk_write_input_path);
-      ymir_vtk_write (ymir_mesh, path,
-                      coeff_TI_svisc, "shear_viscosity",
-                      NULL);
-
-  }
   ymir_vec_scale (2.0, coeff_TI_svisc);
 
   slabs_TI_rotation_compute (TI_rotate, coeff_TI_svisc, slabs_options);
@@ -1398,21 +1391,14 @@ slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
   stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
   stress_op = stokes_op->stress_op;
 
-  {
-  char      path[BUFSIZ], *vtk_write_input_path="/scratch/02600/xiliu/rhea/Slabweakzone/Tests/test1_TI/input";
-      snprintf (path, BUFSIZ, "%s_test_TI", vtk_write_input_path);
-      ymir_vtk_write (ymir_mesh, path,
-                      coeff_TI_svisc, "shear_viscosity",
-                      TI_rotate, "rotate",
-                      NULL);
-  }
-
  /* update viscous stress operator providing the anisotropic viscosity */
   ymir_stress_op_coeff_compute_TI_tensor (stress_op, coeff_TI_svisc,
                                           TI_rotate);
   /* destroy */
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (weakzone);
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
 /**************************************
@@ -2092,6 +2078,8 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* add the anisotropic viscosity to the viscous stress operator */
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
       == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
+    coeff_TI_svisc = rhea_viscosity_new (ymir_mesh);
+    TI_rotate = rhea_viscosity_new (ymir_mesh);
     slabs_stokes_problem_setup_TI (ymir_mesh, *stokes_problem, slabs_options,
                                    coeff_TI_svisc, TI_rotate);
   }
