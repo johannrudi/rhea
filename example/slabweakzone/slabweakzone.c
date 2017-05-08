@@ -15,6 +15,7 @@
 /* basic constants */
 #define SLABS_SEC_PER_YEAR (31557600.0)    /* seconds in a year (365.25*24*3600) */
 #define SLABS_EARTH_RADIUS (6371.0e3)      /* mean radius of the Earth [m]       */
+#define SLABS_MANTLE_DEPTH (2871.0e3)      /* mean radius of the Earth [m]       */
 #define SLABS_UPPER_MANTLE_DEPTH (660.0e3) /* approx. depth of upper mantle [m]  */
 #define SLABS_THERM_DIFFUS (1.0e-6)        /* thermal diffusivity [m^2 / s]      */
 #define SLABS_TEMP_DIFF (1400.0)           /* temperature difference [K]         */
@@ -96,6 +97,33 @@ double              weakzone_2pl_ridge_smoothwidth =
 double              weakzone_2pl_ridge_weak_factor =
   SLABS_WEAKZONE_2PLATES_RIDGE_WEAK_FACTOR;
 
+typedef struct slabs_domain_options
+{
+  double        x_min;
+  double        x_max;
+  double        y_min;
+  double        y_max;
+  double        z_min;
+  double        z_max;
+  double        lon_min;
+  double        lon_max;
+  double        radius_min;
+  double        radius_max;
+}
+slabs_domain_options_t;
+
+
+typedef struct slabs_2plates_poly2_geo_coeff
+{
+  double        start_node;
+  double        start_val;
+  double        end_node;
+  double        end_val;
+  double        start_deriv;
+  double        *poly2_coeff;
+}
+slabs_2plates_poly2_geo_coeff_t;
+
 /* enumerator for orientations of a point w.r.t. a curve (for 2plates) */
 typedef enum
 {
@@ -119,6 +147,7 @@ typedef struct slabs_temp_options
   double              temp_2plates_subd_plate_velocity;
   double              temp_2plates_subd_plate_initial_age;
   double              temp_2plates_over_plate_age;
+  slabs_2plates_poly2_geo_coeff_t *temp_2plates_geo_coeff;
 }
 slabs_temp_options_t;
 
@@ -156,6 +185,7 @@ typedef struct slabs_weak_options
   double              weakzone_2plates_ridge_width;      /* at ridge */
   double              weakzone_2plates_ridge_smoothwidth;
   double              weakzone_2plates_ridge_weak_factor;
+  slabs_2plates_poly2_geo_coeff_t *weak_2plates_geo_coeff;
 }
 slabs_weak_options_t;
 
@@ -181,6 +211,7 @@ slabs_velbc_options_t;
 /* options of slabs example */
 typedef struct slabs_options
 {
+  slabs_domain_options_t   * slabs_domain_options;
   slabs_temp_options_t   * slabs_temp_options;
   slabs_visc_options_t   * slabs_visc_options;
   slabs_weak_options_t   * slabs_weak_options;
@@ -198,9 +229,10 @@ double
 slabs_compute_radius (const double x, const double y, const double z,
                       slabs_options_t *slabs_options)
 {
-      const double    z_max = 1.0;
-      const double    radius_min = 3500.00;
-      const double    radius_max = 6371.00;   // TODO: bring in domain info
+      slabs_domain_options_t    * dom_opt = slabs_options->slabs_domain_options;
+      const double    z_max = dom_opt->z_max;
+      const double    radius_min = dom_opt->radius_min;
+      const double    radius_max = dom_opt->radius_max;
 
       return z / z_max * (radius_max - radius_min) + radius_min;
 }
@@ -211,9 +243,10 @@ double
 slabs_compute_longitude (const double x, const double y, const double z,
                          slabs_options_t *slabs_options)
 {
-      const double        lon_min = 0.0;
-      const double        lon_max = 100.0;
-      const double        y_max = 1.0;  //TODO: bring in domain and longitudal info
+      slabs_domain_options_t    * dom_opt = slabs_options->slabs_domain_options;
+      const double        lon_min = dom_opt->lon_min;
+      const double        lon_max = dom_opt->lon_min;
+      const double        y_max = dom_opt->y_max;
 
       return y / y_max * (lon_max - lon_min) + lon_min;
 }
@@ -444,13 +477,12 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
                                        slabs_options_t * slabs_options)
 {
   double              trench_lon;
-  double              dip_angle;
   double              subd_depth, subd_width;
   double              subd_edge_width, subd_edge_smoothwidth;
   double              subd_plate_vel, subd_plate_init_age;
   double              over_plate_age;
 
-  double              lon_min = 0.0; //TODO: bring in the right info
+  double              y_min = slabs_options->slabs_domain_options->y_min;
   double              start_node, start_val, start_deriv;
   double              end_node, end_val;
   double             *poly2_coeff;
@@ -468,10 +500,10 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
   double              temp;
 
   slabs_temp_options_t * temp_options = slabs_options->slabs_temp_options;
+  slabs_2plates_poly2_geo_coeff_t *geo = temp_options->temp_2plates_geo_coeff;
 
-  /* set parameters according to physics options */
+  /* set parameters according to temperature options */
   trench_lon = temp_options->temp_2plates_trench_longitude;
-  dip_angle = temp_options->temp_2plates_dip_angle;
   subd_depth = temp_options->temp_2plates_subd_depth;
   subd_width = temp_options->temp_2plates_subd_width;
   subd_edge_width = temp_options->temp_2plates_subd_edge_width;
@@ -482,25 +514,18 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
 
   /* check parameters */
   RHEA_ASSERT (0.0 < trench_lon);
-  RHEA_ASSERT (0.0 < dip_angle && dip_angle < 90.0);
   RHEA_ASSERT (0.0 < subd_depth && 0.0 < subd_width);
   RHEA_ASSERT (0.0 <= subd_edge_width && 0.0 <= subd_edge_smoothwidth);
   RHEA_ASSERT (0.0 < subd_plate_vel);
   RHEA_ASSERT (0.0 <= subd_plate_init_age);
   RHEA_ASSERT (0.0 < over_plate_age);
 
-  /* set points for polynomial interpolation */
-  start_node = trench_lon;
-  start_val = SLABS_SHELL_RADIUS_TOP;
-  start_deriv = tan (-dip_angle / 180.0 * M_PI);
-  end_node = start_node + subd_width / SLABS_EARTH_RADIUS;
-  end_val = start_val - subd_depth / SLABS_EARTH_RADIUS;
-  // TODO missing here and below: shell radius top for longitudinal scaling
-
-  /* compute interpolating quadratic polynomial */
-  poly2_coeff = slabs_compute_poly2_interpolation (start_node, start_val,
-                                                   start_deriv,
-                                                   end_node, end_val);
+  start_node = geo->start_node;
+  start_val = geo->start_val;
+  start_deriv = geo->start_deriv;
+  end_node = geo->end_node;
+  end_val = geo->end_val;
+  poly2_coeff = geo->poly2_coeff;
 
   /* compute closest point on curve and orientation w.r.t. curve */
   closest_pt = slabs_compute_closest_pt_on_poly2 (lon, r,
@@ -509,8 +534,9 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
                                                   end_node, end_val,
                                                   &orientation_wrt_curve);
 
+
   /* compute "fake" (TODO) distance */
-  dist = SLABS_EARTH_RADIUS * sqrt ( (lon - closest_pt[0]) * (lon - closest_pt[0])
+  dist = SLABS_MANTLE_DEPTH * sqrt ( (lon - closest_pt[0]) * (lon - closest_pt[0])
                                   + (r - closest_pt[1]) * (r - closest_pt[1]) );
 
   /* For computing the temperature, use temperature profile of the plates
@@ -520,7 +546,7 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
   /* compute temperature of plates at surface */
   if (orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM) { /* if subd plate */
     /* calculate age of subducting plate */
-    ridge_dist = fabs (lon - lon_min) * SLABS_EARTH_RADIUS;
+    ridge_dist = fabs (lon - y_min) * SLABS_MANTLE_DEPTH;
     vel = subd_plate_vel / SLABS_SEC_PER_YEAR;
     plate_time = ridge_dist / vel + subd_plate_init_age * SLABS_SEC_PER_YEAR;
 
@@ -531,23 +557,23 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
     /* calculate age of overriding plate */
     plate_time = over_plate_age * SLABS_SEC_PER_YEAR;
   }
-  depth = (SLABS_SHELL_RADIUS_TOP - r) * SLABS_EARTH_RADIUS;
+  depth = (SLABS_SHELL_RADIUS_TOP - r) * SLABS_MANTLE_DEPTH;
   temp = erf ( depth / (2.0 * sqrt (plate_time * SLABS_THERM_DIFFUS)) );
 
   /* compute temperature of the plate subducted inside of mantle */
   if (   orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM
       || orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM_LEFT ) {
     /* calculate total lenght of subducted plate */
-    subd_length = SLABS_EARTH_RADIUS * sqrt (
+    subd_length = SLABS_MANTLE_DEPTH * sqrt (
                     (start_node - end_node) * (start_node - end_node)
                     + (start_val - end_val) * (start_val - end_val) );
 
     /* calculate age of plate */
     if (lon <= trench_lon) {
-      ridge_dist = fabs (lon - lon_min) * SLABS_EARTH_RADIUS;
+      ridge_dist = fabs (lon - y_min) * SLABS_MANTLE_DEPTH;
     }
     else {
-      ridge_dist = fabs (trench_lon - lon_min) * SLABS_EARTH_RADIUS
+      ridge_dist = fabs (trench_lon - y_min) * SLABS_MANTLE_DEPTH
                    + subd_length * depth / subd_depth;
     }
     vel = subd_plate_vel / SLABS_SEC_PER_YEAR;
@@ -579,7 +605,7 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
   if (   orientation_wrt_curve == SLABS_CURVE_ORIENT_TOP_RIGHT
       || orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM_LEFT ) {
     /* compute distance between tip and closest point on curve */
-    dist = SLABS_EARTH_RADIUS * sqrt (
+    dist = SLABS_MANTLE_DEPTH * sqrt (
       (end_node - closest_pt[0]) * (end_node - closest_pt[0])
       + (end_val - closest_pt[1]) * (end_val - closest_pt[1]) );
 
@@ -594,7 +620,6 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
 
   /* destroy */
   YMIR_FREE (closest_pt);
-  YMIR_FREE (poly2_coeff);
 
   /* return temperature */
   YMIR_ASSERT (isfinite (temp));
@@ -609,8 +634,9 @@ slabs_temperature_set_fn (double *temp, double x, double y, double z,
   double              lon, r;
 
   /* compute radius and longitude */
-  r = slabs_compute_radius (x, y, z, slabs_options);
-  lon = slabs_compute_longitude (x, y, z, slabs_options);
+  lon = y;
+  r = z;
+
   *temp = slabs_temperature_brick_2plates_poly2 (r, lon, slabs_options);
 
   /* check temperature for `nan` and `inf` */
@@ -625,9 +651,50 @@ static void
 slabs_temperature_compute (ymir_vec_t *temperature,
                            slabs_options_t *slabs_options)
 {
+  slabs_temp_options_t * temp_options = slabs_options->slabs_temp_options;
+  double              trench_lon;
+  double              dip_angle;
+  double              subd_depth, subd_width;
+  double              start_node, start_val, start_deriv, end_node, end_val;
+  double              *poly2_coeff;
+  slabs_2plates_poly2_geo_coeff_t geo;
+
+  /* set parameters according to physics options */
+  trench_lon = temp_options->temp_2plates_trench_longitude;
+  dip_angle = temp_options->temp_2plates_dip_angle;
+  subd_depth = temp_options->temp_2plates_subd_depth;
+  subd_width = temp_options->temp_2plates_subd_width;
+
+  /* check parameters */
+  RHEA_ASSERT (0.0 < trench_lon);
+  RHEA_ASSERT (0.0 < dip_angle && dip_angle < 90.0);
+  RHEA_ASSERT (0.0 < subd_depth && 0.0 < subd_width);
+
+  /* set points for polynomial interpolation */
+  start_node = trench_lon;
+  start_val = SLABS_SHELL_RADIUS_TOP;
+  start_deriv = tan (-dip_angle / 180.0 * M_PI);
+  end_node = start_node + subd_width / SLABS_MANTLE_DEPTH;
+  end_val = start_val - subd_depth / SLABS_MANTLE_DEPTH;
+  /* compute interpolating quadratic polynomial */
+  poly2_coeff = slabs_compute_poly2_interpolation (start_node, start_val,
+                                                   start_deriv,
+                                                   end_node, end_val);
+
+  RHEA_GLOBAL_PRODUCTIONF("temperature: brick_2plates_poly2 downgoing slabs geometry\nstart_node: (%f %f), start_deriv: %f, end_node: (%f %f)\npoly2_coeff: (%f %f %f)\n", start_node, start_val, start_deriv, end_node, end_val, poly2_coeff[2], poly2_coeff[1], poly2_coeff[0]);
+
+  geo.start_node = start_node;
+  geo.start_val = start_val;
+  geo.start_deriv = start_deriv;
+  geo.end_node = end_node;
+  geo.end_val = end_val;
+  geo.poly2_coeff = poly2_coeff;
+  temp_options->temp_2plates_geo_coeff = &geo;
+
   ymir_cvec_set_function (temperature,
                           slabs_temperature_set_fn,
                           slabs_options);
+  YMIR_FREE (poly2_coeff);
 }
 
 /**************************************
@@ -661,21 +728,16 @@ slabs_weakzone_factor_fn (const double distance,
 /* Computes distance to weak zone between plates. */
  double
 slabs_weakzone_subduct_dist_2plates_poly2 (double r, double lon,
+                                         double *poly2_coeff,
                                          double start_node,
                                          double start_val,
                                          double start_deriv,
                                          double end_node,
                                          double end_val)
 {
-  double             *poly2_coeff;
   int                 orientation_wrt_curve;
   double             *closest_pt;
   double              dist;
-
-  /* compute interpolating quadratic polynomial */
-  poly2_coeff = slabs_compute_poly2_interpolation (start_node, start_val,
-                                                   start_deriv,
-                                                   end_node, end_val);
 
   /* compute closest point on curve and orientation w.r.t. curve */
   closest_pt = slabs_compute_closest_pt_on_poly2 (lon, r,
@@ -688,13 +750,13 @@ slabs_weakzone_subduct_dist_2plates_poly2 (double r, double lon,
   if (   orientation_wrt_curve == SLABS_CURVE_ORIENT_TOP
       || orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM ) {
     /* compute distance to closest point on curve */
-    dist = SLABS_EARTH_RADIUS * sqrt (  SC_SQR (lon - closest_pt[0])
+    dist = SLABS_MANTLE_DEPTH * sqrt (  SC_SQR (lon - closest_pt[0])
                                    + SC_SQR (r - closest_pt[1]) );
   }
   else if (   orientation_wrt_curve == SLABS_CURVE_ORIENT_TOP_RIGHT
            || orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM_LEFT ) {
     /* compute distance to tip of curve */
-    dist = SLABS_EARTH_RADIUS * sqrt (  SC_SQR (end_node - lon)
+    dist = SLABS_MANTLE_DEPTH * sqrt (  SC_SQR (end_node - lon)
                                    + SC_SQR (end_val - r) );
   }
   else {
@@ -705,7 +767,6 @@ slabs_weakzone_subduct_dist_2plates_poly2 (double r, double lon,
 
   /* destroy */
   YMIR_FREE (closest_pt);
-  YMIR_FREE (poly2_coeff);
 
   /* return distance to weak zone curve */
   return dist;
@@ -726,15 +787,15 @@ slabs_weakzone_ridge_dist_2plates_poly2 (double r, double lon,
   else { /* if outside weak zone */
     if ( end_node < lon && end_val <= r ) {
       /* compute distance to right edge */
-      dist = SLABS_EARTH_RADIUS * (lon - end_node);
+      dist = SLABS_MANTLE_DEPTH * (lon - end_node);
     }
     else if (lon <= end_node && r < end_val) {
       /* compute distance to bottom edge */
-      dist = SLABS_EARTH_RADIUS * (end_val - r);
+      dist = SLABS_MANTLE_DEPTH * (end_val - r);
     }
     else {
       /* compute distance to bottom right corner */
-      dist = SLABS_EARTH_RADIUS * sqrt (  SC_SQR (lon - end_node)
+      dist = SLABS_MANTLE_DEPTH * sqrt (  SC_SQR (lon - end_node)
                                      + SC_SQR (end_val - r) );
     }
   }
@@ -759,12 +820,14 @@ slabs_weakzone_brick_2plates_poly2 (double r, double lon,
 
   double              courtesy_width;
   double              total_thickness;
-  double              lon_min = 0.0; //TODO: bring the longitude info
-  double              start_node, start_val, start_deriv;
-  double              end_node, end_val;
+  double              y_min = slabs_options->slabs_domain_options->y_min;
+  double              start_node, start_val, start_deriv, end_node, end_val;
+  double              *poly2_coeff;
   double              dist;
   double              weak = 1.0;
+
   slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
+  slabs_2plates_poly2_geo_coeff_t *geo = weak_options->weak_2plates_geo_coeff;
 
   /* set parameters according to weakzone options */
   subdu_lon = weak_options->weakzone_2plates_subdu_longitude;
@@ -782,7 +845,6 @@ slabs_weakzone_brick_2plates_poly2 (double r, double lon,
 
   /* check parameters */
   YMIR_ASSERT (0.0 < subdu_lon);
-  YMIR_ASSERT (0.0 < subdu_dip_angle);
   YMIR_ASSERT (0.0 < subdu_depth && 0.0 < subdu_width);
   YMIR_ASSERT (0.0 < subdu_thickness);
   YMIR_ASSERT (subdu_thickness_const <= subdu_thickness);
@@ -795,24 +857,24 @@ slabs_weakzone_brick_2plates_poly2 (double r, double lon,
    * set subduction weak zone between plates
    */
 
-  /* set points for polynomial interpolation */
-  start_node = subdu_lon;
-  start_val = SLABS_SHELL_RADIUS_TOP;
-  start_deriv = tan (-subdu_dip_angle / 180.0 * M_PI);
-  end_node = start_node + subdu_width / SLABS_EARTH_RADIUS * SLABS_SHELL_RADIUS_TOP;
-  end_val = start_val - subdu_depth / SLABS_EARTH_RADIUS;
+  start_node = geo->start_node;
+  start_val = geo->start_val;
+  start_deriv = geo->start_deriv;
+  end_node = geo->end_node;
+  end_val = geo->end_val;
+  poly2_coeff = geo->poly2_coeff;
 
   /* only consider point in a rectangle containing the weak zone */
-  courtesy_width = subdu_thickness / SLABS_EARTH_RADIUS;
+  courtesy_width = subdu_thickness / SLABS_MANTLE_DEPTH;
   total_thickness = (2.0 * subdu_thickness - subdu_thickness_const)
-                    / SLABS_EARTH_RADIUS;
+                    / SLABS_MANTLE_DEPTH;
   if (   (  start_node - 0.5 * total_thickness
           / sin (subdu_dip_angle / 180.0 * M_PI) - courtesy_width ) <= lon
       && lon <= (end_node + 0.5 * total_thickness + courtesy_width)
       && (end_val - total_thickness - courtesy_width) <= r ) {
     /* compute distance to subduction weak zone */
     dist = slabs_weakzone_subduct_dist_2plates_poly2 (
-        r, lon, start_node, start_val, start_deriv, end_node, end_val);
+        r, lon, poly2_coeff, start_node, start_val, start_deriv, end_node, end_val);
 
     /* set weak zone factor */
     weak = slabs_weakzone_factor_fn (dist, subdu_thickness,
@@ -825,11 +887,11 @@ slabs_weakzone_brick_2plates_poly2 (double r, double lon,
    */
 
   /* set bottom left corner of weak zone */
-  end_node = lon_min + ridge_width / SLABS_EARTH_RADIUS * SLABS_SHELL_RADIUS_TOP;
-  end_val = SLABS_SHELL_RADIUS_TOP - ridge_depth / SLABS_EARTH_RADIUS;
+  end_node = y_min + ridge_width / SLABS_MANTLE_DEPTH;
+  end_val = SLABS_SHELL_RADIUS_TOP - ridge_depth / SLABS_MANTLE_DEPTH;
 
   /* only consider points close to weak zone */
-  courtesy_width = 2.0 * ridge_smoothwidth / SLABS_EARTH_RADIUS;
+  courtesy_width = 2.0 * ridge_smoothwidth / SLABS_MANTLE_DEPTH;
   if (lon <= (end_node + courtesy_width) && (end_val - courtesy_width) <= r) {
     /* compute distance to ridge weak zone */
     dist = slabs_weakzone_ridge_dist_2plates_poly2 (r, lon, end_node, end_val);
@@ -853,8 +915,8 @@ slabs_weakzone_node (const double x, const double y, const double z,
   double              r;
 
   /* compute radius and longitude */
-  r = slabs_compute_radius (x, y, z, slabs_options);
-  lon = slabs_compute_longitude (x, y, z, slabs_options);
+  lon = y;
+  r = z;
 
   /* compute weak zone factor */
   return slabs_weakzone_brick_2plates_poly2 (r, lon, slabs_options);
@@ -875,13 +937,15 @@ slabs_weakzone_elem (double *_sc_restrict weak_elem,
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) { /* loop over all
                                                          * nodes */
     weak_elem[nodeid] = slabs_weakzone_node (x[nodeid], y[nodeid], z[nodeid],
-                                                slabs_options);
+                                             slabs_options);
   }
 }
 
 void
 slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
 {
+  slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
+
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (weakzone);
   const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
@@ -891,11 +955,51 @@ slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t      elid;
 
+  double              start_node, start_val, start_deriv, end_node, end_val;
+  double              subdu_lon;
+  double              subdu_dip_angle;
+  double              subdu_depth, subdu_width;
+  double              *poly2_coeff;
+  slabs_2plates_poly2_geo_coeff_t geo;
+
+  /* set parameters according to weakzone options */
+  subdu_lon = weak_options->weakzone_2plates_subdu_longitude;
+  subdu_dip_angle = weak_options->weakzone_2plates_subdu_dip_angle;
+  subdu_depth = weak_options->weakzone_2plates_subdu_depth;
+  subdu_width = weak_options->weakzone_2plates_subdu_width;
+
+  /* check parameters */
+  RHEA_ASSERT (0.0 < subdu_lon);
+  RHEA_ASSERT (0.0 < subdu_dip_angle);
+  RHEA_ASSERT (0.0 < subdu_depth && 0.0 < subdu_width);
+
+  /* set points for polynomial interpolation */
+  start_node = subdu_lon;
+  start_val = SLABS_SHELL_RADIUS_TOP;
+  start_deriv = tan (-subdu_dip_angle / 180.0 * M_PI);
+  end_node = start_node + subdu_width / SLABS_MANTLE_DEPTH;
+  end_val = start_val - subdu_depth / SLABS_MANTLE_DEPTH;
+  /* compute interpolating quadratic polynomial */
+  poly2_coeff = slabs_compute_poly2_interpolation (start_node, start_val,
+                                                   start_deriv,
+                                                   end_node, end_val);
+
+  RHEA_GLOBAL_PRODUCTIONF("weakzone: brick_2plates_poly2 downgoing slabs geometry\nstart_node: (%f %f), start_deriv: %f, end_node: (%f %f)\npoly2_coeff: (%f %f %f)\n", start_node, start_val, start_deriv, end_node, end_val, poly2_coeff[2], poly2_coeff[1], poly2_coeff[0]);
+
+  geo.start_node = start_node;
+  geo.start_val = start_val;
+  geo.start_deriv = start_deriv;
+  geo.end_node = end_node;
+  geo.end_val = end_val;
+  geo.poly2_coeff = poly2_coeff;
+  weak_options->weak_2plates_geo_coeff = &geo;
+
   /* check input */
   RHEA_ASSERT (weakzone->ndfields == 1);
 
   /* create work variables */
   weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  weak_el_data = weak_el_mat->e[0];
   x = RHEA_ALLOC (double, n_nodes_per_el);
   y = RHEA_ALLOC (double, n_nodes_per_el);
   z = RHEA_ALLOC (double, n_nodes_per_el);
@@ -904,7 +1008,6 @@ slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates of this element at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
-    weak_el_data = rhea_viscosity_get_elem_gauss (weak_el_mat, weakzone, elid);
 
     /* compute weak zone factor */
     slabs_weakzone_elem (weak_el_data, x, y, z,
@@ -920,6 +1023,8 @@ slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
   RHEA_FREE (y);
   RHEA_FREE (z);
   RHEA_FREE (tmp_el);
+
+  YMIR_FREE (poly2_coeff);  //TO FIND OUT: if I use RHEA_FREE, there is memory leak stderr
 }
 
 /**************************************
@@ -977,21 +1082,16 @@ slabs_compute_rot_on_poly2 (double *poly2_coeff, double *closet_pt)
 /* Computes distance to weak zone between plates. */
 double
 slabs_TI_subduct_rot_2plates_poly2 (double r, double lon,
+                                     double *poly2_coeff,
                                      double start_node,
                                      double start_val,
                                      double start_deriv,
                                      double end_node,
                                      double end_val)
 {
-  double             *poly2_coeff;
   int                 orientation_wrt_curve;
   double             *closest_pt;
   double              rot;
-
-  /* compute interpolating quadratic polynomial */
-  poly2_coeff = slabs_compute_poly2_interpolation (start_node, start_val,
-                                                   start_deriv,
-                                                   end_node, end_val);
 
   /* compute closest point on curve and orientation w.r.t. curve */
   closest_pt = slabs_compute_closest_pt_on_poly2 (lon, r,
@@ -1003,7 +1103,6 @@ slabs_TI_subduct_rot_2plates_poly2 (double r, double lon,
   rot = slabs_compute_rot_on_poly2 (poly2_coeff, closest_pt);
 
   /* destroy */
-  YMIR_FREE (poly2_coeff);
   YMIR_FREE (closest_pt);
 
   /* return distance to weak zone curve */
@@ -1026,12 +1125,13 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
 
   double              courtesy_width;
   double              total_thickness;
-  double              lon_min = 0.0; //TODO: bring the longitude info
-  double              start_node, start_val, start_deriv;
-  double              end_node, end_val;
-  double              dist;
+  double              y_min = slabs_options->slabs_domain_options->y_min;
+  double              start_node, start_val, start_deriv, end_node, end_val;
+  double              *poly2_coeff;
   double              rot = 0.0;
+
   slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
+  slabs_2plates_poly2_geo_coeff_t *geo = weak_options->weak_2plates_geo_coeff;
 
   /* set parameters according to weakzone options */
   subdu_lon = weak_options->weakzone_2plates_subdu_longitude;
@@ -1057,25 +1157,24 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
   /*
    * set subduction weak zone between plates
    */
-
-  /* set points for polynomial interpolation */
-  start_node = subdu_lon;
-  start_val = SLABS_SHELL_RADIUS_TOP;
-  start_deriv = tan (-subdu_dip_angle / 180.0 * M_PI);
-  end_node = start_node + subdu_width / SLABS_EARTH_RADIUS * SLABS_SHELL_RADIUS_TOP;
-  end_val = start_val - subdu_depth / SLABS_EARTH_RADIUS;
+  start_node = geo->start_node;
+  start_val = geo->start_val;
+  start_deriv = geo->start_deriv;
+  end_node = geo->end_node;
+  end_val = geo->end_val;
+  poly2_coeff = geo->poly2_coeff;
 
   /* only consider point in a rectangle containing the weak zone */
-  courtesy_width = subdu_thickness / SLABS_EARTH_RADIUS;
+  courtesy_width = subdu_thickness / SLABS_MANTLE_DEPTH;
   total_thickness = (2.0 * subdu_thickness - subdu_thickness_const)
-                    / SLABS_EARTH_RADIUS;
+                    / SLABS_MANTLE_DEPTH;
   if (   (  start_node - 0.5 * total_thickness
           / sin (subdu_dip_angle / 180.0 * M_PI) - courtesy_width ) <= lon
       && lon <= (end_node + 0.5 * total_thickness + courtesy_width)
       && (end_val - total_thickness - courtesy_width) <= r ) {
-    /* compute distance to subduction weak zone */
+    /* compute rotation of subduction weak zone from y=0 axis*/
     rot = slabs_TI_subduct_rot_2plates_poly2 (
-        r, lon, start_node, start_val, start_deriv, end_node, end_val);
+        r, lon, poly2_coeff, start_node, start_val, start_deriv, end_node, end_val);
 
   }
 
@@ -1085,15 +1184,15 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
    */
 
   /* set bottom left corner of weak zone */
-  end_node = lon_min + ridge_width / SLABS_EARTH_RADIUS * SLABS_SHELL_RADIUS_TOP;
-  end_val = SLABS_SHELL_RADIUS_TOP - ridge_depth / SLABS_EARTH_RADIUS;
+  end_node = y_min + ridge_width / SLABS_MANTLE_DEPTH;
+  end_val = SLABS_SHELL_RADIUS_TOP - ridge_depth / SLABS_MANTLE_DEPTH;
 
   /* only consider points close to weak zone */
-  courtesy_width = 2.0 * ridge_smoothwidth / SLABS_EARTH_RADIUS;
+  courtesy_width = 2.0 * ridge_smoothwidth / SLABS_MANTLE_DEPTH;
   if (lon <= (end_node + courtesy_width) && (end_val - courtesy_width) <= r) {
-    /* compute distance to ridge weak zone */
+    /* compute rotation of ridge weak zone */
 //TODO:    rot = slabs_ridge_rot_2plates_poly2 (r, lon, end_node, end_val);
-    rot = .0;
+    rot = .0;  // now assume the rotation is 0, horizontal
   }
 
   /*
@@ -1110,8 +1209,8 @@ slabs_TI_rotation_node (const double x, const double y, const double z,
   double              r;
 
   /* compute radius and longitude */
-  r = slabs_compute_radius (x, y, z, slabs_options);
-  lon = slabs_compute_longitude (x, y, z, slabs_options);
+  lon = y;
+  r = z;
 
   /* compute weak zone factor */
   return slabs_TI_rotation_brick_2plates_poly2 (r, lon, slabs_options);
@@ -1154,11 +1253,58 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t      elid;
 
+  double              start_node, start_val, start_deriv;
+  double              end_node, end_val;
+  double              subdu_lon;
+  double              subdu_dip_angle;
+  double              subdu_depth, subdu_width;
+  double              *poly2_coeff;
+  slabs_2plates_poly2_geo_coeff_t geo;
+  slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
+  const char         *this_fn_name = "slabs_TI_rotation_compute";
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  /* set parameters according to weakzone options */
+  subdu_lon = weak_options->weakzone_2plates_subdu_longitude;
+  subdu_dip_angle = weak_options->weakzone_2plates_subdu_dip_angle;
+  subdu_depth = weak_options->weakzone_2plates_subdu_depth;
+  subdu_width = weak_options->weakzone_2plates_subdu_width;
+
+  /* check parameters */
+  RHEA_ASSERT (0.0 < subdu_lon);
+  RHEA_ASSERT (0.0 < subdu_dip_angle);
+  RHEA_ASSERT (0.0 < subdu_depth && 0.0 < subdu_width);
+
+  /*
+   * set subduction weak zone between plates
+   */
+
+  /* set points for polynomial interpolation */
+  start_node = subdu_lon;
+  start_val = SLABS_SHELL_RADIUS_TOP;
+  start_deriv = tan (-subdu_dip_angle / 180.0 * M_PI);
+  end_node = start_node + subdu_width / SLABS_MANTLE_DEPTH;
+  end_val = start_val - subdu_depth / SLABS_MANTLE_DEPTH;
+  /* compute interpolating quadratic polynomial */
+  poly2_coeff = slabs_compute_poly2_interpolation (start_node, start_val,
+                                                   start_deriv,
+                                                   end_node, end_val);
+
+  geo.start_node = start_node;
+  geo.start_val = start_val;
+  geo.start_deriv = start_deriv;
+  geo.end_node = end_node;
+  geo.end_val = end_val;
+  geo.poly2_coeff = poly2_coeff;
+  weak_options->weak_2plates_geo_coeff = &geo;
+
   /* check input */
   RHEA_ASSERT (rotate->ndfields == 1);
 
   /* create work variables */
   rot_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  rot_el_data = rot_el_mat->e[0];
   svisc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   x = RHEA_ALLOC (double, n_nodes_per_el);
   y = RHEA_ALLOC (double, n_nodes_per_el);
@@ -1168,7 +1314,7 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates of this element at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
-    rot_el_data = rhea_viscosity_get_elem_gauss (rot_el_mat, rotate, elid);
+
     svisc_el_data = rhea_viscosity_get_elem_gauss (svisc_el_mat, svisc, elid);
 
     /* compute weak zone factor */
@@ -1186,28 +1332,32 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
   RHEA_FREE (y);
   RHEA_FREE (z);
   RHEA_FREE (tmp_el);
+  RHEA_FREE (poly2_coeff);
 }
 
 /* Computes shear viscosity and rotation angle.*/
 static void
-slabs_TI_viscosity_compute (ymir_vec_t *TI_svisc,
+slabs_TI_viscosity_compute ( ymir_mesh_t *ymir_mesh,  ymir_vec_t *TI_svisc,
                             ymir_vec_t *viscosity,
                             ymir_vec_t *weakzone,
                             slabs_options_t *slabs_options)
 {
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (viscosity);
-  const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+  const char         *this_fn_name = "slabs_TI_viscosity_compute";
+  char      path[BUFSIZ], *vtk_write_input_path="/scratch/02600/xiliu/rhea/Slabweakzone/Tests/test1_TI/input";
 
-  sc_dmatrix_t       *visc_el_mat, *svisc_el_mat, *rotate_el_mat;
-  double             *visc_el_data, *svisc_el_data, *rotate_el_data;
-  double             *x, *y, *z, *tmp_el;
-  ymir_locidx_t       elid;
-
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   slabs_weakzone_compute (weakzone, slabs_options);
-  ymir_vec_multiply (TI_svisc, viscosity, weakzone);
+  ymir_vec_set_value (TI_svisc, 1.0);
+//  ymir_vec_multiply_in (weakzone, TI_svisc);
+//  ymir_vec_multiply (viscosity, weakzone, TI_svisc);
 
+      snprintf (path, BUFSIZ, "%s_test_TI_viscosity", vtk_write_input_path);
+      ymir_vtk_write (ymir_mesh, path,
+                      viscosity, "viscosity",
+                      weakzone, "weakzone",
+                      TI_svisc, "shear_viscosity",
+                      NULL);
 }
 
 /* setup the TI shear viscosity and tensor in stress operator */
@@ -1223,21 +1373,41 @@ slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
   ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
   ymir_vec_t         *weakzone = rhea_viscosity_new (ymir_mesh);
 
-  /* get the viscous stress operator */
-  stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
-  stress_op = stokes_op->stress_op;
-
   /* copy viscosity */
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
   /* compute the shear viscosity and rotation angles */
-  coeff_TI_svisc = rhea_viscosity_new (ymir_mesh);
-  slabs_TI_viscosity_compute (coeff_TI_svisc, viscosity, weakzone, slabs_options);
+//  slabs_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, weakzone, slabs_options);
+
+
+//  slabs_weakzone_compute (weakzone, slabs_options);
+  ymir_vec_set_value (coeff_TI_svisc, 1.0);
+  {
+  char      path[BUFSIZ], *vtk_write_input_path="/scratch/02600/xiliu/rhea/Slabweakzone/Tests/test1_TI/input";
+      snprintf (path, BUFSIZ, "%s_test_TI_viscosity", vtk_write_input_path);
+      ymir_vtk_write (ymir_mesh, path,
+                      coeff_TI_svisc, "shear_viscosity",
+                      NULL);
+
+  }
   ymir_vec_scale (2.0, coeff_TI_svisc);
-  TI_rotate = rhea_viscosity_new (ymir_mesh);
+
   slabs_TI_rotation_compute (TI_rotate, coeff_TI_svisc, slabs_options);
 
-  /* update viscous stress operator providing the anisotropic viscosity */
+  /* get the viscous stress operator */
+  stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
+  stress_op = stokes_op->stress_op;
+
+  {
+  char      path[BUFSIZ], *vtk_write_input_path="/scratch/02600/xiliu/rhea/Slabweakzone/Tests/test1_TI/input";
+      snprintf (path, BUFSIZ, "%s_test_TI", vtk_write_input_path);
+      ymir_vtk_write (ymir_mesh, path,
+                      coeff_TI_svisc, "shear_viscosity",
+                      TI_rotate, "rotate",
+                      NULL);
+  }
+
+ /* update viscous stress operator providing the anisotropic viscosity */
   ymir_stress_op_coeff_compute_TI_tensor (stress_op, coeff_TI_svisc,
                                           TI_rotate);
   /* destroy */
@@ -1265,6 +1435,8 @@ slabs_write_input (ymir_mesh_t *ymir_mesh,
   ymir_vec_t         *rhs_vel;
   char                path[BUFSIZ];
 
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
 
@@ -1286,19 +1458,12 @@ slabs_write_input (ymir_mesh_t *ymir_mesh,
       snprintf (path, BUFSIZ, "%s_anisotropic_viscosity", vtk_write_input_path);
       ymir_vtk_write (ymir_mesh, path,
                       shear_visc, "shear_viscosity",
-                      visc_TI_rotate, "rotation_angle",
+                      visc_TI_rotate, "visc_TI_rotate",
                       NULL);
       rhea_viscosity_destroy (shear_visc);
     }
   }
 
-/*
-  if (rhs_vel_nonzero_dirichlet != NULL) {
-    snprintf (path, BUFSIZ, "%s_vel_nonzero_dirichlet", vtk_write_input_path);
-    ymir_vtk_write (ymir_mesh, path, rhs_vel_nonzero_dirichlet,
-                    "vel_nonzero_dirichlet", NULL);
-  }
-*/
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
@@ -1886,22 +2051,23 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 {
   const char         *this_fn_name = "slabs_setup_stokes";
   ymir_vec_t         *temperature, *weakzone;
-  ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet = NULL;
+  ymir_vec_t         *coeff_TI_svisc=NULL, *TI_rotate=NULL;
+  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet=NULL;
   void               *solver_options = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
-//  rhea_temperature_compute (temperature, temp_options);
-  slabs_temperature_compute (temperature, slabs_options);
-
+  slabs_temperature_compute (temperature, slabs_options); /* if non-specified, use:
+                                                             rhea_temperature_compute
+                                                             (temperature, temp_options); */
   /* compute weak zone */
-  weakzone = rhea_weakzone_new (ymir_mesh);
+  weakzone = rhea_viscosity_new (ymir_mesh);
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
-      == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
-     ymir_vec_set_value (weakzone, 1.0);
+    == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
+    RHEA_GLOBAL_INFO ("Into TI\n");
+    ymir_vec_set_value (weakzone, 1.0);
   }
   else {
     slabs_weakzone_compute (weakzone, slabs_options);
@@ -1926,7 +2092,6 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* add the anisotropic viscosity to the viscous stress operator */
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
       == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
-    coeff_TI_svisc = rhea_viscosity_new (ymir_mesh);
     slabs_stokes_problem_setup_TI (ymir_mesh, *stokes_problem, slabs_options,
                                    coeff_TI_svisc, TI_rotate);
   }
@@ -1942,7 +2107,8 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
   /* destroy */
-  if (TI_rotate != NULL) {
+  if ( slabs_options->slabs_visc_options->viscosity_anisotropy
+      == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
     rhea_viscosity_destroy (TI_rotate);
   }
 
@@ -2066,11 +2232,12 @@ main (int argc, char **argv)
   rhea_newton_options_t         newton_options;
 
   /* slabs options */
-  slabs_temp_options_t     *slabs_temp_options;
-  slabs_visc_options_t     *slabs_visc_options;
-  slabs_weak_options_t     *slabs_weak_options;
-  slabs_velbc_options_t    *slabs_velbc_options;
-  slabs_options_t           slabs_options;
+  slabs_domain_options_t     slabs_domain_options;
+  slabs_temp_options_t     slabs_temp_options;
+  slabs_visc_options_t     slabs_visc_options;
+  slabs_weak_options_t     slabs_weak_options;
+  slabs_velbc_options_t    slabs_velbc_options;
+  slabs_options_t          slabs_options;
 
   /* temperature */
   int                 vel_dir_bc;
@@ -2269,58 +2436,58 @@ main (int argc, char **argv)
    * Process Slabs Options
    */
   /* temperature */
-  slabs_temp_options->temp_background_plate_age = temp_back_plate_age;
-  slabs_temp_options->temp_2plates_trench_longitude = temp_2pl_trench_lon;
-  slabs_temp_options->temp_2plates_dip_angle = temp_2pl_dip_angle;
-  slabs_temp_options->temp_2plates_subd_depth = temp_2pl_subd_depth;
-  slabs_temp_options->temp_2plates_subd_width = temp_2pl_subd_width;
-  slabs_temp_options->temp_2plates_subd_edge_width = temp_2pl_subd_edge_width;
-  slabs_temp_options->temp_2plates_subd_edge_smoothwidth =
+  slabs_temp_options.temp_background_plate_age = temp_back_plate_age;
+  slabs_temp_options.temp_2plates_trench_longitude = temp_2pl_trench_lon;
+  slabs_temp_options.temp_2plates_dip_angle = temp_2pl_dip_angle;
+  slabs_temp_options.temp_2plates_subd_depth = temp_2pl_subd_depth;
+  slabs_temp_options.temp_2plates_subd_width = temp_2pl_subd_width;
+  slabs_temp_options.temp_2plates_subd_edge_width = temp_2pl_subd_edge_width;
+  slabs_temp_options.temp_2plates_subd_edge_smoothwidth =
     temp_2pl_subd_edge_smoothwidth;
-  slabs_temp_options->temp_2plates_subd_plate_velocity = temp_2pl_subd_plate_vel;
-  slabs_temp_options->temp_2plates_subd_plate_initial_age =
+  slabs_temp_options.temp_2plates_subd_plate_velocity = temp_2pl_subd_plate_vel;
+  slabs_temp_options.temp_2plates_subd_plate_initial_age =
     temp_2pl_subd_plate_init_age;
-  slabs_temp_options->temp_2plates_over_plate_age = temp_2pl_over_plate_age;
+  slabs_temp_options.temp_2plates_over_plate_age = temp_2pl_over_plate_age;
 
 
   /* viscosity */
-  slabs_visc_options->viscosity_anisotropy = (slabs_viscosity_anisotropy_t) viscosity_anisotropy;
+  slabs_visc_options.viscosity_anisotropy = (slabs_viscosity_anisotropy_t) viscosity_anisotropy;
 
   /* weak zone */
-  slabs_weak_options->weakzone_2plates_subdu_longitude =
+  slabs_weak_options.weakzone_2plates_subdu_longitude =
     weakzone_2pl_subdu_lon;
-  slabs_weak_options->weakzone_2plates_subdu_dip_angle =
+  slabs_weak_options.weakzone_2plates_subdu_dip_angle =
     weakzone_2pl_subdu_dip_angle;
-  slabs_weak_options->weakzone_2plates_subdu_depth =
+  slabs_weak_options.weakzone_2plates_subdu_depth =
     weakzone_2pl_subdu_depth;
-  slabs_weak_options->weakzone_2plates_subdu_width =
+  slabs_weak_options.weakzone_2plates_subdu_width =
     weakzone_2pl_subdu_width;
-  slabs_weak_options->weakzone_2plates_subdu_thickness =
+  slabs_weak_options.weakzone_2plates_subdu_thickness =
     weakzone_2pl_subdu_thickness;
-  slabs_weak_options->weakzone_2plates_subdu_thickness_const =
+  slabs_weak_options.weakzone_2plates_subdu_thickness_const =
     weakzone_2pl_subdu_thickness_const;
-  slabs_weak_options->weakzone_2plates_subdu_weak_factor =
+  slabs_weak_options.weakzone_2plates_subdu_weak_factor =
     weakzone_2pl_subdu_weak_factor;
-  slabs_weak_options->weakzone_2plates_ridge_depth =
+  slabs_weak_options.weakzone_2plates_ridge_depth =
     weakzone_2pl_ridge_depth;
-  slabs_weak_options->weakzone_2plates_ridge_width =
+  slabs_weak_options.weakzone_2plates_ridge_width =
     weakzone_2pl_ridge_width;
-  slabs_weak_options->weakzone_2plates_ridge_smoothwidth =
+  slabs_weak_options.weakzone_2plates_ridge_smoothwidth =
     weakzone_2pl_ridge_smoothwidth;
-  slabs_weak_options->weakzone_2plates_ridge_weak_factor =
+  slabs_weak_options.weakzone_2plates_ridge_weak_factor =
     weakzone_2pl_ridge_weak_factor;
 
   /* velocity B.C. condition */
-  slabs_velbc_options->vel_dir_bc = (slabs_vel_dir_bc_t) vel_dir_bc;
-  slabs_velbc_options->flow_scale = flow_scale;
-  slabs_velbc_options->vel_dir_bc_upper = velocity_bc_upper;
-  slabs_velbc_options->vel_dir_bc_lower = velocity_bc_lower;
+  slabs_velbc_options.vel_dir_bc = (slabs_vel_dir_bc_t) vel_dir_bc;
+  slabs_velbc_options.flow_scale = flow_scale;
+  slabs_velbc_options.vel_dir_bc_upper = velocity_bc_upper;
+  slabs_velbc_options.vel_dir_bc_lower = velocity_bc_lower;
 
   /* assign slabs_options */
-  slabs_options.slabs_temp_options = slabs_temp_options;
-  slabs_options.slabs_visc_options = slabs_visc_options;
-  slabs_options.slabs_weak_options = slabs_weak_options;
-  slabs_options.slabs_velbc_options = slabs_velbc_options;
+  slabs_options.slabs_temp_options = &slabs_temp_options;
+  slabs_options.slabs_visc_options = &slabs_visc_options;
+  slabs_options.slabs_weak_options = &slabs_weak_options;
+  slabs_options.slabs_velbc_options = &slabs_velbc_options;
 
   /*
    * Initialize Main Program
@@ -2337,6 +2504,19 @@ main (int argc, char **argv)
   rhea_process_options_all (&domain_options, &temp_options,
                             &visc_options, &discr_options,
                             &newton_options);
+
+  /* copy rhea domain options into local example domain options */
+  slabs_domain_options.x_min = domain_options.x_min;
+  slabs_domain_options.x_max = domain_options.x_max;
+  slabs_domain_options.y_min = domain_options.y_min;
+  slabs_domain_options.y_max = domain_options.y_max;
+  slabs_domain_options.z_min = domain_options.z_min;
+  slabs_domain_options.z_max = domain_options.z_max;
+  slabs_domain_options.lon_min = domain_options.lon_min;
+  slabs_domain_options.lon_max = domain_options.lon_max;
+  slabs_domain_options.radius_min = domain_options.radius_min;
+  slabs_domain_options.radius_max = domain_options.radius_max;
+  slabs_options.slabs_domain_options = &slabs_domain_options;
 
   /*
    * Setup Mesh
@@ -2406,7 +2586,7 @@ main (int argc, char **argv)
 
     /* compute 2nd invariant of deviatoric stress tau = 2* (2nd invariant of strain_rate * viscosity )
       and its projection on the surface */
-    if (slabs_visc_options->viscosity_anisotropy == SLABS_VISC_TRANSVERSELY_ISOTROPY)  {
+    if (slabs_visc_options.viscosity_anisotropy == SLABS_VISC_TRANSVERSELY_ISOTROPY)  {
       ymir_stokes_op_t      *stokes_op;
       ymir_stress_op_t      *stress_op;
       ymir_vec_t            *shear_visc = rhea_viscosity_new (ymir_mesh);
