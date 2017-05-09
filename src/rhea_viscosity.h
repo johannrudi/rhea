@@ -234,6 +234,12 @@ double              rhea_viscosity_get_visc_shift (
                                                rhea_viscosity_options_t *opt);
 
 /**
+ * Returns the value by which the nonlinear part of the viscosity is shifted.
+ */
+double              rhea_viscosity_get_visc_shift_nonlinear (
+                                                rhea_viscosity_options_t *opt);
+
+/**
  * Returns the value by which the projection part of the (linearized) viscosity
  * coefficient is shifted.
  */
