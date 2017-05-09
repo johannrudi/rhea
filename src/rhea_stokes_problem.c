@@ -568,8 +568,9 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
   /* get viscous stress operator */
   stress_op = stokes_op->stress_op;
   RHEA_ASSERT (ymir_stress_op_has_linearized (stress_op));
-  RHEA_ASSERT (fabs (ymir_stress_op_get_coeff_shift (stress_op) -
-                     rhea_viscosity_get_visc_shift (visc_options)) < SC_EPS);
+  RHEA_ASSERT (
+      fabs (ymir_stress_op_get_coeff_shift_proj (stress_op) -
+            rhea_viscosity_get_visc_shift_proj (visc_options)) < SC_EPS);
 
   /*
    * Set Linearized Part of the Viscous Stress Coefficient
