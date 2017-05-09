@@ -1408,7 +1408,7 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
       if (0 < opt->min) {
-        shift_proj = -2.0 * opt->min;
+        shift_proj = -opt->min;
       }
       else {
         shift_proj = 0.0;
