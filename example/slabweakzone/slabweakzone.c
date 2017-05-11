@@ -878,8 +878,9 @@ slabs_weakzone_brick_2plates_poly2 (double r, double lon,
       && lon <= (end_node + 0.5 * total_thickness + courtesy_width)
       && (end_val - total_thickness - courtesy_width) <= r ) {
     /* compute distance to subduction weak zone */
-    dist = slabs_weakzone_subduct_dist_2plates_poly2 (
-        r, lon, poly2_coeff, start_node, start_val, start_deriv, end_node, end_val);
+    dist = slabs_weakzone_subduct_dist_2plates_poly2 (r, lon, poly2_coeff,
+                                                      start_node, start_val, start_deriv,
+                                                      end_node, end_val);
 
     /* set weak zone factor */
     weak = slabs_weakzone_factor_fn (dist, subdu_thickness,
@@ -1087,36 +1088,6 @@ slabs_compute_rot_on_poly2 (double *poly2_coeff, double *closet_pt)
   return rot;
 }
 
-/* Computes distance to weak zone between plates. */
-double
-slabs_TI_subduct_rot_2plates_poly2 (double r, double lon,
-                                     double *poly2_coeff,
-                                     double start_node,
-                                     double start_val,
-                                     double start_deriv,
-                                     double end_node,
-                                     double end_val)
-{
-  int                 orientation_wrt_curve;
-  double             *closest_pt;
-  double              rot;
-
-  /* compute closest point on curve and orientation w.r.t. curve */
-  closest_pt = slabs_compute_closest_pt_on_poly2 (lon, r,
-                                                poly2_coeff, start_node,
-                                                start_val, start_deriv,
-                                                end_node, end_val,
-                                                &orientation_wrt_curve);
-
-  rot = slabs_compute_rot_on_poly2 (poly2_coeff, closest_pt);
-
-  /* destroy */
-  YMIR_FREE (closest_pt);
-
-  /* return distance to weak zone curve */
-  return rot;
-}
-
 /* Computes the rotation from x axis of weak fault zone with two plates. */
 static double
 slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
@@ -1137,6 +1108,8 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
   double              start_node, start_val, start_deriv, end_node, end_val;
   double              *poly2_coeff;
   double              rot = 0.0;
+  int                 orientation_wrt_curve;
+  double             *closest_pt, dist=1.0;
 
   slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
   slabs_2plates_poly2_geo_coeff_t *geo = weak_options->weak_2plates_geo_coeff;
@@ -1180,10 +1153,27 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
           / sin (subdu_dip_angle / 180.0 * M_PI) - courtesy_width ) <= lon
       && lon <= (end_node + 0.5 * total_thickness + courtesy_width)
       && (end_val - total_thickness - courtesy_width) <= r ) {
-    /* compute rotation of subduction weak zone from y=0 axis*/
-    rot = slabs_TI_subduct_rot_2plates_poly2 (
-        r, lon, poly2_coeff, start_node, start_val, start_deriv, end_node, end_val);
+    /*
+     * compute rotation of subduction weak zone from y=0 axis
+     * */
+    /* compute closest point on curve and orientation w.r.t. curve */
+    closest_pt = slabs_compute_closest_pt_on_poly2 (lon, r,
+                                                  poly2_coeff, start_node,
+                                                  start_val, start_deriv,
+                                                  end_node, end_val,
+                                                  &orientation_wrt_curve);
 
+    dist = slabs_weakzone_subduct_dist_2plates_poly2 (r, lon, poly2_coeff,
+                                                      start_node, start_val, start_deriv,
+                                                      end_node, end_val);
+    if (dist < 0.5 * total_thickness *  SLABS_MANTLE_DEPTH)  {
+      rot = slabs_compute_rot_on_poly2 (poly2_coeff, closest_pt);
+    }
+    else {
+      rot = 0.0;
+    }
+
+    YMIR_FREE (closest_pt);
   }
 
   /*
@@ -1227,7 +1217,7 @@ slabs_TI_rotation_node (const double x, const double y, const double z,
 /* compute weak zone factor of an element */
 void
 slabs_TI_rotation_elem (double *_sc_restrict rot_elem,
-                        double *_sc_restrict svisc_elem,
+                        double *_sc_restrict weak_elem,
                          const double *x,
                          const double *y,
                          const double *z,
@@ -1238,7 +1228,7 @@ slabs_TI_rotation_elem (double *_sc_restrict rot_elem,
 
   /* compute weak zone factor for each node */
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
-    if (fabs(1.0 - svisc_elem[nodeid]) < SC_1000_EPS)  {
+    if (fabs(1.0 - weak_elem[nodeid]) < SC_EPS)  {
       rot_elem[nodeid] = .0;
     }
     else {
@@ -1249,15 +1239,15 @@ slabs_TI_rotation_elem (double *_sc_restrict rot_elem,
 }
 
 static void
-slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
+slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *weak,
                            slabs_options_t *slabs_options)
 {
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (rotate);
   const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
-  sc_dmatrix_t       *rot_el_mat, *svisc_el_mat;
-  double             *rot_el_data, *svisc_el_data;
+  sc_dmatrix_t       *rot_el_mat, *weak_el_mat;
+  double             *rot_el_data, *weak_el_data;
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t      elid;
 
@@ -1313,7 +1303,7 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
   /* create work variables */
   rot_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   rot_el_data = rot_el_mat->e[0];
-  svisc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   x = RHEA_ALLOC (double, n_nodes_per_el);
   y = RHEA_ALLOC (double, n_nodes_per_el);
   z = RHEA_ALLOC (double, n_nodes_per_el);
@@ -1323,10 +1313,10 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
     /* get coordinates of this element at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
-    svisc_el_data = rhea_viscosity_get_elem_gauss (svisc_el_mat, svisc, elid);
+    weak_el_data = rhea_viscosity_get_elem_gauss (weak_el_mat, weak, elid);
 
     /* compute weak zone factor */
-    slabs_TI_rotation_elem (rot_el_data, svisc_el_data, x, y, z,
+    slabs_TI_rotation_elem (rot_el_data, weak_el_data, x, y, z,
                             n_nodes_per_el, slabs_options);
 
     /* set weak zone of this element */
@@ -1335,7 +1325,7 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *svisc,
 
   /* destroy */
   sc_dmatrix_destroy (rot_el_mat);
-  sc_dmatrix_destroy (svisc_el_mat);
+  sc_dmatrix_destroy (weak_el_mat);
   RHEA_FREE (x);
   RHEA_FREE (y);
   RHEA_FREE (z);
@@ -1350,15 +1340,7 @@ slabs_TI_viscosity_compute ( ymir_mesh_t *ymir_mesh,  ymir_vec_t *TI_svisc,
                             ymir_vec_t *weakzone,
                             slabs_options_t *slabs_options)
 {
-  const char         *this_fn_name = "slabs_TI_viscosity_compute";
-  char      path[BUFSIZ], *vtk_write_input_path="/scratch/02600/xiliu/rhea/Slabweakzone/Tests/test1_TI/input";
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  slabs_weakzone_compute (weakzone, slabs_options);
   ymir_vec_multiply (viscosity, weakzone, TI_svisc);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
 /* setup the TI shear viscosity and tensor in stress operator */
@@ -1381,11 +1363,12 @@ slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
   /* compute the shear viscosity and rotation angles */
+  slabs_weakzone_compute (weakzone, slabs_options);
   slabs_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, weakzone, slabs_options);
 
   ymir_vec_scale (2.0, coeff_TI_svisc);
 
-  slabs_TI_rotation_compute (TI_rotate, coeff_TI_svisc, slabs_options);
+  slabs_TI_rotation_compute (TI_rotate, weakzone, slabs_options);
 
   /* get the viscous stress operator */
   stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
@@ -1441,12 +1424,15 @@ slabs_write_input (ymir_mesh_t *ymir_mesh,
     if (visc_TI_svisc != NULL && visc_TI_rotate != NULL) {
       ymir_vec_t         *shear_visc = ymir_vec_clone (visc_TI_svisc);
       ymir_vec_scale (0.5, shear_visc);
+      ymir_vec_t *angle = ymir_vec_clone (visc_TI_rotate);
+      ymir_vec_scale (180.0/M_PI, angle);
       snprintf (path, BUFSIZ, "%s_anisotropic_viscosity", vtk_write_input_path);
       ymir_vtk_write (ymir_mesh, path,
                       shear_visc, "shear_viscosity",
-                      visc_TI_rotate, "visc_TI_rotate",
+                      angle, "rotation",
                       NULL);
       rhea_viscosity_destroy (shear_visc);
+      rhea_viscosity_destroy (angle);
     }
   }
 
