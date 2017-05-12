@@ -31,14 +31,13 @@
 #define RHEA_VISCOSITY_DEFAULT_MODEL_NAME "UWYL_LADD_USHIFT"
 #define RHEA_VISCOSITY_DEFAULT_MIN (1.0e-2)
 #define RHEA_VISCOSITY_DEFAULT_MAX (1.0e+4)
-#define RHEA_VISCOSITY_DEFAULT_SHIFT (NAN)
 #define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING (4.0e+3)
 #define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY (17.5)
 #define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING (4.0e+5)
 #define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY (17.5)
 #define RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT (3.0)
 #define RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH (NAN)
-#define RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION (NAN)
+#define RHEA_VISCOSITY_DEFAULT_NONLINEAR_REGULARIZATION (NAN)
 
 /* initialize options */
 int                 rhea_viscosity_type = RHEA_VISCOSITY_DEFAULT_TYPE;
@@ -52,7 +51,6 @@ char               *rhea_viscosity_model_name =
   RHEA_VISCOSITY_DEFAULT_MODEL_NAME;
 double              rhea_viscosity_min = RHEA_VISCOSITY_DEFAULT_MIN;
 double              rhea_viscosity_max = RHEA_VISCOSITY_DEFAULT_MAX;
-double              rhea_viscosity_shift = RHEA_VISCOSITY_DEFAULT_SHIFT;
 double              rhea_viscosity_upper_mantle_scaling =
   RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING;
 double              rhea_viscosity_upper_mantle_arrhenius_activation_energy =
@@ -65,8 +63,8 @@ double              rhea_viscosity_stress_exponent =
   RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT;
 double              rhea_viscosity_yield_strength =
   RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH;
-double              rhea_viscosity_yielding_regularization =
-  RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION;
+double              rhea_viscosity_nonlinear_regularization =
+  RHEA_VISCOSITY_DEFAULT_NONLINEAR_REGULARIZATION;
 
 void
 rhea_viscosity_add_options (ymir_options_t * opt_sup)
@@ -102,10 +100,6 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     &(rhea_viscosity_max), RHEA_VISCOSITY_DEFAULT_MAX,
     "Upper bound for viscosity",
 
-  YMIR_OPTIONS_D, "shift", '\0',
-    &(rhea_viscosity_shift), RHEA_VISCOSITY_DEFAULT_SHIFT,
-    "Shift of viscosity to introduce convexity to energy min. problem",
-
   YMIR_OPTIONS_D, "upper-mantle-scaling", '\0',
     &(rhea_viscosity_upper_mantle_scaling),
     RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING,
@@ -130,10 +124,11 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "yield-strength", '\0',
     &(rhea_viscosity_yield_strength), RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH,
     "Value of viscous stress above which plastic yielding occurs",
-  YMIR_OPTIONS_D, "yielding-regularization", '\0',
-    &(rhea_viscosity_yielding_regularization),
-    RHEA_VISCOSITY_DEFAULT_YIELDING_REGULARIZATION,
-    "Regularization for yielding in [0,1] (0: full yielding .. 1: no yielding)",
+
+  YMIR_OPTIONS_D, "nonlinear-regularization", '\0',
+    &(rhea_viscosity_nonlinear_regularization),
+    RHEA_VISCOSITY_DEFAULT_NONLINEAR_REGULARIZATION,
+    "Regularization for nonlinear viscosity (adds convexity to min. problem)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -177,9 +172,6 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   RHEA_CHECK_ABORT (opt->min <= 0.0 || opt->max <= 0.0 || opt->min < opt->max,
                     "Invalid viscosity lower/upper bounds");
 
-  /* set viscosity shift */
-  opt->shift = rhea_viscosity_shift;
-
   /* store linear viscosity options */
   opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
   opt->upper_mantle_arrhenius_activation_energy =
@@ -202,7 +194,7 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   /* store nonlinear viscosity options */
   opt->stress_exponent = rhea_viscosity_stress_exponent;
   opt->yield_strength = rhea_viscosity_yield_strength;
-  opt->yielding_regularization = rhea_viscosity_yielding_regularization;
+  opt->nonlinear_regularization = rhea_viscosity_nonlinear_regularization;
 
   /* store domain options */
   opt->domain_options = domain_options;
@@ -326,12 +318,12 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
                              const int is_in_upper_mantle,
                              const int restrict_to_bounds)
 {
+  const int           restrict_min =
+    (restrict_to_bounds && rhea_viscosity_restrict_min (opt));
+  const int           restrict_max =
+    (restrict_to_bounds && rhea_viscosity_restrict_max (opt));
   const double        visc_min = opt->min;
   const double        visc_max = opt->max;
-  const int           restrict_min =
-    (restrict_to_bounds && isfinite (visc_min) && 0.0 < visc_min);
-  const int           restrict_max =
-    (restrict_to_bounds && isfinite (visc_max) && 0.0 < visc_max);
   double              scaling;
 
   /* set scaling */
@@ -645,10 +637,10 @@ static void
 rhea_viscosity_nonlinear_strain_rate_weakening (
                                             double *viscosity, /* out */
                                             double *proj_scal, /* out */
+                                            double *srw_exp,   /* out */
                                             const double visc_in,
                                             const double strainrate_sqrt_2inv,
-                                            const double stress_exp,
-                                            const double visc_nl_shift)
+                                            const double stress_exp)
 {
   /* check input */
   RHEA_ASSERT (isfinite (visc_in));
@@ -657,24 +649,26 @@ rhea_viscosity_nonlinear_strain_rate_weakening (
   RHEA_ASSERT (0.0 <= visc_in);
   RHEA_ASSERT (0.0 <= strainrate_sqrt_2inv);
   RHEA_ASSERT (1.0 <= stress_exp);
-  RHEA_ASSERT (!isfinite (visc_nl_shift) || 0.0 <= visc_nl_shift);
+
+  /* calculate the strain rate weakening exponent */
+  *srw_exp = 1.0 / stress_exp;
+  RHEA_ASSERT (0.0 <= *srw_exp && *srw_exp <= 1.0);
 
   /* compute viscosity
    *
    *   visc = visc_in * sqrt(strainrate_2inv)^(1/n) / sqrt(strainrate_2inv)
+   *        = visc_in * sqrt(strainrate_2inv)^srw_exp / sqrt(strainrate_2inv)
    */
-  *viscosity = visc_in * pow (strainrate_sqrt_2inv, 1.0/stress_exp) /
-               strainrate_sqrt_2inv;
-  if (isfinite (visc_nl_shift)) {
-    *viscosity += visc_nl_shift;
-  }
+  *viscosity =
+    visc_in * pow (strainrate_sqrt_2inv, *srw_exp) / strainrate_sqrt_2inv;
 
   /* compute scaling of the projection tensor
    *
    *   proj_scal = (1 - n) / n
+   *             = srw_exp - 1
    */
-  *proj_scal = (1.0 - stress_exp) / stress_exp;
-  *proj_scal = SC_MIN ( SC_MAX (-1.0, *proj_scal), 0.0);
+  *proj_scal = *srw_exp - 1.0;
+  *proj_scal = SC_MIN (SC_MAX (-1.0, *proj_scal), 0.0);
 }
 
 /**
@@ -685,11 +679,11 @@ static void
 rhea_viscosity_nonlinear_strain_rate_weakening_shift (
                                             double *viscosity, /* out */
                                             double *proj_scal, /* out */
+                                            double *srw_exp,   /* out */
                                             const double visc_in,
                                             const double strainrate_sqrt_2inv,
                                             const double strainrate_shift,
-                                            const double stress_exp,
-                                            const double visc_nl_shift)
+                                            const double stress_exp)
 {
   double              sr_diff;
 
@@ -702,31 +696,113 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
   RHEA_ASSERT (0.0 <= strainrate_sqrt_2inv);
   RHEA_ASSERT (0.0 <= strainrate_shift);
   RHEA_ASSERT (1.0 <= stress_exp);
-  RHEA_ASSERT (!isfinite (visc_nl_shift) || 0.0 <= visc_nl_shift);
 
-  /* calculate difference */
+  /* calculate difference, which is the shifted strain rate */
   sr_diff = strainrate_sqrt_2inv - strainrate_shift;
   RHEA_ASSERT (0.0 <= sr_diff);
+
+  /* calculate the strain rate weakening exponent */
+  *srw_exp = 1.0 / stress_exp;
+  RHEA_ASSERT (0.0 <= *srw_exp && *srw_exp <= 1.0);
 
   /* compute viscosity
    *
    *   visc = visc_in * (sqrt(strainrate_2inv) - shift)^(1/n)
    *                  / sqrt(strainrate_2inv)
+   *        = visc_in * (sqrt(strainrate_2inv) - shift)^srw_exp
+   *                  / sqrt(strainrate_2inv)
    */
-  *viscosity = visc_in * pow (sr_diff, 1.0/stress_exp) / strainrate_sqrt_2inv;
-  if (isfinite (visc_nl_shift)) {
-    *viscosity += visc_nl_shift;
-  }
+  *viscosity = visc_in * pow (sr_diff, *srw_exp) / strainrate_sqrt_2inv;
 
   /* compute scaling of the projection tensor
    *
    *   proj_scal = (sqrt(strainrate_2inv)/n - sqrt(strainrate_2inv) + shift) /
    *               (sqrt(strainrate_2inv) - shift)
    *             = (1 - n) / n + shift / (n * (sqrt(strainrate_2inv) - shift))
+   *             = (srw_exp - 1) +
+   *               srw_exp * shift / (sqrt(strainrate_2inv) - shift)
    */
-  *proj_scal = (1.0 - stress_exp) / stress_exp +
-               strainrate_shift / (stress_exp * sr_diff);
-  *proj_scal = SC_MIN ( SC_MAX (-1.0, *proj_scal), 0.0);
+  *proj_scal = (*srw_exp - 1.0) + *srw_exp * strainrate_shift / sr_diff;
+  *proj_scal = SC_MIN (SC_MAX (-1.0, *proj_scal), 0.0);
+}
+
+/**
+ * Applies upper bound to viscosity via cut-off.
+ */
+static void
+rhea_viscosity_nonlinear_restrict_max (double *viscosity,     /* in/out */
+                                       double *proj_scal,     /* in/out */
+                                       double *bounds_active, /* out */
+                                       double *srw_exp,       /* out */
+                                       const double visc_max)
+{
+  RHEA_ASSERT (isfinite (visc_max));
+  RHEA_ASSERT (0.0 < visc_max);
+
+  if (visc_max < *viscosity) {
+    *viscosity = visc_max;
+    *proj_scal = 0.0;
+    *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+    *srw_exp = 1.0;
+  }
+}
+
+/**
+ * Applies lower bound to viscosity via cut-off.
+ */
+static void
+rhea_viscosity_nonlinear_restrict_min (double *viscosity,     /* in/out */
+                                       double *proj_scal,     /* in/out */
+                                       double *bounds_active, /* out */
+                                       double *srw_exp,       /* out */
+                                       const double visc_min)
+{
+  RHEA_ASSERT (isfinite (visc_min));
+  RHEA_ASSERT (0.0 < visc_min);
+
+  if (*viscosity < visc_min) {
+    *viscosity = visc_min;
+    *proj_scal = 0.0;
+    *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
+    *srw_exp = 1.0;
+  }
+}
+
+/**
+ * Applies lower bound to viscosity via addition.
+ */
+static void
+rhea_viscosity_nonlinear_restrict_min_add (double *viscosity,     /* in/out */
+                                           double *bounds_active, /* out */
+                                           const double visc_min)
+{
+  RHEA_ASSERT (isfinite (visc_min));
+  RHEA_ASSERT (0.0 < visc_min);
+
+  if (*viscosity < visc_min) {
+    *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
+  }
+  *viscosity += visc_min;
+}
+
+/**
+ * Multiplies weak factor.
+ */
+static void
+rhea_viscosity_nonlinear_weak_factor (double *viscosity,     /* in/out */
+                                      double *bounds_active, /* in/out */
+                                      const double weak)
+{
+  RHEA_ASSERT (isfinite (weak));
+  RHEA_ASSERT (0.0 < weak && weak <= 1.0);
+
+  *viscosity *= weak;
+
+  /* change upper bound marker if weak zone is present */
+  if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
+      weak < 0.5) {
+    *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
+  }
 }
 
 /**
@@ -734,13 +810,14 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
  */
 static void
 rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
-                                   double *proj_scal,       /* [in/]out */
+                                   double *proj_scal,       /* out */
                                    double *yielding_active, /* out */
+                                   double *srw_exp,         /* out */
                                    const double strainrate_sqrt_2inv,
                                    const double yield_strength,
-                                   const double yield_reg,
-                                   const double visc_nl_shift)
+                                   const double nl_reg)
 {
+  const int           has_nl_reg = (isfinite (nl_reg) && 0.0 < nl_reg);
   double              visc_stress;
 
   /* check input */
@@ -748,8 +825,6 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
   RHEA_ASSERT (isfinite (strainrate_sqrt_2inv));
   RHEA_ASSERT (0.0 <= *viscosity);
   RHEA_ASSERT (0.0 <= strainrate_sqrt_2inv);
-  RHEA_ASSERT (!isfinite (yield_reg) || yield_reg <= 1.0);
-  RHEA_ASSERT (!isfinite (visc_nl_shift) || 0.0 <= visc_nl_shift);
 
   /* exit if nothing to do */
   if ( !(isfinite (yield_strength) && 0.0 < yield_strength) ) {
@@ -758,39 +833,36 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
   }
 
   /* compute the sqrt of the 2nd invariant of the viscous stress tensor */
-  visc_stress = 2.0 * (*viscosity) * strainrate_sqrt_2inv;
-
-  /* apply yielding if yield strenght is exceeded */
-  if (yield_strength < visc_stress) {
-    const double        v = *viscosity;
-    const double        ps = *proj_scal;
-    const double        vy = (yield_strength / 2.0) / strainrate_sqrt_2inv;
-    const double        psy = -1.0;
-
-    if (isfinite (yield_reg) && 0.0 < yield_reg) { /* if regularized yielding */
-      RHEA_ASSERT (isfinite (*proj_scal));
-      RHEA_ASSERT (-1.0 < *proj_scal && *proj_scal <= 0.0);
-
-      /* compute convex combination */
-      *viscosity = yield_reg * v + (1.0 - yield_reg) * vy;
-      if (isfinite (visc_nl_shift)) {
-        *viscosity += visc_nl_shift;
-      }
-      RHEA_ASSERT (0.0 < *viscosity);
-      *proj_scal = (yield_reg * v * ps + (1.0 - yield_reg) * vy * psy) /
-                   *viscosity;
-    }
-    else { /* if (standard) yielding without regularization is applied */
-      *viscosity = vy;
-      if (isfinite (visc_nl_shift)) {
-        *viscosity += visc_nl_shift;
-      }
-      *proj_scal = psy;
-    }
-
-    /* set yielding marker to active */
-    *yielding_active = RHEA_VISCOSITY_YIELDING_ACTIVE;
+  if (has_nl_reg) {
+    visc_stress = 2.0 * (*viscosity - nl_reg) * strainrate_sqrt_2inv;
   }
+  else {
+    visc_stress = 2.0 * (*viscosity) * strainrate_sqrt_2inv;
+  }
+
+  /* apply yielding if yield strength is exceeded */
+  if (yield_strength < visc_stress) {
+    *viscosity = yield_strength / (2.0 * strainrate_sqrt_2inv);
+    *proj_scal = -1.0;
+    *yielding_active = RHEA_VISCOSITY_YIELDING_ACTIVE;
+    *srw_exp = 0.0;
+  }
+}
+
+static void
+rhea_viscosity_nonlinear_regularize (double *viscosity, /* in/out */
+                                     const double srw_exp,
+                                     rhea_viscosity_options_t *opt)
+{
+  double              nl_weighted_reg;
+
+  /* get (weighted) regularization parameter */
+  nl_weighted_reg = rhea_viscosity_get_nonlinear_regularization (opt, srw_exp);
+  RHEA_ASSERT (isfinite (nl_weighted_reg));
+  RHEA_ASSERT (0.0 <= nl_weighted_reg);
+
+  /* add regularization */
+  *viscosity += nl_weighted_reg;
 }
 
 /**
@@ -805,18 +877,21 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
                                 const double strainrate_sqrt_2inv,
                                 rhea_viscosity_options_t *opt)
 {
+  const int           restrict_min = rhea_viscosity_restrict_min (opt);
+  const int           restrict_max = rhea_viscosity_restrict_max (opt);
   const double        visc_min = opt->min;
   const double        visc_max = opt->max;
-  const int           restrict_min = (isfinite (visc_min) && 0.0 < visc_min);
-  const int           restrict_max = (isfinite (visc_max) && 0.0 < visc_max);
   const double        scaling = opt->upper_mantle_scaling;
-  const double        stress_exp = opt->stress_exponent;
-  const double        yield_strength = opt->yield_strength;
-  const double        yield_reg = opt->yielding_regularization;
-  const double        visc_nl_shift = opt->shift;
+  double              visc_lin = rhea_viscosity_linear_comp (temp, opt, 1);
+
   const int           has_srw = rhea_viscosity_has_strain_rate_weakening (opt);
   const int           has_yld = rhea_viscosity_has_yielding (opt);
-  double              visc_lin = rhea_viscosity_linear_comp (temp, opt, 1);
+  const int           has_nl_reg =
+                        rhea_viscosity_has_nonlinear_regularization (opt);
+
+  const double        stress_exp = opt->stress_exponent;
+  const double        yield_strength = rhea_viscosity_get_yield_strength (opt);
+  double              srw_exp;
 
   RHEA_ASSERT (restrict_max);
   RHEA_ASSERT (0.0 <= visc_lin);
@@ -835,44 +910,44 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
-            viscosity, proj_scal, visc_lin, strainrate_sqrt_2inv, stress_exp,
-            visc_nl_shift);
+            viscosity, proj_scal, &srw_exp,
+            visc_lin, strainrate_sqrt_2inv, stress_exp);
       }
       else {
         *viscosity = visc_lin;
         *proj_scal = 0.0;
+        srw_exp = 1.0;
       }
 
       /* (U) apply upper bound to viscosity */
-      if (restrict_max && visc_max < *viscosity) {
-        *viscosity = visc_max;
-        *proj_scal = 0.0;
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+      if (restrict_max) {
+        rhea_viscosity_nonlinear_restrict_max (
+            viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
       }
 
       /* (W) multiply in weak factor */
-      *viscosity *= weak;
-      /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
-          weak < 0.5) {
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
-      }
+      rhea_viscosity_nonlinear_weak_factor (viscosity, bounds_active, weak);
 
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, proj_scal, yielding_active, strainrate_sqrt_2inv,
-            yield_strength, yield_reg, visc_nl_shift);
+            viscosity, proj_scal, yielding_active, &srw_exp,
+            strainrate_sqrt_2inv, yield_strength,
+            opt->nonlinear_regularization);
       }
       else {
         *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
       }
 
       /* (L) apply lower bound to viscosity */
-      if (restrict_min && *viscosity < visc_min) {
-        *viscosity = visc_min;
-        *proj_scal = 0.0;
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
+      if (restrict_min) {
+        rhea_viscosity_nonlinear_restrict_min (
+            viscosity, proj_scal, bounds_active, &srw_exp, visc_min);
+      }
+
+      /* add regularization to viscosity */
+      if (has_nl_reg) {
+        rhea_viscosity_nonlinear_regularize (viscosity, srw_exp, opt);
       }
     }
     break;
@@ -890,34 +965,30 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
-            viscosity, proj_scal, visc_lin, strainrate_sqrt_2inv, stress_exp,
-            visc_nl_shift);
+            viscosity, proj_scal, &srw_exp,
+            visc_lin, strainrate_sqrt_2inv, stress_exp);
       }
       else {
         *viscosity = visc_lin;
         *proj_scal = 0.0;
+        srw_exp = 1.0;
       }
 
       /* (U) apply upper bound to viscosity */
-      if (restrict_max && visc_max < *viscosity) {
-        *viscosity = visc_max;
-        *proj_scal = 0.0;
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+      if (restrict_max) {
+        rhea_viscosity_nonlinear_restrict_max (
+            viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
       }
 
       /* (W) multiply in weak factor */
-      *viscosity *= weak;
-      /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
-          weak < 0.5) {
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
-      }
+      rhea_viscosity_nonlinear_weak_factor (viscosity, bounds_active, weak);
 
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, proj_scal, yielding_active, strainrate_sqrt_2inv,
-            yield_strength, yield_reg, visc_nl_shift);
+            viscosity, proj_scal, yielding_active, &srw_exp,
+            strainrate_sqrt_2inv, yield_strength,
+            opt->nonlinear_regularization);
       }
       else {
         *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
@@ -925,19 +996,19 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
 
       /* (L) apply lower bound to viscosity */
       if (restrict_min) {
-        if (*viscosity < visc_min) {
-          *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
-        }
-        *viscosity += visc_min;
+        rhea_viscosity_nonlinear_restrict_min_add (viscosity, bounds_active,
+                                                   visc_min);
+      }
+
+      /* add regularization to viscosity */
+      if (has_nl_reg) {
+        rhea_viscosity_nonlinear_regularize (viscosity, srw_exp, opt);
       }
     }
     break;
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
     {
-      double              strainrate_min;
-      double              strainrate_shift;
-
       /* multiply by scaling factor */
       if (restrict_min && visc_min < scaling) {
         visc_lin *= (scaling - visc_min);
@@ -946,64 +1017,72 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
         visc_lin *= scaling;
       }
 
-      /* compute minimal strain rate for nonlinear viscosity
-       *
-       *   e_min = a / visc_max * (visc_max * n / a)^(1 / (1 - n))
-       */
-      if (0.0 < visc_lin) {
-        strainrate_min = visc_lin / visc_max *
-                         pow ( visc_max * stress_exp / visc_lin,
-                               1.0 / (1.0 - stress_exp) );
-      }
-      else {
-        strainrate_min = 0.0;
-      }
-
-      /* compute shift of strain rate
-       *
-       *   d = e_min - (visc_max * n / a)^(n / (1 - n))
-       */
-      if (0.0 < visc_lin) {
-        strainrate_shift = strainrate_min -
-                           pow ( visc_max * stress_exp / visc_lin,
-                                 stress_exp / (1.0 - stress_exp) );
-        strainrate_shift = SC_MAX (0.0, strainrate_shift);
-      }
-      else {
-        strainrate_shift = 0.0;
-      }
-
       /* compute strain rate weakening viscosity */
       if (has_srw) {
+        double              strainrate_min;
+        double              strainrate_shift;
+
+        /* compute minimal strain rate for nonlinear viscosity
+         *
+         *   e_min = a / visc_max * (visc_max * n / a)^(1 / (1 - n))
+         */
+        if (0.0 < visc_lin) {
+          strainrate_min = visc_lin / visc_max *
+                           pow ( visc_max * stress_exp / visc_lin,
+                                 1.0 / (1.0 - stress_exp) );
+        }
+        else {
+          strainrate_min = 0.0;
+        }
+
+        /* compute shift of strain rate
+         *
+         *   d = e_min - (visc_max * n / a)^(n / (1 - n))
+         */
+        if (0.0 < visc_lin) {
+          strainrate_shift = strainrate_min -
+                             pow ( visc_max * stress_exp / visc_lin,
+                                   stress_exp / (1.0 - stress_exp) );
+          strainrate_shift = SC_MAX (0.0, strainrate_shift);
+        }
+        else {
+          strainrate_shift = 0.0;
+        }
+
+        /* compute strain rate weakening viscosity */
         rhea_viscosity_nonlinear_strain_rate_weakening_shift (
-            viscosity, proj_scal, visc_lin, strainrate_sqrt_2inv,
-            strainrate_shift, stress_exp, visc_nl_shift);
+            viscosity, proj_scal, &srw_exp,
+            visc_lin, strainrate_sqrt_2inv, strainrate_shift, stress_exp);
+
+        /* (U) apply upper bound */
+        if (strainrate_sqrt_2inv < strainrate_min) {
+          *viscosity = visc_max;
+          *proj_scal = 0.0;
+          *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+          srw_exp = 1.0;
+        }
       }
       else {
         *viscosity = visc_lin;
         *proj_scal = 0.0;
-      }
+        srw_exp = 1.0;
 
-      /* (U) apply upper bound */
-      if (strainrate_sqrt_2inv < strainrate_min) {
-        *viscosity = visc_max;
-        *proj_scal = 0.0;
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+        /* (U) apply upper bound */
+        if (restrict_max) {
+          rhea_viscosity_nonlinear_restrict_max (
+              viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
+        }
       }
 
       /* (W) multiply in weak factor */
-      *viscosity *= weak;
-      /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
-          weak < 0.5) {
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
-      }
+      rhea_viscosity_nonlinear_weak_factor (viscosity, bounds_active, weak);
 
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, proj_scal, yielding_active, strainrate_sqrt_2inv,
-            yield_strength, yield_reg, visc_nl_shift);
+            viscosity, proj_scal, yielding_active, &srw_exp,
+            strainrate_sqrt_2inv, yield_strength,
+            opt->nonlinear_regularization);
       }
       else {
         *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
@@ -1011,10 +1090,13 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
 
       /* (L) apply lower bound to viscosity */
       if (restrict_min) {
-        if (*viscosity < visc_min) {
-          *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
-        }
-        *viscosity += visc_min;
+        rhea_viscosity_nonlinear_restrict_min_add (viscosity, bounds_active,
+                                                   visc_min);
+      }
+
+      /* add regularization to viscosity */
+      if (has_nl_reg) {
+        rhea_viscosity_nonlinear_regularize (viscosity, srw_exp, opt);
       }
     }
     break;
@@ -1499,56 +1581,23 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
   }
 }
 
-double
-rhea_viscosity_get_visc_shift (rhea_viscosity_options_t *opt)
+int
+rhea_viscosity_restrict_min (rhea_viscosity_options_t *opt)
 {
-  return 0.0;
+  return (isfinite (opt->min) && 0.0 < opt->min);
 }
 
-double
-rhea_viscosity_get_visc_shift_nonlinear (rhea_viscosity_options_t *opt)
+int
+rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt)
 {
-  return -opt->shift;
-}
-
-double
-rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
-{
-  const int           restrict_min = (isfinite (opt->min) && 0.0 < opt->min);
-  const double        visc_nl_shift = opt->shift;
-  double              shift_proj = 0.0;
-
-  /* set shift value that removes additive components to the
-   * (nonlinear part of the) viscosity */
-  if (opt->type == RHEA_VISCOSITY_NONLINEAR) {
-    switch (opt->model) {
-    case RHEA_VISCOSITY_MODEL_UWYL:
-      if (isfinite (visc_nl_shift)) {
-        shift_proj -= visc_nl_shift;
-      }
-      break;
-    case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
-    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-      if (restrict_min) {
-        shift_proj -= opt->min;
-      }
-      if (isfinite (visc_nl_shift)) {
-        shift_proj -= visc_nl_shift;
-      }
-      break;
-    default: /* unknown viscosity model */
-      RHEA_ABORT_NOT_REACHED ();
-    }
-  }
-
-  return shift_proj;
+  return (isfinite (opt->max) && 0.0 < opt->max);
 }
 
 int
 rhea_viscosity_has_strain_rate_weakening (rhea_viscosity_options_t *opt)
 {
   const int           is_valid = (isfinite (opt->stress_exponent) &&
-                                  0.0 < opt->stress_exponent &&
+                                  1.0 <= opt->stress_exponent &&
                                   SC_EPS < fabs (1.0 - opt->stress_exponent));
 
   switch (opt->type_nonlinear) {
@@ -1557,6 +1606,17 @@ rhea_viscosity_has_strain_rate_weakening (rhea_viscosity_options_t *opt)
   case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:  return is_valid;
   default: /* unknown nonlinear viscosity type */
     RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+double
+rhea_viscosity_get_strain_rate_weakening_exp (rhea_viscosity_options_t *opt)
+{
+  if (rhea_viscosity_has_strain_rate_weakening (opt)) {
+    return 1.0 / opt->stress_exponent;
+  }
+  else {
+    return NAN;
   }
 }
 
@@ -1584,6 +1644,91 @@ rhea_viscosity_get_yield_strength (rhea_viscosity_options_t *opt)
   else {
     return NAN;
   }
+}
+
+int
+rhea_viscosity_has_nonlinear_regularization (rhea_viscosity_options_t *opt)
+{
+  const int           is_valid = (isfinite (opt->nonlinear_regularization) &&
+                                  0.0 < opt->nonlinear_regularization);
+
+  switch (opt->type_nonlinear) {
+  case RHEA_VISCOSITY_NONLINEAR_SRW:
+  case RHEA_VISCOSITY_NONLINEAR_YLD:
+  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:
+    return is_valid;
+  default: /* unknown nonlinear viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+double
+rhea_viscosity_get_nonlinear_regularization (
+                                        rhea_viscosity_options_t *opt,
+                                        const double strain_rate_weakening_exp)
+{
+  double              weight;
+
+  RHEA_ASSERT (isfinite (strain_rate_weakening_exp));
+  RHEA_ASSERT (0.0 <= strain_rate_weakening_exp &&
+               strain_rate_weakening_exp <= 1.0);
+
+  /* set ideal weight */
+  weight = (1.0 - strain_rate_weakening_exp);
+
+  /* however, only use a binary version of the weight since matvecs do not
+   * support variable shifts (TODO could be implemented, not good for
+   * performance though) */
+  if (SC_EPS < weight) { /* if weight is not zero */
+    weight = 1.0;
+  }
+  else { /* otherwise set/keep zero weight */
+    weight = 0.0;
+  }
+
+  if (rhea_viscosity_has_nonlinear_regularization (opt)) {
+    return opt->nonlinear_regularization * weight;
+  }
+  else {
+    return NAN;
+  }
+}
+
+double
+rhea_viscosity_get_visc_shift (rhea_viscosity_options_t *opt)
+{
+  return 0.0;
+}
+
+double
+rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
+{
+  double              shift_proj = 0.0;
+
+  /* set shift value that removes additive components to the
+   * (nonlinear part of the) viscosity */
+  if (opt->type == RHEA_VISCOSITY_NONLINEAR) {
+    switch (opt->model) {
+    case RHEA_VISCOSITY_MODEL_UWYL:
+      if (rhea_viscosity_has_nonlinear_regularization (opt)) {
+        shift_proj -= rhea_viscosity_get_nonlinear_regularization (opt, 0.0);
+      }
+      break;
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
+      if (rhea_viscosity_has_nonlinear_regularization (opt)) {
+        shift_proj -= rhea_viscosity_get_nonlinear_regularization (opt, 0.0);
+      }
+      if (rhea_viscosity_restrict_min (opt)) {
+        shift_proj -= opt->min;
+      }
+      break;
+    default: /* unknown viscosity model */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+
+  return shift_proj;
 }
 
 /******************************************************************************

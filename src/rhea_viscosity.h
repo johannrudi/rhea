@@ -80,9 +80,6 @@ typedef struct rhea_viscosity_options
   double              min;
   double              max;
 
-  /* shift of viscosity to introduce convexity to energy min. problem */
-  double              shift;
-
   /* scaling factor */
   double              upper_mantle_scaling;
   double              lower_mantle_scaling;
@@ -96,7 +93,9 @@ typedef struct rhea_viscosity_options
 
   /* parameters for plastic yielding */
   double              yield_strength;
-  double              yielding_regularization;
+
+  /* regularization for nonlinear viscosity (adds convexity to min. problem) */
+  double              nonlinear_regularization;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t  *domain_options;
@@ -227,24 +226,15 @@ void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *weakzone,
                                                rhea_viscosity_options_t *opt);
 
-/**
- * Returns the value by which the whole viscosity is shifted.
- */
-double              rhea_viscosity_get_visc_shift (
-                                               rhea_viscosity_options_t *opt);
+/******************************************************************************
+ * Get & Set
+ *****************************************************************************/
 
 /**
- * Returns the value by which the nonlinear part of the viscosity is shifted.
+ * Returns whether restriction to min/max viscosity bound is active.
  */
-double              rhea_viscosity_get_visc_shift_nonlinear (
-                                                rhea_viscosity_options_t *opt);
-
-/**
- * Returns the value by which the projection part of the (linearized) viscosity
- * coefficient is shifted.
- */
-double              rhea_viscosity_get_visc_shift_proj (
-                                               rhea_viscosity_options_t *opt);
+int                 rhea_viscosity_restrict_min (rhea_viscosity_options_t *opt);
+int                 rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt);
 
 /**
  * Returns whether strain rate weakening physics are enabled.
@@ -253,18 +243,51 @@ int                 rhea_viscosity_has_strain_rate_weakening (
                                                 rhea_viscosity_options_t *opt);
 
 /**
+ * Gets the exponent for the sqrt of the 2nd invariant of the strain rate
+ * tensor: `1/n`, where `n` is the stress exponent.
+ */
+double              rhea_viscosity_get_strain_rate_weakening_exp (
+                                                rhea_viscosity_options_t *opt);
+
+/**
  * Returns whether yielding physics are enabled.
  */
 int                 rhea_viscosity_has_yielding (rhea_viscosity_options_t *opt);
 
 /**
- * Returns the yield strength.
+ * Gets the yield strength.
  */
 double              rhea_viscosity_get_yield_strength (
+                                                rhea_viscosity_options_t *opt);
+
+/**
+ * Returns whether regularization of the nonlinear viscosity is enabled.
+ */
+int                 rhea_viscosity_has_nonlinear_regularization (
+                                                rhea_viscosity_options_t *opt);
+
+/**
+ * Gets the regularization parameter of the nonlinear viscosity.
+ */
+double              rhea_viscosity_get_nonlinear_regularization (
+                                        rhea_viscosity_options_t *opt,
+                                        const double strain_rate_weakening_exp);
+
+/**
+ * Returns the value by which the whole viscosity is shifted.
+ */
+double              rhea_viscosity_get_visc_shift (
+                                               rhea_viscosity_options_t *opt);
+
+/**
+ * Returns the value by which the projection part of the (linearized) viscosity
+ * coefficient is shifted.
+ */
+double              rhea_viscosity_get_visc_shift_proj (
                                                rhea_viscosity_options_t *opt);
 
 /******************************************************************************
- * Get & Set Functions
+ * Get & Set Values of Viscosity
  *****************************************************************************/
 
 /**
