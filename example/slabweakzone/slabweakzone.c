@@ -163,11 +163,12 @@ slabs_viscosity_anisotropy_t;
 typedef struct slabs_visc_options
 {
   slabs_viscosity_anisotropy_t  viscosity_anisotropy;
-  double              viscosity_width;
-  double              viscosity_factor;
-  double              viscosity_TI_shear;
-  double              viscosity_lith;
-  double              viscosity_mantle;
+  double              z_lith;
+  double              z_asthen;
+  double              z_mantle;
+  double              visc_lith;
+  double              visc_asthen;
+  double              visc_mantle;
 }
 slabs_visc_options_t;
 
@@ -193,7 +194,9 @@ slabs_weak_options_t;
 typedef enum
 {
   SLABS_VEL_DIR_BC_INOUTFLOW_SIN,
-  SLABS_VEL_DIR_BC_INOUTFLOW_TANH,
+  SLABS_VEL_DIR_BC_INOUTFLOW_TANH_TWOLAYER,
+  SLABS_VEL_DIR_BC_INOUTFLOW_TANH_THREELAYER,
+  SLABS_VEL_DIR_BC_INOUTFLOW_DOUBLE_TANH_THREELAYER,
 }
 slabs_vel_dir_bc_t;
 
@@ -203,6 +206,7 @@ typedef struct slabs_velbc_options
   slabs_vel_dir_bc_t  vel_dir_bc;
   double              flow_scale;
 
+  double              vel_dir_bc_middle;
   double              vel_dir_bc_upper;
   double              vel_dir_bc_lower;
 }
@@ -1039,7 +1043,85 @@ slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
 /**************************************
  * Viscosity Computation
  *************************************/
+static void
+slabs_viscosity_elem (double *_sc_restrict visc_elem,
+                        const double *_sc_restrict x,
+                        const double *_sc_restrict y,
+                        const double *_sc_restrict z,
+                        const double *_sc_restrict weak_elem,
+                        const int n_nodes_per_el,
+                        slabs_options_t *slabs_options)
+{
+  int                 nodeid;
+  double              z_mid = slabs_options->slabs_visc_options->z_lith;
 
+  /* compute viscosity in this element */
+  for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+    if (z[nodeid] >= z_mid)  {
+      visc_elem[nodeid] = slabs_options->slabs_visc_options->visc_lith;
+    }
+    else {
+      visc_elem[nodeid] = slabs_options->slabs_visc_options->visc_asthen;
+    }
+    visc_elem[nodeid] *= weak_elem[nodeid];
+    /* check viscosity for `nan`, `inf`, and positivity */
+    RHEA_ASSERT (isfinite (visc_elem[nodeid]));
+    RHEA_ASSERT (0.0 < visc_elem[nodeid]);
+  }
+}
+
+static void
+slabs_viscosity_compute (ymir_vec_t *viscosity,
+                         ymir_vec_t *rank1_tensor_scal,
+                         ymir_vec_t *bounds_marker,
+                         ymir_vec_t *yielding_marker,
+                         ymir_vec_t *temperature,
+                         ymir_vec_t *weakzone,
+                         ymir_vec_t *velocity,
+                         rhea_viscosity_options_t *viscosity_options,
+                         void *data)
+{
+  slabs_options_t  *slabs_options = data;
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (viscosity);
+  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+  mangll_t           *mangll = mesh->ma;
+  const int           N = ymir_n (mangll->N);
+
+  sc_dmatrix_t       *visc_el_mat, *weak_el_mat;
+  double             *x, *y, *z, *tmp_el,*visc_el_data, *weak_el_data;
+  ymir_locidx_t       elid;
+
+  /* create work variables */
+  weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  visc_el_data = visc_el_mat->e[0];
+  x = RHEA_ALLOC (double, n_nodes_per_el);
+  y = RHEA_ALLOC (double, n_nodes_per_el);
+  z = RHEA_ALLOC (double, n_nodes_per_el);
+  tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
+
+  for (elid = 0; elid < n_elements; elid++) {
+    /* get coordinates of this element at Gauss nodes */
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
+
+    weak_el_data = rhea_viscosity_get_elem_gauss (weak_el_mat, weakzone, elid);
+    /* compute user defined weak zone viscosity*/
+    slabs_viscosity_elem (visc_el_data, x, y, z, weak_el_data, n_nodes_per_el,
+                            slabs_options);
+
+    /* set viscosity of this element */
+    rhea_viscosity_set_elem_gauss (viscosity, visc_el_mat, elid);
+  }
+
+  /* destroy */
+  sc_dmatrix_destroy (weak_el_mat);
+  sc_dmatrix_destroy (visc_el_mat);
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+}
 
 /******************************************************
  *  Transversely Isotropic Viscosity
@@ -1156,6 +1238,7 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
     /*
      * compute rotation of subduction weak zone from y=0 axis
      * */
+
     /* compute closest point on curve and orientation w.r.t. curve */
     closest_pt = slabs_compute_closest_pt_on_poly2 (lon, r,
                                                   poly2_coeff, start_node,
@@ -1851,9 +1934,7 @@ slabs_set_vel_dir_freeslip (
     return YMIR_VEL_DIRICHLET_NORM;
 }
 
-/*
- * Dirichlet all on one side of the domain: SIDE3 (y=0).
- */
+/* Dirichlet all on one side of the domain: SIDE3 (y=0).*/
 static ymir_dir_code_t
 slabs_set_vel_dir_inoutflow (
     double X, double Y, double Z,
@@ -1864,17 +1945,48 @@ slabs_set_vel_dir_inoutflow (
   if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
     return YMIR_VEL_DIRICHLET_ALL;
   }
-  else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE) {
-     return YMIR_VEL_DIRICHLET_NORM;
+  else {
+    return YMIR_VEL_DIRICHLET_NORM;
+  }
+}
+
+/* Dirichlet all on both left and right sides of the domain: SIDE3 (y=0), and SIDE4 (y=ymax).*/
+static ymir_dir_code_t
+slabs_set_vel_dir_inoutflow_double (
+    double X, double Y, double Z,
+    double nx, double ny, double nz,
+    ymir_topidx_t face, ymir_locidx_t node_id,
+    void *data)
+{
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE4) {
+    return YMIR_VEL_DIRICHLET_ALL;
   }
   else {
     return YMIR_VEL_DIRICHLET_NORM;
   }
 }
 
-/**
- * In-out flow sine velocity on one side of the domain.
- */
+/* Dirichlet all on one side of the domain: SIDE3 (y=0), and Neumann at the base*/
+static ymir_dir_code_t
+slabs_set_vel_dir_inoutflow_basefree (
+    double X, double Y, double Z,
+    double nx, double ny, double nz,
+    ymir_topidx_t face, ymir_locidx_t node_id,
+    void *data)
+{
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
+    return YMIR_VEL_DIRICHLET_ALL;
+  }
+  else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE) {
+     return YMIR_VEL_DIRICHLET_NONE;
+  }
+  else {
+    return YMIR_VEL_DIRICHLET_NORM;
+  }
+}
+
+/* In-out flow sine velocity on one side of the domain. */
 void
 slabs_set_rhs_vel_nonzero_dir_inoutflow_sin (
     double *vel, double x, double y, double z,
@@ -1883,7 +1995,7 @@ slabs_set_rhs_vel_nonzero_dir_inoutflow_sin (
   slabs_options_t  *slabs_options = data;
   const double     flow_scale = slabs_options->slabs_velbc_options->flow_scale;
 
-  if (fabs (y) < SC_1000_EPS) {
+  if (y < SC_1000_EPS) {
     vel[0] = 0.0;
     vel[1] = -flow_scale * sin (2.0 * M_PI * z);
     vel[2] = 0.0;
@@ -1895,20 +2007,82 @@ slabs_set_rhs_vel_nonzero_dir_inoutflow_sin (
   }
 }
 
-/**
- * In-out flow tanh velocity on one side of the domain.
- */
+/* In-out flow tanh velocity on one side of the domain. 2 layers */
 void
-slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh (
+slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh_2layer (double *vel, double x, double y, double z,
+                                              ymir_locidx_t nid, void *data)
+{
+  slabs_options_t  *slabs_options = data;
+  slabs_velbc_options_t *velbc_options = slabs_options->slabs_velbc_options;
+  const double        z_max = slabs_options->slabs_domain_options->z_max;
+  const double        flow_scale = velbc_options->flow_scale;
+  const double        zM = velbc_options->vel_dir_bc_middle;
+  const double        a = z_max-zM, b = z_max-a;
+  const double        shape = 2.0 * M_PI, scaling = 0.5*flow_scale, shift = 0.5*(b-a)*flow_scale;
+  double txM = shape * (z-zM);
+
+  if (y < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[2] = 0.0;
+    vel[1] = shift + scaling *
+             ( (exp (txM) - exp (-txM)) /
+             (exp (txM) + exp (-txM)) );
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
+/* In-out flow tanh velocity on one side of the domain.*/
+void
+slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh_3layer (double *vel, double x, double y, double z,
+                                              ymir_locidx_t nid, void *data)
+{
+  slabs_options_t  *slabs_options = data;
+  slabs_velbc_options_t *velbc_options = slabs_options->slabs_velbc_options;
+  const double        z_max = slabs_options->slabs_domain_options->z_max;
+  const double        flow_scale = velbc_options->flow_scale;
+  const double        zU = velbc_options->vel_dir_bc_upper;
+  const double        zL = velbc_options->vel_dir_bc_lower;
+  const double        a = zU-zL, b = z_max-a, c = 0.5*(zU+zL);
+  const double        shape = 2.0 * M_PI, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
+  double txL = shape*(z-zL),txU = shape*(z-zU);
+
+  if (y < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[2] = 0.0;
+    if (z<=c)
+      vel[1] = shift + scaling *
+             ( (exp (txL) - exp (-txL)) /
+             (exp (txL) + exp (-txL)) );
+    else
+      vel[1] = shift - scaling *
+             ( (exp (txU) - exp (-txU)) /
+             (exp (txU) + exp (-txU)) );
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
+/* In-out flow tanh velocity on both left and right sides of the domain.*/
+void
+slabs_set_rhs_vel_nonzero_dir_inoutflow_double_tanh_3layer (
     double *vel, double x, double y, double z,
     ymir_locidx_t nid, void *data)
 {
   slabs_options_t  *slabs_options = data;
   slabs_velbc_options_t *velbc_options = slabs_options->slabs_velbc_options;
+  const double        z_max = slabs_options->slabs_domain_options->z_max;
+  const double        y_max = slabs_options->slabs_domain_options->y_max;
   const double        flow_scale = velbc_options->flow_scale;
   const double        zU = velbc_options->vel_dir_bc_upper;
   const double        zL = velbc_options->vel_dir_bc_lower;
-  const double        a = zU-zL, b = 1.0-a, c = 0.5*(zU+zL);
+  const double        a = zU-zL, b = z_max-a, c = 0.5*(zU+zL);
   const double        shape = 2.0 * M_PI, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
   double txL = shape*(z-zL),txU = shape*(z-zU);
 
@@ -1926,7 +2100,7 @@ slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh (
                (exp (txU) + exp (-txU)) );
     }
   }
-  else if ((2.0 - y) < SC_1000_EPS) {
+  else if ((y_max - y) < SC_1000_EPS) {
     vel[0] = 0.0;
     vel[2] = 0.0;
     if (z<=c)
@@ -1955,19 +2129,26 @@ slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
       rhea_domain_set_user_velocity_dirichlet_bc (
           slabs_set_vel_dir_inoutflow, NULL /* no data necessary */,
           0 /* TODO don't need this flag */);
-      rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
       ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
                               slabs_set_rhs_vel_nonzero_dir_inoutflow_sin,
                               slabs_options);
       break;
 
-    case SLABS_VEL_DIR_BC_INOUTFLOW_TANH:
+    case SLABS_VEL_DIR_BC_INOUTFLOW_TANH_TWOLAYER:
       rhea_domain_set_user_velocity_dirichlet_bc (
           slabs_set_vel_dir_inoutflow, NULL /* no data necessary */,
           0 /* TODO don't need this flag */);
-      rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
       ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
-                              slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh,
+                              slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh_2layer,
+                              slabs_options);
+      break;
+
+    case SLABS_VEL_DIR_BC_INOUTFLOW_TANH_THREELAYER:
+      rhea_domain_set_user_velocity_dirichlet_bc (
+          slabs_set_vel_dir_inoutflow, NULL /* no data necessary */,
+          0 /* TODO don't need this flag */);
+      ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
+                              slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh_3layer,
                               slabs_options);
       break;
 
@@ -2031,19 +2212,23 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
-  slabs_temperature_compute (temperature, slabs_options); /* if non-specified, use:
-                                                             rhea_temperature_compute
-                                                             (temperature, temp_options); */
+  /* if non-specified, use: rhea_temperature_compute (temperature, temp_options); */
+//  slabs_temperature_compute (temperature, slabs_options);
+  rhea_temperature_compute (temperature, temp_options);
+
   /* compute weak zone */
   weakzone = rhea_viscosity_new (ymir_mesh);
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
     == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
-    RHEA_GLOBAL_INFO ("Into TI\n");
     ymir_vec_set_value (weakzone, 1.0);
   }
   else {
     slabs_weakzone_compute (weakzone, slabs_options);
   }
+
+  /* set custom function to compute viscosity */
+  rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
+                                           slabs_options);
 
   /* compute velocity right-hand side volume forcing */
   rhs_vel = rhea_velocity_new (ymir_mesh);
@@ -2104,7 +2289,7 @@ slabs_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
   ymir_vec_t         *visc_TI_svisc;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
 
-  RHEA_GLOBAL_PRODUCTIONF ("into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* get vectors */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
@@ -2213,12 +2398,20 @@ main (int argc, char **argv)
   slabs_velbc_options_t    slabs_velbc_options;
   slabs_options_t          slabs_options;
 
-  /* temperature */
+  /* viscosity */
+  int                 viscosity_anisotropy;
+  double              visc_lith;
+  double              visc_asthen;
+  double              visc_z_lith;
+  double              visc_z_asthen;
+
+  /* Dirichlet velo B.C.  */
   int                 vel_dir_bc;
   double              flow_scale;
+  double              velocity_bc_middle;
   double              velocity_bc_upper;
   double              velocity_bc_lower;
-  int                 viscosity_anisotropy;
+
 
   /* options local to this function */
   int                 production_run;
@@ -2269,20 +2462,6 @@ main (int argc, char **argv)
   YMIR_OPTIONS_INIFILE, "options-file", 'f',
     ".ini file with option values",
 
-  /* velocity Dirichlet BC's */
-  YMIR_OPTIONS_I, "velocity-dirichlet-bc", '\0',
-    &vel_dir_bc, SLABS_VEL_DIR_BC_INOUTFLOW_SIN,
-    "Velocity Dirichlet boundary condition",
-  YMIR_OPTIONS_D, "flow-scaling", '\0',
-    &flow_scale, 1.0,
-    "scaling of velocity BC.",
-  YMIR_OPTIONS_D, "velocity-bc-upper", '\0',
-    &velocity_bc_upper, 1.0,
-    "location of velocity BC: upper bound",
-  YMIR_OPTIONS_D, "velocity-bc-lower", '\0',
-    &velocity_bc_lower, 0.0,
-    "location of velocity BC: lower bound",
-
   /* temperature */
   YMIR_OPTIONS_D, "temp-background-plate-age", '\0',
     &temp_back_plate_age, SLABS_DEFAULT_TEMP_BACKGROUND_PLATE_AGE,
@@ -2316,11 +2495,6 @@ main (int argc, char **argv)
   YMIR_OPTIONS_D, "temp-2plates-over-plate-age", '\0',
     &temp_2pl_over_plate_age, SLABS_DEFAULT_TEMP_2PL_OVER_PLATE_AGE,
     "2plates temp: Age of overriding plate [y]",
-
-  /* viscosity */
-  YMIR_OPTIONS_I, "viscosity-anisotropy",'\0',
-    &(viscosity_anisotropy), SLABS_VISC_ISOTROPY,
-    "0: isotropy, 1: transversely isotropy",
 
   /* weakzone */
   YMIR_OPTIONS_D, "weakzone-2plates-subdu-longitude", '\0',
@@ -2358,6 +2532,42 @@ main (int argc, char **argv)
   YMIR_OPTIONS_D, "weakzone-2plates-ridge-weak-factor", '\0',
     &weakzone_2pl_ridge_weak_factor, SLABS_WEAKZONE_2PLATES_RIDGE_WEAK_FACTOR,
     "2plates weak zone: Value of weak zone factor for weak zone in corner",
+
+  /* viscosity */
+  YMIR_OPTIONS_I, "viscosity-anisotropy",'\0',
+    &(viscosity_anisotropy), SLABS_VISC_ISOTROPY,
+    "0: isotropy, 1: transversely isotropy",
+  YMIR_OPTIONS_D, "viscosity-lithosphere", '\0',
+    &visc_lith, 500.0,
+    "Viscosity in the lithosphere",
+  YMIR_OPTIONS_D, "viscosity-asthenosphere", '\0',
+    &visc_asthen, 0.5,
+    "Viscosity in the asthenosphere",
+  YMIR_OPTIONS_D, "visc-zlocation-lithosphere", '\0',
+    &visc_z_lith, 0.6,
+    "Viscosity in the lithosphere",
+  YMIR_OPTIONS_D, "visc-zlocation-asthenosphere", '\0',
+    &visc_z_asthen, 0.0,
+    "Viscosity in the asthenosphere",
+
+
+
+  /* velocity Dirichlet BC's */
+  YMIR_OPTIONS_I, "velocity-dirichlet-bc", '\0',
+    &vel_dir_bc, SLABS_VEL_DIR_BC_INOUTFLOW_SIN,
+    "Velocity Dirichlet boundary condition",
+  YMIR_OPTIONS_D, "flow-scaling", '\0',
+    &flow_scale, 1.0,
+    "scaling of velocity BC.",
+  YMIR_OPTIONS_D, "velocity-bc-middle", '\0',
+    &velocity_bc_middle, 0.5,
+    "location of velocity BC: middle bound",
+  YMIR_OPTIONS_D, "velocity-bc-upper", '\0',
+    &velocity_bc_upper, 1.0,
+    "location of velocity BC: upper bound",
+  YMIR_OPTIONS_D, "velocity-bc-lower", '\0',
+    &velocity_bc_lower, 0.0,
+    "location of velocity BC: lower bound",
 
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
@@ -2423,10 +2633,6 @@ main (int argc, char **argv)
     temp_2pl_subd_plate_init_age;
   slabs_temp_options.temp_2plates_over_plate_age = temp_2pl_over_plate_age;
 
-
-  /* viscosity */
-  slabs_visc_options.viscosity_anisotropy = (slabs_viscosity_anisotropy_t) viscosity_anisotropy;
-
   /* weak zone */
   slabs_weak_options.weakzone_2plates_subdu_longitude =
     weakzone_2pl_subdu_lon;
@@ -2451,9 +2657,18 @@ main (int argc, char **argv)
   slabs_weak_options.weakzone_2plates_ridge_weak_factor =
     weakzone_2pl_ridge_weak_factor;
 
+  /* viscosity */
+  slabs_visc_options.viscosity_anisotropy = (slabs_viscosity_anisotropy_t) viscosity_anisotropy;
+  slabs_visc_options.visc_lith = visc_lith;
+  slabs_visc_options.visc_asthen = visc_asthen;
+  slabs_visc_options.z_lith = visc_z_lith;
+  slabs_visc_options.z_asthen = visc_z_asthen;
+
+  RHEA_GLOBAL_PRODUCTIONF ("visc_lith=%f, visc_asthen=%f, z_lith=%f, z_asthen=%f\n", slabs_visc_options.visc_lith, slabs_visc_options.visc_asthen, slabs_visc_options.z_lith, slabs_visc_options.z_asthen);
   /* velocity B.C. condition */
   slabs_velbc_options.vel_dir_bc = (slabs_vel_dir_bc_t) vel_dir_bc;
   slabs_velbc_options.flow_scale = flow_scale;
+  slabs_velbc_options.vel_dir_bc_middle = velocity_bc_middle;
   slabs_velbc_options.vel_dir_bc_upper = velocity_bc_upper;
   slabs_velbc_options.vel_dir_bc_lower = velocity_bc_lower;
 
