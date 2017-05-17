@@ -33,7 +33,6 @@
 #define SLABS_CLOSEST_PT_NEWTON_MAXITER 40
 
 /* temperature 2plates_poly2 */
-#define SLABS_DEFAULT_TEMP_TYPE_NAME "NONE"
 #define SLABS_DEFAULT_TEMP_BACKGROUND_PLATE_AGE (50.0e6)    /* rhea1: 60 Myr */
 #define SLABS_DEFAULT_TEMP_2PL_TRENCH_LONGITUDE (0.13)      /* rhea1: 0.13   */
 #define SLABS_DEFAULT_TEMP_2PL_DIP_ANGLE (5.0)              /* rhea1: --     */
@@ -57,6 +56,18 @@
 #define SLABS_WEAKZONE_2PLATES_RIDGE_WIDTH (30.0e3)          /* rhea1: 30 km */
 #define SLABS_WEAKZONE_2PLATES_RIDGE_SMOOTHWIDTH (10.0e3)    /* rhea1:  5 km */
 #define SLABS_WEAKZONE_2PLATES_RIDGE_WEAK_FACTOR (1.0e-5)    /* rhea1:  1e-5 */
+
+/* viscosity */
+#define VISCOSITY_LITHOSPHERE (100.0)
+#define VISCOSITY_ASTHENOSPHERE (1.0)
+#define VISCOSITY_LITHOSPHERE_RADIUS_LOCATION (0.9)
+#define VISCOSITY_ASTHENOSPHERE_RADIUS_LOCATION (0.2)
+
+/* Dirichlet velocity B.C. */
+#define COLLIDE_FLOW_SCALE (10.0)
+#define COLLIDE_ZERO_POINT_LOCATION_MIDDLE (0.5)
+#define COLLIDE_ZERO_POINT_LOCATION_UPPER (0.5)
+#define COLLIDE_ZERO_POINT_LOCATION_LOWER (0.5)
 
 /* initialize slabs options: temperature */
 double              temp_back_plate_age =
@@ -96,6 +107,34 @@ double              weakzone_2pl_ridge_smoothwidth =
   SLABS_WEAKZONE_2PLATES_RIDGE_SMOOTHWIDTH;
 double              weakzone_2pl_ridge_weak_factor =
   SLABS_WEAKZONE_2PLATES_RIDGE_WEAK_FACTOR;
+
+/* initialize slabs options: viscosity */
+double              visc_lith =
+  VISCOSITY_LITHOSPHERE;
+double              visc_asthen =
+  VISCOSITY_ASTHENOSPHERE;
+double              visc_z_lith =
+  VISCOSITY_LITHOSPHERE_RADIUS_LOCATION;
+double              visc_z_asthen =
+  VISCOSITY_ASTHENOSPHERE_RADIUS_LOCATION;
+
+/* initialize slabs options: velocity boundary condition */
+double              flow_scale =
+  COLLIDE_FLOW_SCALE;
+double              velocity_bc_middle =
+  COLLIDE_ZERO_POINT_LOCATION_MIDDLE;
+double              velocity_bc_upper =
+  COLLIDE_ZERO_POINT_LOCATION_UPPER;
+double              velocity_bc_lower =
+  COLLIDE_ZERO_POINT_LOCATION_LOWER;
+
+typedef enum
+{
+  SINKER,
+  SLAB,
+  COLLIDE
+}
+slabs_buoyancy_type_t;
 
 typedef struct slabs_domain_options
 {
@@ -151,27 +190,6 @@ typedef struct slabs_temp_options
 }
 slabs_temp_options_t;
 
-/* enumerator for viscosity types */
-typedef enum
-{
-  SLABS_VISC_ISOTROPY,
-  SLABS_VISC_TRANSVERSELY_ISOTROPY
-}
-slabs_viscosity_anisotropy_t;
-
-/* struct for viscosity options in slabs_options_t */
-typedef struct slabs_visc_options
-{
-  slabs_viscosity_anisotropy_t  viscosity_anisotropy;
-  double              z_lith;
-  double              z_asthen;
-  double              z_mantle;
-  double              visc_lith;
-  double              visc_asthen;
-  double              visc_mantle;
-}
-slabs_visc_options_t;
-
 /* struct for weak zone options in slabs_options_t */
 typedef struct slabs_weak_options
 {
@@ -200,6 +218,27 @@ typedef enum
 }
 slabs_vel_dir_bc_t;
 
+/* enumerator for viscosity types */
+typedef enum
+{
+  SLABS_VISC_ISOTROPY,
+  SLABS_VISC_TRANSVERSELY_ISOTROPY
+}
+slabs_viscosity_anisotropy_t;
+
+/* struct for viscosity options in slabs_options_t */
+typedef struct slabs_visc_options
+{
+  slabs_viscosity_anisotropy_t  viscosity_anisotropy;
+  double              z_lith;
+  double              z_asthen;
+  double              z_mantle;
+  double              visc_lith;
+  double              visc_asthen;
+  double              visc_mantle;
+}
+slabs_visc_options_t;
+
 /* struct for velocity boundary condition options in slabs_options_t */
 typedef struct slabs_velbc_options
 {
@@ -215,6 +254,7 @@ slabs_velbc_options_t;
 /* options of slabs example */
 typedef struct slabs_options
 {
+  slabs_buoyancy_type_t    buoyancy_type;
   slabs_domain_options_t   * slabs_domain_options;
   slabs_temp_options_t   * slabs_temp_options;
   slabs_visc_options_t   * slabs_visc_options;
@@ -2086,19 +2126,17 @@ slabs_set_rhs_vel_nonzero_dir_inoutflow_double_tanh_3layer (
   const double        shape = 2.0 * M_PI, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
   double txL = shape*(z-zL),txU = shape*(z-zU);
 
-  if (fabs (y) < SC_1000_EPS) {
+  if (y < SC_1000_EPS) {
     vel[0] = 0.0;
     vel[2] = 0.0;
-    if (y < SC_1000_EPS)  {
-      if (z<=c)
-        vel[1] = shift + scaling *
+    if (z<=c)
+      vel[1] = shift + scaling *
                ( (exp (txL) - exp (-txL)) /
                (exp (txL) + exp (-txL)) );
-      else
-        vel[1] = shift - scaling *
+    else
+      vel[1] = shift - scaling *
                ( (exp (txU) - exp (-txU)) /
                (exp (txU) + exp (-txU)) );
-    }
   }
   else if ((y_max - y) < SC_1000_EPS) {
     vel[0] = 0.0;
@@ -2212,23 +2250,47 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
-  /* if non-specified, use: rhea_temperature_compute (temperature, temp_options); */
-//  slabs_temperature_compute (temperature, slabs_options);
-  rhea_temperature_compute (temperature, temp_options);
-
   /* compute weak zone */
   weakzone = rhea_viscosity_new (ymir_mesh);
-  if (slabs_options->slabs_visc_options->viscosity_anisotropy
-    == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
-    ymir_vec_set_value (weakzone, 1.0);
-  }
-  else {
-    slabs_weakzone_compute (weakzone, slabs_options);
-  }
 
-  /* set custom function to compute viscosity */
-  rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
-                                           slabs_options);
+  switch (slabs_options->buoyancy_type)  {
+  /* if non-specified, use: rhea_temperature_compute (temperature, temp_options); */
+    case SINKER:
+      rhea_temperature_compute (temperature, temp_options);
+      ymir_vec_set_value (weakzone, 1.0);
+
+    break;
+
+    case SLAB:
+      slabs_temperature_compute (temperature, slabs_options);
+      if (slabs_options->slabs_visc_options->viscosity_anisotropy
+         == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
+        ymir_vec_set_value (weakzone, 1.0);
+      }
+      else {
+        slabs_weakzone_compute (weakzone, slabs_options);
+      }
+
+     break;
+
+    case COLLIDE:
+      rhea_temperature_compute (temperature, temp_options);
+      if (slabs_options->slabs_visc_options->viscosity_anisotropy
+        == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
+        ymir_vec_set_value (weakzone, 1.0);
+      }
+      else {
+        slabs_weakzone_compute (weakzone, slabs_options);
+      }
+      /* set custom function to compute viscosity */
+      rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
+                                               slabs_options);
+
+    break;
+
+    default:
+      RHEA_ABORT_NOT_REACHED ();
+  }
 
   /* compute velocity right-hand side volume forcing */
   rhs_vel = rhea_velocity_new (ymir_mesh);
@@ -2390,6 +2452,10 @@ main (int argc, char **argv)
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
 
+  int                     buoyancy_type;
+  int                     viscosity_anisotropy;
+  int                     vel_dir_bc;
+
   /* slabs options */
   slabs_domain_options_t     slabs_domain_options;
   slabs_temp_options_t     slabs_temp_options;
@@ -2397,21 +2463,6 @@ main (int argc, char **argv)
   slabs_weak_options_t     slabs_weak_options;
   slabs_velbc_options_t    slabs_velbc_options;
   slabs_options_t          slabs_options;
-
-  /* viscosity */
-  int                 viscosity_anisotropy;
-  double              visc_lith;
-  double              visc_asthen;
-  double              visc_z_lith;
-  double              visc_z_asthen;
-
-  /* Dirichlet velo B.C.  */
-  int                 vel_dir_bc;
-  double              flow_scale;
-  double              velocity_bc_middle;
-  double              velocity_bc_upper;
-  double              velocity_bc_lower;
-
 
   /* options local to this function */
   int                 production_run;
@@ -2461,6 +2512,11 @@ main (int argc, char **argv)
     "Print usage and exit",
   YMIR_OPTIONS_INIFILE, "options-file", 'f',
     ".ini file with option values",
+
+  /* buoyancy */
+  YMIR_OPTIONS_I, "buoyancy-type",'\0',
+    &(buoyancy_type),SINKER,
+    "0: sinker, 1: 2plates_poly2 slabs, 2: collide",
 
   /* temperature */
   YMIR_OPTIONS_D, "temp-background-plate-age", '\0',
@@ -2535,38 +2591,36 @@ main (int argc, char **argv)
 
   /* viscosity */
   YMIR_OPTIONS_I, "viscosity-anisotropy",'\0',
-    &(viscosity_anisotropy), SLABS_VISC_ISOTROPY,
+    &(viscosity_anisotropy),SLABS_VISC_ISOTROPY,
     "0: isotropy, 1: transversely isotropy",
   YMIR_OPTIONS_D, "viscosity-lithosphere", '\0',
-    &visc_lith, 500.0,
+    &visc_lith, VISCOSITY_LITHOSPHERE,
     "Viscosity in the lithosphere",
   YMIR_OPTIONS_D, "viscosity-asthenosphere", '\0',
-    &visc_asthen, 0.5,
+    &visc_asthen, VISCOSITY_ASTHENOSPHERE,
     "Viscosity in the asthenosphere",
   YMIR_OPTIONS_D, "visc-zlocation-lithosphere", '\0',
-    &visc_z_lith, 0.6,
+    &visc_z_lith, VISCOSITY_LITHOSPHERE_RADIUS_LOCATION,
     "Viscosity in the lithosphere",
   YMIR_OPTIONS_D, "visc-zlocation-asthenosphere", '\0',
-    &visc_z_asthen, 0.0,
+    &visc_z_asthen, VISCOSITY_ASTHENOSPHERE_RADIUS_LOCATION,
     "Viscosity in the asthenosphere",
-
-
 
   /* velocity Dirichlet BC's */
   YMIR_OPTIONS_I, "velocity-dirichlet-bc", '\0',
     &vel_dir_bc, SLABS_VEL_DIR_BC_INOUTFLOW_SIN,
     "Velocity Dirichlet boundary condition",
   YMIR_OPTIONS_D, "flow-scaling", '\0',
-    &flow_scale, 1.0,
+    &flow_scale, COLLIDE_FLOW_SCALE,
     "scaling of velocity BC.",
   YMIR_OPTIONS_D, "velocity-bc-middle", '\0',
-    &velocity_bc_middle, 0.5,
+    &velocity_bc_middle, COLLIDE_ZERO_POINT_LOCATION_MIDDLE,
     "location of velocity BC: middle bound",
   YMIR_OPTIONS_D, "velocity-bc-upper", '\0',
-    &velocity_bc_upper, 1.0,
+    &velocity_bc_upper, COLLIDE_ZERO_POINT_LOCATION_UPPER,
     "location of velocity BC: upper bound",
   YMIR_OPTIONS_D, "velocity-bc-lower", '\0',
-    &velocity_bc_lower, 0.0,
+    &velocity_bc_lower, COLLIDE_ZERO_POINT_LOCATION_LOWER,
     "location of velocity BC: lower bound",
 
   /* solver options */
@@ -2619,6 +2673,9 @@ main (int argc, char **argv)
   /*
    * Process Slabs Options
    */
+  /* buoyancy type */
+  slabs_options.buoyancy_type = (slabs_buoyancy_type_t) buoyancy_type;
+
   /* temperature */
   slabs_temp_options.temp_background_plate_age = temp_back_plate_age;
   slabs_temp_options.temp_2plates_trench_longitude = temp_2pl_trench_lon;
@@ -2664,7 +2721,6 @@ main (int argc, char **argv)
   slabs_visc_options.z_lith = visc_z_lith;
   slabs_visc_options.z_asthen = visc_z_asthen;
 
-  RHEA_GLOBAL_PRODUCTIONF ("visc_lith=%f, visc_asthen=%f, z_lith=%f, z_asthen=%f\n", slabs_visc_options.visc_lith, slabs_visc_options.visc_asthen, slabs_visc_options.z_lith, slabs_visc_options.z_asthen);
   /* velocity B.C. condition */
   slabs_velbc_options.vel_dir_bc = (slabs_vel_dir_bc_t) vel_dir_bc;
   slabs_velbc_options.flow_scale = flow_scale;
