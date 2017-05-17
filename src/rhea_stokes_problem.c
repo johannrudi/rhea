@@ -645,10 +645,16 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
 
       /* set coefficient data */
       if (solution_exists) { /* if solution is provided */
+        ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+
         /* retrieve velocity of current solution */
         rhea_velocity_pressure_copy_components (
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
         RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
+
+        /* in order to alignment of primal-dual Newton with regular Newton,
+         * store current viscosity */
+        ymir_stress_op_get_viscosity (viscosity, stress_op);
 
         /*
          * Primal-Dual Stress Tensor Update:
@@ -711,6 +717,24 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
               proj_tens_stress, sol_vel, stress_op, 0 /* !linearized */);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_stress));
         }
+
+        /* calculate how well the primal-dual Newton is aligned with regular
+         * Newton */
+        {
+          double              alignment;
+
+          ymir_stress_op_optimized_compute_strain_rate (
+              proj_tens_strain, sol_vel, stress_op);
+          ymir_vec_multiply_in1 (viscosity, proj_tens_strain);
+          ymir_vec_scale (2.0, proj_tens_strain);
+          ymir_mass_apply_gauss (proj_tens_strain);
+          alignment = ymir_vec_innerprod (proj_tens_stress, proj_tens_strain);
+
+          RHEA_GLOBAL_INFOF (
+              "%s: Alignment <primal-dual stress, regular stress> = %.2e\n",
+              this_fn_name, alignment);
+        }
+        rhea_viscosity_destroy (viscosity);
 
         /*
          * Primal-Dual Projection Tensors
@@ -1242,6 +1266,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   ymir_vec_t         *proj_scal = NULL;
   ymir_vec_t         *proj_tens = NULL;
   ymir_vec_t         *rhs_vel_press;
+  int                 grad_norm_n_components = 2;
   rhea_newton_options_t *newton_options = solver_options;
   rhea_newton_problem_t *newton_problem;
 
@@ -1263,7 +1288,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
   yielding_marker = rhea_viscosity_new (ymir_mesh);
   sol_vel = rhea_velocity_new (ymir_mesh);
 
-  /* create linearization data */
+  /* set linearization dependent data */
   switch (linearization_type) {
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
     break;
@@ -1302,7 +1327,7 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
         RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM,
         NULL /* objective functional is not provided */,
         rhea_stokes_problem_nonlinear_compute_gradient_norm,
-        2 /* gradient norms have 2 components */, newton_problem);
+        grad_norm_n_components, newton_problem);
     rhea_newton_problem_set_apply_hessian_fn (
         rhea_stokes_problem_nonlinear_apply_hessian, newton_problem);
     rhea_newton_problem_set_update_fn (
