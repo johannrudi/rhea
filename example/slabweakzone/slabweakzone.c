@@ -2195,6 +2195,94 @@ slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
   }
 }
 
+/**************************************
+ * Output Functions
+ *************************************/
+
+static int
+slabs_output_pressure (const char *filepath, ymir_vec_t *pressure)
+{
+  const char *this_fn_name = "slabs_output_pressure";
+
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (pressure);
+  mangll_cnodes_t    *cnodes = mesh->cnodes;
+  const int           N = cnodes->N;
+  int                 Np;
+  ymir_locidx_t       n_elements;
+  ymir_locidx_t       elid;
+  ymir_face_mesh_t   *fmesh;
+  ymir_locidx_t       Ntotal;
+  int                 i, j, k;
+  double             *x, *y, *z, *tmp_el;
+  ymir_topidx_t       fm = pressure->meshnum;
+  int                 mpirank = mesh->ma->mpirank;
+  sc_dmatrix_t       *elem;
+  double             *elemd;
+  FILE               *prsfile;
+  char                prsfilename[BUFSIZ];
+
+
+  if (fm == YMIR_VOL_MESH) {
+    Np = (N + 1) * (N + 1) * (N + 1);
+    n_elements = cnodes->K;
+  }
+  else {
+    fmesh = &(mesh->fmeshes[fm]);
+    Np = (N + 1) * (N + 1);
+    n_elements = fmesh->K;
+  }
+  Ntotal = Np * n_elements;
+
+  /* Have each proc write to its own file */
+  if (fm == YMIR_VOL_MESH) {
+    snprintf (prsfilename, BUFSIZ, "%s_pressure_%04d", filepath, mpirank);
+  }
+  else {
+    snprintf (prsfilename, BUFSIZ, "%s_pressure_%04d.face%d", filepath, mpirank,
+              (int) fm);
+  }
+  prsfile = fopen (prsfilename, "w");
+  if (prsfile == NULL) {
+    YMIR_LERRORF ("Could not open %s for output!\n", prsfilename);
+    return -1;
+  }
+  x = RHEA_ALLOC (double, Np);
+  y = RHEA_ALLOC (double, Np);
+  z = RHEA_ALLOC (double, Np);
+  tmp_el = RHEA_ALLOC (double, Np);
+
+  elem = sc_dmatrix_new (Np, 1);
+  for (elid = 0; elid < n_elements; elid++) {
+    if (pressure->nefields)
+      ymir_vec_get_elem_interp (pressure, elem, YMIR_STRIDE_NODE, elid,
+                               YMIR_GAUSS_NODE, YMIR_COPY);
+    else if (pressure->ndfields)
+      ymir_dvec_get_elem (pressure, elem, YMIR_STRIDE_NODE, elid,
+                          YMIR_COPY);
+
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
+
+    elemd = elem->e[0];
+    for (i = 0; i < Np; ++i)  {
+      fprintf (prsfile, "%24.16e    %24.16e    %24.16e    %24.16e\n", x[i],
+             y[i], z[i], elemd[i]);
+    }
+  }
+  if (fclose (prsfile)) {
+    YMIR_LERROR ("ymir_vtk: Error closing footer\n");
+    return -1;
+  }
+  prsfile = NULL;
+
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+  sc_dmatrix_destroy (elem);
+
+  return 0;
+}
+
 /**
  * Sets up the mesh.
  **/
@@ -2472,6 +2560,8 @@ main (int argc, char **argv)
   char               *vtk_write_solution_path;
   char               *vtk_write_stress_path;
   char               *vtk_write_traction_path;
+  char               *ascii_write_postp_path;
+
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -2649,7 +2739,9 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-traction-path", '\0',
     &(vtk_write_traction_path), NULL,
     "File path for vtk files for traction results",
-
+  YMIR_OPTIONS_S, "ascii-write-postp-path", '\0',
+    &(ascii_write_postp_path), NULL,
+    "File path for ascii files of post processing data",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -2802,10 +2894,17 @@ main (int argc, char **argv)
     rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                              viscosity);
 
+    slabs_output_pressure (ascii_write_postp_path, pressure);
     rhea_pressure_destroy (pressure);
     rhea_viscosity_destroy (viscosity);
     rhea_velocity_destroy (velocity);
   }
+
+//  if (ascii_write_postp_path != NULL) {
+//    ymir_vec_t         *pressure = rhea_pressure_new (ymir_mesh, press_elem);
+//    slabs_output_pressure (ascii_write_postp_path, pressure);
+//    rhea_pressure_destroy (pressure);
+//  }
 
   /* compute and output second invariant strain_rate, stress, and surface normal stress  */
   if (vtk_write_stress_path != NULL)  {
