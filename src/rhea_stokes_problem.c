@@ -1014,7 +1014,6 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
     ymir_vec_copy (rhs_vel_press, neg_gradient);
   }
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
-  RHEA_ASSERT (ymir_vec_is_not_dirty (neg_gradient));
 
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
