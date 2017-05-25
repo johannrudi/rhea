@@ -43,4 +43,9 @@ void                rhea_stress_compute_viscstress_sqrt_of_2inv (
                                              ymir_vec_t *strainrate_sqrt_2inv,
                                              ymir_vec_t *viscosity);
 
+/**
+ * Computes the norm of a stress tensor.
+ */
+double              rhea_stress_compute_norm (ymir_vec_t *stress);
+
 #endif /* RHEA_STRESS_H */

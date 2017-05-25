@@ -78,3 +78,19 @@ rhea_stress_compute_viscstress_sqrt_of_2inv (ymir_vec_t *viscstress_sqrt_2inv,
   ymir_dvec_multiply_in (viscosity, viscstress_sqrt_2inv);
   ymir_dvec_scale (2.0, viscstress_sqrt_2inv);
 }
+
+double
+rhea_stress_compute_norm (ymir_vec_t *stress)
+{
+  ymir_vec_t         *stress_mass = ymir_vec_clone (stress);
+  double              ip;
+
+  RHEA_ASSERT (rhea_stress_check_vec_type (stress));
+  RHEA_ASSERT (rhea_stress_is_valid (stress));
+
+  ymir_mass_apply_gauss (stress_mass);
+  ip = ymir_dvec_innerprod (stress_mass, stress);
+  ymir_vec_destroy (stress_mass);
+
+  return sqrt (ip);
+}
