@@ -11,6 +11,10 @@
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
 
+#ifdef USE_CATALYST
+#include <rhea_vis_adaptor.h>
+#endif
+
 /******************************************************************************
  * Main Program
  *****************************************************************************/
@@ -56,6 +60,9 @@ main (int argc, char **argv)
   char               *vtk_write_input_path;
   char               *vtk_write_newton_itn_path;
   char               *vtk_write_solution_path;
+#ifdef USE_CATALYST
+  char               *vis_catalyst_script;
+#endif
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -98,6 +105,13 @@ main (int argc, char **argv)
     &(vtk_write_solution_path), NULL,
     "File path for vtk files for the solution of the Stokes problem",
 
+  /* visualization */
+#ifdef USE_CATALYST
+  YMIR_OPTIONS_S, "vis-catalyst-script", '\0',
+    &(vis_catalyst_script), NULL,
+    "Python script for ParaView-Catalyst",
+#endif
+
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
@@ -107,6 +121,11 @@ main (int argc, char **argv)
 
   /* end program initialization */
   rhea_init_end (opt);
+
+  /* initialize ParaView-Catalyst */
+#ifdef USE_CATALYST
+  CatalystInitialize (1, &vis_catalyst_script);
+#endif
 
   /*
    * Print Environment and Options
@@ -159,6 +178,61 @@ main (int argc, char **argv)
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_write_solution_path, sol_vel_press,
                                     stokes_problem);
+#ifdef USE_CATALYST
+  {
+    const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (ymir_mesh);
+    const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (
+                                                                    ymir_mesh);
+    const int           order = ymir_mesh_get_order (ymir_mesh);
+    ymir_locidx_t       elid;
+    int                 nodeid;
+
+    unsigned int        n_coordinates = n_elements * n_nodes_per_el;
+    double             *coordinates;
+    unsigned int       *element_data;
+    double             *velocity_data;
+    double             *pressure_data;
+
+    RHEA_ASSERT (1 <= order && order <= 2);
+
+    coordinates = RHEA_ALLOC (double, n_coordinates * 3);
+    element_data = RHEA_ALLOC (unsigned int, n_coordinates);
+    velocity_data = RHEA_ALLOC (double, n_coordinates * 3);
+    pressure_data = RHEA_ALLOC (double, n_elements);
+
+    for (elid = 0; elid < n_elements; elid++) {
+      const double *x = ymir_mesh_get_elem_coord_x (elid, ymir_mesh);
+      const double *y = ymir_mesh_get_elem_coord_y (elid, ymir_mesh);
+      const double *z = ymir_mesh_get_elem_coord_z (elid, ymir_mesh);
+
+      for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+        const ymir_locidx_t idx = n_nodes_per_el*elid + nodeid;
+
+        /* set coordinates data */
+        coordinates[3*idx    ] = x[nodeid];
+        coordinates[3*idx + 1] = y[nodeid];
+        coordinates[3*idx + 2] = z[nodeid];
+        element_data[idx] = idx;
+
+        /* set velocity and pressure */
+        velocity_data[3*idx    ] = sin (M_PI * x[nodeid]);
+        velocity_data[3*idx + 1] = 0.0;
+        velocity_data[3*idx + 2] = 0.0;
+        pressure_data[elid] = 1.0;
+      }
+    }
+
+    CatalystCoProcess (n_coordinates, coordinates,
+                       (unsigned int) n_elements, element_data,
+                       order,
+                       velocity_data, pressure_data);
+
+    RHEA_FREE (coordinates);
+    RHEA_FREE (element_data);
+    RHEA_FREE (velocity_data);
+    RHEA_FREE (pressure_data);
+  }
+#endif
 
   /* destroy */
   rhea_velocity_pressure_destroy (sol_vel_press);
@@ -177,6 +251,11 @@ main (int argc, char **argv)
 
   /* destroy options */
   ymir_options_global_destroy ();
+
+  /* finalize ParaView-Catalyst */
+#ifdef USE_CATALYST
+  CatalystFinalize ();
+#endif
 
   /* print that this function is ending */
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
