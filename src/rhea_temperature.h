@@ -85,6 +85,12 @@ rhea_temperature_options_t;
  */
 void                rhea_temperature_add_options (ymir_options_t * opt_sup);
 
+void                rhea_temperature_add_options_sinker (
+                                                    ymir_options_t * opt_sup);
+
+void                rhea_temperature_add_options_plume (
+                                                    ymir_options_t * opt_sup);
+
 /**
  * Processes options and stores them.
  */
