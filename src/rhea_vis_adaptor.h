@@ -4,7 +4,7 @@
 #ifndef RHEA_VIS_ADAPTOR_HH
 #define RHEA_VIS_ADAPTOR_HH
 
-#include<sc.h>
+#include <sc.h>
 
 /* tell the C++ compiler to use the C style name mangling */
 SC_EXTERN_C_BEGIN;

@@ -4,6 +4,8 @@
 #include <rhea_vis_adaptor.h>
 #include <rhea_base.h>
 
+//#ifdef USE_CATALYST
+#if 1
 #include <vtkCPDataDescription.h>
 #include <vtkCPInputDataDescription.h>
 #include <vtkCPProcessor.h>
@@ -33,7 +35,7 @@ void BuildVTKGrid(unsigned int numberOfPoints, double* pointsData,
     cellType = VTK_HEXAHEDRON;
     break;
   case 2:
-    cellType = VTK_QUADRATIC_HEXAHEDRON;
+    cellType = VTK_TRIQUADRATIC_HEXAHEDRON;
     break;
   default: /* unsupported order */
     RHEA_ABORT_NOT_REACHED ();
@@ -92,9 +94,7 @@ void UpdateVTKAttributes(unsigned int numberOfPoints, double* velocityData,
   //   vx0,vy0,vz0,vx1,vy1,vz1,..
   for (unsigned int i = 0; i < numberOfPoints; i++)
   {
-    double values[3] = { velocityData[i], velocityData[i + numberOfPoints],
-      velocityData[i + 2 * numberOfPoints] };
-    velocity->SetTypedTuple(i, values);
+    velocity->SetTypedTuple(i, &(velocityData[3*i]));
   }
 
   vtkDoubleArray* pressure =
@@ -107,7 +107,7 @@ void UpdateVTKAttributes(unsigned int numberOfPoints, double* velocityData,
 void BuildVTKDataStructures(unsigned int numberOfPoints, double* points,
                             unsigned int numberOfCells, unsigned int* cells,
                             int order,
-                            double* velocity, double* pressure)
+                            double* velocityData, double* pressureData)
 {
   if (VTKGrid == NULL)
   {
@@ -117,12 +117,16 @@ void BuildVTKDataStructures(unsigned int numberOfPoints, double* points,
     VTKGrid = vtkUnstructuredGrid::New();
     BuildVTKGrid(numberOfPoints, points, numberOfCells, cells, order);
   }
-  UpdateVTKAttributes(numberOfPoints, velocity, numberOfCells, pressure);
+  UpdateVTKAttributes(numberOfPoints, velocityData, numberOfCells, pressureData);
 }
 }
 
 void CatalystInitialize(int numScripts, char* scripts[])
 {
+  const char         *this_fn_name = "CatalystInitialize";
+
+  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+
   if (Processor == NULL)
   {
     Processor = vtkCPProcessor::New();
@@ -133,16 +137,22 @@ void CatalystInitialize(int numScripts, char* scripts[])
     Processor->RemoveAllPipelines();
   }
 
-  for (int i = 1; i < numScripts; i++)
+  for (int i = 0; i < numScripts; i++)
   {
     vtkNew<vtkCPPythonScriptPipeline> pipeline;
     pipeline->Initialize(scripts[i]);
     Processor->AddPipeline(pipeline.GetPointer());
   }
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
 void CatalystFinalize()
 {
+  const char         *this_fn_name = "CatalystFinalize";
+
+  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+
   if (Processor)
   {
     Processor->Delete();
@@ -153,6 +163,8 @@ void CatalystFinalize()
     VTKGrid->Delete();
     VTKGrid = NULL;
   }
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
 void CatalystCoProcess(unsigned int numberOfPoints, double* pointsData,
@@ -161,6 +173,10 @@ void CatalystCoProcess(unsigned int numberOfPoints, double* pointsData,
                        double* velocityData, double* pressureData)
                        //double time, unsigned int timeStep, int lastTimeStep)
 {
+  const char         *this_fn_name = "CatalystCoProcess";
+
+  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+
   vtkNew<vtkCPDataDescription> dataDescription;
   dataDescription->AddInput("input");
 #if 0
@@ -176,6 +192,7 @@ void CatalystCoProcess(unsigned int numberOfPoints, double* pointsData,
 #endif
   if (Processor->RequestDataDescription(dataDescription.GetPointer()) != 0)
   {
+    RHEA_GLOBAL_INFOF ("%s: Create visualization\n", this_fn_name);
     BuildVTKDataStructures(numberOfPoints, pointsData,
                            numberOfCells, cellsData,
                            order,
@@ -183,4 +200,7 @@ void CatalystCoProcess(unsigned int numberOfPoints, double* pointsData,
     dataDescription->GetInputDescriptionByName("input")->SetGrid(VTKGrid);
     Processor->CoProcess(dataDescription.GetPointer());
   }
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
+#endif /* USE_CATALYST */
