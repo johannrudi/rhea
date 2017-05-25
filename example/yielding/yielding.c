@@ -212,8 +212,8 @@ main (int argc, char **argv)
                                          1,  5,  7,  3, // bottom edge centers
                                         19, 23, 25, 21, // top edge centers
                                          9, 11, 17, 15, // mid edge centers
+                                        12, 14, 10, 16, // mid faces
                                          4, 22,         // bottom & top faces
-                                        10, 14, 16, 12, // mid faces
                                         13};            // volume center
     for (elid = 0; elid < n_elements; elid++) {
       const double *x = ymir_mesh_get_elem_coord_x (elid, ymir_mesh);
@@ -235,15 +235,6 @@ main (int argc, char **argv)
         velocity_data[3*idx + 1] = 0.0;
         velocity_data[3*idx + 2] = 0.0;
         pressure_data[elid] = cos (M_PI * x[nodeid]);
-      }
-      if (elid == 0) {
-        for (i = 0; i < n_nodes_per_el; i++) {
-          RHEA_INFOF ("coord: idx %i, (x y z)=(%.3f %.3f %.3f)\n",
-                      element_data[n_nodes_per_el*elid + i],
-                      coordinates[3*(n_nodes_per_el*elid + i)    ],
-                      coordinates[3*(n_nodes_per_el*elid + i) + 1],
-                      coordinates[3*(n_nodes_per_el*elid + i) + 2]);
-        }
       }
     }
     CatalystCoProcess (n_coordinates, coordinates,
