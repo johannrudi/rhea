@@ -8,6 +8,7 @@
 #include <rhea_velocity.h>
 #include <rhea_strainrate.h>
 #include <ymir_vec_getset.h>
+#include <ymir_mass_vec.h>
 #include <ymir_stress_op.h>
 
 /* definition of viscosity bounds and yielding markers */
@@ -142,8 +143,6 @@ void
 rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
                                 rhea_domain_options_t *domain_options)
 {
-  const char         *this_fn_name = "rhea_viscosity_process_options";
-
   /* set viscosity type */
   opt->type = (rhea_viscosity_t) rhea_viscosity_type;
   opt->type_linear = (rhea_viscosity_linear_t) rhea_viscosity_type_linear;
@@ -551,7 +550,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
 {
   const int           restrict_to_bounds = 1;
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
-  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
   const int           in_temp = (temp_vec != NULL);
@@ -1264,8 +1263,6 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
     }
   }
   else { /* if element is located in lower mantle */
-    const int           restrict_to_bounds = 1;
-
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
       const double        temp = (in_temp ? temp_elem[nodeid] : temp_default);
       const double        weak = (in_weak ? weak_elem[nodeid] : weak_default);
@@ -1392,7 +1389,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   /* *INDENT-ON* */
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
-    /* get coordinates of this element at Gauss nodes */
+    /* get coordinates at Gauss nodes */
     ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
 
     /* get temperature and weak zone at Gauss nodes */
