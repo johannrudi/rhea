@@ -124,7 +124,9 @@ main (int argc, char **argv)
 
   /* initialize ParaView-Catalyst */
 #ifdef USE_CATALYST
-  CatalystInitialize (1, &vis_catalyst_script);
+  if (vis_catalyst_script != NULL) {
+    CatalystInitialize (1, &vis_catalyst_script);
+  }
 #endif
 
   /*
@@ -179,53 +181,102 @@ main (int argc, char **argv)
   example_share_vtk_write_solution (vtk_write_solution_path, sol_vel_press,
                                     stokes_problem);
 #ifdef USE_CATALYST
-  {
+  if (vis_catalyst_script != NULL) {
     const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (ymir_mesh);
     const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (
                                                                     ymir_mesh);
     const int           order = ymir_mesh_get_order (ymir_mesh);
     ymir_locidx_t       elid;
-    int                 nodeid;
+    int                 i;
 
+#if 1
     unsigned int        n_coordinates = n_elements * n_nodes_per_el;
+#else
+    unsigned int        n_coordinates = n_elements * 8;
+#endif
     double             *coordinates;
     unsigned int       *element_data;
     double             *velocity_data;
     double             *pressure_data;
 
-    RHEA_ASSERT (1 <= order && order <= 2);
+    RHEA_ASSERT (order == 2);
 
     coordinates = RHEA_ALLOC (double, n_coordinates * 3);
     element_data = RHEA_ALLOC (unsigned int, n_coordinates);
     velocity_data = RHEA_ALLOC (double, n_coordinates * 3);
     pressure_data = RHEA_ALLOC (double, n_elements);
 
+#if 1
+    const int           node_map[27] = { 0,  2,  8,  6, // bottom vertices
+                                        18, 20, 26, 24, // top vertices
+                                         1,  5,  7,  3, // bottom edge centers
+                                        19, 23, 25, 21, // top edge centers
+                                         9, 11, 17, 15, // mid edge centers
+                                         4, 22,         // bottom & top faces
+                                        10, 14, 16, 12, // mid faces
+                                        13};            // volume center
     for (elid = 0; elid < n_elements; elid++) {
       const double *x = ymir_mesh_get_elem_coord_x (elid, ymir_mesh);
       const double *y = ymir_mesh_get_elem_coord_y (elid, ymir_mesh);
       const double *z = ymir_mesh_get_elem_coord_z (elid, ymir_mesh);
 
-      for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
-        const ymir_locidx_t idx = n_nodes_per_el*elid + nodeid;
+      for (i = 0; i < n_nodes_per_el; i++) {
+        const int           nodeid = node_map[i];
+        const ymir_locidx_t idx = n_nodes_per_el*elid + i;
 
         /* set coordinates data */
+        element_data[idx] = idx;
         coordinates[3*idx    ] = x[nodeid];
         coordinates[3*idx + 1] = y[nodeid];
         coordinates[3*idx + 2] = z[nodeid];
-        element_data[idx] = idx;
 
         /* set velocity and pressure */
         velocity_data[3*idx    ] = sin (M_PI * x[nodeid]);
         velocity_data[3*idx + 1] = 0.0;
         velocity_data[3*idx + 2] = 0.0;
-        pressure_data[elid] = 1.0;
+        pressure_data[elid] = cos (M_PI * x[nodeid]);
+      }
+      if (elid == 0) {
+        for (i = 0; i < n_nodes_per_el; i++) {
+          RHEA_INFOF ("coord: idx %i, (x y z)=(%.3f %.3f %.3f)\n",
+                      element_data[n_nodes_per_el*elid + i],
+                      coordinates[3*(n_nodes_per_el*elid + i)    ],
+                      coordinates[3*(n_nodes_per_el*elid + i) + 1],
+                      coordinates[3*(n_nodes_per_el*elid + i) + 2]);
+        }
       }
     }
-
     CatalystCoProcess (n_coordinates, coordinates,
-                       (unsigned int) n_elements, element_data,
-                       order,
+                       (unsigned int) n_elements, element_data, order,
                        velocity_data, pressure_data);
+#else
+    const int           node_vertices [8] = {0, 2, 8, 6, 18, 20, 26, 24};
+    for (elid = 0; elid < n_elements; elid++) {
+      const double *x = ymir_mesh_get_elem_coord_x (elid, ymir_mesh);
+      const double *y = ymir_mesh_get_elem_coord_y (elid, ymir_mesh);
+      const double *z = ymir_mesh_get_elem_coord_z (elid, ymir_mesh);
+
+      for (i = 0; i < 8; i++) {
+        const int           nodeid = node_vertices[i];
+        const ymir_locidx_t idx = 8*elid + i;
+
+        /* set coordinates data */
+        coordinates[3*idx    ] = x[nodeid];
+        coordinates[3*idx + 1] = y[nodeid];
+        coordinates[3*idx + 2] = z[nodeid];
+        element_data[8*elid + i] = idx;
+
+        /* set velocity and pressure */
+        velocity_data[3*idx    ] = sin (M_PI * x[nodeid]);
+        velocity_data[3*idx + 1] = 0.0;
+        velocity_data[3*idx + 2] = 0.0;
+        pressure_data[elid] = cos (M_PI * x[nodeid]);
+      }
+    }
+    CatalystCoProcess (n_coordinates, coordinates,
+                       (unsigned int) n_elements, element_data, 1 /* order */,
+                       velocity_data, pressure_data);
+#endif
 
     RHEA_FREE (coordinates);
     RHEA_FREE (element_data);
@@ -254,7 +305,9 @@ main (int argc, char **argv)
 
   /* finalize ParaView-Catalyst */
 #ifdef USE_CATALYST
-  CatalystFinalize ();
+  if (vis_catalyst_script != NULL) {
+    CatalystFinalize ();
+  }
 #endif
 
   /* print that this function is ending */
