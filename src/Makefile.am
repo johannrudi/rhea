@@ -21,6 +21,7 @@ librhea_installed_headers = \
         src/rhea_newton.h \
         src/rhea_newton_check.h \
         src/rhea_vtk.h \
+        src/rhea_vis_adaptor.h \
         src/rhea.h
 librhea_internal_headers =
 librhea_compiled_sources = \
@@ -40,6 +41,7 @@ librhea_compiled_sources = \
         src/rhea_newton.c \
         src/rhea_newton_check.c \
         src/rhea_vtk.c \
+        src/rhea_vis_adaptor.cc \
         src/rhea.c
 
 RHEA_CPPFLAGS =
