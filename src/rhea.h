@@ -50,13 +50,12 @@ void                rhea_set_production_run (const int is_production_run);
  *****************************************************************************/
 
 /**
- * Defines all rhea options and adds them as sub-options.
+ * Defines rhea options and adds them as sub-options.
  */
+void                rhea_add_options_base (ymir_options_t *opt);
+
 void                rhea_add_options_all (ymir_options_t * options);
 
-/**
- * Defines a particular subset of options and adds them as sub-options.
- */
 void                rhea_add_options_newton (ymir_options_t *options);
 
 /**
