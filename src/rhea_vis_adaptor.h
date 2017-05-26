@@ -9,15 +9,18 @@
 /* tell the C++ compiler to use the C style name mangling */
 SC_EXTERN_C_BEGIN;
 
-void CatalystInitialize (int numScripts, char* scripts[]);
+void                rhea_vis_initialize (const char *catalyst_scripts[],
+                                         const int n_catalyst_scripts);
 
-void CatalystFinalize ();
+void                rhea_vis_finalize ();
 
-void CatalystCoProcess (unsigned int numberOfPoints, double* pointsData,
-                        unsigned int numberOfCells, unsigned int* cellsData,
-                        int order,
-                        double* velocityData, double* pressureData);
-                        //double time, unsigned int timeStep, int lastTimeStep);
+void                rhea_vis_process (unsigned int order,
+                                      unsigned int nPoints,
+                                      const double *pointCoords,
+                                      unsigned int nCells,
+                                      unsigned int *cellToCoordIdx,
+                                      const double *velocityData,
+                                      const double *pressureData);
 
 SC_EXTERN_C_END;
 

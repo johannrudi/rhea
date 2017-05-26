@@ -2,10 +2,12 @@
  */
 
 #include <rhea_vis_adaptor.h>
-#include <rhea_base.h>
+#include <rhea_base.h> //TODO del
 
+//TODO does this need ifdef?
 //#ifdef USE_CATALYST
 #if 1
+
 #include <vtkCPDataDescription.h>
 #include <vtkCPInputDataDescription.h>
 #include <vtkCPProcessor.h>
@@ -20,187 +22,192 @@
 
 namespace
 {
+
+/* global variables */
 vtkCPProcessor* Processor = NULL;
 vtkUnstructuredGrid* VTKGrid;
 
-void BuildVTKGrid(unsigned int numberOfPoints, double* pointsData,
-                  unsigned int numberOfCells, unsigned int* cellToCoordMap,
-                  int order)
+void
+BuildVTKGrid(unsigned int order,
+             unsigned int nPoints, const double *pointCoords,
+             unsigned int nCells, unsigned int *cellToCoordIdx)
 {
-  const int           nNodesPerElem = (order + 1) * (order + 1) * (order + 1);
-  VTKCellType         cellType;
-
+  /* set vtk cell type */
+  VTKCellType cellType;
+  vtkIdType nNodesPerCell;
   switch (order) {
   case 1:
     cellType = VTK_HEXAHEDRON;
+    nNodesPerCell = 8;
     break;
   case 2:
     cellType = VTK_TRIQUADRATIC_HEXAHEDRON;
+    nNodesPerCell = 27;
     break;
   default: /* unsupported order */
-    RHEA_ABORT_NOT_REACHED ();
+    RHEA_ABORT_NOT_REACHED (); //TODO do not use RHEA_ macro
   }
 
-  // create the points information
-  vtkNew<vtkDoubleArray> pointArray;
-  pointArray->SetNumberOfComponents(3);
-  pointArray->SetArray(pointsData, static_cast<vtkIdType>(numberOfPoints * 3),
-                       1);
+  /* create coordinates array */
+  //TODO rather use SetTuple3 of (x,y,z) coordinates
+  vtkNew<vtkDoubleArray> coordsArray;
+  coordsArray->SetNumberOfComponents(3);
+  coordsArray->SetArray(const_cast<double*>(pointCoords),
+                        static_cast<vtkIdType>(nPoints*3),
+                        1 /* do not delete */);
+
+  /* create grid points */
   vtkNew<vtkPoints> points;
-  points->SetData(pointArray.GetPointer());
+  points->SetData(coordsArray.GetPointer());
   VTKGrid->SetPoints(points.GetPointer());
 
-  // create the cells
-  vtkIdType* coordId = RHEA_ALLOC (vtkIdType, nNodesPerElem);
-  VTKGrid->Allocate(static_cast<vtkIdType>(numberOfCells * (nNodesPerElem+1)));
-  for (unsigned int cell = 0; cell < numberOfCells; cell++)
-  {
-    unsigned int* cellPoints = cellToCoordMap + nNodesPerElem * cell;
-    for (int node = 0; node < nNodesPerElem; node++)
-    {
+  /* create cells */
+  //TODO can maybe be optimized; don't use RHEA_ALLOC/RHEA_FREE
+  vtkIdType* coordId = RHEA_ALLOC (vtkIdType, nNodesPerCell);
+  VTKGrid->Allocate( static_cast<vtkIdType>(nCells * (nNodesPerCell + 1)) );
+  for (unsigned int cell = 0; cell < nCells; cell++) {
+    unsigned int *cellPoints = cellToCoordIdx + nNodesPerCell * cell;
+    for (int node = 0; node < nNodesPerCell; node++) {
       coordId[node] = (vtkIdType) cellPoints[node];
     }
-    VTKGrid->InsertNextCell(cellType, nNodesPerElem, coordId);
+    VTKGrid->InsertNextCell(cellType, nNodesPerCell, coordId);
   }
   RHEA_FREE (coordId);
 }
 
-void UpdateVTKAttributes(unsigned int numberOfPoints, double* velocityData,
-                         unsigned int numberOfCells, double* pressureData)
+void
+CreateArrays(unsigned int nPoints, unsigned int nCells)
 {
-  if (VTKGrid->GetPointData()->GetNumberOfArrays() == 0)
-  {
-    // velocity array
+  /* create velocity array */
+  if (VTKGrid->GetPointData()->GetNumberOfArrays() == 0) {
     vtkNew<vtkDoubleArray> velocity;
     velocity->SetName("velocity");
     velocity->SetNumberOfComponents(3);
-    velocity->SetNumberOfTuples(static_cast<vtkIdType>(numberOfPoints));
+    velocity->SetNumberOfTuples(static_cast<vtkIdType>(nPoints));
     VTKGrid->GetPointData()->AddArray(velocity.GetPointer());
   }
-  if (VTKGrid->GetCellData()->GetNumberOfArrays() == 0)
-  {
-    // pressure array
+
+  /* create pressure array */
+  if (VTKGrid->GetCellData()->GetNumberOfArrays() == 0) {
     vtkNew<vtkDoubleArray> pressure;
     pressure->SetName("pressure");
     pressure->SetNumberOfComponents(1);
     VTKGrid->GetCellData()->AddArray(pressure.GetPointer());
   }
+}
 
+void
+SetArrays(const double *velocityData, unsigned int nPoints,
+          const double *pressureData, unsigned int nCells)
+{
+  /* fill velocity array */
   vtkDoubleArray* velocity =
     vtkDoubleArray::SafeDownCast(VTKGrid->GetPointData()->GetArray("velocity"));
-  // The velocity array is ordered as
-  //   vx0,vx1,vx2,..,vy0,vy1,vy2,..,vz0,vz1,vz2,..
-  // so we need to create a full copy of it with VTK's ordering of
-  //   vx0,vy0,vz0,vx1,vy1,vz1,..
-  for (unsigned int i = 0; i < numberOfPoints; i++)
-  {
-    velocity->SetTypedTuple(i, &(velocityData[3*i]));
-  }
+//TODO del
+//for (unsigned int i = 0; i < nPoints; i++) {
+//  velocity->SetTypedTuple(i, &(velocityData[3*i]));
+//}
+  velocity->SetArray(const_cast<double*>(velocityData),
+                     static_cast<vtkIdType>(nPoints*3), 1 /* do not delete */);
 
+  /* fill pressure array
+   * Note: The pressure array is a scalar array so we can reuse memory as long
+   *       as we ordered the points properly. */
   vtkDoubleArray* pressure =
     vtkDoubleArray::SafeDownCast(VTKGrid->GetCellData()->GetArray("pressure"));
-  // The pressure array is a scalar array so we can reuse
-  // memory as long as we ordered the points properly.
-  pressure->SetArray(pressureData, static_cast<vtkIdType>(numberOfCells), 1);
+  pressure->SetArray(const_cast<double*>(pressureData),
+                     static_cast<vtkIdType>(nCells), 1 /* do not delete */);
 }
 
-void BuildVTKDataStructures(unsigned int numberOfPoints, double* points,
-                            unsigned int numberOfCells, unsigned int* cells,
-                            int order,
-                            double* velocityData, double* pressureData)
+void
+CreateVTKData(unsigned int order,
+              unsigned int nPoints, const double *pointCoords,
+              unsigned int nCells, unsigned int *cellToCoordIdx,
+              const double *velocityData, const double *pressureData)
 {
-  if (VTKGrid == NULL)
-  {
-    // The grid structure isn't changing so we only build it
-    // the first time it's needed. If we needed the memory
-    // we could delete it and rebuild as necessary.
+  /* build grid
+   * Note: The grid structure isn't changing so we only build it the first time
+   *       it's needed. If we needed the memory we could delete it and rebuild
+   *       as necessary. */
+  if (VTKGrid == NULL) {
     VTKGrid = vtkUnstructuredGrid::New();
-    BuildVTKGrid(numberOfPoints, points, numberOfCells, cells, order);
+    BuildVTKGrid(order, nPoints, pointCoords, nCells, cellToCoordIdx);
   }
-  UpdateVTKAttributes(numberOfPoints, velocityData, numberOfCells, pressureData);
-}
+
+  /* create arrays */
+  CreateArrays(nPoints, nCells);
+
+  /* set data of arrays */
+  SetArrays(velocityData, nPoints, pressureData, nCells);
 }
 
-void CatalystInitialize(int numScripts, char* scripts[])
+} /* end namespace */
+
+void
+rhea_vis_initialize (const char *catalyst_scripts[],
+                     const int n_catalyst_scripts)
 {
-  const char         *this_fn_name = "CatalystInitialize";
+  /* return if nothing to do */
+  if (n_catalyst_scripts <= 0) {
+    return;
+  }
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
-
-  if (Processor == NULL)
-  {
+  /* create vis processor */
+  if (Processor == NULL) {
     Processor = vtkCPProcessor::New();
     Processor->Initialize();
   }
-  else
-  {
+  else {
     Processor->RemoveAllPipelines();
   }
 
-  for (int i = 0; i < numScripts; i++)
-  {
+  /* pass scripts to vis processor */
+  for (int i = 0; i < n_catalyst_scripts; i++) {
     vtkNew<vtkCPPythonScriptPipeline> pipeline;
-    pipeline->Initialize(scripts[i]);
+    pipeline->Initialize(catalyst_scripts[i]);
     Processor->AddPipeline(pipeline.GetPointer());
   }
-
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
-void CatalystFinalize()
+void
+rhea_vis_finalize ()
 {
-  const char         *this_fn_name = "CatalystFinalize";
-
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
-
-  if (Processor)
-  {
+  if (Processor != NULL) {
     Processor->Delete();
     Processor = NULL;
   }
-  if (VTKGrid)
-  {
+  if (VTKGrid != NULL) {
     VTKGrid->Delete();
     VTKGrid = NULL;
   }
-
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
-void CatalystCoProcess(unsigned int numberOfPoints, double* pointsData,
-                       unsigned int numberOfCells, unsigned int* cellsData,
-                       int order,
-                       double* velocityData, double* pressureData)
-                       //double time, unsigned int timeStep, int lastTimeStep)
+void
+rhea_vis_process (unsigned int order,
+                  unsigned int nPoints, const double *pointCoords,
+                  unsigned int nCells, unsigned int *cellToCoordIdx,
+                  const double *velocityData, const double *pressureData)
 {
-  const char         *this_fn_name = "CatalystCoProcess";
-
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
-
   vtkNew<vtkCPDataDescription> dataDescription;
   dataDescription->AddInput("input");
-#if 0
-  dataDescription->SetTimeData(time, timeStep);
-  if (lastTimeStep == true)
-  {
-    // assume that we want to all the pipelines to execute if it
-    // is the last time step.
-    dataDescription->ForceOutputOn();
-  }
-#else
+
+  /* force output */
+//TODO del
+//dataDescription->SetTimeData(time, timeStep);
+//if (lastTimeStep == true) {
+//  // assume that we want to all the pipelines to execute if it
+//  // is the last time step.
+//  dataDescription->ForceOutputOn();
+//}
   dataDescription->ForceOutputOn();
-#endif
-  if (Processor->RequestDataDescription(dataDescription.GetPointer()) != 0)
-  {
-    RHEA_GLOBAL_INFOF ("%s: Create visualization\n", this_fn_name);
-    BuildVTKDataStructures(numberOfPoints, pointsData,
-                           numberOfCells, cellsData,
-                           order,
-                           velocityData, pressureData);
+
+  /* process visualization */
+  if (Processor->RequestDataDescription(dataDescription.GetPointer()) != 0) {
+    CreateVTKData(order, nPoints, pointCoords, nCells, cellToCoordIdx,
+                  velocityData, pressureData);
     dataDescription->GetInputDescriptionByName("input")->SetGrid(VTKGrid);
     Processor->CoProcess(dataDescription.GetPointer());
   }
-
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
+
 #endif /* USE_CATALYST */
