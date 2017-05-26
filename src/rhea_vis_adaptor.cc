@@ -4,10 +4,9 @@
 #include <rhea_vis_adaptor.h>
 #include <rhea_base.h> //TODO del
 
-//TODO does this need ifdef?
+//TODO need to pass -DUSE_CATALYST with CXXFLAGS
 //#ifdef USE_CATALYST
 #if 1
-
 #include <vtkCPDataDescription.h>
 #include <vtkCPInputDataDescription.h>
 #include <vtkCPProcessor.h>
@@ -78,22 +77,31 @@ BuildVTKGrid(unsigned int order,
 void
 CreateArrays(unsigned int nPoints, unsigned int nCells)
 {
-  /* create velocity array */
+  /* create point data */
   if (VTKGrid->GetPointData()->GetNumberOfArrays() == 0) {
+    /* create velocity array */
     vtkNew<vtkDoubleArray> velocity;
     velocity->SetName("velocity");
     velocity->SetNumberOfComponents(3);
     velocity->SetNumberOfTuples(static_cast<vtkIdType>(nPoints));
     VTKGrid->GetPointData()->AddArray(velocity.GetPointer());
-  }
 
-  /* create pressure array */
+    /* create pressure array */
+    vtkNew<vtkDoubleArray> pressure;
+    pressure->SetName("pressure");
+    pressure->SetNumberOfComponents(1);
+    pressure->SetNumberOfTuples(static_cast<vtkIdType>(nPoints));
+    VTKGrid->GetPointData()->AddArray(pressure.GetPointer());
+  }
+#if 0
+  /* create pressure array as cell data */
   if (VTKGrid->GetCellData()->GetNumberOfArrays() == 0) {
     vtkNew<vtkDoubleArray> pressure;
     pressure->SetName("pressure");
     pressure->SetNumberOfComponents(1);
     VTKGrid->GetCellData()->AddArray(pressure.GetPointer());
   }
+#endif
 }
 
 void
@@ -110,6 +118,12 @@ SetArrays(const double *velocityData, unsigned int nPoints,
   velocity->SetArray(const_cast<double*>(velocityData),
                      static_cast<vtkIdType>(nPoints*3), 1 /* do not delete */);
 
+  /* fill pressure array */
+  vtkDoubleArray* pressure =
+    vtkDoubleArray::SafeDownCast(VTKGrid->GetPointData()->GetArray("pressure"));
+  pressure->SetArray(const_cast<double*>(pressureData),
+                     static_cast<vtkIdType>(nPoints), 1 /* do not delete */);
+#if 0
   /* fill pressure array
    * Note: The pressure array is a scalar array so we can reuse memory as long
    *       as we ordered the points properly. */
@@ -117,6 +131,7 @@ SetArrays(const double *velocityData, unsigned int nPoints,
     vtkDoubleArray::SafeDownCast(VTKGrid->GetCellData()->GetArray("pressure"));
   pressure->SetArray(const_cast<double*>(pressureData),
                      static_cast<vtkIdType>(nCells), 1 /* do not delete */);
+#endif
 }
 
 void
@@ -144,8 +159,8 @@ CreateVTKData(unsigned int order,
 } /* end namespace */
 
 void
-rhea_vis_initialize (const char *catalyst_scripts[],
-                     const int n_catalyst_scripts)
+rhea_vis_adaptor_initialize (const char *catalyst_scripts[],
+                             const int n_catalyst_scripts)
 {
   /* return if nothing to do */
   if (n_catalyst_scripts <= 0) {
@@ -170,7 +185,7 @@ rhea_vis_initialize (const char *catalyst_scripts[],
 }
 
 void
-rhea_vis_finalize ()
+rhea_vis_adaptor_finalize ()
 {
   if (Processor != NULL) {
     Processor->Delete();
@@ -183,10 +198,11 @@ rhea_vis_finalize ()
 }
 
 void
-rhea_vis_process (unsigned int order,
-                  unsigned int nPoints, const double *pointCoords,
-                  unsigned int nCells, unsigned int *cellToCoordIdx,
-                  const double *velocityData, const double *pressureData)
+rhea_vis_adaptor_process (unsigned int order,
+                          unsigned int nPoints, const double *pointCoords,
+                          unsigned int nCells, unsigned int *cellToCoordIdx,
+                          const double *velocityData,
+                          const double *pressureData)
 {
   vtkNew<vtkCPDataDescription> dataDescription;
   dataDescription->AddInput("input");
@@ -209,5 +225,4 @@ rhea_vis_process (unsigned int order,
     Processor->CoProcess(dataDescription.GetPointer());
   }
 }
-
 #endif /* USE_CATALYST */
