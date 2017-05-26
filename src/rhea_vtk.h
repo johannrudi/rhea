@@ -5,7 +5,6 @@
 #define RHEA_VTK_H
 
 #include <ymir_vec_ops.h>
-#include <ymir_pressure_elem.h>
 
 void                rhea_vtk_write_input_data (const char *filepath,
                                                ymir_vec_t *temperature,
