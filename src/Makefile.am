@@ -43,7 +43,7 @@ librhea_compiled_sources = \
         src/rhea_newton_check.c \
         src/rhea_vtk.c \
         src/rhea_vis.c \
-        src/rhea_vis_adaptor.cc \
+        src/rhea_vis_adaptor.cxx \
         src/rhea.c
 
 RHEA_CPPFLAGS =
