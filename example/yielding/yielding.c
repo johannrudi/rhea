@@ -57,7 +57,7 @@ main (int argc, char **argv)
   char               *vtk_write_input_path;
   char               *vtk_write_newton_itn_path;
   char               *vtk_write_solution_path;
-#ifdef USE_CATALYST
+#ifdef RHEA_USE_CATALYST
   char               *vis_catalyst_script;
 #endif
   /* mesh */
@@ -103,7 +103,7 @@ main (int argc, char **argv)
     "File path for vtk files for the solution of the Stokes problem",
 
   /* visualization */
-#ifdef USE_CATALYST
+#ifdef RHEA_USE_CATALYST
   YMIR_OPTIONS_S, "vis-catalyst-script", '\0',
     &(vis_catalyst_script), NULL,
     "Python script for ParaView-Catalyst",
@@ -171,7 +171,7 @@ main (int argc, char **argv)
   example_share_vtk_write_solution (vtk_write_solution_path, sol_vel_press,
                                     stokes_problem);
 
-#ifdef USE_CATALYST //TODO change flag name
+#ifdef RHEA_USE_CATALYST
   if (vis_catalyst_script != NULL) {
     /* initialize visualization */
     rhea_vis_initialize ((const char **) &vis_catalyst_script, 1);
