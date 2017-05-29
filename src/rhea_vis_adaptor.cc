@@ -4,9 +4,7 @@
 #include <rhea_vis_adaptor.h>
 #include <rhea_base.h> //TODO del
 
-//TODO need to pass -DUSE_CATALYST with CXXFLAGS
-//#ifdef USE_CATALYST
-#if 1
+#ifdef RHEA_USE_CATALYST
 #include <vtkCPDataDescription.h>
 #include <vtkCPInputDataDescription.h>
 #include <vtkCPProcessor.h>
@@ -225,4 +223,4 @@ rhea_vis_adaptor_process (unsigned int order,
     Processor->CoProcess(dataDescription.GetPointer());
   }
 }
-#endif /* USE_CATALYST */
+#endif /* RHEA_USE_CATALYST */

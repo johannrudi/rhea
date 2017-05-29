@@ -4,9 +4,7 @@
 #ifndef RHEA_VIS_ADAPTOR_H
 #define RHEA_VIS_ADAPTOR_H
 
-//TODO need to pass -DUSE_CATALYST with CXXFLAGS
-//#ifdef USE_CATALYST
-#if 1
+#ifdef RHEA_USE_CATALYST
 #include <sc.h>
 
 /* tell the C++ compiler to use the C style name mangling */
@@ -26,6 +24,6 @@ void                rhea_vis_adaptor_process (unsigned int order,
                                               const double *pressureData);
 
 SC_EXTERN_C_END;
-#endif /* USE_CATALYST */
+#endif /* RHEA_USE_CATALYST */
 
 #endif /* RHEA_VIS_ADAPTOR_H */

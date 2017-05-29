@@ -5,7 +5,7 @@
 #include <rhea_base.h>
 #include <ymir_elem_iter.h>
 #include <ymir_vec_optimized.h>
-#ifdef USE_CATALYST
+#ifdef RHEA_USE_CATALYST
 # include <rhea_vis_adaptor.h>
 #endif
 
@@ -15,7 +15,7 @@ rhea_vis_initialize (const char *catalyst_scripts[],
 {
   const char         *this_fn_name = "rhea_vis_initialize";
 
-#ifdef USE_CATALYST
+#ifdef RHEA_USE_CATALYST
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
   rhea_vis_adaptor_initialize (catalyst_scripts, n_catalyst_scripts);
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
@@ -27,7 +27,7 @@ rhea_vis_finalize ()
 {
   const char         *this_fn_name = "rhea_vis_finalize";
 
-#ifdef USE_CATALYST
+#ifdef RHEA_USE_CATALYST
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
   rhea_vis_adaptor_finalize ();
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
@@ -39,7 +39,7 @@ rhea_vis_process_primary (ymir_vec_t *velocity, ymir_vec_t *pressure)
 {
   const char         *this_fn_name = "rhea_vis_process_primary";
 
-#ifdef USE_CATALYST
+#ifdef RHEA_USE_CATALYST
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
   const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (ymir_mesh);
   const int           order = ymir_mesh_get_order (ymir_mesh);
