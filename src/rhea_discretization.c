@@ -6,6 +6,7 @@
 #include <p8est_extended.h>
 #include <mangll_p8est.h>
 #include <ymir_stress_pc.h>
+#include <ymir_gmg.h>
 
 /* default options */
 #define RHEA_DISCRETIZATION_DEFAULT_ORDER (2)
