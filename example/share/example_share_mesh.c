@@ -6,6 +6,7 @@
  *****************************************************************************/
 
 #include <example_share_mesh.h>
+#include <rhea_base.h>
 
 void
 example_share_mesh_new (p4est_t **p4est,

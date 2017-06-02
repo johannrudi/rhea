@@ -8,6 +8,7 @@
 #include <example_share_stokes.h>
 #include <rhea_base.h>
 #include <rhea_velocity.h>
+#include <rhea_weakzone.h>
 
 void
 example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
