@@ -5,6 +5,7 @@
 #include <rhea_base.h>
 #include <rhea_strainrate.h>
 #include <rhea_viscosity.h>
+#include <ymir_mass_vec.h>
 
 ymir_vec_t *
 rhea_stress_new (ymir_mesh_t *ymir_mesh)
