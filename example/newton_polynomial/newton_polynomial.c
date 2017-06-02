@@ -49,6 +49,7 @@
 
 #include <rhea.h>
 #include <ymir_vtk.h>
+#include <ymir.h>
 
 /**
  * Computes interpolating quadratic polynomial via Hermite interpolation.
