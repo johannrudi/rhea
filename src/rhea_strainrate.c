@@ -5,6 +5,7 @@
 #include <rhea_base.h>
 #include <rhea_velocity.h>
 #include <ymir_velocity_elem.h>
+#include <ymir_velocity_vec.h>
 
 ymir_vec_t *
 rhea_strainrate_new (ymir_mesh_t *ymir_mesh)
