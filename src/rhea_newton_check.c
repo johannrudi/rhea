@@ -3,6 +3,9 @@
 
 #include <rhea_newton_check.h>
 #include <rhea_base.h>
+#ifdef YMIR_WITH_PETSC
+# include <ymir_petsc.h>
+#endif
 
 void
 rhea_newton_check_gradient (ymir_vec_t *solution,
