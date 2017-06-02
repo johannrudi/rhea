@@ -3,14 +3,20 @@
 
 #include <rhea_stokes_problem.h>
 #include <rhea_base.h>
-#include <rhea_newton.h>
-#include <rhea_stokes_norm.h>
 #include <rhea_velocity.h>
+#include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
 #include <rhea_strainrate.h>
 #include <rhea_stress.h>
-#include <rhea_vtk.h>
+#include <rhea_stokes_norm.h>
+#include <rhea_newton.h>
+#include <rhea.h>
+#include <ymir_mass_vec.h>
+#include <ymir_stress_op_optimized.h>
 #include <ymir_stokes_pc.h>
+#ifdef RHEA_ENABLE_DEBUG
+# include <ymir_comm.h>
+#endif
 
 /******************************************************************************
  * Options
@@ -133,7 +139,6 @@ rhea_stokes_problem_velocity_boundary_create (
                                         rhea_domain_options_t *domain_options)
 {
   ymir_vec_t         *dirscal = NULL; //TODO seems to be best choice, isn't it?
-  ymir_vel_dir_t     *vel_dir;
 
   stokes_problem->vel_dir = rhea_domain_create_velocity_dirichlet_bc (
       ymir_mesh, dirscal, domain_options);
@@ -645,6 +650,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
 
       /* set coefficient data */
       if (solution_exists) { /* if solution is provided */
+#if 1
         ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
 
         /* retrieve velocity of current solution */
@@ -652,8 +658,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
         RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
 
-        /* in order to alignment of primal-dual Newton with regular Newton,
-         * store current viscosity */
+        /* in order to check alignment of primal-dual Newton with regular
+         * Newton, store current viscosity */
         ymir_stress_op_get_viscosity (viscosity, stress_op);
 
         /*
@@ -767,6 +773,87 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         ymir_stress_op_optimized_compute_strain_rate (
             proj_tens_strain, sol_vel, stress_op);
         ymir_stress_op_tensor_normalize (proj_tens_strain);
+#else //###DEV###
+        /* retrieve velocity of current solution */
+        rhea_velocity_pressure_copy_components (
+            sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+        RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
+
+        /*
+         * Primal-Dual Stress Tensor Update:
+         *
+         *   norml. strain = (prev. norml. strain) + (norml. strain of step)
+         */
+
+        if (step_exists) { /* if step is provided */
+          ymir_vec_t         *step_vel = rhea_velocity_new (ymir_mesh);
+          ymir_vec_t         *prev_vel = rhea_velocity_new (ymir_mesh);
+          ymir_vec_t         *prev_tens = proj_tens_strain; /* reuse alloc */
+
+          /* retrieve velocity of step */
+          rhea_velocity_pressure_copy_components (
+              step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
+          RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
+
+          /* compute previous solution velocity (before step) */
+          ymir_vec_copy (sol_vel, prev_vel);
+          ymir_vec_scale (step_length, step_vel);
+          ymir_vec_add (-1.0, step_vel, prev_vel);
+          RHEA_ASSERT (rhea_velocity_is_valid (prev_vel));
+
+          /* compute norml. strain rate tensor at previous solution velocity */
+          ymir_stress_op_optimized_compute_strain_rate (
+              prev_tens, prev_vel, stress_op);
+          RHEA_ASSERT (rhea_stress_is_valid (prev_tens));
+
+          /* compute norml. strain rate tensor of step velocity
+           * (velocity is scaled with step length) */
+          ymir_stress_op_optimized_compute_strain_rate (
+              proj_tens_stress, step_vel, stress_op);
+          RHEA_ASSERT (rhea_stress_is_valid (proj_tens_stress));
+
+          /* combine to get the updated stress tensor */
+          ymir_vec_add (1.0, prev_tens, proj_tens_stress);
+          RHEA_ASSERT (rhea_stress_is_valid (proj_tens_stress));
+
+          /* destroy */
+          rhea_velocity_destroy (step_vel);
+          rhea_velocity_destroy (prev_vel);
+        }
+        else { /* if step is not provided */
+          /* compute strain rate tensor at current solution velocity */
+          ymir_stress_op_optimized_compute_strain_rate (
+              proj_tens_stress, sol_vel, stress_op);
+          RHEA_ASSERT (rhea_stress_is_valid (proj_tens_stress));
+        }
+
+        /* calculate how well the primal-dual Newton is aligned with regular
+         * Newton */
+        {
+          double              alignment;
+
+          ymir_stress_op_optimized_compute_strain_rate (
+              proj_tens_strain, sol_vel, stress_op);
+          ymir_mass_apply_gauss (proj_tens_strain);
+          alignment = ymir_vec_innerprod (proj_tens_stress, proj_tens_strain);
+
+          RHEA_GLOBAL_INFOF (
+              "%s: Alignment <primal-dual tensor, regular tensor> = %.2e\n",
+              this_fn_name, alignment);
+        }
+
+        /*
+         * Primal-Dual Projection Tensors
+         */
+
+        /* normalize tensors */
+        ymir_stress_op_tensor_normalize (proj_tens_stress);
+
+        /* compute and normalize strain rate tensor */
+        ymir_stress_op_optimized_compute_strain_rate (
+            proj_tens_strain, sol_vel, stress_op);
+        ymir_stress_op_tensor_normalize (proj_tens_strain);
+#endif //###DEV###
       }
       else { /* if solution is not provided */
         ymir_vec_set_zero (proj_tens_stress);
