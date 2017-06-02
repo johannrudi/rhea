@@ -20,7 +20,8 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 {
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *temperature, *weakzone;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
+  ymir_vec_t         *rhs_vel;
+//ymir_vec_t         *rhs_vel_nonzero_dirichlet;
   ymir_vec_t         *background_temp, *viscosity, *bounds_marker;
 
   /* exit if nothing to do */
@@ -35,8 +36,8 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
   weakzone = rhea_stokes_problem_get_weakzone (stokes_problem);
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
-  rhs_vel_nonzero_dirichlet =
-    rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
+//rhs_vel_nonzero_dirichlet =
+//  rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
 
   /* compute background temperature */
   background_temp = rhea_temperature_new (ymir_mesh);
