@@ -3,6 +3,8 @@
 
 #include <rhea_stokes_norm.h>
 #include <rhea_base.h>
+#include <rhea_velocity_pressure.h>
+#include <ymir_mass_vec.h>
 
 static void
 rhea_stokes_norm_l2_innerprod (double *innerprod_vel,
@@ -73,9 +75,9 @@ rhea_stokes_norm_L2_dual_innerprod (double *innerprod_vel,
   rhea_velocity_pressure_create_components (&vel_right, &press_right, arg_right,
                                             press_elem);
 
-  /* invert mass matrices */
+  /* invert (lumped) mass matrices */
   if (innerprod_vel != NULL) {
-    ymir_cvec_new (mesh, vel_right->ncfields);
+    vel_right_lump = ymir_cvec_new (mesh, vel_right->ncfields);
     ymir_mass_lump (vel_right_lump);
     ymir_cvec_fabs (vel_right_lump, vel_right_lump);
     ymir_cvec_reciprocal (vel_right_lump);
