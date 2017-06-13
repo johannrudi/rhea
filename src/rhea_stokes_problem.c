@@ -887,20 +887,22 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         ymir_stress_op_optimized_compute_strain_rate (
             proj_tens_strain, sol_vel, stress_op);
 
+        /* normalize tensors */
+        ymir_stress_op_tensor_normalize (proj_tens_model);
+        ymir_stress_op_tensor_normalize (proj_tens_strain);
+
         /* calculate how well the model prediction is aligned with the true
          * strain rate tensor */
         {
           double              alignment;
 
           alignment = ymir_vec_innerprod (proj_tens_model, proj_tens_strain);
+          //TODO compute L2-inner product
+          //TODO normalize by domain volume
           RHEA_GLOBAL_INFOF (
               "%s: Alignment of strain rate tensors <model, true> = %.2e\n",
               this_fn_name, alignment);
         }
-
-        /* normalize tensors */
-        ymir_stress_op_tensor_normalize (proj_tens_model);
-        ymir_stress_op_tensor_normalize (proj_tens_strain);
       }
       else { /* if solution is not provided */
         ymir_vec_set_zero (proj_tens_model);
