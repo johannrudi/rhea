@@ -225,6 +225,7 @@ typedef enum
   SLABS_VEL_DIR_BC_INOUTFLOW_TANH_TWOLAYER,
   SLABS_VEL_DIR_BC_INOUTFLOW_TANH_THREELAYER,
   SLABS_VEL_DIR_BC_INOUTFLOW_DOUBLE_TANH_THREELAYER,
+  SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ISO
 }
 slabs_vel_dir_bc_t;
 
@@ -1588,7 +1589,25 @@ slabs_set_vel_dir_all (
     ymir_topidx_t face, ymir_locidx_t node_id,
     void *data)
 {
-    return YMIR_VEL_DIRICHLET_ALL;
+      return YMIR_VEL_DIRICHLET_ALL;
+}
+
+
+static ymir_dir_code_t
+slabs_set_vel_dir_all_2D (
+    double X, double Y, double Z,
+    double nx, double ny, double nz,
+    ymir_topidx_t face, ymir_locidx_t node_id,
+    void *data)
+{
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE4 ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_BASE  ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_TOP) {
+      return YMIR_VEL_DIRICHLET_ALL;
+  }
+  else
+    return YMIR_VEL_DIRICHLET_NORM;
 }
 
 /* free-slip */
@@ -1785,6 +1804,30 @@ slabs_set_rhs_vel_nonzero_dir_inoutflow_double_tanh_3layer (
   }
 }
 
+static void
+
+slabs_set_rhs_vel_nonzero_dir_sincos_iso (double * vel, double x, double y,
+                                              double z, ymir_locidx_t nodeid,
+                                              void *data)
+{
+  slabs_options_t  *slabs_options = data;
+  const double  z_max = slabs_options->slabs_domain_options->z_max;
+  const double  y_max = slabs_options->slabs_domain_options->y_max;
+  const double  x_max = slabs_options->slabs_domain_options->x_max;
+
+  if (y < SC_1000_EPS || (y_max - y) < SC_1000_EPS ||
+      z < SC_1000_EPS || (z_max - z) < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[1] = + sin (M_PI * y) * cos (M_PI * z);
+    vel[2] = - cos (M_PI * y) * sin (M_PI * z);
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
 void
 slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
                                       slabs_options_t * slabs_options)
@@ -1816,6 +1859,16 @@ slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
                               slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh_3layer,
                               slabs_options);
       break;
+
+    case SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ISO:
+      rhea_domain_set_user_velocity_dirichlet_bc (
+          slabs_set_vel_dir_all_2D, NULL /* no data necessary */,
+          0 /* TODO don't need this flag */);
+      ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
+                              slabs_set_rhs_vel_nonzero_dir_sincos_iso,
+                              slabs_options);
+      break;
+
 
    default: /* BC not set */
       RHEA_ABORT_NOT_REACHED ();
@@ -1957,14 +2010,14 @@ slabs_test_manufactured_velbc_compute (ymir_vec_t * rhs_vel_nonzero_dirichlet,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
   switch (test_type) {
     case SLABS_TEST_MANUFACTURED_SINCOS_ISO:
-      rhea_domain_set_user_velocity_dirichlet_bc (slabs_set_vel_dir_all, NULL, 0);
+      rhea_domain_set_user_velocity_dirichlet_bc (slabs_set_vel_dir_all_2D, NULL, 0);
       ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
                               slabs_test_manufactured_set_velbc_sincos_iso,
                               slabs_options);
       break;
 
     case SLABS_TEST_MANUFACTURED_SINCOS_ANISO:
-      rhea_domain_set_user_velocity_dirichlet_bc (slabs_set_vel_dir_all, NULL, 0);
+      rhea_domain_set_user_velocity_dirichlet_bc (slabs_set_vel_dir_all_2D, NULL, 0);
       ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
                               slabs_test_manufactured_set_velbc_sincos_aniso,
                               slabs_options);
