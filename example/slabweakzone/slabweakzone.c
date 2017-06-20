@@ -1589,7 +1589,16 @@ slabs_set_vel_dir_all (
     ymir_topidx_t face, ymir_locidx_t node_id,
     void *data)
 {
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE4 ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_BASE  ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_TOP   ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE1 ||
+      face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE2 ) {
       return YMIR_VEL_DIRICHLET_ALL;
+  }
+  else
+      return YMIR_VEL_DIRICHLET_NORM;
 }
 
 
@@ -1816,7 +1825,8 @@ slabs_set_rhs_vel_nonzero_dir_sincos_iso (double * vel, double x, double y,
   const double  x_max = slabs_options->slabs_domain_options->x_max;
 
   if (y < SC_1000_EPS || (y_max - y) < SC_1000_EPS ||
-      z < SC_1000_EPS || (z_max - z) < SC_1000_EPS) {
+      z < SC_1000_EPS || (z_max - z) < SC_1000_EPS ||
+      x < SC_1000_EPS || (x_max - x) < SC_1000_EPS) {
     vel[0] = 0.0;
     vel[1] = + sin (M_PI * y) * cos (M_PI * z);
     vel[2] = - cos (M_PI * y) * sin (M_PI * z);
@@ -1862,7 +1872,7 @@ slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
 
     case SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ISO:
       rhea_domain_set_user_velocity_dirichlet_bc (
-          slabs_set_vel_dir_all_2D, NULL /* no data necessary */,
+          slabs_set_vel_dir_all, NULL /* no data necessary */,
           0 /* TODO don't need this flag */);
       ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
                               slabs_set_rhs_vel_nonzero_dir_sincos_iso,
