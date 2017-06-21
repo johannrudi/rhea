@@ -225,7 +225,9 @@ typedef enum
   SLABS_VEL_DIR_BC_INOUTFLOW_TANH_TWOLAYER,
   SLABS_VEL_DIR_BC_INOUTFLOW_TANH_THREELAYER,
   SLABS_VEL_DIR_BC_INOUTFLOW_DOUBLE_TANH_THREELAYER,
-  SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ISO
+  SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ISO,
+  SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ANISO,
+  SLABS_VEL_DIR_BC_MANUFACTURED_POLY_ANISO
 }
 slabs_vel_dir_bc_t;
 
@@ -276,7 +278,8 @@ typedef enum
 {
   SLABS_TEST_MANUFACTURED_NONE = 0,
   SLABS_TEST_MANUFACTURED_SINCOS_ISO,
-  SLABS_TEST_MANUFACTURED_SINCOS_ANISO
+  SLABS_TEST_MANUFACTURED_SINCOS_ANISO,
+  SLABS_TEST_MANUFACTURED_POLY_ANISO
 }
 slabs_test_manufactured_t;
 
@@ -1257,8 +1260,7 @@ slabs_viscosity_compute (ymir_vec_t *viscosity,
     weak_el_data = rhea_viscosity_get_elem_gauss (weak_el_mat, weakzone, elid);
     /* compute user defined weak zone viscosity*/
     slabs_viscosity_elem (visc_el_data, x, y, z, weak_el_data, n_nodes_per_el,
-                            slabs_options);
-
+                          slabs_options);
     /* set viscosity of this element */
     rhea_viscosity_set_elem_gauss (viscosity, visc_el_mat, elid);
   }
@@ -1537,6 +1539,47 @@ slabs_TI_viscosity_compute ( ymir_mesh_t *ymir_mesh,  ymir_vec_t *TI_svisc,
 
 /* setup the TI shear viscosity and tensor in stress operator */
 void
+slabs_stokes_problem_setup_TI_manufactured (ymir_mesh_t *ymir_mesh,
+                               rhea_stokes_problem_t *stokes_problem,
+                               slabs_options_t *slabs_options,
+                               ymir_vec_t *coeff_TI_svisc,
+                               ymir_vec_t *TI_rotate)
+{
+  const char         *this_fn_name = "slabs_stokes_problem_setup_TI_manufactured";
+  ymir_stokes_op_t   *stokes_op;
+  ymir_stress_op_t   *stress_op;
+  ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
+  ymir_vec_t         *TI_weakzone = rhea_viscosity_new (ymir_mesh);
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  /* copy viscosity */
+  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+
+  /* compute the shear viscosity and rotation angles */
+  ymir_vec_set_value (TI_weakzone, 0.2);
+  slabs_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, TI_weakzone, slabs_options);
+
+  ymir_vec_scale (2.0, coeff_TI_svisc);
+
+  ymir_vec_set_value (TI_rotate, 0.5 * M_PI);
+
+  /* get the viscous stress operator */
+  stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
+  stress_op = stokes_op->stress_op;
+
+ /* update viscous stress operator providing the anisotropic viscosity */
+  ymir_stress_op_coeff_compute_TI_tensor (stress_op, coeff_TI_svisc,
+                                          TI_rotate);
+  /* destroy */
+  rhea_viscosity_destroy (viscosity);
+  rhea_viscosity_destroy (TI_weakzone);
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
+
+/* setup the TI shear viscosity and tensor in stress operator */
+void
 slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
                                rhea_stokes_problem_t *stokes_problem,
                                slabs_options_t *slabs_options,
@@ -1576,6 +1619,7 @@ slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
+
 
 /**************************************************************
  * Non-zero Dirichlet boundary conditions
@@ -1814,7 +1858,6 @@ slabs_set_rhs_vel_nonzero_dir_inoutflow_double_tanh_3layer (
 }
 
 static void
-
 slabs_set_rhs_vel_nonzero_dir_sincos_iso (double * vel, double x, double y,
                                               double z, ymir_locidx_t nodeid,
                                               void *data)
@@ -1837,6 +1880,55 @@ slabs_set_rhs_vel_nonzero_dir_sincos_iso (double * vel, double x, double y,
     vel[2] = 0.0;
   }
 }
+
+static void
+slabs_set_rhs_vel_nonzero_dir_sincos_aniso (double * vel, double x, double y,
+                                              double z, ymir_locidx_t nodeid,
+                                              void *data)
+{
+  slabs_options_t  *slabs_options = data;
+  const double  z_max = slabs_options->slabs_domain_options->z_max;
+  const double  y_max = slabs_options->slabs_domain_options->y_max;
+  const double  x_max = slabs_options->slabs_domain_options->x_max;
+
+  if (y < SC_1000_EPS || (y_max - y) < SC_1000_EPS ||
+      z < SC_1000_EPS || (z_max - z) < SC_1000_EPS ||
+      x < SC_1000_EPS || (x_max - x) < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[1] =  sin (M_PI * y) * cos (M_PI * z);
+    vel[2] =  cos (M_PI * y) * sin (M_PI * z);
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
+static void
+slabs_set_rhs_vel_nonzero_dir_poly_aniso (double * vel, double x, double y,
+                                              double z, ymir_locidx_t nodeid,
+                                              void *data)
+{
+  slabs_options_t  *slabs_options = data;
+  const double  z_max = slabs_options->slabs_domain_options->z_max;
+  const double  y_max = slabs_options->slabs_domain_options->y_max;
+  const double  x_max = slabs_options->slabs_domain_options->x_max;
+
+  if (y < SC_1000_EPS || (y_max - y) < SC_1000_EPS ||
+      z < SC_1000_EPS || (z_max - z) < SC_1000_EPS ||
+      x < SC_1000_EPS || (x_max - x) < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[1] =  y + y*y - 2.0*y*z + y*y*y - 3.0*y*z*z + y*y*z;
+    vel[2] = -z - 2*y*z + z*z - 3.0*y*y*z + z*z*z - y*z*z;
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
 
 void
 slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
@@ -1876,6 +1968,24 @@ slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
           0 /* TODO don't need this flag */);
       ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
                               slabs_set_rhs_vel_nonzero_dir_sincos_iso,
+                              slabs_options);
+      break;
+
+    case SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ANISO:
+      rhea_domain_set_user_velocity_dirichlet_bc (
+          slabs_set_vel_dir_all, NULL /* no data necessary */,
+          0 /* TODO don't need this flag */);
+      ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
+                              slabs_set_rhs_vel_nonzero_dir_sincos_aniso,
+                              slabs_options);
+      break;
+
+    case SLABS_VEL_DIR_BC_MANUFACTURED_POLY_ANISO:
+      rhea_domain_set_user_velocity_dirichlet_bc (
+          slabs_set_vel_dir_all, NULL /* no data necessary */,
+          0 /* TODO don't need this flag */);
+      ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
+                              slabs_set_rhs_vel_nonzero_dir_poly_aniso,
                               slabs_options);
       break;
 
@@ -1954,6 +2064,26 @@ slabs_test_sincos_aniso_vel_out_fn (double * vel, double x, double y,
 }
 
 static void
+slabs_test_poly_aniso_vel_in_fn (double * vel, double x, double y,
+                                        double z, ymir_locidx_t nodeid,
+                                        void *data)
+{
+  vel[0] = 0.0;
+  vel[1] =  y + y*y - 2.0*y*z + y*y*y - 3.0*y*z*z + y*y*z;
+  vel[2] = -z - 2*y*z + z*z - 3.0*y*y*z + z*z*z - y*z*z;
+}
+
+static void
+slabs_test_poly_aniso_vel_out_fn (double * vel, double x, double y,
+                                  double z, ymir_locidx_t nodeid,
+                                  void *data)
+{
+  vel[0] = 0.0;
+  vel[1] = - (18.0 + 48.0 * y + 18.0 * z);
+  vel[2] = - (18.0 - 18.0 * y + 48.0 * z);
+}
+
+static void
 slabs_test_manufactured_set_velbc_sincos_aniso (double * vel, double x, double y,
                                               double z, ymir_locidx_t nodeid,
                                               void *data)
@@ -1961,9 +2091,11 @@ slabs_test_manufactured_set_velbc_sincos_aniso (double * vel, double x, double y
   slabs_options_t  *slabs_options = data;
   const double   z_max = slabs_options->slabs_domain_options->z_max;
   const double   y_max = slabs_options->slabs_domain_options->y_max;
+  const double   x_max = slabs_options->slabs_domain_options->x_max;
 
   if (y < SC_1000_EPS || y_max - y < SC_1000_EPS ||
-      z < SC_1000_EPS || z_max - z < SC_1000_EPS)  {
+      z < SC_1000_EPS || z_max - z < SC_1000_EPS) {
+//      x < SC_1000_EPS || x_max - x < SC_1000_EPS)  {
     vel[0] = 0.0;
     vel[1] = sin (M_PI * y) * cos (M_PI * z);
     vel[2] = cos (M_PI * y) * sin (M_PI * z);
@@ -2000,7 +2132,12 @@ slabs_test_manufactured_rhs_compute (ymir_vec_t *rhs_vel,
       /* compute reference velocity field (output) */
       ymir_cvec_set_function (rhs_vel, slabs_test_sincos_aniso_vel_out_fn,
                               NULL);
+      break;
 
+    case SLABS_TEST_MANUFACTURED_POLY_ANISO:
+      /* compute reference velocity field (output) */
+      ymir_cvec_set_function (rhs_vel, slabs_test_poly_aniso_vel_out_fn,
+                              NULL);
       break;
 
     default:
@@ -3539,7 +3676,9 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
       == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
     coeff_TI_svisc = rhea_viscosity_new (ymir_mesh);
     TI_rotate = rhea_viscosity_new (ymir_mesh);
-    slabs_stokes_problem_setup_TI (ymir_mesh, *stokes_problem, slabs_options,
+//    slabs_stokes_problem_setup_TI (ymir_mesh, *stokes_problem, slabs_options,
+//                                   coeff_TI_svisc, TI_rotate);
+    slabs_stokes_problem_setup_TI_manufactured (ymir_mesh, *stokes_problem, slabs_options,
                                    coeff_TI_svisc, TI_rotate);
   }
 
@@ -4106,7 +4245,14 @@ main (int argc, char **argv)
 
         break;
 
-      default:
+      case SLABS_TEST_MANUFACTURED_POLY_ANISO:
+        /* compute reference velocity field (output) */
+        ymir_cvec_set_function (vel_ref, slabs_test_poly_aniso_vel_in_fn,
+                                NULL);
+
+        break;
+
+     default:
         RHEA_ABORT_NOT_REACHED ();
     }
 
