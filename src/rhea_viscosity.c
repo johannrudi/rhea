@@ -1669,8 +1669,13 @@ rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
   /* check environment */
   RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
 
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (yielding_marker));
+  RHEA_ASSERT (yielding_marker->ndfields == 1);
+  RHEA_ASSERT (yielding_marker->node_type == YMIR_GAUSS_NODE);
+
   /* filter vector depending on node type */
-  if (ymir_vec_is_cvec (vec)) {
+  if (ymir_vec_has_cvec (vec)) {
     ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (yielding_marker);
     ymir_vec_t         *yielding_marker_cvec = ymir_cvec_new (ymir_mesh, 1);
 
@@ -1679,10 +1684,10 @@ rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
     ymir_cvec_set_function (yielding_marker_cvec,
                             rhea_viscosity_filter_where_yielding_correction_fn,
                             NULL);
-    ymir_vec_multiply_in1 (yielding_marker_cvec, vec);
+    ymir_cvec_multiply_in1 (yielding_marker_cvec, vec);
     ymir_vec_destroy (yielding_marker_cvec);
   }
-  else if (ymir_vec_is_dvec (vec) && vec->node_type == YMIR_GLL_NODE) {
+  else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GLL_NODE) {
     ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (yielding_marker);
     ymir_vec_t         *yielding_marker_gll = ymir_dvec_new (ymir_mesh, 1,
                                                              YMIR_GLL_NODE);
@@ -1692,10 +1697,10 @@ rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
     ymir_dvec_set_function (yielding_marker_gll,
                             rhea_viscosity_filter_where_yielding_correction_fn,
                             NULL);
-    ymir_vec_multiply_in1 (yielding_marker_gll, vec);
+    ymir_dvec_multiply_in1 (yielding_marker_gll, vec);
     ymir_vec_destroy (yielding_marker_gll);
   }
-  else if (ymir_vec_is_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
+  else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
     /* apply filter to discontinuous Gauss vector */
     ymir_dvec_multiply_in1 (yielding_marker, vec);
   }
@@ -1838,7 +1843,7 @@ rhea_viscosity_proj_scal_get_elem_gauss (sc_dmatrix_t *proj_scal_el_mat,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (proj_scal_vec);
+  RHEA_ASSERT (ymir_vec_is_dvec (proj_scal_vec));
   RHEA_ASSERT (proj_scal_vec->node_type == YMIR_GAUSS_NODE);
   RHEA_ASSERT (proj_scal_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (proj_scal_el_mat->n == 1);
@@ -1859,7 +1864,7 @@ rhea_viscosity_proj_scal_set_elem_gauss (ymir_vec_t *proj_scal_vec,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (proj_scal_vec);
+  RHEA_ASSERT (ymir_vec_is_dvec (proj_scal_vec));
   RHEA_ASSERT (proj_scal_vec->node_type == YMIR_GAUSS_NODE);
   RHEA_ASSERT (proj_scal_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (proj_scal_el_mat->n == 1);
@@ -1879,7 +1884,7 @@ rhea_viscosity_marker_get_elem_gauss (sc_dmatrix_t *marker_el_mat,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (marker_vec);
+  RHEA_ASSERT (ymir_vec_is_dvec (marker_vec));
   RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
   RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (marker_el_mat->n == 1);
@@ -1900,7 +1905,7 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
 
   /* check input */
-  YMIR_ASSERT_IS_DVEC (marker_vec);
+  RHEA_ASSERT (ymir_vec_is_dvec (marker_vec));
   RHEA_ASSERT (marker_vec->node_type == YMIR_GAUSS_NODE);
   RHEA_ASSERT (marker_el_mat->m == n_nodes_per_el);
   RHEA_ASSERT (marker_el_mat->n == 1);
