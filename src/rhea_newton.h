@@ -117,7 +117,8 @@ typedef void      (*rhea_newton_update_hessian_fn_t) (
                                             void *data);
 
 /**
- * Updates the right-hand side for the Hessian system from the negative gradient.
+ * Updates the right-hand side for the Hessian system from the negative
+ * gradient.
  *
  * \param [in/out] neg_gradient Negative gradient vector (serves as RHS)
  * \param [in] solution         Current solution vector (may be NULL)
