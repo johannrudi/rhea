@@ -155,8 +155,8 @@ rhea_stokes_norm_innerprod (double *innerprod_vel,
                             ymir_Hminus1_norm_op_t *norm_op,
                             ymir_pressure_elem_t *press_elem)
 {
-  YMIR_ASSERT (innerprod_vel != NULL);
-  YMIR_ASSERT (innerprod_press != NULL);
+  RHEA_ASSERT (innerprod_vel != NULL);
+  RHEA_ASSERT (innerprod_press != NULL);
 
   switch (norm_type) {
   case RHEA_STOKES_NORM_L2_VEC_SP:
