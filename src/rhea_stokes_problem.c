@@ -14,7 +14,6 @@
 #include <ymir_mass_vec.h>
 #include <ymir_stress_op_optimized.h>
 #include <ymir_stokes_pc.h>
-#include <ymir_interp_vec.h>
 #ifdef RHEA_ENABLE_DEBUG
 # include <ymir_comm.h>
 #endif
@@ -895,14 +894,28 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         /* calculate how well the model prediction is aligned with the true
          * strain rate tensor */
         {
-          double              alignment;
+          ymir_vec_t         *alignment_ptw, *alignment_ptw_mass;
+          double              avg, mean, min, max;
 
-          alignment = ymir_vec_innerprod (proj_tens_model, proj_tens_strain);
-          //TODO compute L2-inner product
-          //TODO normalize by domain volume
+          alignment_ptw = rhea_viscosity_new (ymir_mesh);
+          ymir_dvec_innerprod_pointwise (alignment_ptw, proj_tens_model,
+                                         proj_tens_strain);
+          ymir_dvec_fabs (alignment_ptw, alignment_ptw);
+
+          alignment_ptw_mass = rhea_viscosity_new (ymir_mesh);
+          ymir_mass_apply (alignment_ptw, alignment_ptw_mass);
+          avg = ymir_dvec_innerprod (alignment_ptw_mass, alignment_ptw);
+          rhea_viscosity_destroy (alignment_ptw_mass);
+
+          mean = avg / stokes_problem_nl->domain_options->volume;
+          min = ymir_dvec_min_global (alignment_ptw);
+          max = ymir_dvec_max_global (alignment_ptw);
+          rhea_viscosity_destroy (alignment_ptw);
+
           RHEA_GLOBAL_INFOF (
-              "%s: Alignment of strain rate tensors <model, true> = %.2e\n",
-              this_fn_name, alignment);
+              "%s: Alignment of strain rate tensors |<model(x),true(x)>_F|, "
+              "mean %.2e, min %.2e, max %.2e, max/min %.2e\n",
+              this_fn_name, mean, min, max, max/min);
         }
       }
       else { /* if solution is not provided */
@@ -1404,21 +1417,9 @@ rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (out));
 }
 
-static void
-rhea_stokes_problem_nonlinear_correct_filter_fn (double *filter, double x,
-                                                 double y, double z,
-                                                 ymir_locidx_t nodeid, void *data)
-{
-  if ((1.0 - SC_1000_EPS) < round (*filter)) {
-    *filter = 1.0;
-  }
-  else {
-    *filter = 0.0;
-  }
-}
-
 /**
- * Updates the right-hand side for the Hessian system from the negative gradient.
+ * Updates the right-hand side for the Hessian system from the negative
+ * gradient.
  * (Callback function for Newton's method)
  */
 static void
@@ -1452,24 +1453,16 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
     {
-      ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (solution);
-      ymir_vec_t         *yielding_filter = ymir_cvec_new (ymir_mesh, 1);
+      ymir_vec_t         *yielding_marker = stokes_problem_nl->yielding_marker;
       ymir_vec_t         *nsp = ymir_vec_clone (solution);
       ymir_vec_t         *nsp_mass = ymir_vec_template (neg_gradient);
       double              ip, norm;
 
       RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
 
-      /* define filter for yielding;
-       * assume: yielding marker = 1 whenever there is yielding */
-      ymir_interp_vec (stokes_problem_nl->yielding_marker, yielding_filter);
-      ymir_cvec_set_function (yielding_filter,
-                              rhea_stokes_problem_nonlinear_correct_filter_fn,
-                              NULL);
-
       /* set null space vector from current solution filtered at yielding
        * nodes */
-      ymir_vec_multiply_in1 (yielding_filter, nsp);
+      rhea_viscosity_filter_where_yielding (nsp, yielding_marker);
       ymir_mass_apply (nsp, nsp_mass);
 
       /* project out null space from right-hand side (= negative gradient) */
@@ -1479,18 +1472,18 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
       /* print how large the null space component was */
       norm = sqrt (ymir_vec_innerprod (nsp_mass, nsp));
       RHEA_GLOBAL_INFOF (
-          "%s: Remove null space from RHS, (-grad, nsp)_L2 = %.2e\n",
+          "%s: Remove Hessian null space from RHS, (-grad,nsp)_L2 = %.2e\n",
           this_fn_name, ip/norm);
 
       /* destroy */
-      ymir_vec_destroy (yielding_filter);
       ymir_vec_destroy (nsp);
       ymir_vec_destroy (nsp_mass);
     }
     break;
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
-//case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
+    break;
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV2:
   default: /* unknown linearization type */
     RHEA_ABORT_NOT_REACHED ();

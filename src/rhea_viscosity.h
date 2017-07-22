@@ -261,6 +261,14 @@ double              rhea_viscosity_get_yield_strength (
                                                 rhea_viscosity_options_t *opt);
 
 /**
+ * Filters a vector where yielding occurs, and otherwise sets the values at
+ * nodes without yielding to zero.
+ */
+void                rhea_viscosity_filter_where_yielding (
+                                                  ymir_vec_t *vec,
+                                                  ymir_vec_t *yielding_marker);
+
+/**
  * Returns whether regularization of the nonlinear viscosity is enabled.
  */
 int                 rhea_viscosity_has_nonlinear_regularization (

@@ -9,6 +9,7 @@
 #include <rhea_strainrate.h>
 #include <ymir_vec_getset.h>
 #include <ymir_mass_vec.h>
+#include <ymir_interp_vec.h>
 #include <ymir_stress_op.h>
 
 /* definition of viscosity bounds and yielding markers */
@@ -1578,6 +1579,10 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
   }
 }
 
+/******************************************************************************
+ * Get & Set
+ *****************************************************************************/
+
 int
 rhea_viscosity_restrict_min (rhea_viscosity_options_t *opt)
 {
@@ -1640,6 +1645,62 @@ rhea_viscosity_get_yield_strength (rhea_viscosity_options_t *opt)
   }
   else {
     return NAN;
+  }
+}
+
+static void
+rhea_viscosity_filter_where_yielding_correction_fn (double *filter, double x,
+                                                    double y, double z,
+                                                    ymir_locidx_t nodeid,
+                                                    void *data)
+{
+  if ((1.0 - SC_1000_EPS) < round (*filter)) {
+    *filter = 1.0;
+  }
+  else {
+    *filter = 0.0;
+  }
+}
+
+void
+rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
+                                      ymir_vec_t *yielding_marker)
+{
+  /* check environment */
+  RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
+
+  /* filter vector depending on node type */
+  if (ymir_vec_is_cvec (vec)) {
+    ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (yielding_marker);
+    ymir_vec_t         *yielding_marker_cvec = ymir_cvec_new (ymir_mesh, 1);
+
+    /* apply filter to continuous vector */
+    ymir_interp_vec (yielding_marker, yielding_marker_cvec);
+    ymir_cvec_set_function (yielding_marker_cvec,
+                            rhea_viscosity_filter_where_yielding_correction_fn,
+                            NULL);
+    ymir_vec_multiply_in1 (yielding_marker_cvec, vec);
+    ymir_vec_destroy (yielding_marker_cvec);
+  }
+  else if (ymir_vec_is_dvec (vec) && vec->node_type == YMIR_GLL_NODE) {
+    ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (yielding_marker);
+    ymir_vec_t         *yielding_marker_gll = ymir_dvec_new (ymir_mesh, 1,
+                                                             YMIR_GLL_NODE);
+
+    /* apply filter to discontinuous GLL vector */
+    ymir_interp_vec (yielding_marker, yielding_marker_gll);
+    ymir_dvec_set_function (yielding_marker_gll,
+                            rhea_viscosity_filter_where_yielding_correction_fn,
+                            NULL);
+    ymir_vec_multiply_in1 (yielding_marker_gll, vec);
+    ymir_vec_destroy (yielding_marker_gll);
+  }
+  else if (ymir_vec_is_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
+    /* apply filter to discontinuous Gauss vector */
+    ymir_dvec_multiply_in1 (yielding_marker, vec);
+  }
+  else { /* vector is not supported */
+    RHEA_ABORT_NOT_REACHED ();
   }
 }
 
@@ -1729,7 +1790,7 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
 }
 
 /******************************************************************************
- * Get & Set Functions
+ * Get & Set Values of Viscosity
  *****************************************************************************/
 
 double *
@@ -1861,7 +1922,7 @@ static double
 rhea_viscosity_stats_filter_compute_volume (ymir_vec_t *filter)
 {
   ymir_vec_t         *unit = ymir_vec_template (filter);
-  ymir_vec_t         *mass_out = ymir_vec_template (filter);
+  ymir_vec_t         *filter_mass = ymir_vec_template (filter);
   double              vol;
 
   /* check input */
@@ -1871,12 +1932,12 @@ rhea_viscosity_stats_filter_compute_volume (ymir_vec_t *filter)
   ymir_vec_set_value (unit, 1.0);
 
   /* integrate to get volume */
-  ymir_mass_apply (filter, mass_out);
-  vol = ymir_vec_innerprod (unit, mass_out);
+  ymir_mass_apply (filter, filter_mass);
+  vol = ymir_vec_innerprod (filter_mass, unit);
 
   /* destroy */
   ymir_vec_destroy (unit);
-  ymir_vec_destroy (mass_out);
+  ymir_vec_destroy (filter_mass);
 
   /* return volume of filter */
   return vol;
