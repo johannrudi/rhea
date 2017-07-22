@@ -117,6 +117,18 @@ typedef void      (*rhea_newton_update_hessian_fn_t) (
                                             void *data);
 
 /**
+ * Updates the right-hand side for the Hessian system from the negative gradient.
+ *
+ * \param [in/out] neg_gradient Negative gradient vector (serves as RHS)
+ * \param [in] solution         Current solution vector (may be NULL)
+ * \param [in] data             User data
+ */
+typedef void      (*rhea_newton_update_hessian_rhs_fn_t) (
+                                            ymir_vec_t *neg_gradient,
+                                            ymir_vec_t *solution,
+                                            void *data);
+
+/**
  * Writes or prints output at the beginning of a Newton step.
  *
  * \param [in] solution Solution vector
@@ -247,6 +259,7 @@ void                rhea_newton_problem_set_apply_hessian_fn (
 void                rhea_newton_problem_set_update_fn (
               rhea_newton_update_operator_fn_t update_operator,
               rhea_newton_update_hessian_fn_t update_hessian,
+              rhea_newton_update_hessian_rhs_fn_t update_hessian_rhs,
               rhea_newton_problem_t *nl_problem);
 
 /**
@@ -299,14 +312,19 @@ void               *rhea_newton_problem_get_data (
 
 int                 rhea_newton_problem_evaluate_objective_exists (
                                             rhea_newton_problem_t *nl_problem);
-
 double              rhea_newton_problem_evaluate_objective (
                                             ymir_vec_t *solution,
                                             rhea_newton_problem_t *nl_problem);
 
+int                 rhea_newton_problem_compute_gradient_norm_exists (
+                                            rhea_newton_problem_t *nl_problem);
+double              rhea_newton_problem_compute_gradient_norm (
+                                            ymir_vec_t *neg_gradient,
+                                            rhea_newton_problem_t *nl_problem,
+                                            double * grad_norm_comp);
+
 int                 rhea_newton_problem_compute_neg_gradient_exists (
                                             rhea_newton_problem_t *nl_problem);
-
 void                rhea_newton_problem_compute_neg_gradient (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution,
@@ -314,25 +332,29 @@ void                rhea_newton_problem_compute_neg_gradient (
 
 int                 rhea_newton_problem_apply_hessian_exists (
                                             rhea_newton_problem_t *nl_problem);
-
 void                rhea_newton_problem_apply_hessian (
                                             ymir_vec_t *out, ymir_vec_t *in,
                                             rhea_newton_problem_t *nl_problem);
 
 int                 rhea_newton_problem_update_operator_exists (
                                             rhea_newton_problem_t *nl_problem);
-
 void                rhea_newton_problem_update_operator (
                                             ymir_vec_t *solution,
                                             rhea_newton_problem_t *nl_problem);
 
 int                 rhea_newton_problem_update_hessian_exists (
                                             rhea_newton_problem_t *nl_problem);
-
 void                rhea_newton_problem_update_hessian (
                                             ymir_vec_t *solution,
                                             ymir_vec_t *step_vec,
                                             const double step_length,
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_update_hessian_rhs_exists (
+                                            rhea_newton_problem_t *nl_problem);
+void                rhea_newton_problem_update_hessian_rhs (
+                                            ymir_vec_t *neg_gradient,
+                                            ymir_vec_t *solution,
                                             rhea_newton_problem_t *nl_problem);
 
 #endif /* RHEA_NEWTON_H */
