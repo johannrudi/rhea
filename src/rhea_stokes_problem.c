@@ -1452,6 +1452,7 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
     {
       ymir_vec_t         *yielding_marker = stokes_problem_nl->yielding_marker;
       ymir_vec_t         *nsp = ymir_vec_clone (solution);
@@ -1463,14 +1464,16 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
       /* set null space vector from current solution filtered at yielding
        * nodes */
       rhea_viscosity_filter_where_yielding (nsp, yielding_marker);
+      ymir_evec_set_zero (nsp);
       ymir_mass_apply (nsp, nsp_mass);
+      ymir_evec_set_zero (nsp_mass);
 
       /* project out null space from right-hand side (= negative gradient) */
-      ip = ymir_vec_innerprod (neg_gradient, nsp);
-      ymir_vec_add (-ip, nsp_mass, neg_gradient);
+      ip = ymir_cvec_innerprod (neg_gradient, nsp);
+      ymir_cvec_add (-ip, nsp_mass, neg_gradient);
 
       /* print how large the null space component was */
-      norm = sqrt (ymir_vec_innerprod (nsp_mass, nsp));
+      norm = sqrt (ymir_cvec_innerprod (nsp_mass, nsp));
       RHEA_GLOBAL_INFOF (
           "%s: Remove Hessian null space from RHS, (-grad,nsp)_L2 = %.2e\n",
           this_fn_name, ip/norm);
@@ -1482,8 +1485,6 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
     break;
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
-  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
-    break;
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV2:
   default: /* unknown linearization type */
     RHEA_ABORT_NOT_REACHED ();
