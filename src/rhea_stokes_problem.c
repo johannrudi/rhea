@@ -14,6 +14,7 @@
 #include <ymir_mass_vec.h>
 #include <ymir_stress_op_optimized.h>
 #include <ymir_stokes_pc.h>
+#include <ymir_interp_vec.h>
 #ifdef RHEA_ENABLE_DEBUG
 # include <ymir_comm.h>
 #endif
@@ -470,7 +471,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
 
 /**
  * Updates the nonlinear operator at the current solution vector.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static void
 rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
@@ -522,7 +523,7 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
 
 /**
  * Updates the Hessian operator at the current solution vector.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static void
 rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
@@ -857,7 +858,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
 
           /* compute "strain rate of step velocity" (scaled with step length) */
           visc_invisible = rhea_viscosity_new (ymir_mesh);
-          ymir_vec_set_value (visc_invisible, 1.0); //TODO remove scaling by 2
+          ymir_vec_set_value (visc_invisible, 2.0/2.0); //TODO rem. scaling by 2
           ymir_stress_op_optimized_compute_visc_stress_override_viscosity (
               proj_tens_model, step_vel, stress_op, 1 /* linearized */,
               visc_invisible);
@@ -1085,7 +1086,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
 /**
  * Initializes user data of the nonlinear problem to be able to run the Newton
  * solver.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static void
 rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
@@ -1199,7 +1200,7 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
 
 /**
  * Clears the data of the nonlinear problem after Newton solve.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static void
 rhea_stokes_problem_nonlinear_data_clear (void *data)
@@ -1235,7 +1236,7 @@ rhea_stokes_problem_nonlinear_data_clear (void *data)
 
 /**
  * Computes the negative gradient of the objective functional.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static void
 rhea_stokes_problem_nonlinear_compute_negative_gradient (
@@ -1301,7 +1302,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient (
 
 /**
  * Computes the norm of the gradient.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static double
 rhea_stokes_problem_nonlinear_compute_gradient_norm (ymir_vec_t *neg_gradient,
@@ -1373,7 +1374,7 @@ rhea_stokes_problem_nonlinear_compute_gradient_norm (ymir_vec_t *neg_gradient,
 
 /**
  * Applies Hessian operator.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static void
 rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
@@ -1403,9 +1404,104 @@ rhea_stokes_problem_nonlinear_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (out));
 }
 
+static void
+rhea_stokes_problem_nonlinear_correct_filter_fn (double *filter, double x,
+                                                 double y, double z,
+                                                 ymir_locidx_t nodeid, void *data)
+{
+  if ((1.0 - SC_1000_EPS) < round (*filter)) {
+    *filter = 1.0;
+  }
+  else {
+    *filter = 0.0;
+  }
+}
+
+/**
+ * Updates the right-hand side for the Hessian system from the negative gradient.
+ * (Callback function for Newton's method)
+ */
+static void
+rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
+                                                  ymir_vec_t *solution,
+                                                  void *data)
+{
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_nonlinear_update_hessian_rhs";
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  rhea_stokes_problem_nonlinear_linearization_t linearization_type =
+    stokes_problem_nl->linearization_type;
+
+  /* return if nothing to do */
+  if (solution == NULL) {
+    return;
+  }
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (neg_gradient));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (solution));
+
+  /* project out null space from right-hand side */
+  switch (linearization_type) {
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
+    break;
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
+    {
+      ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (solution);
+      ymir_vec_t         *yielding_filter = ymir_cvec_new (ymir_mesh, 1);
+      ymir_vec_t         *nsp = ymir_vec_clone (solution);
+      ymir_vec_t         *nsp_mass = ymir_vec_template (neg_gradient);
+      double              ip, norm;
+
+      RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
+
+      /* define filter for yielding;
+       * assume: yielding marker = 1 whenever there is yielding */
+      ymir_interp_vec (stokes_problem_nl->yielding_marker, yielding_filter);
+      ymir_cvec_set_function (yielding_filter,
+                              rhea_stokes_problem_nonlinear_correct_filter_fn,
+                              NULL);
+
+      /* set null space vector from current solution filtered at yielding
+       * nodes */
+      ymir_vec_multiply_in1 (yielding_filter, nsp);
+      ymir_mass_apply (nsp, nsp_mass);
+
+      /* project out null space from right-hand side (= negative gradient) */
+      ip = ymir_vec_innerprod (neg_gradient, nsp);
+      ymir_vec_add (-ip, nsp_mass, neg_gradient);
+
+      /* print how large the null space component was */
+      norm = sqrt (ymir_vec_innerprod (nsp_mass, nsp));
+      RHEA_GLOBAL_INFOF (
+          "%s: Remove null space from RHS, (-grad, nsp)_L2 = %.2e\n",
+          this_fn_name, ip/norm);
+
+      /* destroy */
+      ymir_vec_destroy (yielding_filter);
+      ymir_vec_destroy (nsp);
+      ymir_vec_destroy (nsp_mass);
+    }
+    break;
+//case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
+//case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
+//case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
+//case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV2:
+  default: /* unknown linearization type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+}
+
 /**
  * Applies inexact inverse of the Hessian operator.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static int
 rhea_stokes_problem_nonlinear_solve_hessian_system (
@@ -1453,7 +1549,7 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
 
 /**
  * Writes or prints output at the beginning of a Newton step.
- * (Callback function for Newton's method.)
+ * (Callback function for Newton's method)
  */
 static void
 rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
@@ -1614,7 +1710,8 @@ rhea_stokes_problem_nonlinear_new (ymir_vec_t *temperature,
         rhea_stokes_problem_nonlinear_apply_hessian, newton_problem);
     rhea_newton_problem_set_update_fn (
         rhea_stokes_problem_nonlinear_update_operator,
-        rhea_stokes_problem_nonlinear_update_hessian, newton_problem);
+        rhea_stokes_problem_nonlinear_update_hessian,
+        rhea_stokes_problem_nonlinear_update_hessian_rhs, newton_problem);
     rhea_newton_problem_set_output_fn (
         rhea_stokes_problem_nonlinear_output_prestep, newton_problem);
 
