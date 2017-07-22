@@ -616,8 +616,10 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
     rhea_newton_problem_set_apply_hessian_fn (
         newton_polynomial_apply_hessian, *nl_problem);
     rhea_newton_problem_set_update_fn (
-        NULL /* updating nonlinear operator is not necessary */,
-        newton_polynomial_update_hessian, *nl_problem);
+        NULL /* updating linearized operator is not necessary */,
+        newton_polynomial_update_hessian,
+        NULL /* updating RHS of linearized system is not necessary */,
+        *nl_problem);
   }
 #ifdef RHEA_ENABLE_DEBUG
   rhea_newton_problem_set_checks (1 /* grad */, 1 /* Hessian */, *nl_problem);
