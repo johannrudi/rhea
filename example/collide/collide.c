@@ -198,12 +198,16 @@ collide_viscosity_elem (double *_sc_restrict visc_elem,
   double              zL = collide_options->viscosity_loc_lower;
   double              yL = collide_options->viscosity_loc_left;
   double              yR = collide_options->viscosity_loc_right;
-  double              temp=zU*yR-zL*yL;
+//  double              temp=zU*yR-zL*yL;
+  double              temp=zL*yR - zU*yL;
 
   /* compute viscosity in this element */
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
     if (z[nodeid] >= zL && z[nodeid] <= zU)  {
-      if ( fabs( (zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - temp )
+//      if ( fabs( (zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - temp )
+//          <=(zU-zL)*collide_options->viscosity_width )
+//        visc_elem[nodeid] = collide_options->viscosity_factor;
+      if ( fabs(-(zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - temp )
           <=(zU-zL)*collide_options->viscosity_width )
         visc_elem[nodeid] = collide_options->viscosity_factor;
       else
@@ -281,15 +285,20 @@ collide_viscosity_TI_elem (double *_sc_restrict TI_svisc_elem,
   const double        zL = collide_options->viscosity_loc_lower;
   const double        yL = collide_options->viscosity_loc_left;
   const double        yR = collide_options->viscosity_loc_right;
-  const double        tmp = zU*yR - zL*yL;
-  const double        rot = atan2 ((zU-zL), (yR-yL));
+//  const double        tmp = zU*yR - zL*yL;
+//  const double        rot = atan2 ((zU-zL), (yR-yL));
+  double              temp = zL*yR - zU*yL;
+  double              rot = M_PI - atan2 ((zU-zL), (yR-yL));
   int                 nodeid;
 
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
     /* set shear viscosity and rotation angle */
+//    if ( z[nodeid] >= zL && z[nodeid] <= zU &&
+//         fabs( (zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - tmp )
+//         <= (zU-zL)*collide_options->viscosity_width ) {
     if ( z[nodeid] >= zL && z[nodeid] <= zU &&
-         fabs( (zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - tmp )
-         <= (zU-zL)*collide_options->viscosity_width ) {
+         fabs(-(zU-zL)*y[nodeid] + (yR-yL)*z[nodeid] - temp )
+        <=(zU-zL)*collide_options->viscosity_width )  {
       TI_svisc_elem[nodeid] = collide_options->viscosity_TI_shear;
       TI_rotate_elem[nodeid] = rot;
     }
@@ -589,7 +598,7 @@ collide_2inv_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tauII,
                               YMIR_GAUSS_NODE, YMIR_READ);
     ymir_dvec_get_elem_interp (svisc, elemsvisc, YMIR_STRIDE_COMP, elid,
                               YMIR_GAUSS_NODE, YMIR_READ);
-    ymir_dvec_get_elem_interp (TItens, elemTItens, YMIR_STRIDE_COMP, elid,
+    ymir_dvec_get_elem_interp (TItens, elemTItens, YMIR_STRIDE_NODE, elid,
                               YMIR_GAUSS_NODE, YMIR_READ);
 
 
@@ -980,11 +989,23 @@ collide_set_vel_dir_inoutflow (
     ymir_topidx_t face, ymir_locidx_t node_id,
     void *data)
 {
-  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 || face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE4) {
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3) {
     return YMIR_VEL_DIRICHLET_ALL;
   }
-  else if (face == RHEA_DOMAIN_BOUNDARY_FACE_BASE) {
-     return YMIR_VEL_DIRICHLET_NORM;
+  else {
+    return YMIR_VEL_DIRICHLET_NORM;
+  }
+}
+
+static ymir_dir_code_t
+collide_set_vel_dir_inoutflow_double (
+    double X, double Y, double Z,
+    double nx, double ny, double nz,
+    ymir_topidx_t face, ymir_locidx_t node_id,
+    void *data)
+{
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE3 || face == RHEA_DOMAIN_BOUNDARY_FACE_SIDE4) {
+    return YMIR_VEL_DIRICHLET_ALL;
   }
   else {
     return YMIR_VEL_DIRICHLET_NORM;
@@ -1017,6 +1038,38 @@ collide_set_rhs_vel_nonzero_dir_inoutflow_sin (
 /**
  * In-out flow tanh velocity on one side of the domain.
  */
+void
+collide_set_rhs_vel_nonzero_dir_inoutflow_tanh_3layer (double *vel, double x, double y, double z,
+                                              ymir_locidx_t nid, void *data)
+{
+  collide_options_t  *collide_options = data;
+  const double        z_max = 2.0;
+  const double        flow_scale = collide_options->flow_scale;
+  const double        zU = collide_options->velocity_bc_upper;
+  const double        zL = collide_options->velocity_bc_lower;
+  const double        a = zU-zL, b = z_max-a, c = 0.5*(zU+zL);
+  const double        shape = 2.0 * M_PI, scaling = 0.5*(b+a)*flow_scale, shift = 0.5*(b-a)*flow_scale;
+  double txL = shape*(z-zL),txU = shape*(z-zU);
+
+  if (y < SC_1000_EPS) {
+    vel[0] = 0.0;
+    vel[2] = 0.0;
+    if (z<=c)
+      vel[1] = shift + scaling *
+             ( (exp (txL) - exp (-txL)) /
+             (exp (txL) + exp (-txL)) );
+    else
+      vel[1] = shift - scaling *
+             ( (exp (txU) - exp (-txU)) /
+             (exp (txU) + exp (-txU)) );
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
 void
 collide_set_rhs_vel_nonzero_dir_inoutflow_tanh (
     double *vel, double x, double y, double z,
@@ -1107,6 +1160,426 @@ collide_set_rhs_vel_nonzero_dir_double_unipush (
     vel[2] = 0.0;
   }
 }
+
+/* compute traction as well as normal/shear stress at each element*/
+void
+collide_stress_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
+                   sc_dmatrix_t * visc, ymir_velocity_elem_t * vel_elem,
+                   double *_sc_restrict rxd, double *_sc_restrict sxd,
+                   double *_sc_restrict txd, double *_sc_restrict ryd,
+                   double *_sc_restrict syd, double *_sc_restrict tyd,
+                   double *_sc_restrict rzd, double *_sc_restrict szd,
+                   double *_sc_restrict tzd, sc_dmatrix_t * drst, sc_dmatrix_t * brst)
+{
+  const int           N = ymir_n (vel_elem->N);
+  const int           Np = ymir_n (vel_elem->Np);
+  int                 gp, i, j, k, l;
+  double              S[9];
+  double             *_sc_restrict viscd  = visc->e[0];
+
+  sc_dmatrix_t       *tempvec1 = vel_elem->tempvec1;
+  sc_dmatrix_t       *tempvec2 = vel_elem->tempvec2;
+  sc_dmatrix_t       *tempvec3 = vel_elem->tempvec3;
+  sc_dmatrix_t       *temptens = vel_elem->temptens1;
+  ymir_derivative_elem_grad (N, 3, drst->e[0], brst->e[0],
+                             rxd, sxd, txd, ryd, syd, tyd,
+                             rzd, szd, tzd, in, temptens, tempvec1, tempvec2,
+                             tempvec3, 0);
+
+  /* create stress from duvw/dxyz * viscosity */
+  for (gp = 0; gp < Np; gp++) {
+    double               *_sc_restrict temptensd = temptens->e[0] + 9 * gp;
+    double               *_sc_restrict outd  = out->e[0] + 9 * gp;
+
+    S[0] = temptensd[0];
+    S[1] = (temptensd[1] + temptensd[3]) * (1. / 2.);
+    S[2] = (temptensd[2] + temptensd[6]) * (1. / 2.);
+    S[3] = S[1];
+    S[4] = temptensd[4];
+    S[5] = (temptensd[5] + temptensd[7]) * (1. / 2.);
+    S[6] = S[2];
+    S[7] = S[5];
+    S[8] = temptensd[8];
+
+    /* compute linear combination of viscous stress and 3x3 tensor */
+    for (i = 0; i < 9; i++)  {
+      outd[i] = 2.0 * viscd[gp] * S[i];
+    }
+  }
+}
+
+/* compute traction as well as normal and shear stress*/
+void
+collide_stress (ymir_cvec_t * vel, ymir_dvec_t * tau,
+              ymir_dvec_t * visc, ymir_velocity_elem_t * vel_elem)
+{
+  ymir_mesh_t         *mesh = vel->mesh;
+  ymir_locidx_t       elid;
+  const int           N  = ymir_n (mesh->cnodes->N);
+  const int           Np = ymir_np (mesh->cnodes->N);
+  const int           K  = mesh->cnodes->K;
+  sc_dmatrix_t       *elemin = sc_dmatrix_new (1, 3 * Np);
+  sc_dmatrix_t       *elemout = sc_dmatrix_new (1,9 * Np);
+  sc_dmatrix_t       *elemvisc = sc_dmatrix_new (1, Np);
+  const char          *this_fn_name = "collide_stress";
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  ymir_dvec_set_zero (tau);
+
+  for (elid = 0; elid < K; elid++)  {
+    double             *_sc_restrict rxd = mesh->drdx->e[elid];
+    double             *_sc_restrict sxd = mesh->dsdx->e[elid];
+    double             *_sc_restrict txd = mesh->dtdx->e[elid];
+    double             *_sc_restrict ryd = mesh->drdy->e[elid];
+    double             *_sc_restrict syd = mesh->dsdy->e[elid];
+    double             *_sc_restrict tyd = mesh->dtdy->e[elid];
+    double             *_sc_restrict rzd = mesh->drdz->e[elid];
+    double             *_sc_restrict szd = mesh->dsdz->e[elid];
+    double             *_sc_restrict tzd = mesh->dtdz->e[elid];
+    double             *_sc_restrict Jdetd = mesh->Jdet->e[elid];
+
+    ymir_cvec_get_elem_interp (vel, elemin, YMIR_STRIDE_NODE, elid,
+                               YMIR_GLL_NODE, YMIR_COPY);
+    ymir_dvec_get_elem_interp (visc, elemvisc, YMIR_STRIDE_COMP, elid,
+                              YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (tau, elemout, YMIR_STRIDE_NODE, elid,
+                             YMIR_GAUSS_NODE, YMIR_WRITE);
+
+    collide_stress_elem (elemin, elemout,
+                       elemvisc,
+                       vel_elem, rxd, sxd, txd, ryd,
+                       syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
+
+    ymir_dvec_set_elem_interp (tau, elemout, YMIR_STRIDE_NODE, elid,
+                               YMIR_GAUSS_NODE, YMIR_SET);
+
+    ymir_read_view_release (elemvisc);
+  }
+
+  sc_dmatrix_destroy (elemin);
+  sc_dmatrix_destroy (elemout);
+  sc_dmatrix_destroy (elemvisc);
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
+
+/* compute traction as well as normal/shear stress at each element*/
+void
+collide_stress_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
+                   sc_dmatrix_t * visc, sc_dmatrix_t * svisc,
+                   sc_dmatrix_t * TItens, ymir_velocity_elem_t * vel_elem,
+                   double *_sc_restrict rxd, double *_sc_restrict sxd,
+                   double *_sc_restrict txd, double *_sc_restrict ryd,
+                   double *_sc_restrict syd, double *_sc_restrict tyd,
+                   double *_sc_restrict rzd, double *_sc_restrict szd,
+                   double *_sc_restrict tzd, sc_dmatrix_t * drst, sc_dmatrix_t * brst)
+{
+  const int           N = ymir_n (vel_elem->N);
+  const int           Np = ymir_n (vel_elem->Np);
+  int                 gp, i, j, k, l;
+  double              S[9], E[9];
+  double              cs, ct;
+  double             *_sc_restrict viscd  = visc->e[0];
+  double             *_sc_restrict sviscd = svisc->e[0];
+
+  sc_dmatrix_t       *tempvec1 = vel_elem->tempvec1;
+  sc_dmatrix_t       *tempvec2 = vel_elem->tempvec2;
+  sc_dmatrix_t       *tempvec3 = vel_elem->tempvec3;
+  sc_dmatrix_t       *temptens = vel_elem->temptens1;
+  ymir_derivative_elem_grad (N, 3, drst->e[0], brst->e[0],
+                             rxd, sxd, txd, ryd, syd, tyd,
+                             rzd, szd, tzd, in, temptens, tempvec1, tempvec2,
+                             tempvec3, 0);
+
+  /* create stress from duvw/dxyz * viscosity */
+  for (gp = 0; gp < Np; gp++) {
+    double               *_sc_restrict temptensd = temptens->e[0] + 9 * gp;
+    double               *_sc_restrict T   = TItens->e[0] + 9 * gp;
+    double               *_sc_restrict outd   = out->e[0] + 9 * gp;
+
+    S[0] = temptensd[0];
+    S[1] = (temptensd[1] + temptensd[3]) * (1. / 2.);
+    S[2] = (temptensd[2] + temptensd[6]) * (1. / 2.);
+    S[3] = S[1];
+    S[4] = temptensd[4];
+    S[5] = (temptensd[5] + temptensd[7]) * (1. / 2.);
+    S[6] = S[2];
+    S[7] = S[5];
+    S[8] = temptensd[8];
+
+    for (k = 0; k < 9; k++) {
+      E[k] = 0.0;
+    }
+    for (k=0; k<3; k++) {
+      for (l=0; l<3; l++) {
+        E[0] += T[    k] * S[3*k + l] * T[3*l    ];
+        E[1] += T[    k] * S[3*k + l] * T[3*l + 1];
+        E[2] += T[    k] * S[3*k + l] * T[3*l + 2];
+        E[4] += T[3 + k] * S[3*k + l] * T[3*l + 1];
+        E[5] += T[3 + k] * S[3*k + l] * T[3*l + 2];
+        E[8] += T[6 + k] * S[3*k + l] * T[3*l + 2];
+      }
+    }
+    E[3] = E[1];
+    E[6] = E[2];
+    E[7] = E[5];
+
+    cs = viscd[gp] + sviscd[gp];
+    ct = viscd[gp] - sviscd[gp];
+
+    /* compute linear combination of viscous stress and 3x3 tensor */
+    for (i = 0; i < 9; i++)  {
+      outd[i] = cs * S[i] + ct * E[i];
+    }
+  }
+}
+
+/* compute traction as well as normal and shear stress*/
+void
+collide_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tau,
+              ymir_dvec_t * visc, ymir_dvec_t *svisc,
+              ymir_dvec_t * TItens, ymir_velocity_elem_t * vel_elem)
+{
+  ymir_mesh_t         *mesh = vel->mesh;
+  ymir_locidx_t       elid;
+  const int           N  = ymir_n (mesh->cnodes->N);
+  const int           Np = ymir_np (mesh->cnodes->N);
+  const int           K  = mesh->cnodes->K;
+  sc_dmatrix_t       *elemin = sc_dmatrix_new (1, 3 * Np);
+  sc_dmatrix_t       *elemout = sc_dmatrix_new (1,9 * Np);
+  sc_dmatrix_t       *elemvisc = sc_dmatrix_new (1, Np);
+  sc_dmatrix_t       *elemsvisc = sc_dmatrix_new (1, Np);
+  sc_dmatrix_t       *elemTItens = sc_dmatrix_new (1, 9 * Np);
+  const char          *this_fn_name = "collide_stress_TI";
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  ymir_dvec_set_zero (tau);
+
+  for (elid = 0; elid < K; elid++)  {
+    double             *_sc_restrict rxd = mesh->drdx->e[elid];
+    double             *_sc_restrict sxd = mesh->dsdx->e[elid];
+    double             *_sc_restrict txd = mesh->dtdx->e[elid];
+    double             *_sc_restrict ryd = mesh->drdy->e[elid];
+    double             *_sc_restrict syd = mesh->dsdy->e[elid];
+    double             *_sc_restrict tyd = mesh->dtdy->e[elid];
+    double             *_sc_restrict rzd = mesh->drdz->e[elid];
+    double             *_sc_restrict szd = mesh->dsdz->e[elid];
+    double             *_sc_restrict tzd = mesh->dtdz->e[elid];
+    double             *_sc_restrict Jdetd = mesh->Jdet->e[elid];
+
+    ymir_cvec_get_elem_interp (vel, elemin, YMIR_STRIDE_NODE, elid,
+                               YMIR_GLL_NODE, YMIR_COPY);
+    ymir_dvec_get_elem_interp (visc, elemvisc, YMIR_STRIDE_COMP, elid,
+                              YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (svisc, elemsvisc, YMIR_STRIDE_COMP, elid,
+                              YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (TItens, elemTItens, YMIR_STRIDE_NODE, elid,
+                              YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (tau, elemout, YMIR_STRIDE_NODE, elid,
+                             YMIR_GAUSS_NODE, YMIR_WRITE);
+
+    collide_stress_TI_elem (elemin, elemout,
+                       elemvisc, elemsvisc, elemTItens,
+                       vel_elem, rxd, sxd, txd, ryd,
+                       syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
+
+    ymir_dvec_set_elem_interp (tau, elemout, YMIR_STRIDE_NODE, elid,
+                               YMIR_GAUSS_NODE, YMIR_SET);
+
+    ymir_read_view_release (elemvisc);
+    ymir_read_view_release (elemsvisc);
+    ymir_read_view_release (elemTItens);
+  }
+
+  sc_dmatrix_destroy (elemin);
+  sc_dmatrix_destroy (elemout);
+  sc_dmatrix_destroy (elemvisc);
+  sc_dmatrix_destroy (elemsvisc);
+  sc_dmatrix_destroy (elemTItens);
+}
+
+void
+collide_postp_stressvec_coupling_node ( double *shear, double *normal,
+                                      double *tau)
+{
+  double              orth[3], tangent[3], tempvec[3];
+  double              tempt, tt;
+
+  orth[0] = tangent[0] = 0.0;
+
+      tt = 120.0/M_PI;
+      orth[1] = sin(tt);
+      orth[2] = cos(tt);
+      tangent[1] = cos(tt);
+      tangent[2] = -sin(tt);
+
+      tempvec[0] = ( tau[0] * orth[0] + tau[1] * orth[1] + tau[2] * orth[2]);
+      tempvec[1] = ( tau[3] * orth[0] + tau[4] * orth[1] + tau[5] * orth[2]);
+      tempvec[2] = ( tau[6] * orth[0] + tau[7] * orth[1] + tau[8] * orth[2]);
+
+      * shear  = (tempvec[0] * tangent[0] + tempvec[1] * tangent[1] + tempvec[2] * tangent[2]);
+      * normal = (tempvec[0] * orth[0] + tempvec[1] * orth[1] + tempvec[2] * orth[2]);
+}
+
+static void
+collide_postp_stressvec_coupling_compute (ymir_cvec_t *vel, ymir_dvec_t *visc,
+                                       ymir_dvec_t *svisc, ymir_dvec_t *TItens,
+                                       ymir_dvec_t *normal, ymir_dvec_t *shear,
+                                       ymir_velocity_elem_t *vel_elem)
+{
+  ymir_mesh_t         *mesh = ymir_vec_get_mesh (vel);
+  const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  ymir_dvec_t         *tau = ymir_dvec_new (mesh, 9, YMIR_GAUSS_NODE);
+  sc_dmatrix_t        *tau_el_mat, *shear_el_mat, *normal_el_mat;
+  sc_dmatrix_t        *elemtau, *elemout_s, *elemout_n;
+  double              *tau_el_data, *shear_el_data, *normal_el_data;
+  double              *x, *y, *z, *tmp_el;
+  ymir_locidx_t       elid;
+  int                 nodeid;
+
+  const char          *this_fn_name = "collide_postp_stressvec_coupling_compute";
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  collide_stress_TI (vel, tau, visc, svisc, TItens, vel_elem);
+
+ /* create work variables */
+  elemtau = sc_dmatrix_new (1, 9 * n_nodes_per_el);
+  elemout_s = sc_dmatrix_new (1, n_nodes_per_el);
+  elemout_n = sc_dmatrix_new (1, n_nodes_per_el);
+
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    ymir_dvec_get_elem_interp (tau, elemtau, YMIR_STRIDE_NODE, elid,
+                               YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (shear, elemout_s, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_WRITE);
+    ymir_dvec_get_elem_interp (normal, elemout_n, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_WRITE);
+
+      /* compute weak zone factor for each node */
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+      double               *_sc_restrict tau_data = elemtau->e[0] + 9 * nodeid;
+      double               *_sc_restrict shear_data = elemout_s->e[0] + nodeid;
+      double               *_sc_restrict normal_data = elemout_n->e[0] + nodeid;
+      collide_postp_stressvec_coupling_node (shear_data, normal_data, tau_data);
+    }
+
+    /* set traction of this element */
+    ymir_dvec_set_elem_interp (shear, elemout_s, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_SET);
+    ymir_dvec_set_elem_interp (normal, elemout_n, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_SET);
+  }
+
+  /* destroy */
+  sc_dmatrix_destroy (elemtau);
+  sc_dmatrix_destroy (elemout_s);
+  sc_dmatrix_destroy (elemout_n);
+  ymir_vec_destroy (tau);
+}
+
+
+/* Computes the shear and normal traction along 2plates_poly2 weakzone in 2D Cartesian domain*/
+void
+collide_postp_strainvec_coupling_node (double *tracn, double *tracs, double *gradv,
+                                       double *svisc, double *nvisc)
+{
+  double              orth[3], tangent[3], tempvec[3];
+  double              tempt, tt;
+
+  orth[0] = tangent[0] = 0.0;
+
+      tt = 120.0 * M_PI / 180.0;
+      orth[1] = sin(tt);
+      orth[2] = cos(tt);
+      tangent[1] = cos(tt);
+      tangent[2] = -sin(tt);
+
+      tempvec[0] = ( gradv[0] * orth[0] + gradv[1] * orth[1] + gradv[2] * orth[2]);
+      tempvec[1] = ( gradv[1] * orth[0] + gradv[3] * orth[1] + gradv[4] * orth[2]);
+      tempvec[2] = ( gradv[2] * orth[0] + gradv[4] * orth[1] + gradv[5] * orth[2]);
+
+      tracn[0] = 2.0 * nvisc[0] *
+                (tempvec[0] * orth[0] + tempvec[1] * orth[1] + tempvec[2] * orth[2]);
+      tracs[0] = 2.0 * svisc[0] *
+                (tempvec[0] * tangent[0] + tempvec[1] * tangent[1] + tempvec[2] * tangent[2]);
+
+}
+
+static void
+collide_postp_strainvec_coupling_compute (ymir_vec_t *vel, ymir_vec_t *normal, ymir_vec_t *shear,
+                                       ymir_vec_t *svisc, ymir_vec_t *nvisc)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (vel);
+  const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  ymir_dvec_t        *gradvel = ymir_dvec_new (mesh, 6, YMIR_GAUSS_NODE);
+  sc_dmatrix_t       *elemtracn, *elemtracs, *elemgradv, *elemsvisc, *elemnvisc;
+  ymir_locidx_t       elid;
+  int              nodeid;
+
+ const char         *this_fn_name = "collide_postp_strainvec_coupling_compute";
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  ymir_velocity_strain_rate (vel, gradvel, 0);
+
+  /* create work variables */
+  elemtracn = sc_dmatrix_new (1,  n_nodes_per_el);
+  elemtracs = sc_dmatrix_new (1,  n_nodes_per_el);
+  elemgradv = sc_dmatrix_new (1, 6 * n_nodes_per_el);
+  elemsvisc = sc_dmatrix_new (1, n_nodes_per_el);
+  elemnvisc = sc_dmatrix_new (1, n_nodes_per_el);
+
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    ymir_dvec_get_elem_interp (gradvel, elemgradv, YMIR_STRIDE_NODE, elid,
+                               YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (svisc, elemsvisc, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_READ);
+    ymir_dvec_get_elem_interp (nvisc, elemnvisc, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_READ);
+
+    ymir_dvec_get_elem_interp (normal, elemtracn, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_WRITE);
+    ymir_dvec_get_elem_interp (shear, elemtracs, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_WRITE);
+
+      /* compute weak zone factor for each node */
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+      double               *_sc_restrict tracn_data = elemtracn->e[0] + nodeid;
+      double               *_sc_restrict tracs_data = elemtracs->e[0] + nodeid;
+      double               *_sc_restrict gradv_data = elemgradv->e[0] + 6 * nodeid;
+      double               *_sc_restrict svisc_data = elemsvisc->e[0] + nodeid;
+      double               *_sc_restrict nvisc_data = elemnvisc->e[0] + nodeid;
+      collide_postp_strainvec_coupling_node (tracn_data, tracs_data, gradv_data,
+                                             svisc_data, nvisc_data);
+    }
+
+    /* set traction of this element */
+    ymir_dvec_set_elem_interp (normal, elemtracn, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_SET);
+    ymir_dvec_set_elem_interp (shear, elemtracs, YMIR_STRIDE_COMP, elid,
+                               YMIR_GAUSS_NODE, YMIR_SET);
+
+    ymir_read_view_release (elemgradv);
+    ymir_read_view_release (elemsvisc);
+    ymir_read_view_release (elemnvisc);
+  }
+
+  /* destroy */
+  sc_dmatrix_destroy (elemtracn);
+  sc_dmatrix_destroy (elemtracs);
+  sc_dmatrix_destroy (elemgradv);
+  sc_dmatrix_destroy (elemsvisc);
+  sc_dmatrix_destroy (elemnvisc);
+  ymir_vec_destroy (gradvel);
+}
+
 /**
  * Write vtk of input data.
  */
@@ -1228,7 +1701,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
             0 /* TODO don't need this flag */);
         rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
         ymir_cvec_set_function (rhs_vel_nonzero_dirichlet,
-                                collide_set_rhs_vel_nonzero_dir_inoutflow_tanh,
+                                collide_set_rhs_vel_nonzero_dir_inoutflow_tanh_3layer,
                                 collide_options);
         break;
 
@@ -1747,6 +2220,14 @@ main (int argc, char **argv)
     ymir_vec_t            *tauII = ymir_dvec_new (ymir_mesh, 1,
                                                         YMIR_GAUSS_NODE);
 
+    ymir_vec_t            *strain_tracn = ymir_dvec_new (ymir_mesh, 1,
+                                                        YMIR_GAUSS_NODE);
+    ymir_vec_t            *strain_tracs = ymir_dvec_new (ymir_mesh, 1,
+                                                        YMIR_GAUSS_NODE);
+    ymir_vec_t            *normal_force = ymir_dvec_new (ymir_mesh, 1,
+                                                        YMIR_GAUSS_NODE);
+    ymir_vec_t            *shear_force = ymir_dvec_new (ymir_mesh, 1,
+                                                        YMIR_GAUSS_NODE);
     ymir_vec_t            *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
                                                      RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
 
@@ -1778,6 +2259,14 @@ main (int argc, char **argv)
       collide_2inv_stress_TI (velocity, tauII,
                               viscosity, shear_visc, TI_tensor, vel_elem);
 
+      collide_postp_strainvec_coupling_compute (velocity, strain_tracn, strain_tracs,
+                                             shear_visc, viscosity);
+
+      collide_postp_stressvec_coupling_compute (velocity, viscosity,
+                                            shear_visc, TI_tensor,
+                                            normal_force, shear_force,
+                                            vel_elem);
+
       rhea_viscosity_destroy (shear_visc);
       ymir_vec_destroy (TI_tensor);
     }
@@ -1800,6 +2289,10 @@ main (int argc, char **argv)
       ymir_vtk_write (ymir_mesh, path,
                       edotII, "edotII",
                       tauII, "tauII",
+                      strain_tracn, "strain_tracn",
+                      strain_tracs, "strain_tracs",
+                      normal_force, "normal_force",
+                      shear_force, "shear_force",
                       surf_normal_stress, "surf_normal_stress",
                       NULL);
     }
@@ -1809,6 +2302,10 @@ main (int argc, char **argv)
     rhea_velocity_destroy (velocity);
     ymir_vec_destroy (edotII);
     ymir_vec_destroy (tauII);
+    ymir_vec_destroy (strain_tracn);
+    ymir_vec_destroy (strain_tracs);
+    ymir_vec_destroy (normal_force);
+    ymir_vec_destroy (shear_force);
     ymir_vec_destroy (surf_normal_stress);
     ymir_velocity_elem_destroy (vel_elem);
   }
