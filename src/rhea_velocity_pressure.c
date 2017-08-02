@@ -86,3 +86,19 @@ rhea_velocity_pressure_copy_components (ymir_vec_t *vel, ymir_vec_t *press,
     ymir_stokes_vec_get_pressure (vel_press, press, press_elem);
   }
 }
+
+void
+rhea_velocity_pressure_set_components (ymir_vec_t *vel_press,
+                                       ymir_vec_t *vel, ymir_vec_t *press,
+                                       ymir_pressure_elem_t *press_elem)
+{
+  if (vel != NULL && press != NULL) {
+    ymir_stokes_vec_set_components (vel, press, vel_press, press_elem);
+  }
+  else if (vel != NULL) {
+    ymir_stokes_vec_set_velocity (vel, vel_press, press_elem);
+  }
+  else if (press != NULL) {
+    ymir_stokes_vec_set_pressure (press, vel_press, press_elem);
+  }
+}

@@ -50,4 +50,12 @@ void                rhea_velocity_pressure_copy_components (
                                             ymir_vec_t *vel_press,
                                             ymir_pressure_elem_t *press_elem);
 
+/**
+ * Copies velocity and pressure to a combined velocity-pressure vector.
+ */
+void                rhea_velocity_pressure_set_components (
+                                            ymir_vec_t *vel_press,
+                                            ymir_vec_t *vel, ymir_vec_t *press,
+                                            ymir_pressure_elem_t *press_elem);
+
 #endif /* RHEA_VELOCITY_PRESSURE_H */
