@@ -497,6 +497,7 @@ rhea_stokes_problem_nonlinear_update_operator (ymir_vec_t *solution, void *data)
   /* retrieve velocity */
   rhea_velocity_pressure_copy_components (
       sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+  rhea_stokes_problem_velocity_boundary_set_zero (sol_vel, stokes_problem_nl);
 
   /* compute viscosity; transform viscosity to Stokes coefficient */
   rhea_viscosity_compute (
@@ -572,7 +573,7 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
   RHEA_ASSERT (ymir_stress_op_has_linearized (stress_op));
   RHEA_ASSERT (
       fabs (ymir_stress_op_get_coeff_shift_proj (stress_op) -
-            rhea_viscosity_get_visc_shift_proj (visc_options)) < SC_EPS);
+            rhea_viscosity_get_visc_shift_proj (visc_options)) < SC_EPS );
 
   /*
    * Set Linearized Part of the Viscous Stress Coefficient
@@ -602,12 +603,34 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         /* retrieve velocity */
         rhea_velocity_pressure_copy_components (
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+        rhea_stokes_problem_velocity_boundary_set_zero (
+            sol_vel, stokes_problem_nl);
         RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
 
         /* compute and normalize strain rate tensor */
         ymir_stress_op_optimized_compute_strain_rate (
             proj_tens, sol_vel, stress_op);
         ymir_stress_op_tensor_normalize (proj_tens);
+
+
+#if 1   //###DEV###
+        /* set null space vector from current solution filtered at yielding
+         * nodes */
+        {
+          ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
+          ymir_vec_t         *yielding_marker =
+                                stokes_problem_nl->yielding_marker;
+          ymir_vec_t         *nsp_vel, **nsp_vel_arr;
+
+          nsp_vel = rhea_velocity_new (ymir_mesh);
+          ymir_vec_copy (sol_vel, nsp_vel);
+          rhea_viscosity_filter_where_yielding (nsp_vel, yielding_marker);
+          nsp_vel_arr = RHEA_ALLOC (ymir_vec_t *, 1);
+          nsp_vel_arr[0] = nsp_vel;
+          ymir_stress_op_set_nsp_ptw_vectors (nsp_vel_arr, 1 /* count */,
+                                              stress_op);
+        }
+#endif
       }
       else { /* if solution is not provided */
         ymir_vec_set_zero (sol_vel);
@@ -656,6 +679,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         /* retrieve velocity of current solution */
         rhea_velocity_pressure_copy_components (
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+        rhea_stokes_problem_velocity_boundary_set_zero (
+            sol_vel, stokes_problem_nl);
         RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
 
         /* in order to check alignment of primal-dual Newton with regular
@@ -681,6 +706,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
           /* retrieve velocity of step */
           rhea_velocity_pressure_copy_components (
               step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
+          rhea_stokes_problem_velocity_boundary_set_zero (
+              step_vel, stokes_problem_nl);
           RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
 
           /* compute previous solution velocity (before step) */
@@ -824,6 +851,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         /* retrieve velocity of current solution */
         rhea_velocity_pressure_copy_components (
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+        rhea_stokes_problem_velocity_boundary_set_zero (
+            sol_vel, stokes_problem_nl);
         RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
 
         /*
@@ -843,6 +872,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
           /* retrieve velocity of step */
           rhea_velocity_pressure_copy_components (
               step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
+          rhea_stokes_problem_velocity_boundary_set_zero (
+              step_vel, stokes_problem_nl);
           RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
 
           /* compute previous solution velocity (before step) */
@@ -970,6 +1001,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         /* retrieve velocity of current solution */
         rhea_velocity_pressure_copy_components (
             sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+        rhea_stokes_problem_velocity_boundary_set_zero (
+            sol_vel, stokes_problem_nl);
         RHEA_ASSERT (rhea_velocity_is_valid (sol_vel));
 
         /*
@@ -989,6 +1022,8 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
           /* retrieve velocity of step */
           rhea_velocity_pressure_copy_components (
               step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
+          rhea_stokes_problem_velocity_boundary_set_zero (
+              step_vel, stokes_problem_nl);
           RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
 
           /* compute previous solution velocity (before step) */
@@ -1159,6 +1194,8 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
     RHEA_ASSERT (ymir_vec_is_not_dirty (solution));
     rhea_velocity_pressure_copy_components (
         sol_vel, NULL, solution, stokes_problem_nl->press_elem);
+    rhea_stokes_problem_velocity_boundary_set_zero (
+        sol_vel, stokes_problem_nl);
     rhea_viscosity_compute (
         coeff, proj_scal, bounds_marker, yielding_marker,
         temperature, weakzone, sol_vel, visc_options);
@@ -1465,6 +1502,7 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
 
       RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
 
+#if 0 //###DEV### performed in hessian setup
       /* set null space vector from current solution filtered at yielding
        * nodes */
       nsp_vel = rhea_velocity_new (ymir_mesh);
@@ -1477,6 +1515,7 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
       nsp_vel_arr[0] = nsp_vel;
       ymir_stress_op_set_nsp_ptw_vectors (nsp_vel_arr, 1 /* count */,
                                           stress_op);
+#endif
 
       /* check for null space in right-hand side */
       rhea_velocity_pressure_create_components (&neg_grad_vel, NULL,
@@ -1561,6 +1600,7 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
     nsp_vel_arr = ymir_stress_op_get_nsp_ptw_vectors (&nsp_count, stress_op);
     ymir_stress_op_set_nsp_ptw_vectors (NULL, 0 /* count */, stress_op);
     if (nsp_vel_arr != NULL) {
+      RHEA_ASSERT (0 < nsp_count);
       for (k = 0; k < nsp_count; k++) {
         ymir_vec_destroy (nsp_vel_arr[k]);
       }
