@@ -1492,17 +1492,19 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
     {
-      ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
       ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
       ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
-      ymir_vec_t         *yielding_marker = stokes_problem_nl->yielding_marker;
-      ymir_vec_t        **nsp_vel_arr, *nsp_vel, *neg_grad_vel;
-      double             *nsp_ip, grad_vel_norm;
+      ymir_vec_t         *neg_grad_vel;
+      double             *nsp_ip;
       int                 nsp_count;
 
       RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
 
 #if 0 //###DEV### performed in hessian setup
+      ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
+      ymir_vec_t         *yielding_marker = stokes_problem_nl->yielding_marker;
+      ymir_vec_t        **nsp_vel_arr, *nsp_vel;
+
       /* set null space vector from current solution filtered at yielding
        * nodes */
       nsp_vel = rhea_velocity_new (ymir_mesh);
@@ -1522,13 +1524,17 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
                                                 neg_gradient, press_elem);
       nsp_ip = ymir_stress_op_compute_provided_nsp_norm_of_ptw_innerprod (
           &nsp_count, neg_grad_vel, stress_op, 1 /* residual space */);
-      RHEA_ASSERT (nsp_count == 1 && nsp_ip != NULL);
-      rhea_stokes_norm_compute (&grad_vel_norm, NULL, neg_gradient,
-                                RHEA_STOKES_NORM_L2_DUAL, NULL, press_elem);
-      RHEA_GLOBAL_INFOF ("%s: Yielding null space in gradient: "
-                         "abs %.2e, rel %.2e\n",
-                         this_fn_name, nsp_ip[0], nsp_ip[0]/grad_vel_norm);
-      YMIR_FREE (nsp_ip); /* note: memory was allocated in ymir */
+      if (0 < nsp_count) {
+        double              grad_vel_norm;
+
+        RHEA_ASSERT (nsp_count == 1 && nsp_ip != NULL);
+        rhea_stokes_norm_compute (&grad_vel_norm, NULL, neg_gradient,
+                                  RHEA_STOKES_NORM_L2_DUAL, NULL, press_elem);
+        RHEA_GLOBAL_INFOF ("%s: Yielding null space in gradient: "
+                           "abs %.2e, rel %.2e\n",
+                           this_fn_name, nsp_ip[0], nsp_ip[0]/grad_vel_norm);
+        YMIR_FREE (nsp_ip); /* note: memory was allocated in ymir */
+      }
       ymir_vec_destroy (neg_grad_vel);
 
 #if 0
