@@ -1654,7 +1654,10 @@ rhea_viscosity_filter_where_yielding_correction_fn (double *filter, double x,
                                                     ymir_locidx_t nodeid,
                                                     void *data)
 {
-  if ((1.0 - SC_1000_EPS) < round (*filter)) {
+  const double        active = RHEA_VISCOSITY_YIELDING_ACTIVE;
+  const double        rtol = 1.0e-1;
+
+  if (fabs (*filter - active) < rtol * fabs (*filter)) {
     *filter = 1.0;
   }
   else {
@@ -1666,9 +1669,6 @@ void
 rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
                                       ymir_vec_t *yielding_marker)
 {
-  /* check environment */
-  RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
-
   /* check input */
   RHEA_ASSERT (ymir_vec_is_dvec (yielding_marker));
   RHEA_ASSERT (yielding_marker->ndfields == 1);
@@ -1702,6 +1702,7 @@ rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
   }
   else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
     /* apply filter to discontinuous Gauss vector */
+    RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
     ymir_dvec_multiply_in1 (yielding_marker, vec);
   }
   else { /* vector is not supported */
