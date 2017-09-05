@@ -29,6 +29,7 @@
   (RHEA_STOKES_NORM_HMINUS1_L2)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_MASS_SCALING (0.0)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN (0)
+#define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_NSP_LIN_ANISO (0)
 
 /* initialize options */
 int                 rhea_stokes_problem_nonlinear_linearization_type =
@@ -39,6 +40,8 @@ double              rhea_stokes_problem_nonlinear_norm_mass_scaling =
                       RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_MASS_SCALING;
 int                 rhea_stokes_problem_nonlinear_check_jacobian =
                       RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN;
+int                 rhea_stokes_problem_nonlinear_check_nsp_lin_aniso =
+                      RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_NSP_LIN_ANISO;
 
 void
 rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
@@ -65,6 +68,10 @@ rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
     &(rhea_stokes_problem_nonlinear_check_jacobian),
     RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN,
     "Check Jacobians during the solve of a nonlinear problem with Newton",
+  YMIR_OPTIONS_I, "nonlinear-check-nsp-linearization-anisotropy", '\0',
+    &(rhea_stokes_problem_nonlinear_check_nsp_lin_aniso),
+    RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_NSP_LIN_ANISO,
+    "Check for linearization-induced null space component in Hessian RHS",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -611,26 +618,6 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
         ymir_stress_op_optimized_compute_strain_rate (
             proj_tens, sol_vel, stress_op);
         ymir_stress_op_tensor_normalize (proj_tens);
-
-
-#if 1   //###DEV###
-        /* set null space vector from current solution filtered at yielding
-         * nodes */
-        {
-          ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
-          ymir_vec_t         *yielding_marker =
-                                stokes_problem_nl->yielding_marker;
-          ymir_vec_t         *nsp_vel, **nsp_vel_arr;
-
-          nsp_vel = rhea_velocity_new (ymir_mesh);
-          ymir_vec_copy (sol_vel, nsp_vel);
-          rhea_viscosity_filter_where_yielding (nsp_vel, yielding_marker);
-          nsp_vel_arr = RHEA_ALLOC (ymir_vec_t *, 1);
-          nsp_vel_arr[0] = nsp_vel;
-          ymir_stress_op_set_nsp_ptw_vectors (nsp_vel_arr, 1 /* count */,
-                                              stress_op);
-        }
-#endif
       }
       else { /* if solution is not provided */
         ymir_vec_set_zero (sol_vel);
@@ -640,6 +627,13 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
       /* pass coefficient data to viscous stress operator */
       ymir_stress_op_set_coeff_ppr1 (
           stress_op, coeff, proj_scal, proj_tens);
+
+      /* set null space vector from current solution */
+      if (solution_exists) { /* if solution is provided */
+        ymir_vec_t         *vel_aniso = ymir_vec_clone (sol_vel);
+
+        ymir_stress_op_nsp_lin_aniso_set_velocity (vel_aniso, stress_op);
+      }
     }
     break; /* RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR */
 
@@ -1468,8 +1462,10 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
   const char         *this_fn_name =
                         "rhea_stokes_problem_nonlinear_update_hessian_rhs";
   rhea_stokes_problem_t *stokes_problem_nl = data;
-  rhea_stokes_problem_nonlinear_linearization_t linearization_type =
+  const rhea_stokes_problem_nonlinear_linearization_t linearization_type =
     stokes_problem_nl->linearization_type;
+  const int           check_nsp_lin_aniso =
+    rhea_stokes_problem_nonlinear_check_nsp_lin_aniso;
 
   /* return if nothing to do */
   if (solution == NULL) {
@@ -1485,71 +1481,49 @@ rhea_stokes_problem_nonlinear_update_hessian_rhs (ymir_vec_t *neg_gradient,
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (solution));
 
-  /* project out null space from right-hand side */
+  /* handle null space in right-hand side */
   switch (linearization_type) {
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
-  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
     {
       ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
       ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
       ymir_vec_t         *neg_grad_vel;
-      double             *nsp_ip;
-      int                 nsp_count;
 
-      RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
+      rhea_velocity_pressure_create_components (
+          &neg_grad_vel, NULL, neg_gradient, press_elem);
 
-#if 0 //###DEV### performed in hessian setup
-      ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
-      ymir_vec_t         *yielding_marker = stokes_problem_nl->yielding_marker;
-      ymir_vec_t        **nsp_vel_arr, *nsp_vel;
+      /* check for null space in right-hand side (= negative gradient) */
+      if (check_nsp_lin_aniso) {
+        double              nsp_part, normL2;
 
-      /* set null space vector from current solution filtered at yielding
-       * nodes */
-      nsp_vel = rhea_velocity_new (ymir_mesh);
-      rhea_velocity_pressure_copy_components (nsp_vel, NULL, solution,
-                                              press_elem);
-      rhea_viscosity_filter_where_yielding (nsp_vel, yielding_marker);
-      rhea_stokes_problem_velocity_boundary_set_zero (nsp_vel,
-                                                      stokes_problem_nl);
-      nsp_vel_arr = RHEA_ALLOC (ymir_vec_t *, 1);
-      nsp_vel_arr[0] = nsp_vel;
-      ymir_stress_op_set_nsp_ptw_vectors (nsp_vel_arr, 1 /* count */,
-                                          stress_op);
-#endif
-
-      /* check for null space in right-hand side */
-      rhea_velocity_pressure_create_components (&neg_grad_vel, NULL,
-                                                neg_gradient, press_elem);
-      nsp_ip = ymir_stress_op_compute_provided_nsp_norm_of_ptw_innerprod (
-          &nsp_count, neg_grad_vel, stress_op, 1 /* residual space */);
-      if (0 < nsp_count) {
-        double              grad_vel_norm;
-
-        RHEA_ASSERT (nsp_count == 1 && nsp_ip != NULL);
-        rhea_stokes_norm_compute (&grad_vel_norm, NULL, neg_gradient,
-                                  RHEA_STOKES_NORM_L2_DUAL, NULL, press_elem);
-        RHEA_GLOBAL_INFOF ("%s: Yielding null space in gradient: "
-                           "abs %.2e, rel %.2e\n",
-                           this_fn_name, nsp_ip[0], nsp_ip[0]/grad_vel_norm);
-        YMIR_FREE (nsp_ip); /* note: memory was allocated in ymir */
+        nsp_part = ymir_stress_op_nsp_lin_aniso_compute_proj_part (
+            neg_grad_vel, stress_op, 1 /* residual space */);
+        if (isfinite (nsp_part)) {
+          rhea_stokes_norm_compute (
+              &normL2, NULL, neg_gradient, RHEA_STOKES_NORM_L2_DUAL, NULL,
+              press_elem);
+          RHEA_GLOBAL_INFOF (
+              "%s: Linearization-induced null space in gradient: "
+              "abs %.2e, rel %.2e\n", this_fn_name, nsp_part, nsp_part/normL2);
+        }
       }
-      ymir_vec_destroy (neg_grad_vel);
 
-#if 0
-      /* project out null space from right-hand side (= negative gradient) */
-      rhea_velocity_pressure_create_components (&neg_grad_vel, NULL,
-                                                neg_gradient, press_elem);
-      ymir_stress_op_project_out_provided_nsp_ptw (neg_grad_vel, stress_op, 1);
-      rhea_velocity_pressure_set_components (neg_gradient, neg_grad_vel, NULL,
-                                             press_elem);
+      /* project out null space from right-hand side */
+    //ymir_stress_op_project_out_provided_nsp_ptw (
+    //    neg_grad_vel, stress_op, 1);
+    //rhea_velocity_pressure_set_components (
+    //    neg_gradient, neg_grad_vel, NULL, press_elem);
+    //TODO enforce Dirichlet BCs
+
+      /* destroy */
       ymir_vec_destroy (neg_grad_vel);
-#endif
     }
     break;
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
+//case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
 //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV2:
   default: /* unknown linearization type */
     RHEA_ABORT_NOT_REACHED ();
@@ -1600,17 +1574,12 @@ rhea_stokes_problem_nonlinear_solve_hessian_system (
   /* destroy solver related data */
   {
     ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
-    ymir_vec_t        **nsp_vel_arr;
-    int                 nsp_count, k;
+    ymir_vec_t         *vel_aniso;
 
-    nsp_vel_arr = ymir_stress_op_get_nsp_ptw_vectors (&nsp_count, stress_op);
-    ymir_stress_op_set_nsp_ptw_vectors (NULL, 0 /* count */, stress_op);
-    if (nsp_vel_arr != NULL) {
-      RHEA_ASSERT (0 < nsp_count);
-      for (k = 0; k < nsp_count; k++) {
-        ymir_vec_destroy (nsp_vel_arr[k]);
-      }
-      RHEA_FREE (nsp_vel_arr);
+    vel_aniso = ymir_stress_op_nsp_lin_aniso_get_velocity (NULL, stress_op);
+    ymir_stress_op_nsp_lin_aniso_set_velocity (NULL, stress_op);
+    if (vel_aniso != NULL) {
+      ymir_vec_destroy (vel_aniso);
     }
   }
 
