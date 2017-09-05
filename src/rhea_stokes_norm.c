@@ -50,8 +50,8 @@ rhea_stokes_norm_L2_primal_innerprod (double *innerprod_vel,
   ymir_mass_apply (arg_right, arg_right_mass);
 
   /* compute inner product */
-  rhea_stokes_norm_l2_innerprod(innerprod_vel, innerprod_press,
-                                arg_left, arg_right_mass, press_elem);
+  rhea_stokes_norm_l2_innerprod (innerprod_vel, innerprod_press,
+                                 arg_left, arg_right_mass, press_elem);
 
   /* destroy */
   ymir_vec_destroy (arg_right_mass);
