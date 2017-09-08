@@ -134,7 +134,8 @@ typedef enum
   SLAB,
   COLLIDE,
   DRAG,
-  TEST_MANUFACTURED
+  TEST_MANUFACTURED,
+  TESTTOPO
 }
 slabs_buoyancy_type_t;
 
@@ -869,6 +870,24 @@ drag_temperature_set_fn (double *temp, double x, double y, double z,
   *temp = SC_MAX (0.0, *temp);
 }
 
+void
+testtopo_temperature_set_fn (double *temp, double x, double y, double z,
+                          ymir_locidx_t nid, void *data)
+{
+  slabs_options_t    *slabs_options = (slabs_options_t *) data;
+
+  if ( (fabs(y-0.5) < 0.2)  && (z > 0.8 && z < 0.9))
+    *temp = .0;
+  else
+    *temp = 0.5;
+
+  /* check temperature for `nan` and `inf` */
+  RHEA_ASSERT (isfinite (*temp));
+
+  /* bound temperature to valid interval */
+  *temp = SC_MIN (1.0, *temp);
+  *temp = SC_MAX (0.0, *temp);
+}
 
 /**************************************
  * Weakzone Computation
@@ -1793,14 +1812,14 @@ slabs_X_fn_profile (mangll_tag_t tag, mangll_locidx_t np,
   double *tX = topo->tX;
   double *tY = topo->tY;
   double *tZ = topo->tZ;
-  int     m, nsurf;
+  int     m, nsurf = topo->nsurf;
 
   for (il = 0; il < np; ++il) {
     X[il] = EX[il];
     Y[il] = EY[il];
-    for (m=0; m < nsurf; m++)  {
-      if (abs(X[il] - tX[m]) < SC_1000_EPS &&
-          abs(Y[il] - tY[m]) < SC_1000_EPS)  {
+    for (m = 0; m < nsurf; m++)  {
+      if (fabs(EX[il] - tX[m]) < SC_1000_EPS &&
+          fabs(EY[il] - tY[m]) < SC_1000_EPS)  {
         factor = tZ[m];
       }
     }
@@ -4278,6 +4297,10 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                                                slabs_options);
     break;
 
+    case TESTTOPO:
+      ymir_cvec_set_function (temperature, testtopo_temperature_set_fn, slabs_options);
+    break;
+
     default:
       RHEA_ABORT_NOT_REACHED ();
   }
@@ -5214,6 +5237,7 @@ main (int argc, char **argv)
     double                *elemd;
     double                *tX, *tY, *tZ;
     double                *Xd, *Yd, *Zd;
+    double                avg_stress, topo_nondim;
     slabs_topo_profile_t  topo;
 
     RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_write_freesurface\n", this_fn_name);
@@ -5244,13 +5268,29 @@ main (int argc, char **argv)
     }
 
     elem = sc_dmatrix_new (Np, 1);
+    avg_stress = 0.0;
     for (ik = 0; ik < K; ik++)  {
       ymir_vec_get_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, ik, YMIR_GLL_NODE, YMIR_COPY);
       elemd = elem->e[0];
       for (i = 0; i < Np; i++)  {
-        tZ[Np * ik + i] = elemd[i];
+        avg_stress += elemd[i];
       }
     }
+    avg_stress /= Ntotal;
+//    avg_stress = 0.0;
+
+    for (ik = 0; ik < K; ik++)  {
+      ymir_vec_get_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, ik, YMIR_GLL_NODE, YMIR_COPY);
+      elemd = elem->e[0];
+      for (i = 0; i < Np; i++)  {
+        topo_nondim = (elemd[i] - avg_stress) * (-0.084/7.0e7) * 20.0;
+        tZ[Np * ik + i] =  topo_nondim + 1.0;
+
+        RHEA_GLOBAL_INFOF ("element %d, nodeid %d, topo[%d]=%lf\n",ik, i, Np*ik+i, tZ[Np * ik + i]);
+      }
+    }
+
+
     topo.tX = tX;
     topo.tY = tY;
     topo.tZ = tZ;
@@ -5258,11 +5298,9 @@ main (int argc, char **argv)
     slabs_surf_options.topo_profile = &topo;
 
     rhea_discretization_process_options (&discr_options2, &domain_options);
-//    rhea_discretization_set_user_X_fn (&discr_options2,
-//                                       slabs_X_fn_profile, &topo);
-
     rhea_discretization_set_user_X_fn (&discr_options2,
-                                       slabs_X_fn_identity, NULL);
+                                       slabs_X_fn_profile, &topo);
+
     slabs_setup_mesh (&p4est2, &ymir_mesh2, &press_elem2, mpicomm,
                       &domain_options, &discr_options2, &slabs_options);
 
