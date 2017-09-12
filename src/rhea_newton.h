@@ -358,4 +358,10 @@ void                rhea_newton_problem_update_hessian_rhs (
                                             ymir_vec_t *solution,
                                             rhea_newton_problem_t *nl_problem);
 
+/**
+ * Accesses to status of a nonlinear problem.
+ */
+double              rhea_newton_problem_get_reduction_curr (
+                                            rhea_newton_problem_t *nl_problem);
+
 #endif /* RHEA_NEWTON_H */

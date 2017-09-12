@@ -5,58 +5,6 @@
 #include <rhea_newton_check.h>
 #include <rhea_base.h>
 
-/* Nonlinear problem */
-struct rhea_newton_problem
-{
-  /* vectors (not owned) */
-  ymir_vec_t         *neg_gradient_vec;
-  ymir_vec_t         *step_vec;
-
-  /* callback functions for Newton algorithm */
-  rhea_newton_conv_criterion_t                conv_criterion;
-  rhea_newton_evaluate_objective_fn_t         evaluate_objective;
-  rhea_newton_compute_negative_gradient_fn_t  compute_neg_gradient;
-  rhea_newton_compute_norm_of_gradient_fn_t   compute_gradient_norm;
-  int                 grad_norm_multi_components;
-
-  rhea_newton_apply_hessian_fn_t        apply_hessian;
-  rhea_newton_solve_hessian_system_fn_t solve_hessian_sys;
-
-  rhea_newton_update_operator_fn_t      update_operator;
-  rhea_newton_update_hessian_fn_t       update_hessian;
-  rhea_newton_update_hessian_rhs_fn_t   update_hessian_rhs;
-
-  /* data and related callback functions */
-  void                        *data;
-  rhea_newton_data_init_fn_t   data_init;
-  rhea_newton_data_clear_fn_t  data_clear;
-
-  /* user output */
-  rhea_newton_output_prestep_fn_t  output_prestep;
-
-  /* options */
-  int                 check_gradient;
-  int                 check_hessian;
-};
-
-/* Newton step */
-typedef struct rhea_newton_step
-{
-  ymir_vec_t         *vec;
-  double              length;
-
-  int                 search_success;
-  int                 search_iter_count;
-
-  int                 iter;
-
-  double              lin_res_norm_rtol;
-  double              lin_res_norm_reduction;
-  int                 lin_iter_count;
-  double              lin_convergence;
-}
-rhea_newton_step_t;
-
 /* Newton status */
 typedef struct rhea_newton_status
 {
@@ -93,6 +41,61 @@ typedef struct rhea_newton_status
   double              grad_norm_reduction;
 }
 rhea_newton_status_t;
+
+/* Newton step */
+typedef struct rhea_newton_step
+{
+  ymir_vec_t         *vec;
+  double              length;
+
+  int                 search_success;
+  int                 search_iter_count;
+
+  int                 iter;
+
+  double              lin_res_norm_rtol;
+  double              lin_res_norm_reduction;
+  int                 lin_iter_count;
+  double              lin_convergence;
+}
+rhea_newton_step_t;
+
+/* Nonlinear problem */
+struct rhea_newton_problem
+{
+  /* vectors (not owned) */
+  ymir_vec_t         *neg_gradient_vec;
+  ymir_vec_t         *step_vec;
+
+  /* callback functions for Newton algorithm */
+  rhea_newton_conv_criterion_t                conv_criterion;
+  rhea_newton_evaluate_objective_fn_t         evaluate_objective;
+  rhea_newton_compute_negative_gradient_fn_t  compute_neg_gradient;
+  rhea_newton_compute_norm_of_gradient_fn_t   compute_gradient_norm;
+  int                 grad_norm_multi_components;
+
+  rhea_newton_apply_hessian_fn_t        apply_hessian;
+  rhea_newton_solve_hessian_system_fn_t solve_hessian_sys;
+
+  rhea_newton_update_operator_fn_t      update_operator;
+  rhea_newton_update_hessian_fn_t       update_hessian;
+  rhea_newton_update_hessian_rhs_fn_t   update_hessian_rhs;
+
+  /* data and related callback functions */
+  void                        *data;
+  rhea_newton_data_init_fn_t   data_init;
+  rhea_newton_data_clear_fn_t  data_clear;
+
+  /* user output */
+  rhea_newton_output_prestep_fn_t  output_prestep;
+
+  /* status (not owned) */
+  rhea_newton_status_t *status;
+
+  /* options */
+  int                 check_gradient;
+  int                 check_hessian;
+};
 
 /**
  * Calculates the reduction of an end value relative to a start value.  Avoids
@@ -366,6 +369,8 @@ rhea_newton_problem_new (
   nl_problem->update_hessian_rhs = NULL;
 
   nl_problem->output_prestep = NULL;
+
+  nl_problem->status = NULL;
 
   nl_problem->check_gradient = 0;
   nl_problem->check_hessian = 0;
@@ -1257,6 +1262,17 @@ rhea_newton_status_summary_print (char **summary,
 }
 
 /******************************************************************************
+ * Access to Newton Status
+ *****************************************************************************/
+
+double
+rhea_newton_problem_get_reduction_curr (rhea_newton_problem_t *nl_problem)
+{
+  RHEA_ASSERT (nl_problem->status != NULL);
+  return rhea_newton_status_get_reduction_curr (nl_problem->status);
+}
+
+/******************************************************************************
  * Inexact Newton--Krylov Method
  *****************************************************************************/
 
@@ -1654,6 +1670,7 @@ rhea_newton_solve (ymir_vec_t *solution,
     /* create status */
     rhea_newton_status_init (&status, nl_problem->conv_criterion,
                              nl_problem->grad_norm_multi_components);
+    nl_problem->status = &status;
     /* initialize solution vector and status */
     if (opt->nonzero_initial_guess) { /* if nonzero initial guess */
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
@@ -1747,7 +1764,8 @@ rhea_newton_solve (ymir_vec_t *solution,
         }
       }
 
-      /* set up right-hand side for the linear system from the (neg.) gradient  */
+      /* set up right-hand side for the linear system from the
+       * (negative) gradient  */
       if (iter == iter_start && !opt->nonzero_initial_guess) { /* if no sol. */
         rhea_newton_problem_update_hessian_rhs (nl_problem->neg_gradient_vec,
                                                 NULL, nl_problem);
@@ -1810,6 +1828,7 @@ rhea_newton_solve (ymir_vec_t *solution,
   {
     /* destroy */
     rhea_newton_status_clear (&status);
+    nl_problem->status = NULL;
 
     /* clear data */
     if (nl_problem->data_clear != NULL) {
