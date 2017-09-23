@@ -117,14 +117,13 @@ typedef void      (*rhea_newton_update_hessian_fn_t) (
                                             void *data);
 
 /**
- * Updates the right-hand side for the Hessian system from the negative
- * gradient.
+ * Modifies the Hessian system before launching the solver for this system.
  *
  * \param [in/out] neg_gradient Negative gradient vector (serves as RHS)
  * \param [in] solution         Current solution vector (may be NULL)
  * \param [in] data             User data
  */
-typedef void      (*rhea_newton_update_hessian_rhs_fn_t) (
+typedef void      (*rhea_newton_modify_hessian_system_fn_t) (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution,
                                             void *data);
@@ -260,7 +259,7 @@ void                rhea_newton_problem_set_apply_hessian_fn (
 void                rhea_newton_problem_set_update_fn (
               rhea_newton_update_operator_fn_t update_operator,
               rhea_newton_update_hessian_fn_t update_hessian,
-              rhea_newton_update_hessian_rhs_fn_t update_hessian_rhs,
+              rhea_newton_modify_hessian_system_fn_t modify_hessian_system,
               rhea_newton_problem_t *nl_problem);
 
 /**
@@ -351,11 +350,18 @@ void                rhea_newton_problem_update_hessian (
                                             const double step_length,
                                             rhea_newton_problem_t *nl_problem);
 
-int                 rhea_newton_problem_update_hessian_rhs_exists (
+int                 rhea_newton_problem_modify_hessian_system_exists (
                                             rhea_newton_problem_t *nl_problem);
-void                rhea_newton_problem_update_hessian_rhs (
+void                rhea_newton_problem_modify_hessian_system (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution,
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_output_prestep_exists (
+                                            rhea_newton_problem_t *nl_problem);
+void                rhea_newton_problem_output_prestep (
+                                            ymir_vec_t *solution,
+                                            const int iter,
                                             rhea_newton_problem_t *nl_problem);
 
 /**
