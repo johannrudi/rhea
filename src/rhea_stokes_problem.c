@@ -1511,39 +1511,42 @@ rhea_stokes_problem_nonlinear_modify_hessian_system (ymir_vec_t *neg_gradient,
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
-    if (lin_aniso_pc) {
-      ymir_vec_t         *neg_grad_vel;
-      double              aniso_corr;
-
-      /* set velocity of linearization-induced anisotropy from current sol. */
+    /* set velocity of linearization-induced anisotropy from current solution */
+    if (lin_aniso_pc || check_lin_aniso) {
       rhea_velocity_pressure_create_components (
           &vel_aniso, NULL, solution, press_elem);
       rhea_stokes_problem_velocity_boundary_set_zero (
           vel_aniso, stokes_problem_nl);
       RHEA_ASSERT (rhea_velocity_is_valid (vel_aniso));
       ymir_stress_op_nsp_lin_aniso_set_velocity (vel_aniso, stress_op);
+    }
 
-      /* check for linearization-induced anisotropy in (neg.) gradient */
-      if (check_lin_aniso) {
-        ymir_vec_t         *neg_grad_vel;
-        double              neg_grad_aniso_part, normL2;
+    /* check for linearization-induced anisotropy in (neg.) gradient */
+    if (check_lin_aniso) {
+      ymir_vec_t         *neg_grad_vel;
+      double              neg_grad_aniso_part, normL2;
 
-        rhea_velocity_pressure_create_components (
-            &neg_grad_vel, NULL, neg_gradient, press_elem);
-        neg_grad_aniso_part = ymir_stress_op_nsp_lin_aniso_compute_aniso_part (
-            neg_grad_vel, stress_op, 1 /* dual/residual space */);
-        ymir_vec_destroy (neg_grad_vel);
+      rhea_velocity_pressure_create_components (
+          &neg_grad_vel, NULL, neg_gradient, press_elem);
+      neg_grad_aniso_part = ymir_stress_op_nsp_lin_aniso_compute_aniso_part (
+          neg_grad_vel, stress_op, 1 /* dual/residual space */);
+      ymir_vec_destroy (neg_grad_vel);
 
-        if (isfinite (neg_grad_aniso_part)) {
-          rhea_stokes_norm_compute (
-              &normL2, NULL, neg_gradient, RHEA_STOKES_NORM_L2_DUAL, NULL,
-              press_elem);
-          RHEA_GLOBAL_INFOF (
-              "%s: Linearization-induced anisotropy part in gradient: "
-              "abs %+.2e, rel %+.2e\n",
-              this_fn_name, neg_grad_aniso_part, neg_grad_aniso_part/normL2);
-        }
+      if (isfinite (neg_grad_aniso_part)) {
+        rhea_stokes_norm_compute (
+            &normL2, NULL, neg_gradient, RHEA_STOKES_NORM_L2_DUAL, NULL,
+            press_elem);
+        RHEA_GLOBAL_INFOF (
+            "%s: Linearization-induced anisotropy part in gradient: "
+            "abs %+.2e, rel %+.2e\n",
+            this_fn_name, neg_grad_aniso_part, neg_grad_aniso_part/normL2);
       }
+    }
+
+    /* apply linearization-induced anisotropy correction */
+    if (lin_aniso_pc) {
+      ymir_vec_t         *neg_grad_vel;
+      double              aniso_corr;
 
       /* apply correction to velocity of gradient */
       rhea_velocity_pressure_create_components (
@@ -1562,7 +1565,10 @@ rhea_stokes_problem_nonlinear_modify_hessian_system (ymir_vec_t *neg_gradient,
       rhea_velocity_pressure_set_components (
           neg_gradient, neg_grad_vel, NULL, press_elem);
 
-      //TODO activate aniso correction in stokes op
+      /* activate anisotropy correction in Stokes operator */
+      ymir_stokes_op_nsp_lin_aniso_set_proj (
+          stokes_problem_nl->stokes_op,
+          YMIR_STRESS_OP_NSP_LIN_ANISO_PROJECT_RES);
 
       /* destroy */
       ymir_vec_destroy (neg_grad_vel);
