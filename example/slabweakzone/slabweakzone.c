@@ -135,7 +135,9 @@ typedef enum
   COLLIDE,
   DRAG,
   TEST_MANUFACTURED,
-  TESTTOPO
+  TESTTOPO,
+  TESTTOPO2,
+  TESTNONE
 }
 slabs_buoyancy_type_t;
 
@@ -874,10 +876,8 @@ void
 testtopo_temperature_set_fn (double *temp, double x, double y, double z,
                           ymir_locidx_t nid, void *data)
 {
-  slabs_options_t    *slabs_options = (slabs_options_t *) data;
-
   if ( (fabs(y-0.5) < 0.2)  && (z > 0.8 && z < 0.9))
-    *temp = .0;
+    *temp = 1.0;
   else
     *temp = 0.5;
 
@@ -886,6 +886,41 @@ testtopo_temperature_set_fn (double *temp, double x, double y, double z,
 
   /* bound temperature to valid interval */
   *temp = SC_MIN (1.0, *temp);
+  *temp = SC_MAX (0.0, *temp);
+}
+
+void
+testtopo2_temperature_set_fn (double *temp, double x, double y, double z,
+                          ymir_locidx_t nid, void *data)
+{
+  slabs_topo_profile_t    *topo = (slabs_topo_profile_t *) data;
+  int m, nsurf = topo->nsurf;
+  double *tX = topo->tX;
+  double *tY = topo->tY;
+  double *tZ = topo->tZ;
+  double factor;
+
+  if (z > 0.95) {
+    for (m = 0; m < nsurf; m++)  {
+      if (fabs(x - tX[m]) < SC_1000_EPS &&
+          fabs(y - tY[m]) < SC_1000_EPS)  {
+        factor = tZ[m];
+        if (z > factor)
+          *temp = 100/8.4 + 0.5;
+        else
+          *temp = 0.5;
+      }
+    }
+  }
+  else if ( (fabs(y-0.5) < 0.2)  && (z > 0.8 && z < 0.9))
+    *temp = .0;
+  else
+    *temp = 0.5;
+
+  /* check temperature for `nan` and `inf` */
+  RHEA_ASSERT (isfinite (*temp));
+
+  /* bound temperature to valid interval */
   *temp = SC_MAX (0.0, *temp);
 }
 
@@ -4301,6 +4336,14 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
       ymir_cvec_set_function (temperature, testtopo_temperature_set_fn, slabs_options);
     break;
 
+    case TESTTOPO2:
+      ymir_cvec_set_function (temperature, testtopo2_temperature_set_fn, slabs_options->slabs_surf_options->topo_profile);
+    break;
+
+    case TESTNONE:
+      ymir_vec_set_value (temperature, 0.5);
+    break;
+
     default:
       RHEA_ABORT_NOT_REACHED ();
   }
@@ -4518,6 +4561,8 @@ main (int argc, char **argv)
   char               *vtk_write_freesurface_path;
   char               *vtk_write_input2_path;
   char               *vtk_write_solution2_path;
+  char               *vtk_write_input3_path;
+  char               *vtk_write_solution3_path;
 
   /* mesh */
   p4est_t            *p4est;
@@ -4723,6 +4768,12 @@ main (int argc, char **argv)
     "File path for vtk files for the input of the Stokes problem",
   YMIR_OPTIONS_S, "vtk-write-solution2-path", '\0',
     &(vtk_write_solution2_path), NULL,
+    "File path for vtk files for the solution of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-input3-path", '\0',
+    &(vtk_write_input3_path), NULL,
+    "File path for vtk files for the input of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-solution3-path", '\0',
+    &(vtk_write_solution3_path), NULL,
     "File path for vtk files for the solution of the Stokes problem",
 
   YMIR_OPTIONS_END_OF_LIST);
@@ -5223,6 +5274,9 @@ main (int argc, char **argv)
     rhea_stokes_problem_t *stokes_problem2;
     rhea_discretization_options_t discr_options2;
 
+    ymir_vec_t            *surf_normal_stress3;
+    ymir_vec_t            *sol_vel_press3;
+
     ymir_topidx_t         fm;
     ymir_face_mesh_t      *fmesh;
     mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
@@ -5277,13 +5331,13 @@ main (int argc, char **argv)
       }
     }
     avg_stress /= Ntotal;
-//    avg_stress = 0.0;
+    avg_stress = 0.0;
 
     for (ik = 0; ik < K; ik++)  {
       ymir_vec_get_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, ik, YMIR_GLL_NODE, YMIR_COPY);
       elemd = elem->e[0];
       for (i = 0; i < Np; i++)  {
-        topo_nondim = (elemd[i] - avg_stress) * (-0.084/7.0e7) * 20.0;
+        topo_nondim = (elemd[i] - avg_stress) * (-0.084/7.0e7);
         tZ[Np * ik + i] =  topo_nondim + 1.0;
 
         RHEA_GLOBAL_INFOF ("element %d, nodeid %d, topo[%d]=%lf\n",ik, i, Np*ik+i, tZ[Np * ik + i]);
@@ -5296,7 +5350,6 @@ main (int argc, char **argv)
     topo.tZ = tZ;
     topo.nsurf = Ntotal;
     slabs_surf_options.topo_profile = &topo;
-
     rhea_discretization_process_options (&discr_options2, &domain_options);
     rhea_discretization_set_user_X_fn (&discr_options2,
                                        slabs_X_fn_profile, &topo);
@@ -5304,6 +5357,8 @@ main (int argc, char **argv)
     slabs_setup_mesh (&p4est2, &ymir_mesh2, &press_elem2, mpicomm,
                       &domain_options, &discr_options2, &slabs_options);
 
+    buoyancy_type = 7;
+    slabs_options.buoyancy_type = (slabs_buoyancy_type_t) buoyancy_type;
     slabs_setup_stokes (&stokes_problem2, ymir_mesh2, press_elem2,
                         &domain_options, &temp_options, &visc_options,
                         &slabs_options, vtk_write_input2_path);
@@ -5341,6 +5396,51 @@ main (int argc, char **argv)
                    rhea_stokes_problem_get_rhs_vel (stokes_problem2),
                    rhea_stokes_problem_get_stokes_op (stokes_problem2));
 
+#if 0
+/* test a weird case */
+    {
+
+    buoyancy_type = 6;
+    slabs_options.buoyancy_type = (slabs_buoyancy_type_t) buoyancy_type;
+    slabs_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
+                        &domain_options, &temp_options, &visc_options,
+                        &slabs_options, vtk_write_input3_path);
+
+    /* initialize solution vector */
+    sol_vel_press3 = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+   /* run solver */
+    slabs_run_solver (sol_vel_press3, ymir_mesh, press_elem, stokes_problem,
+                      solver_iter_max, solver_rel_tol);
+
+    {
+      ymir_vec_t         *velocity3 = rhea_velocity_new (ymir_mesh);
+      ymir_vec_t         *pressure3 = rhea_pressure_new (ymir_mesh, press_elem);
+      ymir_vec_t         *viscosity3 = rhea_viscosity_new (ymir_mesh);
+
+      ymir_stokes_vec_get_components (sol_vel_press3, velocity3, pressure3,
+                                      press_elem);
+      rhea_stokes_problem_copy_viscosity (viscosity3, stokes_problem);
+
+      rhea_vtk_write_solution (vtk_write_solution3_path, velocity3, pressure3,
+                               viscosity3);
+
+      rhea_pressure_destroy (pressure3);
+      rhea_viscosity_destroy (viscosity3);
+      rhea_velocity_destroy (velocity3);
+    }
+
+  /* compute surface normal stress sigma */
+    surf_normal_stress3 = ymir_face_cvec_new (ymir_mesh,
+                                         RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+
+    slabs_physics_compute_normal_boundary_stress (
+                   surf_normal_stress3, sol_vel_press3,
+                   rhea_stokes_problem_get_rhs_vel (stokes_problem),
+                   rhea_stokes_problem_get_stokes_op (stokes_problem));
+    }
+#endif
+
     {
       char            path[BUFSIZ];
 
@@ -5348,6 +5448,7 @@ main (int argc, char **argv)
       ymir_vtk_write (ymir_mesh, path,
                       surf_normal_stress, "surf_normal_stress",
                       surf_normal_stress2, "surf_normal_stress with f-surface",
+//                      surf_normal_stress3, "surf_normal_stress with air",
                       NULL);
     }
 
@@ -5358,7 +5459,9 @@ main (int argc, char **argv)
     free (tZ);
     ymir_vec_destroy (surf_normal_stress);
     ymir_vec_destroy (surf_normal_stress2);
+//    ymir_vec_destroy (surf_normal_stress3);
     rhea_velocity_pressure_destroy (sol_vel_press2);
+//    rhea_velocity_pressure_destroy (sol_vel_press3);
     slabs_surf_options.topo_profile = NULL;
 
     slabs_setup_clear_all (stokes_problem2, p4est2, ymir_mesh2, press_elem2,
