@@ -94,8 +94,8 @@ typedef struct rhea_viscosity_options
   /* parameters for plastic yielding */
   double              yield_strength;
 
-  /* regularization for nonlinear viscosity (adds convexity to min. problem) */
-  double              nonlinear_regularization;
+  /* regularization for projector of nonlinear viscosity */
+  double              nonlinear_projector_regularization;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t  *domain_options;
@@ -269,17 +269,17 @@ void                rhea_viscosity_filter_where_yielding (
                                                   ymir_vec_t *yielding_marker);
 
 /**
- * Returns whether regularization of the nonlinear viscosity is enabled.
+ * Returns whether regularization for the projector of the nonlinear viscosity
+ * is enabled.
  */
-int                 rhea_viscosity_has_nonlinear_regularization (
+int                 rhea_viscosity_has_nonlinear_projector_regularization (
                                                 rhea_viscosity_options_t *opt);
 
 /**
- * Gets the regularization parameter of the nonlinear viscosity.
+ * Gets the regularization value for the projector of the nonlinear viscosity.
  */
-double              rhea_viscosity_get_nonlinear_regularization (
-                                        rhea_viscosity_options_t *opt,
-                                        const double strain_rate_weakening_exp);
+double              rhea_viscosity_get_nonlinear_projector_regularization (
+                                                rhea_viscosity_options_t *opt);
 
 /**
  * Returns the value by which the whole viscosity is shifted.

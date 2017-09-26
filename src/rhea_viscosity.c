@@ -39,7 +39,7 @@
 #define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY (17.5)
 #define RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT (3.0)
 #define RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH (NAN)
-#define RHEA_VISCOSITY_DEFAULT_NONLINEAR_REGULARIZATION (NAN)
+#define RHEA_VISCOSITY_DEFAULT_NONLINEAR_PROJ_REG (NAN)
 
 /* initialize options */
 int                 rhea_viscosity_type = RHEA_VISCOSITY_DEFAULT_TYPE;
@@ -65,8 +65,8 @@ double              rhea_viscosity_stress_exponent =
   RHEA_VISCOSITY_DEFAULT_STRESS_EXPONENT;
 double              rhea_viscosity_yield_strength =
   RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH;
-double              rhea_viscosity_nonlinear_regularization =
-  RHEA_VISCOSITY_DEFAULT_NONLINEAR_REGULARIZATION;
+double              rhea_viscosity_nonlinear_proj_reg =
+  RHEA_VISCOSITY_DEFAULT_NONLINEAR_PROJ_REG;
 
 void
 rhea_viscosity_add_options (ymir_options_t * opt_sup)
@@ -127,10 +127,10 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     &(rhea_viscosity_yield_strength), RHEA_VISCOSITY_DEFAULT_YIELD_STRENGTH,
     "Value of viscous stress above which plastic yielding occurs",
 
-  YMIR_OPTIONS_D, "nonlinear-regularization", '\0',
-    &(rhea_viscosity_nonlinear_regularization),
-    RHEA_VISCOSITY_DEFAULT_NONLINEAR_REGULARIZATION,
-    "Regularization for nonlinear viscosity (adds convexity to min. problem)",
+  YMIR_OPTIONS_D, "nonlinear-projector-regularization", '\0',
+    &(rhea_viscosity_nonlinear_proj_reg),
+    RHEA_VISCOSITY_DEFAULT_NONLINEAR_PROJ_REG,
+    "Regularization for projector of nonlinear viscosity",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -194,7 +194,7 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   /* store nonlinear viscosity options */
   opt->stress_exponent = rhea_viscosity_stress_exponent;
   opt->yield_strength = rhea_viscosity_yield_strength;
-  opt->nonlinear_regularization = rhea_viscosity_nonlinear_regularization;
+  opt->nonlinear_projector_regularization = rhea_viscosity_nonlinear_proj_reg;
 
   /* store domain options */
   opt->domain_options = domain_options;
@@ -814,10 +814,8 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
                                    double *yielding_active, /* out */
                                    double *srw_exp,         /* out */
                                    const double strainrate_sqrt_2inv,
-                                   const double yield_strength,
-                                   const double nl_reg)
+                                   const double yield_strength)
 {
-  const int           has_nl_reg = (isfinite (nl_reg) && 0.0 < nl_reg);
   double              visc_stress;
 
   /* check input */
@@ -833,12 +831,7 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
   }
 
   /* compute the sqrt of the 2nd invariant of the viscous stress tensor */
-  if (has_nl_reg) {
-    visc_stress = 2.0 * (*viscosity - nl_reg) * strainrate_sqrt_2inv;
-  }
-  else {
-    visc_stress = 2.0 * (*viscosity) * strainrate_sqrt_2inv;
-  }
+  visc_stress = 2.0 * (*viscosity) * strainrate_sqrt_2inv;
 
   /* apply yielding if yield strength is exceeded */
   if (yield_strength < visc_stress) {
@@ -850,19 +843,17 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
 }
 
 static void
-rhea_viscosity_nonlinear_regularize (double *viscosity, /* in/out */
-                                     const double srw_exp,
-                                     rhea_viscosity_options_t *opt)
+rhea_viscosity_nonlinear_projector_regularize (double *proj_scal, /* in/out */
+                                               const double proj_reg)
 {
-  double              nl_weighted_reg;
+  /* check input */
+  RHEA_ASSERT (isfinite (*proj_scal));
+  RHEA_ASSERT (-1.0 <= *proj_scal && *proj_scal <= 0.0);
+  RHEA_ASSERT (isfinite (proj_reg));
+  RHEA_ASSERT (0.0 < proj_reg && proj_reg <= 1.0);
 
-  /* get (weighted) regularization parameter */
-  nl_weighted_reg = rhea_viscosity_get_nonlinear_regularization (opt, srw_exp);
-  RHEA_ASSERT (isfinite (nl_weighted_reg));
-  RHEA_ASSERT (0.0 <= nl_weighted_reg);
-
-  /* add regularization */
-  *viscosity += nl_weighted_reg;
+  /* restrict minimum of projector scaling */
+  *proj_scal = SC_MAX (-1.0 + proj_reg, *proj_scal);
 }
 
 /**
@@ -886,11 +877,13 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
 
   const int           has_srw = rhea_viscosity_has_strain_rate_weakening (opt);
   const int           has_yld = rhea_viscosity_has_yielding (opt);
-  const int           has_nl_reg =
-                        rhea_viscosity_has_nonlinear_regularization (opt);
+  const int           has_proj_reg =
+    rhea_viscosity_has_nonlinear_projector_regularization (opt);
 
   const double        stress_exp = opt->stress_exponent;
   const double        yield_strength = rhea_viscosity_get_yield_strength (opt);
+  const double        proj_reg =
+    rhea_viscosity_get_nonlinear_projector_regularization (opt);
   double              srw_exp;
 
   RHEA_ASSERT (restrict_max);
@@ -932,8 +925,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
             viscosity, proj_scal, yielding_active, &srw_exp,
-            strainrate_sqrt_2inv, yield_strength,
-            opt->nonlinear_regularization);
+            strainrate_sqrt_2inv, yield_strength);
       }
       else {
         *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
@@ -945,12 +937,12 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
             viscosity, proj_scal, bounds_active, &srw_exp, visc_min);
       }
 
-      /* add regularization to viscosity */
-      if (has_nl_reg) {
-        rhea_viscosity_nonlinear_regularize (viscosity, srw_exp, opt);
+      /* apply regularization for projector */
+      if (has_proj_reg) {
+        rhea_viscosity_nonlinear_projector_regularize (proj_scal, proj_reg);
       }
     }
-    break;
+    break; /* RHEA_VISCOSITY_MODEL_UWYL */
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     {
@@ -987,8 +979,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
             viscosity, proj_scal, yielding_active, &srw_exp,
-            strainrate_sqrt_2inv, yield_strength,
-            opt->nonlinear_regularization);
+            strainrate_sqrt_2inv, yield_strength);
       }
       else {
         *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
@@ -1000,12 +991,12 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
                                                    visc_min);
       }
 
-      /* add regularization to viscosity */
-      if (has_nl_reg) {
-        rhea_viscosity_nonlinear_regularize (viscosity, srw_exp, opt);
+      /* apply regularization for projector */
+      if (has_proj_reg) {
+        rhea_viscosity_nonlinear_projector_regularize (proj_scal, proj_reg);
       }
     }
-    break;
+    break; /* RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT */
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
     {
@@ -1081,8 +1072,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
             viscosity, proj_scal, yielding_active, &srw_exp,
-            strainrate_sqrt_2inv, yield_strength,
-            opt->nonlinear_regularization);
+            strainrate_sqrt_2inv, yield_strength);
       }
       else {
         *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
@@ -1094,12 +1084,12 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
                                                    visc_min);
       }
 
-      /* add regularization to viscosity */
-      if (has_nl_reg) {
-        rhea_viscosity_nonlinear_regularize (viscosity, srw_exp, opt);
+      /* apply regularization for projector */
+      if (has_proj_reg) {
+        rhea_viscosity_nonlinear_projector_regularize (proj_scal, proj_reg);
       }
     }
-    break;
+    break; /* RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT */
 
   default: /* unknown viscosity model */
     RHEA_ABORT_NOT_REACHED ();
@@ -1711,47 +1701,20 @@ rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
 }
 
 int
-rhea_viscosity_has_nonlinear_regularization (rhea_viscosity_options_t *opt)
+rhea_viscosity_has_nonlinear_projector_regularization (
+                                                rhea_viscosity_options_t *opt)
 {
-  const int           is_valid = (isfinite (opt->nonlinear_regularization) &&
-                                  0.0 < opt->nonlinear_regularization);
+  return ( isfinite (opt->nonlinear_projector_regularization) &&
+           0.0 < opt->nonlinear_projector_regularization );
 
-  switch (opt->type_nonlinear) {
-  case RHEA_VISCOSITY_NONLINEAR_SRW:
-  case RHEA_VISCOSITY_NONLINEAR_YLD:
-  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:
-    return is_valid;
-  default: /* unknown nonlinear viscosity type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
 }
 
 double
-rhea_viscosity_get_nonlinear_regularization (
-                                        rhea_viscosity_options_t *opt,
-                                        const double strain_rate_weakening_exp)
+rhea_viscosity_get_nonlinear_projector_regularization (
+                                                rhea_viscosity_options_t *opt)
 {
-  double              weight;
-
-  RHEA_ASSERT (isfinite (strain_rate_weakening_exp));
-  RHEA_ASSERT (0.0 <= strain_rate_weakening_exp &&
-               strain_rate_weakening_exp <= 1.0);
-
-  /* set ideal weight */
-  weight = (1.0 - strain_rate_weakening_exp);
-
-  /* however, only use a binary version of the weight since matvecs do not
-   * support variable shifts (TODO could be implemented, not good for
-   * performance though) */
-  if (SC_EPS < weight) { /* if weight is not zero */
-    weight = 1.0;
-  }
-  else { /* otherwise set/keep zero weight */
-    weight = 0.0;
-  }
-
-  if (rhea_viscosity_has_nonlinear_regularization (opt)) {
-    return opt->nonlinear_regularization * weight;
+  if (rhea_viscosity_has_nonlinear_projector_regularization (opt)) {
+    return SC_MIN (opt->nonlinear_projector_regularization, 1.0);
   }
   else {
     return NAN;
@@ -1774,15 +1737,9 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
   if (opt->type == RHEA_VISCOSITY_NONLINEAR) {
     switch (opt->model) {
     case RHEA_VISCOSITY_MODEL_UWYL:
-      if (rhea_viscosity_has_nonlinear_regularization (opt)) {
-        shift_proj -= rhea_viscosity_get_nonlinear_regularization (opt, 0.0);
-      }
       break;
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-      if (rhea_viscosity_has_nonlinear_regularization (opt)) {
-        shift_proj -= rhea_viscosity_get_nonlinear_regularization (opt, 0.0);
-      }
       if (rhea_viscosity_restrict_min (opt)) {
         shift_proj -= opt->min;
       }
