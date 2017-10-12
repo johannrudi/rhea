@@ -1106,6 +1106,41 @@ rhea_stokes_problem_nonlinear_update_hessian (ymir_vec_t *solution,
     RHEA_ABORT_NOT_REACHED ();
   }
 
+  /* set up linearization-induced anisotropy */
+  {
+    ymir_vec_t         *vel_aniso;
+
+    switch (linearization_type) {
+    case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
+      break;
+    case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
+    case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
+      /* destroy previous velocity of linearization-induced anisotropy */
+      vel_aniso = ymir_stress_op_nsp_lin_aniso_get_velocity (NULL, stress_op);
+      if (vel_aniso != NULL) {
+        ymir_vec_destroy (vel_aniso);
+        ymir_stress_op_nsp_lin_aniso_set_velocity (NULL, stress_op);
+      }
+
+      /* set velocity of linearization-induced anisotropy */
+      if (solution_exists) { /* if solution is provided */
+        rhea_velocity_pressure_create_components (
+            &vel_aniso, NULL, solution, stokes_problem_nl->press_elem);
+        rhea_stokes_problem_velocity_boundary_set_zero (
+            vel_aniso, stokes_problem_nl);
+        RHEA_ASSERT (rhea_velocity_is_valid (vel_aniso));
+        ymir_stress_op_nsp_lin_aniso_set_velocity (vel_aniso, stress_op);
+      }
+      break;
+  //TODO
+  //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
+  //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
+  //case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV2:
+    default: /* unknown linearization type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+
   /*
    * Set Up Stokes Preconditioner
    */
@@ -1478,18 +1513,10 @@ rhea_stokes_problem_nonlinear_modify_hessian_system (ymir_vec_t *neg_gradient,
     stokes_problem_nl->linearization_type;
   ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
   ymir_stress_op_t   *stress_op;
-  ymir_vec_t         *vel_aniso;
 
   /* get viscous stress operator */
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
   stress_op = stokes_problem_nl->stokes_op->stress_op;
-
-  /* destroy previous velocity of linearization-induced anisotropy */
-  vel_aniso = ymir_stress_op_nsp_lin_aniso_get_velocity (NULL, stress_op);
-  if (vel_aniso != NULL) {
-    ymir_vec_destroy (vel_aniso);
-    ymir_stress_op_nsp_lin_aniso_set_velocity (NULL, stress_op);
-  }
 
   /* exit if nothing to do */
   if (solution == NULL) {
@@ -1511,15 +1538,14 @@ rhea_stokes_problem_nonlinear_modify_hessian_system (ymir_vec_t *neg_gradient,
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
-    /* set velocity of linearization-induced anisotropy from current solution */
+#ifdef RHEA_ENABLE_DEBUG
     if (lin_aniso_pc || check_lin_aniso) {
-      rhea_velocity_pressure_create_components (
-          &vel_aniso, NULL, solution, press_elem);
-      rhea_stokes_problem_velocity_boundary_set_zero (
-          vel_aniso, stokes_problem_nl);
-      RHEA_ASSERT (rhea_velocity_is_valid (vel_aniso));
-      ymir_stress_op_nsp_lin_aniso_set_velocity (vel_aniso, stress_op);
+      ymir_vec_t         *vel_aniso;
+
+      vel_aniso = ymir_stress_op_nsp_lin_aniso_get_velocity (NULL, stress_op);
+      YMIR_ASSERT (vel_aniso != NULL);
     }
+#endif
 
     /* check for linearization-induced anisotropy in (neg.) gradient */
     if (check_lin_aniso) {
