@@ -3,6 +3,7 @@
 
 #include <rhea_discretization.h>
 #include <rhea_base.h>
+#include <rhea_amr.h>
 #include <p8est_extended.h>
 #include <mangll_p8est.h>
 #include <ymir_stress_pc.h>
@@ -46,7 +47,7 @@ rhea_discretization_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_S, "refinement-type", '\0',
     &(rhea_discretization_refinement_type),
     RHEA_DISCRETIZATION_DEFAULT_REFINEMENT_TYPE,
-    "Mesh refinement type",
+    "Init refinement type: uniform, half",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -305,8 +306,8 @@ rhea_discretization_process_options (rhea_discretization_options_t *opt,
 {
   /* set discretization order and mesh refinement levels */
   opt->order = rhea_discretization_order;
-  opt->level_min = (int8_t) rhea_discretization_level_min;
-  opt->level_max = (int8_t) rhea_discretization_level_max;
+  opt->level_min = rhea_discretization_level_min;
+  opt->level_max = rhea_discretization_level_max;
 
   /* set undefined boundary information */
   opt->boundary = NULL;
@@ -366,13 +367,22 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
                                rhea_discretization_options_t *opt,
                                rhea_domain_options_t *domain_options)
 {
-  const int           level_min = (int) opt->level_min;;
+  /* arguments for creating a new p4est object */
+  const int           n_quadrants_init = 0;
+  int                 level_init = opt->level_min;
+  const int           fill_uniformly = 1;
+  size_t              data_size = 0;
+  p4est_init_t        init_fn = NULL;
+  /* arguments for first refinement */
   const char         *refine = rhea_discretization_refinement_type;
   p4est_refine_t      refine_fn = NULL;
-  int                 level_ext;  /* passed to p4est_new_ext */
-  int                 level_ref;  /* used inside first refinement */
-  int                 level_max;  /* maximum level for p4est_refine */
-
+  void               *refine_data = NULL;
+  const int           refine_recursively = 1;
+  const int           refine_level_max = opt->level_min;
+  const int           partition_for_coarsening = 1;
+  p4est_weight_t      partition_weight_fn = NULL;
+  p4est_replace_t     replace_fn = NULL;
+  /* p4est objects */
   p4est_connectivity_t *conn;
   p4est_t            *p4est;
 
@@ -489,49 +499,50 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
    * Set Up Initial Refinement
    */
 
-  level_ext = level_ref = level_max = level_min;
+  /* set refine function; reduce min level for new p4est to allow additional
+   * refinement */
   if (refine != NULL) {
     if (!strcmp (refine, "uniform")) {
       /* uniform refinement is the default action */
     }
-    else if (!strcmp (refine, "evenodd")) {
-      refine_fn = mangll_p8est_refine_evenodd;
-      level_ext = level_min - 1;
+    else if (!strcmp (refine, "half")) {
+      refine_fn = rhea_amr_p4est_refine_half;
+      level_init = level_init - 1;
     }
-    else if (!strcmp (refine, "oddeven")) {
-      refine_fn = mangll_p8est_refine_oddeven;
-      level_ext = level_min - 1;
-    }
-    else if (!strcmp (refine, "origin")) {
-      refine_fn = mangll_p8est_refine_origin;
-      level_ext = 0;
-    }
-    else if (!strcmp (refine, "fractal")) {
-      refine_fn = mangll_p8est_refine_fractal;
-      level_ext = level_min - 4;
-    }
-    else if (!strcmp (refine, "halfhalf")) {
-      refine_fn = mangll_p8est_refine_halfhalf;
-      level_ext = level_min - 1;
-    }
-    else if (!strcmp (refine, "finercenter2")) {
-      refine_fn = mangll_p8est_refine_finercenter2;
-      level_ext = level_ref = level_min - 1;
-    }
-    else if (!strcmp (refine, "finercenter4")) {
-      refine_fn = mangll_p8est_refine_finercenter4;
-      level_ext = level_ref = level_min - 1;
-    }
+  //else if (!strcmp (refine, "evenodd")) {
+  //  refine_fn = mangll_p8est_refine_evenodd;
+  //  level_init = level_init - 1;
+  //}
+  //else if (!strcmp (refine, "oddeven")) {
+  //  refine_fn = mangll_p8est_refine_oddeven;
+  //  level_init = level_init - 1;
+  //}
+  //else if (!strcmp (refine, "origin")) {
+  //  refine_fn = mangll_p8est_refine_origin;
+  //  level_init = 0;
+  //}
+  //else if (!strcmp (refine, "fractal")) {
+  //  refine_fn = mangll_p8est_refine_fractal;
+  //  level_init = level_init - 4;
+  //}
+  //else if (!strcmp (refine, "finercenter2")) {
+  //  refine_fn = mangll_p8est_refine_finercenter2;
+  //  level_init = level_init - 1;
+  //}
+  //else if (!strcmp (refine, "finercenter4")) {
+  //  refine_fn = mangll_p8est_refine_finercenter4;
+  //  level_init = level_init - 1;
+  //}
     else {
       RHEA_GLOBAL_LERROR ("Unknown refinement type");
       return NULL;
     }
   }
 
-  /* bound max level by option value */
-  if (level_min <= (int) opt->level_max) {
-    level_ext = SC_MIN ((int) opt->level_max, level_ext);
-    level_max = SC_MIN ((int) opt->level_max, level_max);
+  /* restrict min level */
+  level_init = SC_MAX (0, level_init);
+  if (opt->level_min <= opt->level_max) {
+    level_init = SC_MIN (level_init, opt->level_max);
   }
 
   /*
@@ -539,14 +550,16 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
    */
 
   /* create new p4est */
-  p4est = p4est_new_ext (mpicomm, conn, 0, level_ext, 1, 0, NULL, &level_ref);
+  p4est = p4est_new_ext (mpicomm, conn, n_quadrants_init, level_init,
+                         fill_uniformly, data_size, init_fn, refine_data);
 
   /* refine */
-  if (refine != NULL && refine_fn != NULL) {
-    p4est_refine_ext (p4est, 1, level_max, refine_fn, NULL, NULL);
-    p4est_partition_ext (p4est, 1, NULL);
-    p4est_balance (p4est, P4EST_CONNECT_FULL, NULL);
-    p4est_partition_ext (p4est, 1, NULL);
+  if (refine_fn != NULL) {
+    p4est_refine_ext (p4est, refine_recursively, refine_level_max, refine_fn,
+                      init_fn, replace_fn);
+    p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
+    p4est_balance (p4est, P4EST_CONNECT_FULL, init_fn);
+    p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
   }
 
   /* initialize user data */

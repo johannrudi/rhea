@@ -8,8 +8,8 @@
 typedef struct rhea_discretization_options
 {
   int                 order;
-  int8_t              level_min;
-  int8_t              level_max;
+  int                 level_min;
+  int                 level_max;
 
   /* boundary information */
   rhea_domain_boundary_t  *boundary;
