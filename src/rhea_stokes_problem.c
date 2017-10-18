@@ -14,6 +14,7 @@
 #include <ymir_mass_vec.h>
 #include <ymir_stress_op_optimized.h>
 #include <ymir_stokes_pc.h>
+#include <ymir_vtk.h>
 #ifdef RHEA_ENABLE_DEBUG
 # include <ymir_comm.h>
 #endif
@@ -1172,6 +1173,7 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
   const char         *this_fn_name = "rhea_stokes_problem_nonlinear_data_init";
   rhea_stokes_problem_t *stokes_problem_nl = data;
   rhea_viscosity_options_t *visc_options = stokes_problem_nl->visc_options;
+  const char         *vtk_path = stokes_problem_nl->vtk_write_newton_itn_path;
   const int           nonzero_init_guess = (solution != NULL);
   ymir_vec_t         *coeff           = stokes_problem_nl->coeff;
   ymir_vec_t         *bounds_marker   = stokes_problem_nl->bounds_marker;
@@ -1190,6 +1192,14 @@ rhea_stokes_problem_nonlinear_data_init (ymir_vec_t *solution, void *data)
   RHEA_ASSERT (stokes_problem_nl->stokes_op == NULL);
   RHEA_ASSERT (stokes_problem_nl->stokes_pc == NULL);
   RHEA_ASSERT (stokes_problem_nl->norm_op == NULL);
+
+  /* set VTK path for debuggin */
+  if (vtk_path != NULL) {
+    char                path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_itn%02i", vtk_path, 0);
+    ymir_vtk_set_debug_path (path);
+  }
 
   /* set coefficient types */
   coeff_type = YMIR_STRESS_OP_COEFF_ISOTROPIC_SCAL;
@@ -1319,6 +1329,9 @@ rhea_stokes_problem_nonlinear_data_clear (void *data)
     RHEA_ASSERT (stokes_problem_nl->norm_op != NULL);
     ymir_Hminus1_norm_op_destroy (stokes_problem_nl->norm_op);
   }
+
+  /* clear VTK path for debuggin */
+  ymir_vtk_set_debug_path ("");
 
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
@@ -1711,7 +1724,7 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
   const char         *this_fn_name =
                         "rhea_stokes_problem_nonlinear_output_prestep";
   rhea_stokes_problem_t *stokes_problem_nl = data;
-  const char         *filepath = stokes_problem_nl->vtk_write_newton_itn_path;
+  const char         *vtk_path = stokes_problem_nl->vtk_write_newton_itn_path;
   ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
   ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
   ymir_vec_t         *velocity, *pressure, *viscosity;
@@ -1750,14 +1763,20 @@ rhea_stokes_problem_nonlinear_output_prestep (ymir_vec_t *solution,
   RHEA_GLOBAL_INFOF (
       "%s: Yielding volume rel: %.3f\n", this_fn_name, yielding_vol/domain_vol);
 
-  /* write vtk */
-  if (filepath != NULL) {
+  /* create visualization */
+  if (vtk_path != NULL) {
     char                path[BUFSIZ];
 
-    snprintf (path, BUFSIZ, "%s_itn%02i", filepath, iter);
+    /* set path */
+    snprintf (path, BUFSIZ, "%s_itn%02i", vtk_path, iter);
+
+    /* write VTK */
     rhea_vtk_write_nonlinear_stokes_iteration (
         path, velocity, pressure, viscosity,
         stokes_problem_nl->bounds_marker, stokes_problem_nl->yielding_marker);
+
+    /* set VTK path for debugging within ymir */
+    ymir_vtk_set_debug_path (path);
   }
 
   /* destroy */
