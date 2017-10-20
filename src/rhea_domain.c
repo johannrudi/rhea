@@ -631,6 +631,20 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
 }
 
 double
+rhea_domain_depth_m_to_depth (const double depth_m,
+                              rhea_domain_options_t *opt)
+{
+  return opt->radius_max * depth_m / opt->radius_max_m;
+}
+
+double
+rhea_domain_depth_m_to_radius (const double depth_m,
+                               rhea_domain_options_t *opt)
+{
+  return opt->radius_max * (1.0 - depth_m / opt->radius_max_m);
+}
+
+double
 rhea_domain_compute_radius (const double x, const double y, const double z,
                             rhea_domain_options_t *opt)
 {
