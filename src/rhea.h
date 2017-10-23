@@ -7,6 +7,7 @@
 #include <rhea_base.h>
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
+#include <rhea_amr.h>
 #include <rhea_temperature.h>
 #include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
