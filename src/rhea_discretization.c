@@ -356,6 +356,10 @@ rhea_discretization_options_clear (rhea_discretization_options_t *opt)
   opt->boundary = NULL;
 }
 
+/******************************************************************************
+ * Constructor/Destructor for p4est
+ *****************************************************************************/
+
 p4est_t *
 rhea_discretization_p4est_new (MPI_Comm mpicomm,
                                rhea_discretization_options_t *opt,
@@ -512,8 +516,12 @@ rhea_discretization_p4est_destroy (p4est_t *p4est)
   p4est_connectivity_destroy (conn);
 }
 
+/******************************************************************************
+ * Constructor/Destructor for mangll
+ *****************************************************************************/
+
 void
-rhea_discretization_mangll_and_cnodes_new (mangll_t **mangll,
+rhea_discretization_mangll_continuous_new (mangll_t **mangll,
                                            mangll_cnodes_t **cnodes,
                                            p4est_t *p4est,
                                            rhea_discretization_options_t *opt)
@@ -533,7 +541,7 @@ rhea_discretization_mangll_and_cnodes_new (mangll_t **mangll,
     ghost = p4est_ghost_new (p4est, P4EST_CONNECT_FACE);
   }
 
-  /* create mangll mesh structure */
+  /* create mangll mesh */
   mangll_mesh = mangll_p8est_mesh_new_full (p4est, ghost);
 
   /* assign mapping to physical space */
@@ -542,20 +550,79 @@ rhea_discretization_mangll_and_cnodes_new (mangll_t **mangll,
 
   RHEA_ASSERT (mangll != NULL);
   if (cnodes != NULL) { /* if mesh with continuous nodes should be created */
-    /* create continuous node structure */
+    /* create continuous node */
     *cnodes = mangll_p8est_cnodes_new (p4est, ghost, order);
 
-    /* create mangll structure with continuous geometry */
+    /* create mangll object with continuous geometry */
     *mangll = mangll_new_ext (mpicomm, order, quad_type, mangll_mesh, *cnodes);
   }
   else {
-    /* create mangll structure with discontinuous geometry */
+    /* create mangll object with discontinuous geometry */
     *mangll = mangll_new_ext (mpicomm, order, quad_type, mangll_mesh, NULL);
   }
 
   /* destroy ghost */
   p4est_ghost_destroy (ghost);
 }
+
+void
+rhea_discretization_mangll_continuous_destroy (mangll_t *mangll,
+                                               mangll_cnodes_t *cnodes)
+{
+  if (mangll != NULL) {
+    mangll_destroy (mangll);
+  }
+  if (cnodes != NULL) {
+    mangll_p8est_cnodes_destroy (cnodes);
+  }
+}
+
+mangll_t *
+rhea_discretization_mangll_discontinuous_new (p4est_t *p4est, const int order,
+                                              mangll_X_t X_fn, void *X_data)
+{
+  rhea_discretization_options_t opt;
+  mangll_t           *mangll;
+
+  /* set required options */
+  opt.order = order;
+  opt.X_fn = X_fn;
+  opt.X_data = X_data;
+
+  /* create and return new mangll object */
+  rhea_discretization_mangll_continuous_new (&mangll, NULL, p4est, &opt);
+  return mangll;
+}
+
+void
+rhea_discretization_mangll_discontinuous_destroy (mangll_t *mangll)
+{
+  mangll_destroy (mangll);
+}
+
+mangll_t *
+rhea_discretization_mangll_interpolation_new (p4est_t *p4est, const int order)
+{
+  MPI_Comm            mpicomm = p4est->mpicomm;
+  const mangll_refel_quadrature_type_t  quad_type = MANGLL_REFEL_QUAD_GAUSS;
+  mangll_mesh_t      *mangll_mesh;
+
+  /* create mangll mesh */
+  mangll_mesh = mangll_p8est_mesh_new_partial (p4est);
+
+  /* create and return new mangll object */
+  return mangll_for_interpolation_new (mpicomm, order, quad_type, mangll_mesh);
+}
+
+void
+rhea_discretization_mangll_interpolation_destroy (mangll_t *mangll)
+{
+  mangll_for_interpolation_destroy (mangll);
+}
+
+/******************************************************************************
+ * Constructor/Destructor for ymir
+ *****************************************************************************/
 
 void
 rhea_discretization_ymir_mesh_new_from_mangll (
@@ -594,7 +661,7 @@ rhea_discretization_ymir_mesh_new_from_p4est (
   mangll_cnodes_t    *cnodes;
 
   /* create mangll & cnodes */
-  rhea_discretization_mangll_and_cnodes_new (&mangll, &cnodes, p4est, opt);
+  rhea_discretization_mangll_continuous_new (&mangll, &cnodes, p4est, opt);
 
   /* create ymir mesh & pressure element */
   rhea_discretization_ymir_mesh_new_from_mangll (ymir_mesh, press_elem,
@@ -615,8 +682,8 @@ rhea_discretization_ymir_mesh_destroy (ymir_mesh_t *ymir_mesh,
 
   /* destroy mangll, cnodes, and ymir_mesh */
   if (ymir_mesh != NULL) {
-    mangll_destroy (ymir_mesh->ma);
-    mangll_p8est_cnodes_destroy (ymir_mesh->cnodes);
+    rhea_discretization_mangll_continuous_destroy (ymir_mesh->ma,
+                                                   ymir_mesh->cnodes);
     ymir_mesh_destroy (ymir_mesh);
   }
 }

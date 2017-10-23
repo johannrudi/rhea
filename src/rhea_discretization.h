@@ -56,32 +56,48 @@ void                rhea_discretization_options_set_boundary (
 void                rhea_discretization_options_clear (
                                         rhea_discretization_options_t *opt);
 
-/**
- * Creates new p4est.
- */
+/******************************************************************************
+ * Constructor/Destructor for p4est
+ *****************************************************************************/
+
 p4est_t            *rhea_discretization_p4est_new (
                                         MPI_Comm mpicomm,
                                         rhea_discretization_options_t *opt,
                                         rhea_domain_options_t *domain_options);
 
-/**
- * Destroys p4est.
- */
 void                rhea_discretization_p4est_destroy (p4est_t *p4est);
 
-/**
- * Creates new mangll and cnodes objects.
- */
-void                rhea_discretization_mangll_and_cnodes_new (
+/******************************************************************************
+ * Constructor/Destructor for mangll
+ *****************************************************************************/
+
+void                rhea_discretization_mangll_continuous_new (
                                         mangll_t **mangll,
                                         mangll_cnodes_t **cnodes,
                                         p4est_t *p4est,
                                         rhea_discretization_options_t *opt);
 
-/**
- * Creates new ymir mesh and pressure element structures, given mangll and
- * cnodes.
- */
+void                rhea_discretization_mangll_continuous_destroy (
+                                        mangll_t *mangll,
+                                        mangll_cnodes_t *cnodes);
+
+mangll_t           *rhea_discretization_mangll_discontinuous_new (
+                                        p4est_t *p4est, const int order,
+                                        mangll_X_t X_fn, void *X_data);
+
+void                rhea_discretization_mangll_discontinuous_destroy (
+                                        mangll_t *mangll);
+
+mangll_t           *rhea_discretization_mangll_interpolation_new (
+                                        p4est_t *p4est, const int order);
+
+void                rhea_discretization_mangll_interpolation_destroy (
+                                        mangll_t *mangll);
+
+/******************************************************************************
+ * Constructor/Destructor for ymir
+ *****************************************************************************/
+
 void                rhea_discretization_ymir_mesh_new_from_mangll (
                                           ymir_mesh_t **ymir_mesh,
                                           ymir_pressure_elem_t **press_elem,
@@ -89,18 +105,12 @@ void                rhea_discretization_ymir_mesh_new_from_mangll (
                                           mangll_cnodes_t *cnodes,
                                           rhea_discretization_options_t *opt);
 
-/**
- * Creates new ymir mesh and pressure element structures, given p4est.
- */
 void                rhea_discretization_ymir_mesh_new_from_p4est (
                                           ymir_mesh_t **ymir_mesh,
                                           ymir_pressure_elem_t **press_elem,
                                           p4est_t *p4est,
                                           rhea_discretization_options_t *opt);
 
-/**
- * Destroys ymir mesh and corresponding mangll structures.
- */
 void                rhea_discretization_ymir_mesh_destroy (
                                           ymir_mesh_t *ymir_mesh,
                                           ymir_pressure_elem_t *press_elem);
