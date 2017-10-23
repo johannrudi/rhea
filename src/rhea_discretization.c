@@ -9,12 +9,12 @@
 #include <ymir_stress_pc.h>
 #include <ymir_gmg.h>
 
+#define RHEA_DISCRETIZATION_P4EST_INIT_FN NULL
+
 /* default options */
 #define RHEA_DISCRETIZATION_DEFAULT_ORDER (2)
 #define RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN (1)
 #define RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX (18)
-#define RHEA_DISCRETIZATION_DEFAULT_REFINE_NEW_MESH "uniform"
-#define RHEA_DISCRETIZATION_DEFAULT_REFINE_NEW_MESH_DEPTH_M NULL
 
 int                 rhea_discretization_order =
   RHEA_DISCRETIZATION_DEFAULT_ORDER;
@@ -22,10 +22,6 @@ int                 rhea_discretization_level_min =
   RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN;
 int                 rhea_discretization_level_max =
   RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX;
-char               *rhea_discretization_refine_new_mesh =
-  RHEA_DISCRETIZATION_DEFAULT_REFINE_NEW_MESH;
-char               *rhea_discretization_refine_new_mesh_depth_m =
-  RHEA_DISCRETIZATION_DEFAULT_REFINE_NEW_MESH_DEPTH_M;
 
 void
 rhea_discretization_add_options (ymir_options_t * opt_sup)
@@ -46,15 +42,6 @@ rhea_discretization_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "level-max", '\0',
     &(rhea_discretization_level_max), RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX,
     "Maximum level of mesh refinement",
-
-  YMIR_OPTIONS_S, "refine-new-mesh", '\0',
-    &(rhea_discretization_refine_new_mesh),
-    RHEA_DISCRETIZATION_DEFAULT_REFINE_NEW_MESH,
-    "Refinement of new/initial mesh: uniform, half, radial",
-  YMIR_OPTIONS_S, "refine-new-mesh-depth", '\0',
-    &(rhea_discretization_refine_new_mesh_depth_m),
-    RHEA_DISCRETIZATION_DEFAULT_REFINE_NEW_MESH_DEPTH_M,
-    "Refinement 'depth': Sorted list of depths [m] (put shallowest at last)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -375,21 +362,12 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
                                rhea_domain_options_t *domain_options)
 {
   /* arguments for creating a new p4est object */
+  const int           level_min = opt->level_min;
+  const int           level_max = opt->level_max;
   const int           n_quadrants_init = 0;
-  const int           level_init = opt->level_min;
   const int           fill_uniformly = 1;
-  size_t              data_size = 0;
-  p4est_init_t        init_fn = NULL;
-  /* arguments & data for refinement */
-  const char         *refine_name = rhea_discretization_refine_new_mesh;
-  rhea_amr_p4est_refine_t refine_type;
-  p4est_refine_t      refine_fn = NULL;
-  void               *refine_data = NULL;
-  int                 refine_recursively = 0;
-  const int           refine_level_max = opt->level_max;
-  const int           partition_for_coarsening = 1;
-  p4est_weight_t      partition_weight_fn = NULL;
-  p4est_replace_t     replace_fn = NULL;
+  const size_t        data_size = 0;
+  const p4est_init_t    init_fn = RHEA_DISCRETIZATION_P4EST_INIT_FN;
   /* p4est objects */
   p4est_connectivity_t *conn;
   p4est_t            *p4est;
@@ -507,108 +485,15 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
    * Create p4est
    */
 
-  /* get type of refinement from name */
-  refine_type = rhea_amr_p4est_refine_decode (refine_name);
-
-  /* set refinement function and data */
-  switch (refine_type) {
-  case RHEA_AMR_P4EST_REFINE_UNKNOWN:
-    RHEA_GLOBAL_LERROR ("Unknown refinement type");
-    break;
-  case RHEA_AMR_P4EST_REFINE_NONE:
-  case RHEA_AMR_P4EST_REFINE_UNIFORM:
-    /* no function necessary */
-    break;
-  case RHEA_AMR_P4EST_REFINE_HALF:
-    refine_fn = rhea_amr_p4est_refine_half;
-    break;
-  case RHEA_AMR_P4EST_REFINE_DEPTH:
-    {
-      double             *depth_m = NULL;
-      int                 count, k;
-      const double        rmin = domain_options->radius_min;
-      const double        rmax = domain_options->radius_max;
-      double              d, depth_rel;
-      int                *depth;
-      rhea_amr_p4est_refine_depth_data_t *data;
-
-      /* convert input string to double values */
-      count = ymir_options_convert_string_to_double (
-          rhea_discretization_refine_new_mesh_depth_m, &depth_m);
-
-      /* skip refinement if depths were not provided */
-      if (count == 0) {
-        refine_type = RHEA_AMR_P4EST_REFINE_NONE;
-        break;
-      }
-
-      /* check values */
-      for (k = 0; k < count; k++) {
-        RHEA_CHECK_ABORT (0.0 <= depth_m[k], "Refinement depth is negative");
-        if (0 < k) {
-          RHEA_CHECK_ABORT (depth_m[k] <= depth_m[k-1],
-                            "Refinement depths are not ascending");
-        }
-      }
-
-      /* transform dimensional depths to p4est quadrant coordinates */
-      depth = RHEA_ALLOC (int, count);
-      for (k = 0; k < count; k++) {
-        d = rhea_domain_depth_m_to_depth (depth_m[k], domain_options);
-        depth_rel = d / (rmax - rmin);
-        RHEA_ASSERT (0.0 <= depth_rel && depth_rel <= 1.0);
-        depth[k] = (int) round (depth_rel * (double) P4EST_ROOT_LEN);
-      }
-      YMIR_FREE (depth_m); /* was allocated in ymir */
-
-      /* set refinement data */
-      data = RHEA_ALLOC (rhea_amr_p4est_refine_depth_data_t, 1);
-      data->depth = depth;
-      data->count = count;
-      data->level_min = level_init;
-      refine_data = data;
-      refine_fn = rhea_amr_p4est_refine_depth;
-      refine_recursively = 1;
-    }
-    break;
-  default: /* unknown refinement type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
   /* create new p4est */
-  p4est = p4est_new_ext (mpicomm, conn, n_quadrants_init, level_init,
-                         fill_uniformly, data_size, init_fn, refine_data);
+  p4est = p4est_new_ext (mpicomm, conn, n_quadrants_init, level_min,
+                         fill_uniformly, data_size, init_fn, NULL);
 
   /* refine */
-  if (refine_fn != NULL) {
-    p4est_refine_ext (p4est, refine_recursively, refine_level_max, refine_fn,
-                      init_fn, replace_fn);
-    p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
-    p4est_balance (p4est, P4EST_CONNECT_FULL, init_fn);
-    p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
-  }
-
-  /* destroy refinement data */
-  switch (refine_type) {
-  case RHEA_AMR_P4EST_REFINE_NONE:
-  case RHEA_AMR_P4EST_REFINE_UNIFORM:
-  case RHEA_AMR_P4EST_REFINE_HALF:
-    break;
-  case RHEA_AMR_P4EST_REFINE_DEPTH:
-    {
-      rhea_amr_p4est_refine_depth_data_t *data = refine_data;
-
-      RHEA_FREE (data->depth);
-      RHEA_FREE (data);
-    }
-    break;
-  default: /* unknown refinement type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
+  rhea_amr_p4est_refine (p4est, level_min, level_max, domain_options);
 
   /* initialize user data */
-  //slabs_discr_p8est_init_data (p4est, discr_options->inspect_p4est);
-  //TODO
+  //rhea_discretization_p4est_data_create (p4est); //TODO
 
   /* return p4est */
   return p4est;
@@ -619,8 +504,10 @@ rhea_discretization_p4est_destroy (p4est_t *p4est)
 {
   p4est_connectivity_t *conn = p4est->connectivity;
 
-  //slabs_discr_p8est_clear_data (p4est);
-  //TODO
+  /* destroy user data */
+  //rhea_discretization_p4est_data_clear (p4est); //TODO
+
+  /* destroy p4est */
   p4est_destroy (p4est);
   p4est_connectivity_destroy (conn);
 }

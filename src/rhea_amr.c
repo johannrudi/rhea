@@ -2,7 +2,63 @@
  */
 
 #include <rhea_amr.h>
+#include <rhea_base.h>
+#include <p8est_extended.h>
 
+#define RHEA_AMR_P4EST_INIT_FN NULL
+#define RHEA_AMR_P4EST_REPLACE_FN NULL
+
+/* default options */
+#define RHEA_AMR_DEFAULT_INIT_P4EST_REFINE "uniform"
+#define RHEA_AMR_DEFAULT_INIT_P4EST_REFINE_DEPTH_M NULL
+
+char               *rhea_amr_init_p4est_refine =
+  RHEA_AMR_DEFAULT_INIT_P4EST_REFINE;
+char               *rhea_amr_init_p4est_refine_depth_m =
+  RHEA_AMR_DEFAULT_INIT_P4EST_REFINE_DEPTH_M;
+
+void
+rhea_amr_add_options (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "AMR";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_S, "init-p4est-refine", '\0',
+    &(rhea_amr_init_p4est_refine), RHEA_AMR_DEFAULT_INIT_P4EST_REFINE,
+    "Refinement of new/initial mesh: uniform, half, radial",
+  YMIR_OPTIONS_S, "init-p4est-refine-depth", '\0',
+    &(rhea_amr_init_p4est_refine_depth_m),
+    RHEA_AMR_DEFAULT_INIT_P4EST_REFINE_DEPTH_M,
+    "Refinement 'depth': Sorted list of depths [m] (put shallowest at last)",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+}
+
+/******************************************************************************
+ * Initial AMR for p4est Mesh
+ *****************************************************************************/
+
+/* types of initial refinement for a p4est mesh */
+typedef enum
+{
+  RHEA_AMR_P4EST_REFINE_UNKNOWN = -2,
+  RHEA_AMR_P4EST_REFINE_NONE    = -1,
+  RHEA_AMR_P4EST_REFINE_UNIFORM =  0, /* default, does not have a refine fn. */
+  RHEA_AMR_P4EST_REFINE_HALF,
+  RHEA_AMR_P4EST_REFINE_DEPTH,
+  RHEA_AMR_P4EST_REFINE_N
+}
+rhea_amr_p4est_refine_t;
+
+/* name for types of initial refinement */
 const char         *rhea_amr_p4est_refine_name[RHEA_AMR_P4EST_REFINE_N] =
 {
   "uniform",
@@ -10,7 +66,7 @@ const char         *rhea_amr_p4est_refine_name[RHEA_AMR_P4EST_REFINE_N] =
   "depth"
 };
 
-rhea_amr_p4est_refine_t
+static rhea_amr_p4est_refine_t
 rhea_amr_p4est_refine_decode (const char * name)
 {
   const int           n_types = (int) RHEA_AMR_P4EST_REFINE_N;
@@ -34,7 +90,7 @@ rhea_amr_p4est_refine_decode (const char * name)
   return type;
 }
 
-int
+static int
 rhea_amr_p4est_refine_half (p4est_t * p4est, p4est_topidx_t which_tree,
                             p4est_quadrant_t * quadrant)
 {
@@ -46,7 +102,15 @@ rhea_amr_p4est_refine_half (p4est_t * p4est, p4est_topidx_t which_tree,
   }
 }
 
-int
+typedef struct rhea_amr_p4est_refine_depth_data
+{
+  int                *depth;
+  int                 count;
+  int                 level_min;
+}
+rhea_amr_p4est_refine_depth_data_t;
+
+static int
 rhea_amr_p4est_refine_depth (p4est_t * p4est, p4est_topidx_t which_tree,
                               p4est_quadrant_t * quadrant)
 {
@@ -66,4 +130,128 @@ rhea_amr_p4est_refine_depth (p4est_t * p4est, p4est_topidx_t which_tree,
   }
 
   return 0;
+}
+
+int
+rhea_amr_p4est_refine (p4est_t *p4est,
+                       const int level_min,
+                       const int level_max,
+                       rhea_domain_options_t *domain_options)
+{
+  /* arguments for refinement */
+  const char         *refine_name = rhea_amr_init_p4est_refine;
+  rhea_amr_p4est_refine_t type;
+  p4est_refine_t      refine_fn = NULL;
+  void               *refine_data = NULL;
+  int                 recursively = 0;
+  const p4est_init_t    init_fn = RHEA_AMR_P4EST_INIT_FN;
+  const p4est_replace_t replace_fn = RHEA_AMR_P4EST_REPLACE_FN;
+  /* arguments for partitioning */
+  const int           partition_for_coarsening = 1;
+  p4est_weight_t      partition_weight_fn = NULL;
+
+  /* get type of refinement from name */
+  type = rhea_amr_p4est_refine_decode (refine_name);
+
+  /* set refinement function and data */
+  switch (type) {
+  case RHEA_AMR_P4EST_REFINE_UNKNOWN:
+    RHEA_GLOBAL_LERROR ("Unknown refinement type");
+    break;
+  case RHEA_AMR_P4EST_REFINE_NONE:
+  case RHEA_AMR_P4EST_REFINE_UNIFORM:
+    /* no function necessary */
+    break;
+  case RHEA_AMR_P4EST_REFINE_HALF:
+    refine_fn = rhea_amr_p4est_refine_half;
+    break;
+  case RHEA_AMR_P4EST_REFINE_DEPTH:
+    {
+      double             *depth_m = NULL;
+      int                 count, k;
+      const double        rmin = domain_options->radius_min;
+      const double        rmax = domain_options->radius_max;
+      double              d, depth_rel;
+      int                *depth;
+      rhea_amr_p4est_refine_depth_data_t *data;
+
+      /* convert input string to double values */
+      count = ymir_options_convert_string_to_double (
+          rhea_amr_init_p4est_refine_depth_m, &depth_m);
+
+      /* skip refinement if depths were not provided */
+      if (count == 0) {
+        type = RHEA_AMR_P4EST_REFINE_NONE;
+        break;
+      }
+
+      /* check values */
+      for (k = 0; k < count; k++) {
+        RHEA_CHECK_ABORT (0.0 <= depth_m[k], "Refinement depth is negative");
+        if (0 < k) {
+          RHEA_CHECK_ABORT (depth_m[k] <= depth_m[k-1],
+                            "Refinement depths are not ascending");
+        }
+      }
+
+      /* transform dimensional depths to p4est quadrant coordinates */
+      depth = RHEA_ALLOC (int, count);
+      for (k = 0; k < count; k++) {
+        d = rhea_domain_depth_m_to_depth (depth_m[k], domain_options);
+        depth_rel = d / (rmax - rmin);
+        RHEA_ASSERT (0.0 <= depth_rel && depth_rel <= 1.0);
+        depth[k] = (int) round (depth_rel * (double) P4EST_ROOT_LEN);
+      }
+      YMIR_FREE (depth_m); /* was allocated in ymir */
+
+      /* set refinement data */
+      data = RHEA_ALLOC (rhea_amr_p4est_refine_depth_data_t, 1);
+      data->depth = depth;
+      data->count = count;
+      data->level_min = level_min;
+      refine_data = data;
+      refine_fn = rhea_amr_p4est_refine_depth;
+      recursively = 1;
+    }
+    break;
+  default: /* unknown refinement type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* perform refinement */
+  if (refine_fn != NULL) {
+    void               *user_pointer = p4est->user_pointer;
+
+    /* refine */
+    p4est->user_pointer = (void *) refine_data;
+    p4est_refine_ext (p4est, recursively, level_max, refine_fn, init_fn,
+                      replace_fn);
+    p4est->user_pointer = user_pointer;
+
+    /* partition and balance */
+    p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
+    p4est_balance (p4est, P4EST_CONNECT_FULL, init_fn);
+    p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
+  }
+
+  /* destroy refinement data */
+  switch (type) {
+  case RHEA_AMR_P4EST_REFINE_NONE:
+  case RHEA_AMR_P4EST_REFINE_UNIFORM:
+  case RHEA_AMR_P4EST_REFINE_HALF:
+    break;
+  case RHEA_AMR_P4EST_REFINE_DEPTH:
+    {
+      rhea_amr_p4est_refine_depth_data_t *data = refine_data;
+
+      RHEA_FREE (data->depth);
+      RHEA_FREE (data);
+    }
+    break;
+  default: /* unknown refinement type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* return whether refinement was performed */
+  return (refine_fn != NULL);
 }
