@@ -67,6 +67,19 @@ p4est_t            *rhea_discretization_p4est_new (
 
 void                rhea_discretization_p4est_destroy (p4est_t *p4est);
 
+/* user data of a p4est quadrant */
+typedef struct
+{
+  int                 amr_flag;
+}
+rhea_p4est_quadrant_data_t;
+
+/**
+ * Callback function for initializing new p4est quadrants.
+ */
+void                rhea_p4est_init_fn (p4est_t *p4est, p4est_topidx_t tree,
+                                        p4est_quadrant_t *quadrant);
+
 /******************************************************************************
  * Constructor/Destructor for mangll
  *****************************************************************************/

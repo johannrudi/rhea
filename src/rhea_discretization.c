@@ -9,8 +9,6 @@
 #include <ymir_stress_pc.h>
 #include <ymir_gmg.h>
 
-#define RHEA_DISCRETIZATION_P4EST_INIT_FN NULL
-
 /* default options */
 #define RHEA_DISCRETIZATION_DEFAULT_ORDER (2)
 #define RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN (1)
@@ -360,6 +358,15 @@ rhea_discretization_options_clear (rhea_discretization_options_t *opt)
  * Constructor/Destructor for p4est
  *****************************************************************************/
 
+void
+rhea_p4est_init_fn (p4est_t *p4est, p4est_topidx_t tree,
+                    p4est_quadrant_t *quadrant)
+{
+  rhea_p4est_quadrant_data_t *d = quadrant->p.user_data;
+
+  d->amr_flag = 0; /* neutral value (no coarsening/refinement) */
+}
+
 p4est_t *
 rhea_discretization_p4est_new (MPI_Comm mpicomm,
                                rhea_discretization_options_t *opt,
@@ -370,8 +377,9 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
   const int           level_max = opt->level_max;
   const int           n_quadrants_init = 0;
   const int           fill_uniformly = 1;
-  const size_t        data_size = 0;
-  const p4est_init_t    init_fn = RHEA_DISCRETIZATION_P4EST_INIT_FN;
+  const size_t        data_size = sizeof (rhea_p4est_quadrant_data_t);
+  const p4est_init_t  init_fn = rhea_p4est_init_fn;
+  void               *user_pointer = NULL;
   /* p4est objects */
   p4est_connectivity_t *conn;
   p4est_t            *p4est;
@@ -491,13 +499,10 @@ rhea_discretization_p4est_new (MPI_Comm mpicomm,
 
   /* create new p4est */
   p4est = p4est_new_ext (mpicomm, conn, n_quadrants_init, level_min,
-                         fill_uniformly, data_size, init_fn, NULL);
+                         fill_uniformly, data_size, init_fn, user_pointer);
 
   /* refine */
-  rhea_amr_p4est_refine (p4est, level_min, level_max, domain_options);
-
-  /* initialize user data */
-  //rhea_discretization_p4est_data_create (p4est); //TODO
+  rhea_amr_init_refine (p4est, level_min, level_max, domain_options);
 
   /* return p4est */
   return p4est;
@@ -507,9 +512,6 @@ void
 rhea_discretization_p4est_destroy (p4est_t *p4est)
 {
   p4est_connectivity_t *conn = p4est->connectivity;
-
-  /* destroy user data */
-  //rhea_discretization_p4est_data_clear (p4est); //TODO
 
   /* destroy p4est */
   p4est_destroy (p4est);
