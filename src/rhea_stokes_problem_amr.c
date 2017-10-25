@@ -11,9 +11,9 @@
 #include <rhea_velocity_pressure.h>
 #include <rhea_viscosity.h>
 #include <ymir_interp_vec.h>
+#include <ymir_hmg_intergrid_h.h>
 #include <ymir_mass_vec.h>
 #include <ymir_pressure_vec.h>
-#include <ymir_gmg_intergrid_extended.h> //TODO
 #include <mangll_fields.h>
 
 typedef struct rhea_stokes_problem_amr_data
@@ -189,21 +189,21 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
     RHEA_ASSERT (rhea_temperature_check_vec_type (d->temperature));
     RHEA_ASSERT (d->temperature_original == NULL);
     d->temperature_original = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    temperature_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GLL_NODE,
+    temperature_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
                                            d->temperature_original);
   }
   if (has_vel) {
     RHEA_ASSERT (rhea_velocity_check_vec_type (d->velocity));
     RHEA_ASSERT (d->velocity_original == NULL);
     d->velocity_original = sc_dmatrix_new (n_elements, 3 * n_nodes_per_el);
-    velocity_view = ymir_dvec_new_data (d->ymir_mesh, 3, YMIR_GLL_NODE,
+    velocity_view = ymir_dvec_new_data (d->ymir_mesh, 3, YMIR_GAUSS_NODE,
                                         d->velocity_original);
   }
   if (has_press) {
     RHEA_ASSERT (rhea_pressure_check_vec_type (d->pressure, d->press_elem));
     RHEA_ASSERT (d->pressure_original == NULL);
     d->pressure_original = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    pressure_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GLL_NODE,
+    pressure_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
                                         d->pressure_original);
   }
 
@@ -284,21 +284,21 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   /* create views onto buffers and fields */
   if (has_temp) {
     RHEA_ASSERT (d->temperature == NULL);
-    temperature_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GLL_NODE,
+    temperature_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
                                            d->temperature_original);
     temperature_mass = rhea_temperature_new (d->ymir_mesh);
     d->temperature = rhea_temperature_new (d->ymir_mesh);
   }
   if (has_vel) {
     RHEA_ASSERT (d->velocity == NULL);
-    velocity_view = ymir_dvec_new_data (d->ymir_mesh, 3, YMIR_GLL_NODE,
+    velocity_view = ymir_dvec_new_data (d->ymir_mesh, 3, YMIR_GAUSS_NODE,
                                         d->velocity_original);
     velocity_mass = rhea_velocity_new (d->ymir_mesh);
     d->velocity = rhea_velocity_new (d->ymir_mesh);
   }
   if (has_press) {
     RHEA_ASSERT (d->pressure == NULL);
-    pressure_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GLL_NODE,
+    pressure_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
                                         d->pressure_original);
     pressure_lump = rhea_pressure_new (d->ymir_mesh, d->press_elem);
     d->pressure = rhea_pressure_new (d->ymir_mesh, d->press_elem);
@@ -306,14 +306,14 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
 
   /* project back fields from GLL nodes, stored in buffers `*_original` */
   if (has_temp) {
-    ymir_mass_apply_gll (temperature_view);
+    ymir_mass_apply_gauss (temperature_view);
     ymir_interp_vec (temperature_view, temperature_mass);
     ymir_mass_invert (temperature_mass, d->temperature);
     ymir_vec_destroy (temperature_mass);
     ymir_vec_destroy (temperature_view);
   }
   if (has_vel) {
-    ymir_mass_apply_gll (velocity_view);
+    ymir_mass_apply_gauss (velocity_view);
     ymir_interp_vec (velocity_view, velocity_mass);
     ymir_mass_invert (velocity_mass, d->velocity);
     ymir_vec_destroy (velocity_mass);
@@ -322,7 +322,7 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   if (has_press) {
     ymir_pressure_vec_lump_mass (pressure_lump, d->press_elem);
 
-    ymir_mass_apply_gll (pressure_view);
+    ymir_mass_apply_gauss (pressure_view);
     ymir_interp_vec (pressure_view, d->pressure);
     ymir_vec_divide_in (pressure_lump, d->pressure);
     ymir_vec_destroy (pressure_view);
@@ -361,11 +361,10 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
     mangll_t           *mangll_adapted = d->mangll_adapted;
     const mangll_locidx_t  n_elements = mangll_adapted->mesh->K;
     const int           n_nodes_per_el = mangll_adapted->Np;
-    sc_dmatrix_t       *Irm_gll = mangll_adapted->refel->Irm;
-    sc_dmatrix_t       *Irp_gll = mangll_adapted->refel->Irp;
 
     /* create buffers for adapted data */
     if (has_temp) {
+      //TODO group repetetive operations for each field into single small fnc.
       RHEA_ASSERT (d->temperature_adapted == NULL);
       d->temperature_adapted = sc_dmatrix_new (n_elements, n_nodes_per_el);
     }
@@ -379,11 +378,10 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
     }
 
     /* project and destroy buffers for original data */
-    //TODO does not support coarsening
     if (has_temp) {
-      ymir_gmg_intergrid_project_OLD (
-          1, mangll_original, d->temperature_original,
-          mangll_adapted, d->temperature_adapted, Irm_gll, Irp_gll);
+      ymir_hmg_intergrid_h_project_gauss (
+          d->temperature_adapted, mangll_adapted,
+          d->temperature_original, mangll_original, 1 /* #fields */);
       sc_dmatrix_destroy (d->temperature_original);
       d->temperature_original = NULL;
 
@@ -391,26 +389,18 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
       //TODO
     }
     if (has_vel) {
-      ymir_gmg_intergrid_project_OLD (
-          1, mangll_original, d->velocity_original,
-          mangll_adapted, d->velocity_adapted, Irm_gll, Irp_gll);
+      ymir_hmg_intergrid_h_project_gauss (
+          d->velocity_adapted, mangll_adapted,
+          d->velocity_original, mangll_original, 3 /* #fields */);
       sc_dmatrix_destroy (d->velocity_original);
       d->velocity_original = NULL;
     }
     if (has_press) {
-      sc_dmatrix_t       *Irm_gauss, *Irp_gauss;
-
-      ymir_gmg_intergrid_gauss_to_gauss_interp_matrix (
-          &Irm_gauss, &Irp_gauss, mangll_adapted);
-
-      ymir_gmg_intergrid_project_OLD (
-          1, mangll_original, d->pressure_original,
-          mangll_adapted, d->pressure_adapted, Irm_gauss, Irp_gauss);
+      ymir_hmg_intergrid_h_project_gauss (
+          d->pressure_adapted, mangll_adapted,
+          d->pressure_original, mangll_original, 1 /* #fields */);
       sc_dmatrix_destroy (d->pressure_original);
       d->pressure_original = NULL;
-
-      sc_dmatrix_destroy (Irm_gauss);
-      sc_dmatrix_destroy (Irp_gauss);
     }
   }
 
