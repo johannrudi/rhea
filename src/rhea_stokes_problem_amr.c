@@ -16,6 +16,10 @@
 #include <ymir_pressure_vec.h>
 #include <mangll_fields.h>
 
+/******************************************************************************
+ * AMR Data
+ *****************************************************************************/
+
 typedef struct rhea_stokes_problem_amr_data
 {
   /* options (not owned) */
@@ -162,18 +166,108 @@ rhea_stokes_problem_amr_data_destroy (rhea_stokes_problem_amr_data_t *amr_data)
   RHEA_FREE (amr_data);
 }
 
+/******************************************************************************
+ * AMR for Single Field
+ *****************************************************************************/
+
+static sc_dmatrix_t *
+rhea_stokes_problem_amr_init_field (ymir_vec_t * vector, const int n_fields)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vector);
+  const mangll_locidx_t n_elements = ymir_mesh->ma->mesh->K;
+  const int           n_nodes_per_el = ymir_mesh->ma->Np;
+  sc_dmatrix_t       *buffer_mat;
+  ymir_vec_t         *buffer_view;
+
+  /* check input */
+  RHEA_ASSERT (!ymir_vec_is_cvec (vector) || n_fields == vector->ncfields);
+  RHEA_ASSERT (!ymir_vec_is_dvec (vector) || n_fields == vector->ndfields);
+  RHEA_ASSERT (!ymir_vec_is_evec (vector) || n_fields == 1);
+
+  /* create buffer and view onto that buffer */
+  buffer_mat = sc_dmatrix_new (n_elements, n_nodes_per_el);
+  buffer_view = ymir_dvec_new_data (ymir_mesh, n_fields, YMIR_GAUSS_NODE,
+                                    buffer_mat);
+
+  /* project onto Gauss nodes */
+  ymir_interp_vec (vector, buffer_view);
+
+  /* destroy */
+  ymir_vec_destroy (buffer_view);
+
+  /* return buffer */
+  return buffer_mat;
+}
+
+static sc_dmatrix_t *
+rhea_stokes_problem_amr_project_field (sc_dmatrix_t * buffer_original,
+                                       const int n_fields,
+                                       mangll_t * mangll_original,
+                                       mangll_t * mangll_adapted)
+{
+  /* adapted mesh */
+  const mangll_locidx_t  n_elements = mangll_adapted->mesh->K;
+  const int           n_nodes_per_el = mangll_adapted->Np;
+  sc_dmatrix_t       *buffer_adapted;
+
+  /* create buffer for adapted data */
+  buffer_adapted = sc_dmatrix_new (n_elements, n_nodes_per_el);
+
+  /* project original data */
+  ymir_hmg_intergrid_h_project_gauss (
+      buffer_adapted, mangll_adapted,
+      buffer_original, mangll_original, n_fields);
+
+  /* destroy buffer for original data */
+  sc_dmatrix_destroy (buffer_original);
+
+  /* return buffer for adapted data */
+  return buffer_adapted;
+}
+
+static sc_dmatrix_t *
+rhea_stokes_problem_amr_partition_field (sc_dmatrix_t * buffer_adapted,
+                                         const int n_fields,
+                                         mangll_t * mangll_adapted,
+                                         mangll_t * mangll_partitioned)
+{
+  /* adapted mesh */
+  mangll_gloidx_t    *RtoGEO_adapted = mangll_adapted->mesh->RtoGEO;
+  MPI_Comm            mpicomm = mangll_adapted->mpicomm;
+  const int           mpisize = mangll_adapted->mpisize;
+  const int           mpirank = mangll_adapted->mpirank;
+  /* partitoned mesh */
+  mangll_gloidx_t    *RtoGEO_partitioned = mangll_partitioned->mesh->RtoGEO;
+  const mangll_locidx_t  n_elements = mangll_partitioned->mesh->K;
+  const int           n_nodes_per_el = mangll_partitioned->Np;
+  sc_dmatrix_t       *buffer_partitioned;
+
+  /* create buffer for partitioned data */
+  buffer_partitioned = sc_dmatrix_new (n_elements, n_nodes_per_el);
+
+  /* partition adapted data */
+  mangll_field_partition (n_fields, n_nodes_per_el, mpirank, mpisize, mpicomm,
+                          RtoGEO_adapted, buffer_adapted,
+                          RtoGEO_partitioned, buffer_partitioned);
+
+  /* destroy buffer for adapted data */
+  sc_dmatrix_destroy (buffer_adapted);
+
+  /* return buffer for partitioned data */
+  return buffer_partitioned;
+}
+
+/******************************************************************************
+ * AMR Callback Functions
+ *****************************************************************************/
+
 static void
 rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
 {
   rhea_stokes_problem_amr_data_t *d = data;
-  const mangll_locidx_t n_elements = d->ymir_mesh->cnodes->K;
-  const int           n_nodes_per_el = d->ymir_mesh->ma->Np;
   const int           has_temp = (d->temperature != NULL);
   const int           has_vel = (d->velocity != NULL);
   const int           has_press = (d->pressure != NULL);
-  ymir_vec_t         *temperature_view = NULL;
-  ymir_vec_t         *velocity_view = NULL;
-  ymir_vec_t         *pressure_view = NULL;
 
   /* check input */
   RHEA_ASSERT (d->mangll_original == NULL);
@@ -184,41 +278,24 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
    * Fields
    */
 
-  /* create buffers, including views onto those buffers */
+  /* project fields onto Gauss nodes, store in buffers `*_original` */
   if (has_temp) {
     RHEA_ASSERT (rhea_temperature_check_vec_type (d->temperature));
     RHEA_ASSERT (d->temperature_original == NULL);
-    d->temperature_original = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    temperature_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
-                                           d->temperature_original);
+    d->temperature_original = rhea_stokes_problem_amr_init_field (
+        d->temperature, 1 /* #fields */);
   }
   if (has_vel) {
     RHEA_ASSERT (rhea_velocity_check_vec_type (d->velocity));
     RHEA_ASSERT (d->velocity_original == NULL);
-    d->velocity_original = sc_dmatrix_new (n_elements, 3 * n_nodes_per_el);
-    velocity_view = ymir_dvec_new_data (d->ymir_mesh, 3, YMIR_GAUSS_NODE,
-                                        d->velocity_original);
+    d->velocity_original = rhea_stokes_problem_amr_init_field (
+        d->velocity, 3 /* #fields */);
   }
   if (has_press) {
     RHEA_ASSERT (rhea_pressure_check_vec_type (d->pressure, d->press_elem));
     RHEA_ASSERT (d->pressure_original == NULL);
-    d->pressure_original = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    pressure_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
-                                        d->pressure_original);
-  }
-
-  /* project fields onto GLL nodes, store in buffers `*_original` */
-  if (has_temp) {
-    ymir_interp_vec (d->temperature, temperature_view);
-    ymir_vec_destroy (temperature_view);
-  }
-  if (has_vel) {
-    ymir_interp_vec (d->velocity, velocity_view);
-    ymir_vec_destroy (velocity_view);
-  }
-  if (has_press) {
-    ymir_interp_vec (d->pressure, pressure_view);
-    ymir_vec_destroy (pressure_view);
+    d->pressure_original = rhea_stokes_problem_amr_init_field (
+        d->pressure, 1 /* #fields */);
   }
 
   /* destroy fields */
@@ -304,7 +381,7 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
     d->pressure = rhea_pressure_new (d->ymir_mesh, d->press_elem);
   }
 
-  /* project back fields from GLL nodes, stored in buffers `*_original` */
+  /* project back fields from Gauss nodes, stored in buffers `*_original` */
   if (has_temp) {
     ymir_mass_apply_gauss (temperature_view);
     ymir_interp_vec (temperature_view, temperature_mass);
@@ -355,51 +432,30 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
     const int           has_temp = (d->temperature_original != NULL);
     const int           has_vel = (d->velocity_original != NULL);
     const int           has_press = (d->pressure_original != NULL);
-    /* original mesh */
-    mangll_t           *mangll_original = d->mangll_original;
-    /* adapted mesh */
-    mangll_t           *mangll_adapted = d->mangll_adapted;
-    const mangll_locidx_t  n_elements = mangll_adapted->mesh->K;
-    const int           n_nodes_per_el = mangll_adapted->Np;
 
-    /* create buffers for adapted data */
+    /* project from original to adapted */
     if (has_temp) {
-      //TODO group repetetive operations for each field into single small fnc.
       RHEA_ASSERT (d->temperature_adapted == NULL);
-      d->temperature_adapted = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    }
-    if (has_vel) {
-      RHEA_ASSERT (d->velocity_adapted == NULL);
-      d->velocity_adapted = sc_dmatrix_new (n_elements, 3 * n_nodes_per_el);
-    }
-    if (has_press) {
-      RHEA_ASSERT (d->pressure_adapted == NULL);
-      d->pressure_adapted = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    }
-
-    /* project and destroy buffers for original data */
-    if (has_temp) {
-      ymir_hmg_intergrid_h_project_gauss (
-          d->temperature_adapted, mangll_adapted,
-          d->temperature_original, mangll_original, 1 /* #fields */);
-      sc_dmatrix_destroy (d->temperature_original);
+      d->temperature_adapted = rhea_stokes_problem_amr_project_field (
+          d->temperature_original, 1 /* #fields */,
+          d->mangll_original, d->mangll_adapted);
       d->temperature_original = NULL;
 
       /* bound values */
       //TODO
     }
     if (has_vel) {
-      ymir_hmg_intergrid_h_project_gauss (
-          d->velocity_adapted, mangll_adapted,
-          d->velocity_original, mangll_original, 3 /* #fields */);
-      sc_dmatrix_destroy (d->velocity_original);
+      RHEA_ASSERT (d->velocity_adapted == NULL);
+      d->velocity_adapted = rhea_stokes_problem_amr_project_field (
+          d->velocity_original, 3 /* #fields */,
+          d->mangll_original, d->mangll_adapted);
       d->velocity_original = NULL;
     }
     if (has_press) {
-      ymir_hmg_intergrid_h_project_gauss (
-          d->pressure_adapted, mangll_adapted,
-          d->pressure_original, mangll_original, 1 /* #fields */);
-      sc_dmatrix_destroy (d->pressure_original);
+      RHEA_ASSERT (d->pressure_adapted == NULL);
+      d->pressure_adapted = rhea_stokes_problem_amr_project_field (
+          d->pressure_original, 1 /* #fields */,
+          d->mangll_original, d->mangll_adapted);
       d->pressure_original = NULL;
     }
   }
@@ -437,52 +493,27 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
     const int           has_temp = (d->temperature_adapted != NULL);
     const int           has_vel = (d->velocity_adapted != NULL);
     const int           has_press = (d->pressure_adapted != NULL);
-    /* adapted mesh */
-    mangll_t           *mangll_adapted = d->mangll_adapted;
-    mangll_gloidx_t    *RtoGEO_adapted = mangll_adapted->mesh->RtoGEO;
-    MPI_Comm            mpicomm = mangll_adapted->mpicomm;
-    const int           mpisize = mangll_adapted->mpisize;
-    const int           mpirank = mangll_adapted->mpirank;
-    /* partitoned mesh */
-    mangll_t           *mangll_partitioned = d->mangll_partitioned;
-    mangll_gloidx_t    *RtoGEO_partitioned = mangll_partitioned->mesh->RtoGEO;
-    const mangll_locidx_t  n_elements = mangll_partitioned->mesh->K;
-    const int           n_nodes_per_el = mangll_partitioned->Np;
 
-    /* create buffers for partitioned data */
+    /* partition from adapted to original */
     if (has_temp) {
       RHEA_ASSERT (d->temperature_original == NULL);
-      d->temperature_original = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    }
-    if (has_vel) {
-      RHEA_ASSERT (d->velocity_original == NULL);
-      d->velocity_original = sc_dmatrix_new (n_elements, 3 * n_nodes_per_el);
-    }
-    if (has_press) {
-      RHEA_ASSERT (d->pressure_original == NULL);
-      d->pressure_original = sc_dmatrix_new (n_elements, n_nodes_per_el);
-    }
-
-    /* partition and destroy buffers for unpartitioned data */
-    if (has_temp) {
-      mangll_field_partition (1, n_nodes_per_el, mpirank, mpisize, mpicomm,
-                              RtoGEO_adapted, d->temperature_adapted,
-                              RtoGEO_partitioned, d->temperature_original);
-      sc_dmatrix_destroy (d->temperature_adapted);
+      d->temperature_original = rhea_stokes_problem_amr_partition_field (
+          d->temperature_adapted, 1 /* #fields*/,
+          d->mangll_adapted, d->mangll_partitioned);
       d->temperature_adapted = NULL;
     }
     if (has_vel) {
-      mangll_field_partition (3, n_nodes_per_el, mpirank, mpisize, mpicomm,
-                              RtoGEO_adapted, d->velocity_adapted,
-                              RtoGEO_partitioned, d->velocity_original);
-      sc_dmatrix_destroy (d->velocity_adapted);
+      RHEA_ASSERT (d->velocity_original == NULL);
+      d->velocity_original = rhea_stokes_problem_amr_partition_field (
+          d->velocity_adapted, 3 /* #fields*/,
+          d->mangll_adapted, d->mangll_partitioned);
       d->velocity_adapted = NULL;
     }
     if (has_press) {
-      mangll_field_partition (1, n_nodes_per_el, mpirank, mpisize, mpicomm,
-                              RtoGEO_adapted, d->pressure_adapted,
-                              RtoGEO_partitioned, d->pressure_original);
-      sc_dmatrix_destroy (d->pressure_adapted);
+      RHEA_ASSERT (d->pressure_original == NULL);
+      d->pressure_original = rhea_stokes_problem_amr_partition_field (
+          d->pressure_adapted, 1 /* #fields*/,
+          d->mangll_adapted, d->mangll_partitioned);
       d->pressure_adapted = NULL;
     }
   }
@@ -495,6 +526,10 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   d->mangll_original = d->mangll_partitioned;
   d->mangll_partitioned = NULL;
 }
+
+/******************************************************************************
+ * AMR Main Functions
+ *****************************************************************************/
 
 #if 0
 int
