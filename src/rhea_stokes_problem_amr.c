@@ -167,29 +167,40 @@ rhea_stokes_problem_amr_data_destroy (rhea_stokes_problem_amr_data_t *amr_data)
 }
 
 /******************************************************************************
- * AMR for Single Field
+ * AMR for a Single Field
  *****************************************************************************/
 
 static sc_dmatrix_t *
-rhea_stokes_problem_amr_init_field (ymir_vec_t * vector, const int n_fields)
+rhea_stokes_problem_amr_field_to_buffer (ymir_vec_t *vector)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vector);
   const mangll_locidx_t n_elements = ymir_mesh->ma->mesh->K;
-  const int           n_nodes_per_el = ymir_mesh->ma->Np;
+  int                 n_fields, n_entries_per_el;
   sc_dmatrix_t       *buffer_mat;
   ymir_vec_t         *buffer_view;
 
-  /* check input */
-  RHEA_ASSERT (!ymir_vec_is_cvec (vector) || n_fields == vector->ncfields);
-  RHEA_ASSERT (!ymir_vec_is_dvec (vector) || n_fields == vector->ndfields);
-  RHEA_ASSERT (!ymir_vec_is_evec (vector) || n_fields == 1);
+  /* find out #fields in vector */
+  if (ymir_vec_is_cvec (vector)) {
+    n_fields = vector->ncfields;
+  }
+  else if (ymir_vec_is_dvec (vector)) {
+    n_fields = vector->ndfields;
+  }
+  else if (ymir_vec_is_evec (vector)) {
+    n_fields = 1;
+  }
+  else { /* unsupported vector type */
+    n_fields = 0;
+    RHEA_ABORT_NOT_REACHED ();
+  }
+  n_entries_per_el = n_fields * ymir_mesh->ma->Np;
 
   /* create buffer and view onto that buffer */
-  buffer_mat = sc_dmatrix_new (n_elements, n_nodes_per_el);
+  buffer_mat = sc_dmatrix_new (n_elements, n_entries_per_el);
   buffer_view = ymir_dvec_new_data (ymir_mesh, n_fields, YMIR_GAUSS_NODE,
                                     buffer_mat);
 
-  /* project onto Gauss nodes */
+  /* project fields onto Gauss nodes, store in buffer */
   ymir_interp_vec (vector, buffer_view);
 
   /* destroy */
@@ -199,11 +210,58 @@ rhea_stokes_problem_amr_init_field (ymir_vec_t * vector, const int n_fields)
   return buffer_mat;
 }
 
+static void
+rhea_stokes_problem_amr_buffer_to_field (ymir_vec_t *vector,
+                                         sc_dmatrix_t *buffer_original,
+                                         ymir_pressure_elem_t *press_elem)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vector);
+  int                 n_fields;
+  ymir_vec_t         *vector_mass = ymir_vec_template (vector);
+  ymir_vec_t         *buffer_view;
+
+  /* find out #fields in vector */
+  if (ymir_vec_is_cvec (vector)) {
+    n_fields = vector->ncfields;
+  }
+  else if (ymir_vec_is_dvec (vector)) {
+    n_fields = vector->ndfields;
+  }
+  else if (ymir_vec_is_evec (vector)) {
+    n_fields = 1;
+  }
+  else { /* unsupported vector type */
+    n_fields = 0;
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* create view onto buffer */
+  buffer_view = ymir_dvec_new_data (ymir_mesh, n_fields, YMIR_GAUSS_NODE,
+                                    buffer_original);
+
+  /* project buffer (Gauss nodes) onto fields */
+  ymir_mass_apply_gauss (buffer_view);
+  if (!ymir_vec_is_evec (vector)) { /* if apply accurate mass inversion */
+    ymir_interp_vec (buffer_view, vector_mass);
+    ymir_mass_invert (vector_mass, vector);
+  }
+  else { /* otherwise invert appoximately */
+    RHEA_ASSERT (press_elem != NULL);
+    ymir_interp_vec (buffer_view, vector);
+    ymir_pressure_vec_lump_mass (vector_mass, press_elem);
+    ymir_vec_divide_in (vector_mass, vector);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (vector_mass);
+  ymir_vec_destroy (buffer_view);
+}
+
 static sc_dmatrix_t *
-rhea_stokes_problem_amr_project_field (sc_dmatrix_t * buffer_original,
+rhea_stokes_problem_amr_project_field (sc_dmatrix_t *buffer_original,
                                        const int n_fields,
-                                       mangll_t * mangll_original,
-                                       mangll_t * mangll_adapted)
+                                       mangll_t *mangll_original,
+                                       mangll_t *mangll_adapted)
 {
   /* adapted mesh */
   const mangll_locidx_t  n_elements = mangll_adapted->mesh->K;
@@ -226,10 +284,10 @@ rhea_stokes_problem_amr_project_field (sc_dmatrix_t * buffer_original,
 }
 
 static sc_dmatrix_t *
-rhea_stokes_problem_amr_partition_field (sc_dmatrix_t * buffer_adapted,
+rhea_stokes_problem_amr_partition_field (sc_dmatrix_t *buffer_adapted,
                                          const int n_fields,
-                                         mangll_t * mangll_adapted,
-                                         mangll_t * mangll_partitioned)
+                                         mangll_t *mangll_adapted,
+                                         mangll_t *mangll_partitioned)
 {
   /* adapted mesh */
   mangll_gloidx_t    *RtoGEO_adapted = mangll_adapted->mesh->RtoGEO;
@@ -273,6 +331,8 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
   RHEA_ASSERT (d->mangll_original == NULL);
   RHEA_ASSERT (d->mangll_adapted == NULL);
   RHEA_ASSERT (d->mangll_partitioned == NULL);
+  RHEA_ASSERT (d->ymir_mesh != NULL);
+  RHEA_ASSERT (d->press_elem != NULL);
 
   /*
    * Fields
@@ -282,20 +342,23 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
   if (has_temp) {
     RHEA_ASSERT (rhea_temperature_check_vec_type (d->temperature));
     RHEA_ASSERT (d->temperature_original == NULL);
-    d->temperature_original = rhea_stokes_problem_amr_init_field (
-        d->temperature, 1 /* #fields */);
+    d->temperature_original = rhea_stokes_problem_amr_field_to_buffer (
+        d->temperature);
+    RHEA_ASSERT (d->temperature_original->m == d->ymir_mesh->ma->Np);
   }
   if (has_vel) {
     RHEA_ASSERT (rhea_velocity_check_vec_type (d->velocity));
     RHEA_ASSERT (d->velocity_original == NULL);
-    d->velocity_original = rhea_stokes_problem_amr_init_field (
-        d->velocity, 3 /* #fields */);
+    d->velocity_original = rhea_stokes_problem_amr_field_to_buffer (
+        d->velocity);
+    RHEA_ASSERT (d->velocity_original->m == 3 * d->ymir_mesh->ma->Np);
   }
   if (has_press) {
     RHEA_ASSERT (rhea_pressure_check_vec_type (d->pressure, d->press_elem));
     RHEA_ASSERT (d->pressure_original == NULL);
-    d->pressure_original = rhea_stokes_problem_amr_init_field (
-        d->pressure, 1 /* #fields */);
+    d->pressure_original = rhea_stokes_problem_amr_field_to_buffer (
+        d->pressure);
+    RHEA_ASSERT (d->pressure_original->m == d->ymir_mesh->ma->Np);
   }
 
   /* destroy fields */
@@ -327,12 +390,6 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
-  ymir_vec_t         *temperature_view = NULL;
-  ymir_vec_t         *velocity_view = NULL;
-  ymir_vec_t         *pressure_view = NULL;
-  ymir_vec_t         *temperature_mass;
-  ymir_vec_t         *velocity_mass;
-  ymir_vec_t         *pressure_lump;
 
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
@@ -358,52 +415,24 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
    * Fields
    */
 
-  /* create views onto buffers and fields */
+  /* project fields from Gauss nodes, stored in buffers `*_original` */
   if (has_temp) {
     RHEA_ASSERT (d->temperature == NULL);
-    temperature_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
-                                           d->temperature_original);
-    temperature_mass = rhea_temperature_new (d->ymir_mesh);
     d->temperature = rhea_temperature_new (d->ymir_mesh);
+    rhea_stokes_problem_amr_buffer_to_field (
+        d->temperature, d->temperature_original, d->press_elem);
   }
   if (has_vel) {
     RHEA_ASSERT (d->velocity == NULL);
-    velocity_view = ymir_dvec_new_data (d->ymir_mesh, 3, YMIR_GAUSS_NODE,
-                                        d->velocity_original);
-    velocity_mass = rhea_velocity_new (d->ymir_mesh);
     d->velocity = rhea_velocity_new (d->ymir_mesh);
+    rhea_stokes_problem_amr_buffer_to_field (
+        d->velocity, d->velocity_original, d->press_elem);
   }
   if (has_press) {
     RHEA_ASSERT (d->pressure == NULL);
-    pressure_view = ymir_dvec_new_data (d->ymir_mesh, 1, YMIR_GAUSS_NODE,
-                                        d->pressure_original);
-    pressure_lump = rhea_pressure_new (d->ymir_mesh, d->press_elem);
     d->pressure = rhea_pressure_new (d->ymir_mesh, d->press_elem);
-  }
-
-  /* project back fields from Gauss nodes, stored in buffers `*_original` */
-  if (has_temp) {
-    ymir_mass_apply_gauss (temperature_view);
-    ymir_interp_vec (temperature_view, temperature_mass);
-    ymir_mass_invert (temperature_mass, d->temperature);
-    ymir_vec_destroy (temperature_mass);
-    ymir_vec_destroy (temperature_view);
-  }
-  if (has_vel) {
-    ymir_mass_apply_gauss (velocity_view);
-    ymir_interp_vec (velocity_view, velocity_mass);
-    ymir_mass_invert (velocity_mass, d->velocity);
-    ymir_vec_destroy (velocity_mass);
-    ymir_vec_destroy (velocity_view);
-  }
-  if (has_press) {
-    ymir_pressure_vec_lump_mass (pressure_lump, d->press_elem);
-
-    ymir_mass_apply_gauss (pressure_view);
-    ymir_interp_vec (pressure_view, d->pressure);
-    ymir_vec_divide_in (pressure_lump, d->pressure);
-    ymir_vec_destroy (pressure_view);
-    ymir_vec_destroy (pressure_lump);
+    rhea_stokes_problem_amr_buffer_to_field (
+        d->pressure, d->pressure_original, d->press_elem);
   }
 
   /* destroy buffers */
