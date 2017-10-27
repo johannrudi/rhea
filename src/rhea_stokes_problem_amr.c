@@ -166,6 +166,43 @@ rhea_stokes_problem_amr_data_destroy (rhea_stokes_problem_amr_data_t *amr_data)
   RHEA_FREE (amr_data);
 }
 
+void
+rhea_stokes_problem_amr_data_get (ymir_mesh_t **ymir_mesh,
+                                  ymir_pressure_elem_t **press_elem,
+                                  ymir_vec_t **temperature,
+                                  ymir_vec_t **velocity_pressure,
+                                  rhea_stokes_problem_amr_data_t *amr_data)
+{
+  /* get mesh */
+  if (ymir_mesh != NULL) {
+    *ymir_mesh = amr_data->ymir_mesh;
+  }
+  if (press_elem != NULL) {
+    *press_elem = amr_data->press_elem;
+  }
+
+  /* get fields */
+  if (temperature != NULL) {
+    *temperature = rhea_temperature_new (amr_data->ymir_mesh);
+    ymir_vec_copy (amr_data->temperature, *temperature);
+  }
+  if (velocity_pressure != NULL) {
+    *velocity_pressure = rhea_velocity_pressure_new (amr_data->ymir_mesh,
+                                                     amr_data->press_elem);
+    rhea_velocity_pressure_set_components (
+        *velocity_pressure, amr_data->velocity, amr_data->pressure,
+        amr_data->press_elem);
+  }
+}
+
+/******************************************************************************
+ * Flagging for Coarsening/Refinement
+ *****************************************************************************/
+
+//static double
+//rhea_stokes_problem_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
+//TODO
+
 /******************************************************************************
  * AMR for a Single Field
  *****************************************************************************/
@@ -560,20 +597,55 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
  * AMR Main Functions
  *****************************************************************************/
 
-#if 0
 int
-rhea_stokes_problem_amr (p4est_t *p4est)
+rhea_stokes_problem_amr (p4est_t *p4est,
+                         ymir_mesh_t **ymir_mesh,
+                         ymir_pressure_elem_t **press_elem,
+                         ymir_vec_t **temperature,
+                         ymir_vec_t **velocity_pressure,
+                         rhea_discretization_options_t *discr_options,
+                         rhea_viscosity_options_t *visc_options)
 {
-  rhea_stokes_problem_amr_data_t  data;
+  const int           has_temp = (temperature != NULL);
+  const int           has_vel_press = (velocity_pressure != NULL);
+  rhea_stokes_problem_amr_data_t *amr_data;
+
+  const double        n_flagged_elements_tol = NAN; //TODO
+  const double        n_flagged_elements_recursive_tol = NAN; //TODO
+  const int           amr_recursive_count = 0; //TODO
   int                 amr_iter;
 
-  amr_iter = rhea_amr (p4est,
+  /* create AMR data */
+  amr_data = rhea_stokes_problem_amr_data_new (
+      *ymir_mesh, *press_elem,
+      (has_temp ? *temperature : NULL),
+      (has_vel_press ? *velocity_pressure : NULL),
+      discr_options, visc_options);
+
+  /* destroy fields */
+  if (has_temp) {
+    ymir_vec_destroy (*temperature);
+  }
+  if (has_vel_press) {
+    ymir_vec_destroy (*velocity_pressure);
+  }
+
+  /* perform AMR */
+  amr_iter = rhea_amr (p4est, n_flagged_elements_tol,
+                       amr_recursive_count, n_flagged_elements_recursive_tol,
+                       rhea_amr_flag_refine_half_fn, NULL, //TODO
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
                        rhea_stokes_problem_amr_data_project_fn,
-                       rhea_stokes_problem_amr_data_partition_fn,
-                       &data);
+                       rhea_stokes_problem_amr_data_partition_fn, amr_data);
 
+  /* retrieve new ymir mesh and fields */
+  rhea_stokes_problem_amr_data_get (
+      ymir_mesh, press_elem, temperature, velocity_pressure, amr_data);
+
+  /* destroy */
+  rhea_stokes_problem_amr_data_destroy (amr_data);
+
+  /* return number of performed AMR iterations */
   return amr_iter;
 }
-#endif
