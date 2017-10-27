@@ -73,6 +73,7 @@ include src/Makefile.am
 ##include test/Makefile.am
 ##if RHEA_ENABLE_EXAMPLES
 include example/share/Makefile.am
+include example/amr/Makefile.am
 include example/basic/Makefile.am
 include example/collide/Makefile.am
 include example/newton_polynomial/Makefile.am
