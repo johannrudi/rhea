@@ -4,12 +4,10 @@
 #include <rhea_stokes_problem_amr.h>
 #include <rhea_base.h>
 #include <rhea_amr.h>
-#include <rhea_discretization.h>
 #include <rhea_temperature.h>
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
-#include <rhea_viscosity.h>
 #include <ymir_interp_vec.h>
 #include <ymir_hmg_intergrid_h.h>
 #include <ymir_mass_vec.h>
@@ -115,21 +113,20 @@ rhea_stokes_problem_amr_data_new (ymir_mesh_t *ymir_mesh,
 {
   rhea_stokes_problem_amr_data_t *amr_data;
 
-  /* check input */
-  RHEA_ASSERT (rhea_temperature_check_vec_type (temperature));
-  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (velocity_pressure));
-
   /* create */
   amr_data = RHEA_ALLOC (rhea_stokes_problem_amr_data_t, 1);
 
-  /* set data */
+  /* init original mesh */
   amr_data->ymir_mesh = ymir_mesh;
   amr_data->press_elem = press_elem;
 
+  /* init options */
   amr_data->discr_options = discr_options;
   amr_data->visc_options = visc_options;
 
+  /* init fields */
   if (temperature != NULL) {
+    RHEA_ASSERT (rhea_temperature_check_vec_type (temperature));
     amr_data->temperature = rhea_temperature_new (ymir_mesh);
     ymir_vec_copy (temperature, amr_data->temperature);
   }
@@ -137,6 +134,7 @@ rhea_stokes_problem_amr_data_new (ymir_mesh_t *ymir_mesh,
     amr_data->temperature = NULL;
   }
   if (velocity_pressure != NULL) {
+    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (velocity_pressure));
     amr_data->velocity = rhea_velocity_new (ymir_mesh);
     amr_data->pressure = rhea_pressure_new (ymir_mesh, press_elem);
     rhea_velocity_pressure_copy_components (
@@ -147,13 +145,19 @@ rhea_stokes_problem_amr_data_new (ymir_mesh_t *ymir_mesh,
     amr_data->pressure = NULL;
   }
 
+  /* init AMR meshes */
   amr_data->first_amr = -1;
   amr_data->mangll_original = NULL;
   amr_data->mangll_adapted = NULL;
   amr_data->mangll_partitioned = NULL;
 
-  /* clear buffers */
-  rhea_stokes_problem_amr_data_buffer_clear (amr_data);
+  /* init buffers */
+  amr_data->temperature_original = NULL;
+  amr_data->temperature_adapted = NULL;
+  amr_data->velocity_original = NULL;
+  amr_data->velocity_adapted = NULL;
+  amr_data->pressure_original = NULL;
+  amr_data->pressure_adapted = NULL;
 
   return amr_data;
 }
@@ -306,7 +310,7 @@ rhea_stokes_problem_amr_project_field (sc_dmatrix_t *buffer_original,
   sc_dmatrix_t       *buffer_adapted;
 
   /* create buffer for adapted data */
-  buffer_adapted = sc_dmatrix_new (n_elements, n_nodes_per_el);
+  buffer_adapted = sc_dmatrix_new (n_elements, n_fields * n_nodes_per_el);
 
   /* project original data */
   ymir_hmg_intergrid_h_project_gauss (
@@ -338,7 +342,7 @@ rhea_stokes_problem_amr_partition_field (sc_dmatrix_t *buffer_adapted,
   sc_dmatrix_t       *buffer_partitioned;
 
   /* create buffer for partitioned data */
-  buffer_partitioned = sc_dmatrix_new (n_elements, n_nodes_per_el);
+  buffer_partitioned = sc_dmatrix_new (n_elements, n_fields * n_nodes_per_el);
 
   /* partition adapted data */
   mangll_field_partition (n_fields, n_nodes_per_el, mpirank, mpisize, mpicomm,
@@ -359,10 +363,15 @@ rhea_stokes_problem_amr_partition_field (sc_dmatrix_t *buffer_adapted,
 static void
 rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
 {
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_amr_data_initialize_fn";
   rhea_stokes_problem_amr_data_t *d = data;
   const int           has_temp = (d->temperature != NULL);
   const int           has_vel = (d->velocity != NULL);
   const int           has_press = (d->pressure != NULL);
+
+  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity %i, pressure %i)\n",
+                     this_fn_name, has_temp, has_vel, has_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original == NULL);
@@ -381,21 +390,21 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
     RHEA_ASSERT (d->temperature_original == NULL);
     d->temperature_original = rhea_stokes_problem_amr_field_to_buffer (
         d->temperature);
-    RHEA_ASSERT (d->temperature_original->m == d->ymir_mesh->ma->Np);
+    RHEA_ASSERT (d->temperature_original->n == d->ymir_mesh->ma->Np);
   }
   if (has_vel) {
     RHEA_ASSERT (rhea_velocity_check_vec_type (d->velocity));
     RHEA_ASSERT (d->velocity_original == NULL);
     d->velocity_original = rhea_stokes_problem_amr_field_to_buffer (
         d->velocity);
-    RHEA_ASSERT (d->velocity_original->m == 3 * d->ymir_mesh->ma->Np);
+    RHEA_ASSERT (d->velocity_original->n == 3 * d->ymir_mesh->ma->Np);
   }
   if (has_press) {
     RHEA_ASSERT (rhea_pressure_check_vec_type (d->pressure, d->press_elem));
     RHEA_ASSERT (d->pressure_original == NULL);
     d->pressure_original = rhea_stokes_problem_amr_field_to_buffer (
         d->pressure);
-    RHEA_ASSERT (d->pressure_original->m == d->ymir_mesh->ma->Np);
+    RHEA_ASSERT (d->pressure_original->n == d->ymir_mesh->ma->Np);
   }
 
   /* destroy fields */
@@ -412,22 +421,29 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
   d->mangll_partitioned = NULL;
 
   /* destroy mesh partially (keep only the mangll object) */
+#if 0 //###DEV###
   rhea_discretization_mangll_continuous_destroy (
       NULL, d->ymir_mesh->cnodes);
   ymir_mesh_destroy (d->ymir_mesh);
   ymir_pressure_elem_destroy (d->press_elem);
+#endif
   d->ymir_mesh = NULL;
   d->press_elem = NULL;
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
 static void
 rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
 {
+  const char         *this_fn_name = "rhea_stokes_problem_amr_data_finalize_fn";
   rhea_stokes_problem_amr_data_t *d = data;
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
 
+  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity %i, pressure %i)\n",
+                     this_fn_name, has_temp, has_vel, has_press);
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
   RHEA_ASSERT (d->mangll_adapted == NULL);
@@ -474,12 +490,21 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
 
   /* destroy buffers */
   rhea_stokes_problem_amr_data_buffer_clear (d);
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
 static void
 rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
 {
+  const char         *this_fn_name = "rhea_stokes_problem_amr_data_project_fn";
   rhea_stokes_problem_amr_data_t *d = data;
+  const int           has_temp = (d->temperature_original != NULL);
+  const int           has_vel = (d->velocity_original != NULL);
+  const int           has_press = (d->pressure_original != NULL);
+
+  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity %i, pressure %i)\n",
+                     this_fn_name, has_temp, has_vel, has_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
@@ -493,54 +518,59 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
   RHEA_ASSERT (d->mangll_adapted != NULL);
   RHEA_ASSERT (d->mangll_adapted->N == d->mangll_original->N);
 
-  /* perform projections */
-  {
-    const int           has_temp = (d->temperature_original != NULL);
-    const int           has_vel = (d->velocity_original != NULL);
-    const int           has_press = (d->pressure_original != NULL);
+  /* project from original to adapted */
+  if (has_temp) {
+    RHEA_ASSERT (d->temperature_adapted == NULL);
+    d->temperature_adapted = rhea_stokes_problem_amr_project_field (
+        d->temperature_original, 1 /* #fields */,
+        d->mangll_original, d->mangll_adapted);
+    d->temperature_original = NULL;
 
-    /* project from original to adapted */
-    if (has_temp) {
-      RHEA_ASSERT (d->temperature_adapted == NULL);
-      d->temperature_adapted = rhea_stokes_problem_amr_project_field (
-          d->temperature_original, 1 /* #fields */,
-          d->mangll_original, d->mangll_adapted);
-      d->temperature_original = NULL;
-
-      /* bound values */
-      //TODO
-    }
-    if (has_vel) {
-      RHEA_ASSERT (d->velocity_adapted == NULL);
-      d->velocity_adapted = rhea_stokes_problem_amr_project_field (
-          d->velocity_original, 3 /* #fields */,
-          d->mangll_original, d->mangll_adapted);
-      d->velocity_original = NULL;
-    }
-    if (has_press) {
-      RHEA_ASSERT (d->pressure_adapted == NULL);
-      d->pressure_adapted = rhea_stokes_problem_amr_project_field (
-          d->pressure_original, 1 /* #fields */,
-          d->mangll_original, d->mangll_adapted);
-      d->pressure_original = NULL;
-    }
+    /* bound values */
+    //TODO
+  }
+  if (has_vel) {
+    RHEA_ASSERT (d->velocity_adapted == NULL);
+    d->velocity_adapted = rhea_stokes_problem_amr_project_field (
+        d->velocity_original, 3 /* #fields */,
+        d->mangll_original, d->mangll_adapted);
+    d->velocity_original = NULL;
+  }
+  if (has_press) {
+    RHEA_ASSERT (d->pressure_adapted == NULL);
+    d->pressure_adapted = rhea_stokes_problem_amr_project_field (
+        d->pressure_original, 1 /* #fields */,
+        d->mangll_original, d->mangll_adapted);
+    d->pressure_original = NULL;
   }
 
   /* destroy original mangll */
   if (d->first_amr) {
+#if 0 //###DEV###
     rhea_discretization_mangll_continuous_destroy (d->mangll_original, NULL);
+#endif
     d->first_amr = 0;
   }
   else {
     rhea_discretization_mangll_discontinuous_destroy (d->mangll_original);
   }
   d->mangll_original = NULL;
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
 static void
 rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
 {
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_amr_data_partition_fn";
   rhea_stokes_problem_amr_data_t *d = data;
+  const int           has_temp = (d->temperature_adapted != NULL);
+  const int           has_vel = (d->velocity_adapted != NULL);
+  const int           has_press = (d->pressure_adapted != NULL);
+
+  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity %i, pressure %i)\n",
+                     this_fn_name, has_temp, has_vel, has_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original == NULL);
@@ -554,34 +584,27 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   RHEA_ASSERT (d->mangll_partitioned != NULL);
   RHEA_ASSERT (d->mangll_partitioned->N == d->mangll_adapted->N);
 
-  /* perform partitioning */
-  {
-    const int           has_temp = (d->temperature_adapted != NULL);
-    const int           has_vel = (d->velocity_adapted != NULL);
-    const int           has_press = (d->pressure_adapted != NULL);
-
-    /* partition from adapted to original */
-    if (has_temp) {
-      RHEA_ASSERT (d->temperature_original == NULL);
-      d->temperature_original = rhea_stokes_problem_amr_partition_field (
-          d->temperature_adapted, 1 /* #fields*/,
-          d->mangll_adapted, d->mangll_partitioned);
-      d->temperature_adapted = NULL;
-    }
-    if (has_vel) {
-      RHEA_ASSERT (d->velocity_original == NULL);
-      d->velocity_original = rhea_stokes_problem_amr_partition_field (
-          d->velocity_adapted, 3 /* #fields*/,
-          d->mangll_adapted, d->mangll_partitioned);
-      d->velocity_adapted = NULL;
-    }
-    if (has_press) {
-      RHEA_ASSERT (d->pressure_original == NULL);
-      d->pressure_original = rhea_stokes_problem_amr_partition_field (
-          d->pressure_adapted, 1 /* #fields*/,
-          d->mangll_adapted, d->mangll_partitioned);
-      d->pressure_adapted = NULL;
-    }
+  /* partition from adapted to original */
+  if (has_temp) {
+    RHEA_ASSERT (d->temperature_original == NULL);
+    d->temperature_original = rhea_stokes_problem_amr_partition_field (
+        d->temperature_adapted, 1 /* #fields*/,
+        d->mangll_adapted, d->mangll_partitioned);
+    d->temperature_adapted = NULL;
+  }
+  if (has_vel) {
+    RHEA_ASSERT (d->velocity_original == NULL);
+    d->velocity_original = rhea_stokes_problem_amr_partition_field (
+        d->velocity_adapted, 3 /* #fields*/,
+        d->mangll_adapted, d->mangll_partitioned);
+    d->velocity_adapted = NULL;
+  }
+  if (has_press) {
+    RHEA_ASSERT (d->pressure_original == NULL);
+    d->pressure_original = rhea_stokes_problem_amr_partition_field (
+        d->pressure_adapted, 1 /* #fields*/,
+        d->mangll_adapted, d->mangll_partitioned);
+    d->pressure_adapted = NULL;
   }
 
   /* destroy adapted but unpartitioned mangll */
@@ -591,6 +614,8 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   /* reassign original mangll for next projection */
   d->mangll_original = d->mangll_partitioned;
   d->mangll_partitioned = NULL;
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 }
 
 /******************************************************************************
@@ -606,6 +631,7 @@ rhea_stokes_problem_amr (p4est_t *p4est,
                          rhea_discretization_options_t *discr_options,
                          rhea_viscosity_options_t *visc_options)
 {
+  const char         *this_fn_name = "rhea_stokes_problem_amr";
   const int           has_temp = (temperature != NULL);
   const int           has_vel_press = (velocity_pressure != NULL);
   rhea_stokes_problem_amr_data_t *amr_data;
@@ -615,6 +641,8 @@ rhea_stokes_problem_amr (p4est_t *p4est,
   const int           amr_recursive_count = 0; //TODO
   int                 amr_iter;
 
+  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+
   /* create AMR data */
   amr_data = rhea_stokes_problem_amr_data_new (
       *ymir_mesh, *press_elem,
@@ -623,12 +651,14 @@ rhea_stokes_problem_amr (p4est_t *p4est,
       discr_options, visc_options);
 
   /* destroy fields */
+#if 0 //###DEV###
   if (has_temp) {
     ymir_vec_destroy (*temperature);
   }
   if (has_vel_press) {
     ymir_vec_destroy (*velocity_pressure);
   }
+#endif
 
   /* perform AMR */
   amr_iter = rhea_amr (p4est, n_flagged_elements_tol,
@@ -645,6 +675,8 @@ rhea_stokes_problem_amr (p4est_t *p4est,
 
   /* destroy */
   rhea_stokes_problem_amr_data_destroy (amr_data);
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
 
   /* return number of performed AMR iterations */
   return amr_iter;
