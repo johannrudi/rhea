@@ -275,7 +275,7 @@ rhea_amr (p4est_t *p4est,
   const int           partition_for_coarsening = 1;
   p4est_weight_t      partition_weight_fn = RHEA_AMR_P4EST_PARTITION_WEIGHT_FN;
 
-  double              n_flagged_rel;
+  double              n_flagged_rel, n_flagged_current_tol;
   int                 iter;
 
   RHEA_GLOBAL_INFOF ("Into %s (#elements flagged tol. %g, recursive %i, "
@@ -295,29 +295,29 @@ rhea_amr (p4est_t *p4est,
     n_flagged_rel = flag_elements_fn (p4est, flag_elements_data);
 
     /* print statistics */
-    //TODO
+    RHEA_GLOBAL_INFOF (
+        "%s -- iter %i: Relative #elements flagged %g\n",
+        this_fn_name, iter, n_flagged_rel);
 
     /* stop AMR if not enough elements were flagged */
+    n_flagged_current_tol = 0.0;
     if (0 == iter) {
       if (isfinite (n_flagged_elements_tol) &&
-          n_flagged_rel < n_flagged_elements_tol) {
-        RHEA_GLOBAL_INFOF (
-            "%s -- iter %i: Exit AMR, "
-            "rel. #elements flagged %g, tolerance %g\n",
-            this_fn_name, iter, n_flagged_rel, n_flagged_elements_tol);
-        break;
+          0.0 <= n_flagged_elements_tol) {
+        n_flagged_current_tol = n_flagged_elements_tol;
       }
     }
     else {
       if (isfinite (n_flagged_elements_recursive_tol) &&
-          n_flagged_rel < n_flagged_elements_recursive_tol) {
-        RHEA_GLOBAL_INFOF (
-            "%s -- iter %i: Stop AMR recursion, "
-            "rel. #elements flagged %g, tolerance %g\n",
-            this_fn_name, iter, n_flagged_rel,
-            n_flagged_elements_recursive_tol);
-        break;
+          0.0 <= n_flagged_elements_recursive_tol) {
+        n_flagged_current_tol = n_flagged_elements_recursive_tol;
       }
+    }
+    if (n_flagged_rel < n_flagged_current_tol) {
+      RHEA_GLOBAL_INFOF (
+          "%s -- iter %i: Stop AMR, rel. #elements flagged %g, tolerance %g\n",
+          this_fn_name, iter, n_flagged_rel, n_flagged_current_tol);
+      break;
     }
 
     /*
@@ -399,6 +399,13 @@ rhea_amr_refine_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
 }
 
 int
+rhea_amr_coarsen_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                          p4est_quadrant_t * quadrant)
+{
+  return !rhea_amr_refine_half_fn (p4est, which_tree, quadrant);
+}
+
+int
 rhea_amr_refine_depth_fn (p4est_t * p4est, p4est_topidx_t which_tree,
                           p4est_quadrant_t * quadrant)
 {
@@ -425,6 +432,38 @@ rhea_amr_refine_depth_fn (p4est_t * p4est, p4est_topidx_t which_tree,
  *****************************************************************************/
 
 double
+rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
+{
+  const p4est_locidx_t  n_quadrants = p4est->local_num_quadrants;
+  p4est_locidx_t      n_flagged;
+  p4est_topidx_t      ti;
+  size_t              tqi;
+
+  /* flag quadrants */
+  n_flagged = 0;
+  for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
+    p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
+    sc_array_t         *tquadrants = &(t->quadrants);
+
+    for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
+      p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
+      rhea_p4est_quadrant_data_t *d = q->p.user_data;
+
+      if (rhea_amr_coarsen_half_fn (p4est, ti, q)) {
+        d->amr_flag = RHEA_AMR_FLAG_COARSEN;
+        n_flagged++;
+      }
+      else {
+        d->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
+      }
+    }
+  }
+
+  /* return relative number of flagged quadrants */
+  return ((double) n_flagged) / ((double) n_quadrants);
+}
+
+double
 rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
 {
   const p4est_locidx_t  n_quadrants = p4est->local_num_quadrants;
@@ -442,11 +481,12 @@ rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
       p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
       rhea_p4est_quadrant_data_t *d = q->p.user_data;
 
-      d->amr_flag = rhea_amr_refine_half_fn (p4est, ti, q);
-      RHEA_ASSERT (d->amr_flag == RHEA_AMR_FLAG_REFINE ||
-                   d->amr_flag == RHEA_AMR_FLAG_NO_CHANGE);
-      if (d->amr_flag == RHEA_AMR_FLAG_REFINE) {
+      if (rhea_amr_refine_half_fn (p4est, ti, q)) {
+        d->amr_flag = RHEA_AMR_FLAG_REFINE;
         n_flagged++;
+      }
+      else {
+        d->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
       }
     }
   }

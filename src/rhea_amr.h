@@ -94,6 +94,9 @@ int                 rhea_amr (p4est_t *p4est,
  * Generic Callback Functions for Coarsening/Refinement
  *****************************************************************************/
 
+int                 rhea_amr_coarsen_half_fn (p4est_t * p4est,
+                                              p4est_topidx_t which_tree,
+                                              p4est_quadrant_t * quadrant);
 int                 rhea_amr_refine_half_fn (p4est_t * p4est,
                                              p4est_topidx_t which_tree,
                                              p4est_quadrant_t * quadrant);
@@ -114,6 +117,7 @@ int                 rhea_amr_refine_depth_fn (p4est_t * p4est,
  * Generic Flagging for Coarsening/Refinement
  *****************************************************************************/
 
+double              rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data);
 double              rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data);
 
 #endif /* RHEA_AMR_H */
