@@ -513,8 +513,8 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
   RHEA_ASSERT (d->first_amr == 0 || d->first_amr == 1);
 
   /* create adapted mangll object */
-  d->mangll_adapted = rhea_discretization_mangll_interpolation_new (
-      p4est, d->discr_options->order);
+  d->mangll_adapted = rhea_discretization_mangll_discontinuous_new (
+      p4est, d->discr_options);
   RHEA_ASSERT (d->mangll_adapted != NULL);
   RHEA_ASSERT (d->mangll_adapted->N == d->mangll_original->N);
 
@@ -579,8 +579,7 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
 
   /* create partitioned mangll object */
   d->mangll_partitioned = rhea_discretization_mangll_discontinuous_new (
-      p4est, d->discr_options->order,
-      d->discr_options->X_fn, d->discr_options->X_data);
+      p4est, d->discr_options);
   RHEA_ASSERT (d->mangll_partitioned != NULL);
   RHEA_ASSERT (d->mangll_partitioned->N == d->mangll_adapted->N);
 
@@ -608,7 +607,7 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   }
 
   /* destroy adapted but unpartitioned mangll */
-  rhea_discretization_mangll_interpolation_destroy (d->mangll_adapted);
+  rhea_discretization_mangll_discontinuous_destroy (d->mangll_adapted);
   d->mangll_adapted = NULL;
 
   /* reassign original mangll for next projection */
@@ -663,7 +662,7 @@ rhea_stokes_problem_amr (p4est_t *p4est,
   /* perform AMR */
   amr_iter = rhea_amr (p4est, n_flagged_elements_tol,
                        amr_recursive_count, n_flagged_elements_recursive_tol,
-                       rhea_amr_flag_refine_half_fn, NULL, //TODO
+                       rhea_amr_flag_coarsen_half_fn, NULL, //TODO
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
                        rhea_stokes_problem_amr_data_project_fn,
