@@ -580,19 +580,13 @@ rhea_discretization_mangll_continuous_destroy (mangll_t *mangll,
 }
 
 mangll_t *
-rhea_discretization_mangll_discontinuous_new (p4est_t *p4est, const int order,
-                                              mangll_X_t X_fn, void *X_data)
+rhea_discretization_mangll_discontinuous_new (
+                                            p4est_t *p4est,
+                                            rhea_discretization_options_t *opt)
 {
-  rhea_discretization_options_t opt;
   mangll_t           *mangll;
 
-  /* set required options */
-  opt.order = order;
-  opt.X_fn = X_fn;
-  opt.X_data = X_data;
-
-  /* create and return new mangll object */
-  rhea_discretization_mangll_continuous_new (&mangll, NULL, p4est, &opt);
+  rhea_discretization_mangll_continuous_new (&mangll, NULL, p4est, opt);
   return mangll;
 }
 
@@ -600,26 +594,6 @@ void
 rhea_discretization_mangll_discontinuous_destroy (mangll_t *mangll)
 {
   mangll_destroy (mangll);
-}
-
-mangll_t *
-rhea_discretization_mangll_interpolation_new (p4est_t *p4est, const int order)
-{
-  MPI_Comm            mpicomm = p4est->mpicomm;
-  const mangll_refel_quadrature_type_t  quad_type = MANGLL_REFEL_QUAD_GAUSS;
-  mangll_mesh_t      *mangll_mesh;
-
-  /* create mangll mesh */
-  mangll_mesh = mangll_p8est_mesh_new_partial (p4est);
-
-  /* create and return new mangll object */
-  return mangll_for_interpolation_new (mpicomm, order, quad_type, mangll_mesh);
-}
-
-void
-rhea_discretization_mangll_interpolation_destroy (mangll_t *mangll)
-{
-  mangll_for_interpolation_destroy (mangll);
 }
 
 /******************************************************************************

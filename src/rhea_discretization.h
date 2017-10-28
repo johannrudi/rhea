@@ -95,16 +95,10 @@ void                rhea_discretization_mangll_continuous_destroy (
                                         mangll_cnodes_t *cnodes);
 
 mangll_t           *rhea_discretization_mangll_discontinuous_new (
-                                        p4est_t *p4est, const int order,
-                                        mangll_X_t X_fn, void *X_data);
+                                        p4est_t *p4est,
+                                        rhea_discretization_options_t *opt);
 
 void                rhea_discretization_mangll_discontinuous_destroy (
-                                        mangll_t *mangll);
-
-mangll_t           *rhea_discretization_mangll_interpolation_new (
-                                        p4est_t *p4est, const int order);
-
-void                rhea_discretization_mangll_interpolation_destroy (
                                         mangll_t *mangll);
 
 /******************************************************************************
