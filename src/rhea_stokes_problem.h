@@ -30,7 +30,7 @@ void                rhea_stokes_problem_add_options (ymir_options_t * opt_sup);
 typedef struct rhea_stokes_problem rhea_stokes_problem_t;
 
 /**
- * Creates a new Stokes problem.
+ * Creates/destroys a Stokes problem.
  */
 rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     ymir_vec_t *temperature,
@@ -43,10 +43,16 @@ rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     rhea_viscosity_options_t *visc_options,
                                     void *solver_options);
 
-/**
- * Destroys a Stokes problem.
- */
 void                rhea_stokes_problem_destroy (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Sets up/clears objects that have dependencies on the mesh.
+ */
+void                rhea_stokes_problem_setup_mesh_dependencies (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+void                rhea_stokes_problem_clear_mesh_dependencies (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
