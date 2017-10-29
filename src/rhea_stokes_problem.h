@@ -9,7 +9,7 @@
 #include <ymir_pressure_elem.h>
 #include <ymir_stokes_op.h>
 
-/* enumerator for linearization type */
+/* types of linearization */
 typedef enum
 {
   RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD,
@@ -90,6 +90,12 @@ ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
                                     rhea_stokes_problem_t *stokes_problem);
 
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+rhea_domain_options_t    *rhea_stokes_problem_get_domain_options (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+rhea_viscosity_options_t *rhea_stokes_problem_get_viscosity_options (
                                     rhea_stokes_problem_t *stokes_problem);
 
 void                rhea_stokes_problem_copy_viscosity (

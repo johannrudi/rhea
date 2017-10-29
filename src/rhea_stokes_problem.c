@@ -2151,6 +2151,19 @@ rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
   return stokes_problem->rhs_vel_nonzero_dirichlet;
 }
 
+rhea_domain_options_t *
+rhea_stokes_problem_get_domain_options (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->domain_options;
+}
+
+rhea_viscosity_options_t *
+rhea_stokes_problem_get_viscosity_options (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->visc_options;
+}
+
 void
 rhea_stokes_problem_copy_viscosity (ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem)
