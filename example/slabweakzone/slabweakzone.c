@@ -62,6 +62,8 @@
 #define VISCOSITY_ASTHENOSPHERE (1.0)
 #define VISCOSITY_LITHOSPHERE_RADIUS_LOCATION (0.9)
 #define VISCOSITY_ASTHENOSPHERE_RADIUS_LOCATION (0.2)
+#define VISCOSITY_SLAB_RADIUS_LOCATION (0.7)
+#define VISCOSITY_SLAB_WIDTH (0.2)
 
 /* Dirichlet velocity B.C. */
 #define COLLIDE_FLOW_SCALE (10.0)
@@ -87,6 +89,13 @@ double              temp_2pl_subd_plate_init_age =
   SLABS_DEFAULT_TEMP_2PL_SUBD_PLATE_INITIAL_AGE;
 double              temp_2pl_over_plate_age =
   SLABS_DEFAULT_TEMP_2PL_OVER_PLATE_AGE;
+
+double              center_x;
+double              center_y;
+double              center_z;
+double              diameter;
+double              sinker_scaling;
+double              sinker_decay;
 
 /* initialize slabs options: weak zone */
 double              weakzone_2pl_subdu_lon =
@@ -117,6 +126,10 @@ double              visc_z_lith =
   VISCOSITY_LITHOSPHERE_RADIUS_LOCATION;
 double              visc_z_asthen =
   VISCOSITY_ASTHENOSPHERE_RADIUS_LOCATION;
+double              visc_z_slab =
+  VISCOSITY_SLAB_RADIUS_LOCATION;
+double              visc_slab_width =
+  VISCOSITY_SLAB_WIDTH;
 
 /* initialize slabs options: velocity boundary condition */
 double              flow_scale =
@@ -135,8 +148,7 @@ typedef enum
   COLLIDE,
   DRAG,
   TEST_MANUFACTURED,
-  TESTTOPO,
-  TESTTOPO2,
+  CUSTOM,
   TESTNONE
 }
 slabs_buoyancy_type_t;
@@ -180,6 +192,24 @@ typedef enum
 }
 slabs_subd_edge_orient_enum_t;
 
+typedef enum
+{
+  CUSTOM_THINBOX,
+  CUSTOM_SINKER
+}
+slabs_temp_custom_t;
+
+typedef struct slabs_custom_sinker
+{
+  double center_x;
+  double center_y;
+  double center_z;
+  double diameter;
+  double scaling;
+  double decay;
+}
+slabs_custom_sinker_t;
+
 /* struct for temperature options in slabs_options_t */
 typedef struct slabs_temp_options
 {
@@ -194,6 +224,9 @@ typedef struct slabs_temp_options
   double              temp_2plates_subd_plate_initial_age;
   double              temp_2plates_over_plate_age;
   slabs_2plates_poly2_geo_coeff_t *temp_2plates_geo_coeff;
+
+  slabs_temp_custom_t custom_type;
+  slabs_custom_sinker_t *sinker_options;
 }
 slabs_temp_options_t;
 
@@ -223,7 +256,9 @@ typedef enum
   SLABS_VEL_DIR_BC_INOUTFLOW_TANH_THREELAYER,
   SLABS_VEL_DIR_BC_INOUTFLOW_DOUBLE_TANH_THREELAYER,
   SLABS_VEL_DIR_BC_MANUFACTURED_SINCOS_ISO,
-  SLABS_VEL_DIR_BC_MANUFACTURED_POLY_ANISO
+  SLABS_VEL_DIR_BC_MANUFACTURED_POLY_ANISO,
+  SLABS_FREESURFACE,
+  SLABS_FREESLIP
 }
 slabs_vel_dir_bc_t;
 
@@ -235,12 +270,23 @@ typedef enum
 }
 slabs_viscosity_anisotropy_t;
 
+typedef enum
+{
+  SLABS_VISC_LAYERS,
+  SLABS_VISC_LAYERS_COUPLING
+}
+slabs_viscosity_geometry_t;
+
+
 /* struct for viscosity options in slabs_options_t */
 typedef struct slabs_visc_options
 {
   slabs_viscosity_anisotropy_t  viscosity_anisotropy;
+  slabs_viscosity_geometry_t        viscosity_geometry;
   double              z_lith;
   double              z_asthen;
+  double              z_slab;
+  double              slab_width;
   double              z_mantle;
   double              visc_lith;
   double              visc_asthen;
@@ -779,10 +825,10 @@ slabs_temperature_set_fn (double *temp, double x, double y, double z,
 }
 
 static void
-slabs_temperature_compute (ymir_vec_t *temperature,
+slabs_poly2_temperature_compute (ymir_vec_t *temperature,
                            slabs_options_t *slabs_options)
 {
-  const char         *this_fn_name = "slabs_temperature_compute";
+  const char         *this_fn_name = "slabs_poly2_temperature_compute";
   double              trench_lon;
   double              dip_angle;
   double              subd_depth, subd_width;
@@ -873,11 +919,11 @@ drag_temperature_set_fn (double *temp, double x, double y, double z,
 }
 
 void
-testtopo_temperature_set_fn (double *temp, double x, double y, double z,
+thinbox_temperature_set_fn (double *temp, double x, double y, double z,
                           ymir_locidx_t nid, void *data)
 {
-  if ( (fabs(y-0.5) < 0.2)  && (z > 0.8 && z < 0.9))
-    *temp = 1.0;
+  if ( (fabs(y-0.5) < 0.2)  && (z > 0.95 && z < 0.97))
+    *temp = 0.0;
   else
     *temp = 0.5;
 
@@ -890,39 +936,63 @@ testtopo_temperature_set_fn (double *temp, double x, double y, double z,
 }
 
 void
-testtopo2_temperature_set_fn (double *temp, double x, double y, double z,
+sinker_temperature_set_fn (double *temp, double x, double y, double z,
                           ymir_locidx_t nid, void *data)
 {
-  slabs_topo_profile_t    *topo = (slabs_topo_profile_t *) data;
-  int m, nsurf = topo->nsurf;
-  double *tX = topo->tX;
-  double *tY = topo->tY;
-  double *tZ = topo->tZ;
-  double factor;
+  slabs_options_t *opt = data;
+  slabs_custom_sinker_t *sinker = opt->slabs_temp_options->sinker_options;
+  double center_x = sinker->center_x;
+  double center_y = sinker->center_y;
+  double center_z = sinker->center_z;
+  double radius = 0.5 * sinker->diameter;
+  double scaling = sinker->scaling;
+  double decay = sinker->decay;
+  double val;
 
-  if (z > 0.95) {
-    for (m = 0; m < nsurf; m++)  {
-      if (fabs(x - tX[m]) < SC_1000_EPS &&
-          fabs(y - tY[m]) < SC_1000_EPS)  {
-        factor = tZ[m];
-        if (z > factor)
-          *temp = 100/8.4 + 0.5;
-        else
-          *temp = 0.5;
-      }
-    }
-  }
-  else if ( (fabs(y-0.5) < 0.2)  && (z > 0.8 && z < 0.9))
-    *temp = .0;
-  else
-    *temp = 0.5;
+  val = sqrt ( (center_x - x) * (center_x - x) +
+               (center_y - y) * (center_y - y) +
+               (center_z - z) * (center_z - z) );
+
+  val = SC_MAX (0.0, val - radius);
+
+  val = exp (-decay * val * val);
+  RHEA_ASSERT (0.0 <= val && val <= 1.0);
+
+  val = scaling * (1.0 - val);
+  val = SC_MAX (0.0, SC_MIN (val, 1.0));
+  *temp = val;
+  *temp += (0.5 - scaling);
 
   /* check temperature for `nan` and `inf` */
   RHEA_ASSERT (isfinite (*temp));
 
   /* bound temperature to valid interval */
+  *temp = SC_MIN (1.0, *temp);
   *temp = SC_MAX (0.0, *temp);
 }
+
+
+void
+slabs_custom_temperature_compute (ymir_vec_t *temp,
+                                    slabs_options_t *slabs_options)
+{
+  slabs_temp_custom_t type = slabs_options->slabs_temp_options->custom_type;
+
+  switch (type)  {
+    case CUSTOM_THINBOX:
+      ymir_cvec_set_function (temp, thinbox_temperature_set_fn, slabs_options);
+    break;
+
+    case CUSTOM_SINKER:
+      ymir_cvec_set_function (temp, sinker_temperature_set_fn, slabs_options);
+    break;
+
+    default:
+      RHEA_ABORT_NOT_REACHED ();
+  }
+
+}
+
 
 /**************************************
  * Weakzone Computation
@@ -1280,20 +1350,68 @@ slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
  * Viscosity Computation
  *************************************/
 static void
-slabs_viscosity_elem (double *_sc_restrict visc_elem,
-                        const double *_sc_restrict x,
-                        const double *_sc_restrict y,
-                        const double *_sc_restrict z,
-                        const double *_sc_restrict weak_elem,
-                        const int n_nodes_per_el,
-                        slabs_options_t *slabs_options)
+slabs_layers_viscosity_elem (double *_sc_restrict visc_elem,
+                            const double *_sc_restrict x,
+                            const double *_sc_restrict y,
+                            const double *_sc_restrict z,
+                            const double *_sc_restrict weak_elem,
+                            const int n_nodes_per_el,
+                            slabs_options_t *slabs_options)
 {
   int                 nodeid;
   double              z_mid = slabs_options->slabs_visc_options->z_lith;
+  double              factor = 1.0;
+  slabs_topo_profile_t *topo = slabs_options->slabs_surf_options->topo_profile;
+  double *tX = topo->tX;
+  double *tY = topo->tY;
+  double *tZ = topo->tZ;
+  int     m, nsurf = topo->nsurf;
+
+  /* compute viscosity in this element */
+  for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+    if (topo != NULL) {
+      for (m = 0; m < nsurf; m++)  {
+        if (fabs(x[nodeid] - tX[m]) < SC_1000_EPS &&
+            fabs(y[nodeid] - tY[m]) < SC_1000_EPS)  {
+          factor = tZ[m];
+        }
+      }
+    }
+    if (z[nodeid]/factor >= z_mid)  {
+      visc_elem[nodeid] = slabs_options->slabs_visc_options->visc_lith;
+    }
+    else {
+      visc_elem[nodeid] = slabs_options->slabs_visc_options->visc_asthen;
+    }
+    visc_elem[nodeid] *= weak_elem[nodeid];
+
+    /* check viscosity for `nan`, `inf`, and positivity */
+    RHEA_ASSERT (isfinite (visc_elem[nodeid]));
+    RHEA_ASSERT (0.0 < visc_elem[nodeid]);
+  }
+}
+
+static void
+slabs_layers_coupling_viscosity_elem (double *_sc_restrict visc_elem,
+                                      const double *_sc_restrict x,
+                                      const double *_sc_restrict y,
+                                      const double *_sc_restrict z,
+                                      const double *_sc_restrict weak_elem,
+                                      const int n_nodes_per_el,
+                                      slabs_options_t *slabs_options)
+{
+  int                 nodeid;
+  double              z_mid = slabs_options->slabs_visc_options->z_lith;
+  double              z_slab = slabs_options->slabs_visc_options->z_slab;
+  double              slab_width = slabs_options->slabs_visc_options->slab_width;
+  double              y_center = 0.5;
 
   /* compute viscosity in this element */
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
     if (z[nodeid] >= z_mid)  {
+      visc_elem[nodeid] = slabs_options->slabs_visc_options->visc_lith;
+    }
+    else if (z[nodeid] >= z_slab && fabs(y[nodeid] - y_center) <= 0.5 * slab_width) {
       visc_elem[nodeid] = slabs_options->slabs_visc_options->visc_lith;
     }
     else {
@@ -1344,8 +1462,21 @@ slabs_viscosity_compute (ymir_vec_t *viscosity,
 
     weak_el_data = rhea_viscosity_get_elem_gauss (weak_el_mat, weakzone, elid);
     /* compute user defined weak zone viscosity*/
-    slabs_viscosity_elem (visc_el_data, x, y, z, weak_el_data, n_nodes_per_el,
-                          slabs_options);
+    switch (slabs_options->slabs_visc_options->viscosity_geometry) {
+      case SLABS_VISC_LAYERS:
+        slabs_layers_viscosity_elem (visc_el_data, x, y, z, weak_el_data, n_nodes_per_el,
+                                     slabs_options);
+      break;
+
+      case SLABS_VISC_LAYERS_COUPLING:
+        slabs_layers_coupling_viscosity_elem (visc_el_data, x, y, z, weak_el_data, n_nodes_per_el,
+                                             slabs_options);
+      break;
+
+      default:
+      RHEA_ABORT_NOT_REACHED ();
+    }
+
     /* set viscosity of this element */
     rhea_viscosity_set_elem_gauss (viscosity, visc_el_mat, elid);
   }
@@ -1832,6 +1963,8 @@ slabs_X_fn_sine (mangll_tag_t tag, mangll_locidx_t np,
   }
 }
 
+/*distort mesh following the imposed topography on the surface
+ * the topography information is given in void *data */
 static void
 slabs_X_fn_profile (mangll_tag_t tag, mangll_locidx_t np,
                    const double *_sc_restrict EX,
@@ -1849,9 +1982,12 @@ slabs_X_fn_profile (mangll_tag_t tag, mangll_locidx_t np,
   double *tZ = topo->tZ;
   int     m, nsurf = topo->nsurf;
 
+  /*loop for nodes in each element*/
   for (il = 0; il < np; ++il) {
     X[il] = EX[il];
     Y[il] = EY[il];
+    /*loop over all the topography information
+     * to find the corresponding distortion factor */
     for (m = 0; m < nsurf; m++)  {
       if (fabs(EX[il] - tX[m]) < SC_1000_EPS &&
           fabs(EY[il] - tY[m]) < SC_1000_EPS)  {
@@ -1934,6 +2070,22 @@ slabs_set_vel_dir_freeslip (
 {
     return YMIR_VEL_DIRICHLET_NORM;
 }
+
+/* free-surface */
+static ymir_dir_code_t
+slabs_set_vel_dir_freesurface (
+    double X, double Y, double Z,
+    double nx, double ny, double nz,
+    ymir_topidx_t face, ymir_locidx_t node_id,
+    void *data)
+{
+  if (face == RHEA_DOMAIN_BOUNDARY_FACE_TOP)
+    return YMIR_VEL_DIRICHLET_NONE;
+  else
+    return YMIR_VEL_DIRICHLET_NORM;
+}
+
+
 
 /* Dirichlet all on one side of the domain: SIDE3 (y=0).*/
 static ymir_dir_code_t
@@ -2149,6 +2301,19 @@ slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
                               slabs_set_rhs_vel_nonzero_dir_inoutflow_tanh_3layer,
                               slabs_options);
       break;
+
+
+   case SLABS_FREESURFACE:
+      rhea_domain_set_user_velocity_dirichlet_bc (
+          slabs_set_vel_dir_freesurface, NULL /* no data necessary */,
+          0 );
+   break;
+
+   case SLABS_FREESLIP:
+      rhea_domain_set_user_velocity_dirichlet_bc (
+          slabs_set_vel_dir_freeslip, NULL /* no data necessary */,
+          0 );
+   break;
 
    default: /* BC not set */
       RHEA_ABORT_NOT_REACHED ();
@@ -4277,8 +4442,8 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 {
   const char         *this_fn_name = "slabs_setup_stokes";
   ymir_vec_t         *temperature, *weakzone;
-  ymir_vec_t         *coeff_TI_svisc=NULL, *TI_rotate=NULL;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet=NULL;
+  ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
+  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet = NULL;
   void               *solver_options = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
@@ -4296,7 +4461,7 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
     break;
 
     case SLAB:
-      slabs_temperature_compute (temperature, slabs_options);
+      slabs_poly2_temperature_compute (temperature, slabs_options);
       if (slabs_options->slabs_visc_options->viscosity_anisotropy
          == SLABS_VISC_ISOTROPY) {
         slabs_weakzone_compute (weakzone, slabs_options);
@@ -4332,12 +4497,12 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                                                slabs_options);
     break;
 
-    case TESTTOPO:
-      ymir_cvec_set_function (temperature, testtopo_temperature_set_fn, slabs_options);
-    break;
+    case CUSTOM:
+      slabs_custom_temperature_compute (temperature, slabs_options);
 
-    case TESTTOPO2:
-      ymir_cvec_set_function (temperature, testtopo2_temperature_set_fn, slabs_options->slabs_surf_options->topo_profile);
+      /* set custom function to compute viscosity */
+      rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
+                                               slabs_options);
     break;
 
     case TESTNONE:
@@ -4531,8 +4696,12 @@ main (int argc, char **argv)
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
 
+  double                  surf_dist;
+  double                  visc_trial;
   int                     buoyancy_type;
+  int                     temp_custom;
   int                     viscosity_anisotropy;
+  int                     viscosity_geometry;
   int                     x_func;
   int                     vel_dir_bc;
   int                     test_manufactured;
@@ -4542,11 +4711,12 @@ main (int argc, char **argv)
   /* slabs options */
   slabs_domain_options_t     slabs_domain_options;
   slabs_temp_options_t     slabs_temp_options;
+  slabs_custom_sinker_t    slabs_sinker_options;
   slabs_visc_options_t     slabs_visc_options;
   slabs_weak_options_t     slabs_weak_options;
   slabs_surf_options_t     slabs_surf_options;
   slabs_velbc_options_t    slabs_velbc_options;
-  slabs_test_options_t    slabs_test_options;
+  slabs_test_options_t     slabs_test_options;
   slabs_options_t          slabs_options;
 
   /* options local to this function */
@@ -4563,6 +4733,12 @@ main (int argc, char **argv)
   char               *vtk_write_solution2_path;
   char               *vtk_write_input3_path;
   char               *vtk_write_solution3_path;
+  char               *vtk_write_io_path;
+  char               *vtk_write_mpiio_path;
+  char               *vtk_read_io_path;
+  char               *vtk_read_mpiio_path;
+  char               *vtk_write_ioface_path;
+  char               *vtk_read_ioface_path;
 
   /* mesh */
   p4est_t            *p4est;
@@ -4644,6 +4820,29 @@ main (int argc, char **argv)
     &temp_2pl_over_plate_age, SLABS_DEFAULT_TEMP_2PL_OVER_PLATE_AGE,
     "2plates temp: Age of overriding plate [y]",
 
+  YMIR_OPTIONS_I, "temp-custom-type",'\0',
+    &(temp_custom),CUSTOM_SINKER,
+    "0: thin_box, 1: sinker",
+  YMIR_OPTIONS_D, "temp-sinker-center-x", '\0',
+    &center_x, 0.0,
+    "center of the sinker: x",
+  YMIR_OPTIONS_D, "temp-sinker-center-y", '\0',
+    &center_y, 0.5,
+    "center of the sinker: y",
+  YMIR_OPTIONS_D, "temp-sinker-center-z", '\0',
+    &center_z, 0.5,
+    "center of the sinker: z",
+  YMIR_OPTIONS_D, "temp-sinker-diameter", '\0',
+    &diameter, 0.1,
+    "diameter of the sinker",
+  YMIR_OPTIONS_D, "temp-sinker-scaling", '\0',
+    &sinker_scaling, 0.5,
+    "scaling of the sinker temperature",
+  YMIR_OPTIONS_D, "temp-sinker-decay", '\0',
+    &sinker_decay, 100.0,
+    "decay (exponent) of the sinker temperature",
+
+
   /* weakzone */
   YMIR_OPTIONS_D, "weakzone-2plates-subdu-longitude", '\0',
     &weakzone_2pl_subdu_lon, SLABS_WEAKZONE_2PLATES_SUBDU_LONGITUDE,
@@ -4685,23 +4884,38 @@ main (int argc, char **argv)
   YMIR_OPTIONS_I, "viscosity-anisotropy",'\0',
     &(viscosity_anisotropy),SLABS_VISC_ISOTROPY,
     "0: isotropy, 1: transversely isotropy",
+  YMIR_OPTIONS_I, "viscosity-geometry",'\0',
+    &(viscosity_geometry),SLABS_VISC_LAYERS,
+    "0: layers, 1: layers-coupling",
   YMIR_OPTIONS_D, "viscosity-lithosphere", '\0',
     &visc_lith, VISCOSITY_LITHOSPHERE,
+    "Viscosity in the lithosphere",
+  YMIR_OPTIONS_D, "viscosity-lith-trial", '\0',
+    &visc_trial, 1.0,
     "Viscosity in the lithosphere",
   YMIR_OPTIONS_D, "viscosity-asthenosphere", '\0',
     &visc_asthen, VISCOSITY_ASTHENOSPHERE,
     "Viscosity in the asthenosphere",
   YMIR_OPTIONS_D, "visc-zlocation-lithosphere", '\0',
     &visc_z_lith, VISCOSITY_LITHOSPHERE_RADIUS_LOCATION,
-    "Viscosity in the lithosphere",
+    "Viscosity lithosphere location",
   YMIR_OPTIONS_D, "visc-zlocation-asthenosphere", '\0',
     &visc_z_asthen, VISCOSITY_ASTHENOSPHERE_RADIUS_LOCATION,
-    "Viscosity in the asthenosphere",
+    "Viscosity asthenosphere location",
+  YMIR_OPTIONS_D, "visc-zlocation-slab", '\0',
+    &visc_z_slab, VISCOSITY_SLAB_RADIUS_LOCATION,
+    "Viscosity slab location",
+  YMIR_OPTIONS_D, "visc-slab-width", '\0',
+    &visc_slab_width, VISCOSITY_SLAB_WIDTH,
+    "Viscosity slab width",
 
   /* surface location  */
   YMIR_OPTIONS_I, "bound-x-function", '\0',
     &x_func, SLABS_X_FUNCTION_IDENTITY,
     "boundary location: surface topography",
+  YMIR_OPTIONS_D, "surface-distortion-factor", '\0',
+    &surf_dist, 1.0,
+    "surface distortion factor.",
 
   /* velocity Dirichlet BC's */
   YMIR_OPTIONS_I, "velocity-dirichlet-bc", '\0',
@@ -4775,6 +4989,24 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solution3-path", '\0',
     &(vtk_write_solution3_path), NULL,
     "File path for vtk files for the solution of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-io-path", '\0',
+    &(vtk_write_io_path), NULL,
+    "File path for the test of io",
+  YMIR_OPTIONS_S, "vtk-write-mpiio-path", '\0',
+    &(vtk_write_mpiio_path), NULL,
+    "File path for the test of mpiio",
+  YMIR_OPTIONS_S, "vtk-read-io-path", '\0',
+    &(vtk_read_io_path), NULL,
+    "File path for the test of io",
+  YMIR_OPTIONS_S, "vtk-read-mpiio-path", '\0',
+    &(vtk_read_mpiio_path), NULL,
+    "File path for the test of mpiio",
+  YMIR_OPTIONS_S, "vtk-write-ioface-path", '\0',
+    &(vtk_write_ioface_path), NULL,
+    "File path for the test of face_mesh io",
+  YMIR_OPTIONS_S, "vtk-read-ioface-path", '\0',
+    &(vtk_read_ioface_path), NULL,
+    "File path for the test of face_mesh io",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -4818,6 +5050,16 @@ main (int argc, char **argv)
     temp_2pl_subd_plate_init_age;
   slabs_temp_options.temp_2plates_over_plate_age = temp_2pl_over_plate_age;
 
+  slabs_temp_options.custom_type = (slabs_temp_custom_t) temp_custom;
+  RHEA_GLOBAL_INFOF ("custom_type = %d\n", slabs_temp_options.custom_type);
+  slabs_sinker_options.center_x = center_x;
+  slabs_sinker_options.center_y = center_y;
+  slabs_sinker_options.center_z = center_z;
+  slabs_sinker_options.diameter = diameter;
+  slabs_sinker_options.scaling = sinker_scaling;
+  slabs_sinker_options.decay = sinker_decay;
+  slabs_temp_options.sinker_options = &slabs_sinker_options;
+
   /* weak zone */
   slabs_weak_options.weakzone_2plates_subdu_longitude =
     weakzone_2pl_subdu_lon;
@@ -4844,10 +5086,13 @@ main (int argc, char **argv)
 
   /* viscosity */
   slabs_visc_options.viscosity_anisotropy = (slabs_viscosity_anisotropy_t) viscosity_anisotropy;
+  slabs_visc_options.viscosity_geometry = (slabs_viscosity_geometry_t) viscosity_geometry;
   slabs_visc_options.visc_lith = visc_lith;
   slabs_visc_options.visc_asthen = visc_asthen;
   slabs_visc_options.z_lith = visc_z_lith;
   slabs_visc_options.z_asthen = visc_z_asthen;
+  slabs_visc_options.z_slab = visc_z_slab;
+  slabs_visc_options.slab_width = visc_slab_width;
 
   /*geometry transformation: surface location*/
   slabs_surf_options.x_func = (slabs_x_func_t) x_func;
@@ -5302,6 +5547,7 @@ main (int argc, char **argv)
                    rhea_stokes_problem_get_rhs_vel (stokes_problem),
                    rhea_stokes_problem_get_stokes_op (stokes_problem));
 
+    /*surface mesh information*/
     fm = surf_normal_stress->meshnum;
     fmesh = &(ymir_mesh->fmeshes[fm]);
     N3 = N * N;
@@ -5321,35 +5567,42 @@ main (int argc, char **argv)
       tY[il] = Yd[il];
     }
 
+    /*compute the average surface normal stress*/
     elem = sc_dmatrix_new (Np, 1);
     avg_stress = 0.0;
+    /*loop for elements*/
     for (ik = 0; ik < K; ik++)  {
       ymir_vec_get_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, ik, YMIR_GLL_NODE, YMIR_COPY);
       elemd = elem->e[0];
+      /*loop for nodes in each element*/
       for (i = 0; i < Np; i++)  {
         avg_stress += elemd[i];
       }
     }
     avg_stress /= Ntotal;
-    avg_stress = 0.0;
 
+    /*compute surface topography*/
+    /*loop for elements*/
     for (ik = 0; ik < K; ik++)  {
       ymir_vec_get_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, ik, YMIR_GLL_NODE, YMIR_COPY);
       elemd = elem->e[0];
+      /*loop for nodes in each element*/
       for (i = 0; i < Np; i++)  {
-        topo_nondim = (elemd[i] - avg_stress) * (-0.084/7.0e7);
+        /*remove horizontal average and scale stress to topography perturbation*/
+        topo_nondim = (elemd[i] - avg_stress) * (-2.0);
+        /*assign topography to each node*/
         tZ[Np * ik + i] =  topo_nondim + 1.0;
-
         RHEA_GLOBAL_INFOF ("element %d, nodeid %d, topo[%d]=%lf\n",ik, i, Np*ik+i, tZ[Np * ik + i]);
       }
     }
 
-
+    /*store topography information in slabs_surf_options*/
     topo.tX = tX;
     topo.tY = tY;
     topo.tZ = tZ;
     topo.nsurf = Ntotal;
     slabs_surf_options.topo_profile = &topo;
+    /*creat new discr and domain options with the distorted surface*/
     rhea_discretization_process_options (&discr_options2, &domain_options);
     rhea_discretization_set_user_X_fn (&discr_options2,
                                        slabs_X_fn_profile, &topo);
@@ -5357,8 +5610,13 @@ main (int argc, char **argv)
     slabs_setup_mesh (&p4est2, &ymir_mesh2, &press_elem2, mpicomm,
                       &domain_options, &discr_options2, &slabs_options);
 
-    buoyancy_type = 7;
-    slabs_options.buoyancy_type = (slabs_buoyancy_type_t) buoyancy_type;
+    /*use free-surface B.C. on the surface*/
+    vel_dir_bc = 6;
+    slabs_velbc_options.vel_dir_bc = (slabs_vel_dir_bc_t) vel_dir_bc;
+
+    /*try different viscosity on the top layer*/
+    slabs_visc_options.visc_lith *= visc_trial;
+
     slabs_setup_stokes (&stokes_problem2, ymir_mesh2, press_elem2,
                         &domain_options, &temp_options, &visc_options,
                         &slabs_options, vtk_write_input2_path);
@@ -5396,51 +5654,6 @@ main (int argc, char **argv)
                    rhea_stokes_problem_get_rhs_vel (stokes_problem2),
                    rhea_stokes_problem_get_stokes_op (stokes_problem2));
 
-#if 0
-/* test a weird case */
-    {
-
-    buoyancy_type = 6;
-    slabs_options.buoyancy_type = (slabs_buoyancy_type_t) buoyancy_type;
-    slabs_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
-                        &domain_options, &temp_options, &visc_options,
-                        &slabs_options, vtk_write_input3_path);
-
-    /* initialize solution vector */
-    sol_vel_press3 = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-
-   /* run solver */
-    slabs_run_solver (sol_vel_press3, ymir_mesh, press_elem, stokes_problem,
-                      solver_iter_max, solver_rel_tol);
-
-    {
-      ymir_vec_t         *velocity3 = rhea_velocity_new (ymir_mesh);
-      ymir_vec_t         *pressure3 = rhea_pressure_new (ymir_mesh, press_elem);
-      ymir_vec_t         *viscosity3 = rhea_viscosity_new (ymir_mesh);
-
-      ymir_stokes_vec_get_components (sol_vel_press3, velocity3, pressure3,
-                                      press_elem);
-      rhea_stokes_problem_copy_viscosity (viscosity3, stokes_problem);
-
-      rhea_vtk_write_solution (vtk_write_solution3_path, velocity3, pressure3,
-                               viscosity3);
-
-      rhea_pressure_destroy (pressure3);
-      rhea_viscosity_destroy (viscosity3);
-      rhea_velocity_destroy (velocity3);
-    }
-
-  /* compute surface normal stress sigma */
-    surf_normal_stress3 = ymir_face_cvec_new (ymir_mesh,
-                                         RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-
-    slabs_physics_compute_normal_boundary_stress (
-                   surf_normal_stress3, sol_vel_press3,
-                   rhea_stokes_problem_get_rhs_vel (stokes_problem),
-                   rhea_stokes_problem_get_stokes_op (stokes_problem));
-    }
-#endif
-
     {
       char            path[BUFSIZ];
 
@@ -5448,7 +5661,6 @@ main (int argc, char **argv)
       ymir_vtk_write (ymir_mesh, path,
                       surf_normal_stress, "surf_normal_stress",
                       surf_normal_stress2, "surf_normal_stress with f-surface",
-//                      surf_normal_stress3, "surf_normal_stress with air",
                       NULL);
     }
 
@@ -5459,9 +5671,7 @@ main (int argc, char **argv)
     free (tZ);
     ymir_vec_destroy (surf_normal_stress);
     ymir_vec_destroy (surf_normal_stress2);
-//    ymir_vec_destroy (surf_normal_stress3);
     rhea_velocity_pressure_destroy (sol_vel_press2);
-//    rhea_velocity_pressure_destroy (sol_vel_press3);
     slabs_surf_options.topo_profile = NULL;
 
     slabs_setup_clear_all (stokes_problem2, p4est2, ymir_mesh2, press_elem2,
@@ -5469,6 +5679,440 @@ main (int argc, char **argv)
 
     RHEA_GLOBAL_PRODUCTIONF ("In %s: Done vtk_write_freesurface\n", this_fn_name);
   }
+
+
+  if (vtk_write_io_path != NULL) {
+    mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
+    const int             N = cnodes->N;
+    int                   Np, mpirank;
+    ymir_locidx_t         n_elements, elid, Ntotal, fm;
+    int                   i, j, k;
+    double                *x, *y, *z, *tmp_el, *elemd;
+    sc_dmatrix_t          *elem;
+    FILE                  *outfile;
+    char                  outfilename[BUFSIZ];
+
+    ymir_vec_t            *viscosity = rhea_viscosity_new (ymir_mesh);
+
+    RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_write_io\n", this_fn_name);
+
+    rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+
+    mpirank = ymir_mesh->ma->mpirank;
+
+    Np = (N + 1) * (N + 1) * (N + 1);
+    n_elements = cnodes->K;
+    Ntotal = Np * n_elements;
+
+    snprintf (outfilename, BUFSIZ, "%s_visc_%04d", vtk_write_io_path, mpirank);
+
+    outfile = fopen (outfilename, "w");
+    if (outfile == NULL) {
+      YMIR_LERRORF ("Could not open %s for output!\n", outfilename);
+      return -1;
+    }
+
+    x = RHEA_ALLOC (double, Np);
+    y = RHEA_ALLOC (double, Np);
+    z = RHEA_ALLOC (double, Np);
+    tmp_el = RHEA_ALLOC (double, Np);
+
+    elem = sc_dmatrix_new (Np, 1);
+    elemd = elem->e[0];
+    for (elid = 0; elid < n_elements; elid++) {
+      elemd =  rhea_viscosity_get_elem_gauss (elem, viscosity, elid);
+
+      ymir_mesh_get_elem_coord_gauss (x, y, z, elid, ymir_mesh, tmp_el);
+
+      for (i = 0; i < Np; ++i)  {
+        fprintf (outfile, "%24.16e    %24.16e    %24.16e    %24.16e\n", x[i],
+               y[i], z[i], elemd[i]);
+      }
+    }
+    if (fclose (outfile)) {
+      YMIR_LERROR ("main: Error closing footer\n");
+      return -1;
+    }
+
+    RHEA_FREE (x);
+    RHEA_FREE (y);
+    RHEA_FREE (z);
+    RHEA_FREE (tmp_el);
+    sc_dmatrix_destroy (elem);
+    ymir_vec_destroy (viscosity);
+
+  }
+
+  if (vtk_write_mpiio_path != NULL) {
+    mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
+    const int             N = cnodes->N;
+    int                   Np, mpirank, mpisize;
+    ymir_locidx_t         n_elements, elid, Ntotal, fm;
+    int                   i, j, k;
+    double                *x, *y, *z, *tmp_el, *elemd;
+    double                *Ax, *Ay, *Az, *Avisc;
+    double                *Px, *Py, *Pz, *Pvisc;
+    sc_dmatrix_t          *elem;
+    FILE                  *outfile;
+    char                  outfilename[BUFSIZ];
+
+    ymir_vec_t            *viscosity = rhea_viscosity_new (ymir_mesh);
+
+    RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_write_mpiio\n", this_fn_name);
+
+    rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+
+    mpirank = ymir_mesh->ma->mpirank;
+    mpisize = ymir_mesh->ma->mpisize;
+
+    Np = (N + 1) * (N + 1) * (N + 1);
+    n_elements = cnodes->K;
+    Ntotal = Np * n_elements;
+
+    snprintf (outfilename, BUFSIZ, "%s_visc_merged", vtk_write_mpiio_path);
+    if (mpirank == 0) {
+      outfile = fopen (outfilename, "w");
+      if (outfile == NULL) {
+        YMIR_LERRORF ("Could not open %s for output!\n", outfilename);
+        return -1;
+      }
+      Ax = RHEA_ALLOC (double, mpisize * n_elements * Np);
+      Ay = RHEA_ALLOC (double, mpisize * n_elements * Np);
+      Az = RHEA_ALLOC (double, mpisize * n_elements * Np);
+      Avisc = RHEA_ALLOC (double, mpisize * n_elements * Np);
+    }
+
+    Px = RHEA_ALLOC (double, n_elements * Np);
+    Py = RHEA_ALLOC (double, n_elements * Np);
+    Pz = RHEA_ALLOC (double, n_elements * Np);
+    Pvisc = RHEA_ALLOC (double, n_elements * Np);
+
+    x = RHEA_ALLOC (double, Np);
+    y = RHEA_ALLOC (double, Np);
+    z = RHEA_ALLOC (double, Np);
+    tmp_el = RHEA_ALLOC (double, Np);
+
+    elem = sc_dmatrix_new (Np, 1);
+    elemd = elem->e[0];
+    for (elid = 0; elid < n_elements; elid++) {
+      elemd =  rhea_viscosity_get_elem_gauss (elem, viscosity, elid);
+
+      ymir_mesh_get_elem_coord_gauss (x, y, z, elid, ymir_mesh, tmp_el);
+
+      for (i = 0; i < Np; ++i)  {
+        Px[elid * Np + i] = x[i];
+        Py[elid * Np + i] = y[i];
+        Pz[elid * Np + i] = z[i];
+        Pvisc[elid * Np + i] = elemd[i];
+      }
+    }
+    MPI_Gather (Px, n_elements*Np, MPI_DOUBLE,
+                Ax, n_elements*Np, MPI_DOUBLE,
+                0, MPI_COMM_WORLD);
+    MPI_Gather (Py, n_elements*Np, MPI_DOUBLE,
+                Ay, n_elements*Np, MPI_DOUBLE,
+                0, MPI_COMM_WORLD);
+    MPI_Gather (Pz, n_elements*Np, MPI_DOUBLE,
+                Az, n_elements*Np, MPI_DOUBLE,
+                0, MPI_COMM_WORLD);
+    MPI_Gather (Pvisc, n_elements*Np, MPI_DOUBLE,
+                Avisc, n_elements*Np, MPI_DOUBLE,
+                0, MPI_COMM_WORLD);
+
+    if (mpirank == 0) {
+      for (i = 0; i < mpisize*n_elements*Np; i++) {
+        fprintf (outfile, "%24.16e    %24.16e    %24.16e    %24.16e\n", Ax[i],
+                 Ay[i], Az[i], Avisc[i]);
+      }
+      if (fclose (outfile)) {
+        YMIR_LERROR ("main: Error closing footer\n");
+        return -1;
+      }
+      RHEA_FREE (Ax);
+      RHEA_FREE (Ay);
+      RHEA_FREE (Az);
+      RHEA_FREE (Avisc);
+    }
+
+    char            path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_original", vtk_write_mpiio_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    viscosity, "original_visc",
+                    NULL);
+
+    RHEA_FREE (x);
+    RHEA_FREE (y);
+    RHEA_FREE (z);
+    RHEA_FREE (tmp_el);
+    RHEA_FREE (Px);
+    RHEA_FREE (Py);
+    RHEA_FREE (Pz);
+    RHEA_FREE (Pvisc);
+    sc_dmatrix_destroy (elem);
+    ymir_vec_destroy (viscosity);
+  }
+
+
+  if (vtk_read_io_path != NULL)  {
+    mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
+    const int             N = cnodes->N;
+    int                   Np, mpirank;
+    ymir_locidx_t         n_elements, elid, Ntotal, fm;
+    int                   i, j, k;
+    double                *elemd;
+    double                tmp;
+    sc_dmatrix_t          *elem;
+    FILE                  *infile;
+    char                  infilename[BUFSIZ];
+    ymir_vec_t            *readin_visc = rhea_viscosity_new (ymir_mesh);
+
+    RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_read_io\n", this_fn_name);
+
+    mpirank = ymir_mesh->ma->mpirank;
+
+    Np = (N + 1) * (N + 1) * (N + 1);
+    n_elements = cnodes->K;
+    Ntotal = Np * n_elements;
+
+    snprintf (infilename, BUFSIZ, "%s_visc_%04d", vtk_read_io_path, mpirank);
+
+    infile = fopen (infilename, "r");
+    if (infile == NULL) {
+      YMIR_LERRORF ("Could not open %s for reading!\n", infilename);
+      return -1;
+    }
+
+    elem = sc_dmatrix_new (Np, 1);
+    elemd = elem->e[0];
+    for (elid = 0; elid < n_elements; elid++) {
+      for (i = 0; i < Np; ++i)  {
+        fscanf (infile, "%lf %lf %lf %lf\n", &tmp,
+               &tmp, &tmp, &elemd[i]);
+      }
+      rhea_viscosity_set_elem_gauss (readin_visc, elem, elid);
+
+    }
+    if (fclose (infile)) {
+      YMIR_LERROR ("main: Error closing footer\n");
+      return -1;
+    }
+
+
+    sc_dmatrix_destroy (elem);
+    ymir_vec_destroy (readin_visc);
+  }
+
+  if (vtk_read_mpiio_path != NULL)  {
+    mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
+    const int             N = cnodes->N;
+    int                   Np, mpirank;
+    ymir_locidx_t         n_elements, elid, Ntotal, fm;
+    int                   i, j, k;
+    double                *elemd;
+    double                *Avisc, *Pvisc;
+    double                tmp, norm_diff;
+    sc_dmatrix_t          *elem;
+    FILE                  *infile;
+    char                  infilename[BUFSIZ];
+    ymir_vec_t            *readin_visc = rhea_viscosity_new (ymir_mesh);
+    ymir_vec_t            *viscosity = rhea_viscosity_new (ymir_mesh);
+    ymir_vec_t            *diff_visc = rhea_viscosity_new (ymir_mesh);
+
+    RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_read_mpiio\n", this_fn_name);
+
+    rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+
+    mpirank = ymir_mesh->ma->mpirank;
+
+    Np = (N + 1) * (N + 1) * (N + 1);
+    n_elements = cnodes->K;
+    Ntotal = Np * n_elements;
+
+    snprintf (infilename, BUFSIZ, "%s_visc_merged", vtk_read_mpiio_path);
+    if (mpirank == 0) {
+      infile = fopen (infilename, "r");
+      if (infile == NULL) {
+        YMIR_LERRORF ("Could not open %s for reading!\n", infilename);
+        return -1;
+      }
+      Avisc = RHEA_ALLOC (double, mpisize * n_elements * Np);
+      for (i = 0; i < mpisize*n_elements*Np; ++i)  {
+        fscanf (infile, "%lf %lf %lf %lf\n", &tmp,
+               &tmp, &tmp, &Avisc[i]);
+      }
+    }
+
+    Pvisc = RHEA_ALLOC (double, n_elements * Np);
+    MPI_Scatter (Avisc, n_elements*Np, MPI_DOUBLE,
+                 Pvisc, n_elements*Np, MPI_DOUBLE,
+                 0, MPI_COMM_WORLD);
+
+    elem = sc_dmatrix_new (Np, 1);
+    elemd = elem->e[0];
+    for (elid = 0; elid < n_elements; elid++) {
+      for (i = 0; i < Np; ++i)  {
+        elemd[i] = Pvisc[elid * Np + i];
+      }
+      rhea_viscosity_set_elem_gauss (readin_visc, elem, elid);
+    }
+
+    if (mpirank == 0) {
+      if (fclose (infile)) {
+        YMIR_LERROR ("main: Error closing footer\n");
+        return -1;
+      }
+      RHEA_FREE (Avisc);
+    }
+
+    ymir_vec_copy (readin_visc, diff_visc);
+    ymir_vec_add (-1.0, viscosity, diff_visc);
+    norm_diff = ymir_vec_norm (diff_visc);
+    RHEA_GLOBAL_INFOF ("mpiio_read: norm_diff=%f\n", norm_diff);
+
+    char            path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_readin", vtk_read_mpiio_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    readin_visc, "readin_visc",
+                    diff_visc, "diff_visc",
+                    NULL);
+
+
+    RHEA_FREE (Pvisc);
+    sc_dmatrix_destroy (elem);
+    ymir_vec_destroy (readin_visc);
+    ymir_vec_destroy (viscosity);
+    ymir_vec_destroy (diff_visc);
+  }
+
+  if (vtk_write_ioface_path != NULL) {
+    ymir_vec_t            *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
+                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
+    const int             N = cnodes->N;
+    int                   Np;
+    int                   mpirank = ymir_mesh->ma->mpirank;
+    ymir_locidx_t         n_elements, elid, Ntotal;
+    ymir_locidx_t         fm = surf_normal_stress->meshnum;
+    ymir_face_mesh_t      *fmesh = &(ymir_mesh->fmeshes[fm]);
+    int                   i, j, k;
+    double                *Xd, *Yd, *Zd;
+    double                *elemd;
+    sc_dmatrix_t          *elem;
+    FILE                  *outfile;
+    char                  outfilename[BUFSIZ];
+
+
+    RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_write_ioface\n", this_fn_name);
+
+    /* compute surface normal stress sigma */
+    slabs_physics_compute_normal_boundary_stress (
+                   surf_normal_stress, sol_vel_press,
+                   rhea_stokes_problem_get_rhs_vel (stokes_problem),
+                   rhea_stokes_problem_get_stokes_op (stokes_problem));
+
+    Np = (N + 1) * (N + 1);
+    n_elements = fmesh->K;
+    Ntotal = Np * n_elements;
+    Xd = fmesh->X->e[0];
+    Yd = fmesh->Y->e[0];
+    Zd = fmesh->Z->e[0];
+
+    snprintf (outfilename, BUFSIZ, "%s_nstress_%04d.face%d", vtk_write_ioface_path, mpirank,
+              (int) fm);
+
+    outfile = fopen (outfilename, "w");
+    if (outfile == NULL) {
+      YMIR_LERRORF ("Could not open %s for output!\n", outfilename);
+      return -1;
+    }
+
+    elem = sc_dmatrix_new (Np, 1);
+    elemd = elem->e[0];
+    for (elid = 0; elid < n_elements; elid++) {
+      ymir_cvec_get_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, elid,
+                                 YMIR_GAUSS_NODE, YMIR_COPY);
+
+      for (i = 0; i < Np; ++i)  {
+        j = elid * Np + i;
+        fprintf (outfile, "%24.16e    %24.16e    %24.16e    %24.16e\n", Xd[j],
+               Yd[j], Zd[j], elemd[i]);
+      }
+    }
+    if (fclose (outfile)) {
+      YMIR_LERROR ("main: Error closing footer\n");
+      return -1;
+    }
+
+    char            path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_original", vtk_write_ioface_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    surf_normal_stress, "surf_normal_stress",
+                    NULL);
+
+    sc_dmatrix_destroy (elem);
+    ymir_vec_destroy (surf_normal_stress);
+  }
+
+  if (vtk_read_ioface_path != NULL) {
+    ymir_vec_t            *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
+                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
+    const int             N = cnodes->N;
+    int                   Np;
+    int                   mpirank = ymir_mesh->ma->mpirank;
+    ymir_locidx_t         n_elements, elid, Ntotal;
+    ymir_locidx_t         fm = surf_normal_stress->meshnum;
+    ymir_face_mesh_t      *fmesh = &(ymir_mesh->fmeshes[fm]);
+    int                   i, j, k;
+    double                *elemd;
+    double                tmp;
+    sc_dmatrix_t          *elem;
+    FILE                  *infile;
+    char                  infilename[BUFSIZ];
+
+
+    RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_read_ioface\n", this_fn_name);
+
+    Np = (N + 1) * (N + 1);
+    n_elements = fmesh->K;
+    Ntotal = Np * n_elements;
+
+    snprintf (infilename, BUFSIZ, "%s_nstress_%04d.face%d", vtk_read_ioface_path, mpirank,
+              (int) fm);
+
+    infile = fopen (infilename, "r");
+    if (infile == NULL) {
+      YMIR_LERRORF ("Could not open %s for output!\n", infilename);
+      return -1;
+    }
+
+    elem = sc_dmatrix_new (Np, 1);
+    elemd = elem->e[0];
+    for (elid = 0; elid < n_elements; elid++) {
+      for (i = 0; i < Np; ++i) {
+        fscanf(infile, "%lf %lf %lf %lf\n", &tmp, &tmp, &tmp, &elemd[i]);
+      }
+      ymir_cvec_set_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, elid,
+                                 YMIR_GAUSS_NODE, YMIR_SET);
+    }
+    if (fclose (infile)) {
+      YMIR_LERROR ("main: Error closing footer\n");
+      return -1;
+    }
+
+    char        path[BUFSIZ];
+    snprintf (path, BUFSIZ, "%s_readin", vtk_read_ioface_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    surf_normal_stress, "readin_surf_normal_stress",
+                    NULL);
+
+    sc_dmatrix_destroy (elem);
+    ymir_vec_destroy (surf_normal_stress);
+  }
+
 
   /* destroy */
   rhea_velocity_pressure_destroy (sol_vel_press);
