@@ -216,8 +216,6 @@ rhea_newton_conv_criterion_t;
  * Creates a new nonlinear problem.
  */
 rhea_newton_problem_t *rhea_newton_problem_new (
-              ymir_vec_t *neg_gradient_vec,
-              ymir_vec_t *step_vec,
               rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
               rhea_newton_solve_hessian_system_fn_t solve_hessian_sys);
 
@@ -225,6 +223,14 @@ rhea_newton_problem_t *rhea_newton_problem_new (
  * Destroys a nonlinear problem.
  */
 void                rhea_newton_problem_destroy (
+              rhea_newton_problem_t *nl_problem);
+
+/**
+ * Sets vectors required by the Newton solver.
+ */
+void                rhea_newton_problem_set_vectors (
+              ymir_vec_t *neg_gradient_vec,
+              ymir_vec_t *step_vec,
               rhea_newton_problem_t *nl_problem);
 
 /**
