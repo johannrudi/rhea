@@ -6,7 +6,6 @@
 
 int                 rhea_stokes_problem_amr (
                                   rhea_stokes_problem_t *stokes_problem,
-                                  ymir_vec_t **velocity_pressure,
                                   p4est_t *p4est,
                                   rhea_discretization_options_t *discr_options);
 

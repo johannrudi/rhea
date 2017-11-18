@@ -22,9 +22,8 @@ typedef struct rhea_stokes_problem_amr_data
   ymir_mesh_t            *ymir_mesh;
   ymir_pressure_elem_t   *press_elem;
 
-  /* Stokes problem & corresponding fields */
+  /* Stokes problem */
   rhea_stokes_problem_t  *stokes_problem;
-  ymir_vec_t         *velocity_pressure;
 
   /* AMR iterations */
   int                 first_amr;
@@ -78,18 +77,21 @@ static void
 rhea_stokes_problem_amr_data_clear_fields (
                                       rhea_stokes_problem_amr_data_t *amr_data)
 {
-  ymir_vec_t         *temperature;
+  rhea_stokes_problem_t *stokes_problem = amr_data->stokes_problem;
+  ymir_vec_t         *temperature, *velocity_pressure;
 
-  temperature = rhea_stokes_problem_get_temperature (amr_data->stokes_problem);
+  temperature = rhea_stokes_problem_get_temperature (stokes_problem);
   if (temperature != NULL) {
     rhea_temperature_destroy (temperature);
   }
+  rhea_stokes_problem_remove_temperature (stokes_problem);
 
-  if (amr_data->velocity_pressure != NULL) {
-    rhea_velocity_pressure_destroy (amr_data->velocity_pressure);
+  velocity_pressure = rhea_stokes_problem_get_velocity_pressure (
+      stokes_problem);
+  if (velocity_pressure != NULL) {
+    rhea_velocity_pressure_destroy (velocity_pressure);
   }
-
-  amr_data->velocity_pressure = NULL;
+  rhea_stokes_problem_remove_velocity_pressure (stokes_problem);
 }
 
 static void
@@ -127,14 +129,9 @@ rhea_stokes_problem_amr_data_clear_buffer (
 
 rhea_stokes_problem_amr_data_t *
 rhea_stokes_problem_amr_data_new (rhea_stokes_problem_t *stokes_problem,
-                                  ymir_vec_t *velocity_pressure,
                                   rhea_discretization_options_t *discr_options)
 {
   rhea_stokes_problem_amr_data_t *amr_data;
-
-  /* check input */
-  RHEA_ASSERT (velocity_pressure == NULL ||
-               rhea_velocity_pressure_check_vec_type (velocity_pressure));
 
   /* create */
   amr_data = RHEA_ALLOC (rhea_stokes_problem_amr_data_t, 1);
@@ -143,9 +140,8 @@ rhea_stokes_problem_amr_data_new (rhea_stokes_problem_t *stokes_problem,
   amr_data->ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   amr_data->press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
-  /* init Stokes problem and fields */
+  /* init Stokes problem */
   amr_data->stokes_problem = stokes_problem;
-  amr_data->velocity_pressure = velocity_pressure;
 
   /* init AMR meshes */
   amr_data->first_amr = -1;
@@ -342,9 +338,11 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
                         "rhea_stokes_problem_amr_data_initialize_fn";
   rhea_stokes_problem_amr_data_t *d = data;
   ymir_vec_t         *temperature =
-                        rhea_stokes_problem_get_temperature (d->stokes_problem);
+    rhea_stokes_problem_get_temperature (d->stokes_problem);
+  ymir_vec_t         *velocity_pressure =
+    rhea_stokes_problem_get_velocity_pressure (d->stokes_problem);
   const int           has_temp = (temperature != NULL);
-  const int           has_vel_press = (d->velocity_pressure != NULL);
+  const int           has_vel_press = (velocity_pressure != NULL);
 
   RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i)\n",
                      this_fn_name, has_temp, has_vel_press);
@@ -361,23 +359,6 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
    */
 
   /* store fields in buffers `*_original` */
-  if (has_vel_press) {
-    ymir_vec_t         *velocity, *pressure;
-
-    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (d->velocity_pressure));
-    RHEA_ASSERT (d->velocity_original == NULL);
-    RHEA_ASSERT (d->pressure_original == NULL);
-
-    rhea_velocity_pressure_create_components (
-        &velocity, &pressure, d->velocity_pressure, d->press_elem);
-    d->velocity_original = rhea_stokes_problem_amr_field_to_buffer (velocity);
-    d->pressure_original = rhea_stokes_problem_amr_field_to_buffer (pressure);
-    RHEA_ASSERT (d->velocity_original->n == 3 * d->ymir_mesh->ma->Np);
-    RHEA_ASSERT (d->pressure_original->n == d->ymir_mesh->ma->Np);
-
-    rhea_velocity_destroy (velocity);
-    rhea_pressure_destroy (pressure);
-  }
   if (has_temp) {
     RHEA_ASSERT (rhea_temperature_check_vec_type (temperature));
     RHEA_ASSERT (d->temperature_original == NULL);
@@ -385,6 +366,23 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
     d->temperature_original = rhea_stokes_problem_amr_field_to_buffer (
         temperature);
     RHEA_ASSERT (d->temperature_original->n == d->ymir_mesh->ma->Np);
+  }
+  if (has_vel_press) {
+    ymir_vec_t         *velocity, *pressure;
+
+    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (velocity_pressure));
+    RHEA_ASSERT (d->velocity_original == NULL);
+    RHEA_ASSERT (d->pressure_original == NULL);
+
+    rhea_velocity_pressure_create_components (
+        &velocity, &pressure, velocity_pressure, d->press_elem);
+    d->velocity_original = rhea_stokes_problem_amr_field_to_buffer (velocity);
+    d->pressure_original = rhea_stokes_problem_amr_field_to_buffer (pressure);
+    RHEA_ASSERT (d->velocity_original->n == 3 * d->ymir_mesh->ma->Np);
+    RHEA_ASSERT (d->pressure_original->n == d->ymir_mesh->ma->Np);
+
+    rhea_velocity_destroy (velocity);
+    rhea_pressure_destroy (pressure);
   }
 
   /* destroy */
@@ -421,7 +419,7 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
-  ymir_vec_t         *temperature;
+  ymir_vec_t         *temperature, *velocity_pressure;
 
   RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
                      this_fn_name, has_temp, has_vel, has_press);
@@ -450,40 +448,51 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
    */
 
   /* retrieve fields from buffers `*_original` */
-  if (has_vel && has_press) {
-    ymir_vec_t         *velocity, *pressure;
-
-    RHEA_ASSERT (d->velocity_pressure == NULL);
-
-    velocity = rhea_velocity_new (d->ymir_mesh);
-    pressure = rhea_pressure_new (d->ymir_mesh, d->press_elem);
-    rhea_stokes_problem_amr_buffer_to_field (
-        velocity, d->velocity_original, d->press_elem);
-    rhea_stokes_problem_amr_buffer_to_field (
-        pressure, d->pressure_original, d->press_elem);
-
-    d->velocity_pressure = rhea_velocity_pressure_new (d->ymir_mesh,
-                                                       d->press_elem);
-    rhea_velocity_pressure_set_components (
-        d->velocity_pressure, velocity, pressure, d->press_elem);
-
-    rhea_velocity_destroy (velocity);
-    rhea_pressure_destroy (pressure);
-  }
   if (has_temp) {
     temperature = rhea_temperature_new (d->ymir_mesh);
     rhea_stokes_problem_amr_buffer_to_field (
         temperature, d->temperature_original, d->press_elem);
+  }
+  if (has_vel || has_press) {
+    ymir_vec_t         *velocity = rhea_velocity_new (d->ymir_mesh);
+    ymir_vec_t         *pressure = rhea_pressure_new (d->ymir_mesh,
+                                                      d->press_elem);
+
+    if (has_vel) {
+      rhea_stokes_problem_amr_buffer_to_field (
+          velocity, d->velocity_original, d->press_elem);
+    }
+    else {
+      ymir_vec_set_zero (velocity);
+    }
+    if (has_press) {
+      rhea_stokes_problem_amr_buffer_to_field (
+          pressure, d->pressure_original, d->press_elem);
+    }
+    else {
+      ymir_vec_set_zero (pressure);
+    }
+
+    velocity_pressure = rhea_velocity_pressure_new (d->ymir_mesh,
+                                                    d->press_elem);
+    rhea_velocity_pressure_set_components (
+        velocity_pressure, velocity, pressure, d->press_elem);
+
+    rhea_velocity_destroy (velocity);
+    rhea_pressure_destroy (pressure);
   }
 
   /* destroy buffers */
   rhea_stokes_problem_amr_data_clear_buffer (d);
 
   /* init Stokes problem */
-  if (has_temp) { //###DEV### avoids unfreed memory
-    rhea_temperature_destroy (temperature);
+  if (has_temp) {
+    rhea_stokes_problem_set_temperature (d->stokes_problem, temperature);
   }
-  //TODO set `temperature`, etc.
+  if (has_vel || has_press) {
+    rhea_stokes_problem_set_velocity_pressure (d->stokes_problem,
+                                               velocity_pressure);
+  }
   rhea_stokes_problem_create_mesh_dependencies (d->stokes_problem,
                                                 d->ymir_mesh, d->press_elem);
 
@@ -617,12 +626,10 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
 
 int
 rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
-                         ymir_vec_t **velocity_pressure,
                          p4est_t *p4est,
                          rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "rhea_stokes_problem_amr";
-  const int           has_vel_press = (velocity_pressure != NULL);
   rhea_stokes_problem_amr_data_t *amr_data;
 
   const double        n_flagged_elements_tol = NAN; //TODO
@@ -633,9 +640,7 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
   RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
 
   /* create AMR data */
-  amr_data = rhea_stokes_problem_amr_data_new (
-      stokes_problem, (has_vel_press ? *velocity_pressure : NULL),
-      discr_options);
+  amr_data = rhea_stokes_problem_amr_data_new (stokes_problem, discr_options);
 
   /* perform AMR */
   amr_iter = rhea_amr (p4est, n_flagged_elements_tol,
@@ -645,11 +650,6 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
                        rhea_stokes_problem_amr_data_finalize_fn,
                        rhea_stokes_problem_amr_data_project_fn,
                        rhea_stokes_problem_amr_data_partition_fn, amr_data);
-
-  /* retrieve post-AMR velocity-pressure field */
-  if (has_vel_press) {
-    *velocity_pressure = amr_data->velocity_pressure;
-  }
 
   /* destroy */
   rhea_stokes_problem_amr_data_destroy (amr_data);
