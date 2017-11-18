@@ -6,7 +6,9 @@
 
 #include <rhea_domain.h>
 #include <rhea_viscosity.h>
-#include <ymir_pressure_elem.h>
+#include <rhea_velocity.h>
+#include <rhea_pressure.h>
+#include <rhea_velocity_pressure.h>
 #include <ymir_stokes_op.h>
 
 /* types of linearization */
@@ -49,8 +51,10 @@ void                rhea_stokes_problem_destroy (
 /**
  * Sets up/clears objects that have dependencies on the mesh.
  */
-void                rhea_stokes_problem_setup_mesh_dependencies (
-                                    rhea_stokes_problem_t *stokes_problem);
+void                rhea_stokes_problem_create_mesh_dependencies (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    ymir_mesh_t *ymir_mesh,
+                                    ymir_pressure_elem_t *press_elem);
 
 void                rhea_stokes_problem_clear_mesh_dependencies (
                                     rhea_stokes_problem_t *stokes_problem);
