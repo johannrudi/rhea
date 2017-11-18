@@ -90,16 +90,20 @@ ymir_mesh_t        *rhea_stokes_problem_get_ymir_mesh (
 ymir_pressure_elem_t *rhea_stokes_problem_get_press_elem (
                                     rhea_stokes_problem_t *stokes_problem);
 
+void                rhea_stokes_problem_set_temperature (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    ymir_vec_t *temperature);
 ymir_vec_t         *rhea_stokes_problem_get_temperature (
                                     rhea_stokes_problem_t *stokes_problem);
-
-ymir_vec_t         *rhea_stokes_problem_get_weakzone (
+void                rhea_stokes_problem_remove_temperature (
                                     rhea_stokes_problem_t *stokes_problem);
 
-ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
+void                rhea_stokes_problem_set_velocity_pressure (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    ymir_vec_t *velocity_pressure);
+ymir_vec_t         *rhea_stokes_problem_get_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem);
-
-ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
+void                rhea_stokes_problem_remove_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem);
 
 rhea_domain_options_t    *rhea_stokes_problem_get_domain_options (
@@ -110,6 +114,14 @@ rhea_viscosity_options_t *rhea_stokes_problem_get_viscosity_options (
 
 void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
+                                    rhea_stokes_problem_t *stokes_problem);
+
+//TODO
+ymir_vec_t         *rhea_stokes_problem_get_weakzone (
+                                    rhea_stokes_problem_t *stokes_problem);
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
+                                    rhea_stokes_problem_t *stokes_problem);
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
 
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
