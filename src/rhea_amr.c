@@ -313,9 +313,9 @@ rhea_amr (p4est_t *p4est,
         n_flagged_current_tol = n_flagged_elements_recursive_tol;
       }
     }
-    if (n_flagged_rel < n_flagged_current_tol) {
+    if (n_flagged_rel <= n_flagged_current_tol) {
       RHEA_GLOBAL_INFOF (
-          "%s -- iter %i: Stop AMR, rel. #elements flagged %g, tolerance %g\n",
+          "%s -- iter %i: Stop AMR, rel. #elements flagged %g <= tol. %g\n",
           this_fn_name, iter, n_flagged_rel, n_flagged_current_tol);
       break;
     }
@@ -387,22 +387,18 @@ rhea_amr (p4est_t *p4est,
  *****************************************************************************/
 
 int
-rhea_amr_refine_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
-                         p4est_quadrant_t * quadrant)
-{
-  if (P4EST_ROOT_LEN / 2 <= quadrant->z) {
-    return 1;
-  }
-  else {
-    return 0;
-  }
-}
-
-int
 rhea_amr_coarsen_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
                           p4est_quadrant_t * quadrant)
 {
-  return !rhea_amr_refine_half_fn (p4est, which_tree, quadrant);
+  return (0 < quadrant->level &&
+          !rhea_amr_refine_half_fn (p4est, which_tree, quadrant));
+}
+
+int
+rhea_amr_refine_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                         p4est_quadrant_t * quadrant)
+{
+  return (P4EST_ROOT_LEN / 2 <= quadrant->z);
 }
 
 int
