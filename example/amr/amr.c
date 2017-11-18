@@ -163,32 +163,21 @@ main (int argc, char **argv)
                                     stokes_problem);
 
   /*
-   * AMR ###DEV###
+   * Run AMR with Solution
    */
   {
     int                 amr_iter;
-    ymir_vec_t         *amr_vel_press = sol_vel_press;
-    ymir_vec_t         *velocity, *pressure;
     char                path[BUFSIZ];
 
-    amr_iter = rhea_stokes_problem_amr (p4est, &ymir_mesh, &press_elem,
-                                        NULL /* temperature */, &amr_vel_press,
-                                        &discr_options, &visc_options);
+    /* run AMR */
+    amr_iter = rhea_stokes_problem_amr (stokes_problem, &sol_vel_press, p4est,
+                                        &discr_options);
 
-    velocity = rhea_velocity_new (ymir_mesh);
-    pressure = rhea_pressure_new (ymir_mesh, press_elem);
-    rhea_velocity_pressure_copy_components (velocity, pressure, amr_vel_press,
-                                            press_elem);
-
-    snprintf (path, BUFSIZ, "%s_amr", vtk_write_solution_path);
-    ymir_vtk_write (ymir_mesh, path,
-                    velocity, "velocity",
-                    pressure, "pressure", NULL);
-
-    ymir_vec_destroy (velocity);
-    ymir_vec_destroy (pressure);
-    ymir_vec_destroy (amr_vel_press);
-    rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
+    /* write vtk of solution */
+    if (0 < amr_iter) {
+      snprintf (path, BUFSIZ, "%s_post_amr", vtk_write_solution_path);
+      example_share_vtk_write_solution (path, sol_vel_press, stokes_problem);
+    }
   }
 
   /*
