@@ -602,9 +602,10 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
     ymir_vec_t         *neg_gradient_vec = ymir_vec_template (tmp_vec);
 
     *nl_problem = rhea_newton_problem_new (
-        neg_gradient_vec, step_vec,
         newton_polynomial_compute_negative_gradient,
         newton_polynomial_solve_hessian_system);
+    rhea_newton_problem_set_vectors (
+        neg_gradient_vec, step_vec, *nl_problem);
     rhea_newton_problem_set_data_fn (
         poly_problem, newton_polynomial_data_init, NULL /* no clear fnc. */,
         *nl_problem);
