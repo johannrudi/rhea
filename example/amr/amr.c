@@ -170,8 +170,9 @@ main (int argc, char **argv)
     char                path[BUFSIZ];
 
     /* run AMR */
-    amr_iter = rhea_stokes_problem_amr (stokes_problem, &sol_vel_press, p4est,
-                                        &discr_options);
+    rhea_stokes_problem_set_velocity_pressure (stokes_problem, sol_vel_press);
+    amr_iter = rhea_stokes_problem_amr (stokes_problem, p4est, &discr_options);
+    sol_vel_press = rhea_stokes_problem_get_velocity_pressure (stokes_problem);
 
     /* write vtk of solution */
     if (0 < amr_iter) {
