@@ -14,3 +14,6 @@
 	path = ymir
 	url = https://bitbucket.org/ccgo/ymir.git
   ignore = untracked
+[submodule "nanoflann"]
+	path = nanoflann
+	url = https://github.com/jlblancoc/nanoflann
