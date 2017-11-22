@@ -9,6 +9,8 @@ librhea_installed_headers = \
         src/rhea_domain.h \
         src/rhea_discretization.h \
         src/rhea_amr.h \
+        src/rhea_pointcloud.hpp \
+        src/rhea_pointcloud_adaptor.h \
         src/rhea_temperature.h \
         src/rhea_weakzone.h \
         src/rhea_viscosity.h \
@@ -32,6 +34,8 @@ librhea_compiled_sources = \
         src/rhea_domain.c \
         src/rhea_discretization.c \
         src/rhea_amr.c \
+        src/rhea_pointcloud.cpp \
+        src/rhea_pointcloud_adaptor.cxx \
         src/rhea_temperature.c \
         src/rhea_weakzone.c \
         src/rhea_viscosity.c \
@@ -49,6 +53,8 @@ librhea_compiled_sources = \
         src/rhea_vis.c \
         src/rhea_vis_adaptor.cxx \
         src/rhea.c
+librhea_original_headers = \
+        nanoflann/include/nanoflann.hpp
 
 RHEA_CPPFLAGS =
 RHEA_LDADD = @top_builddir@/src/librhea.la @RHEA_YMIR_LDADD@ \
@@ -67,7 +73,8 @@ LDADD += $(RHEA_LDADD)
 EXTRA_src_librhea_la_DEPENDENCIES = @RHEA_YMIR_LDADD@ @RHEA_MANGLL_LDADD@ \
                                     @RHEA_P4EST_LDADD@ @RHEA_SC_LDADD@
 
-nodist_include_HEADERS += $(librhea_generated_headers)
+nodist_include_HEADERS += $(librhea_generated_headers) \
+                          $(librhea_original_headers)
 include_HEADERS += $(librhea_installed_headers)
 
 AM_CPPFLAGS += -I@top_srcdir@/src @RHEA_YMIR_CPPFLAGS@ @RHEA_MANGLL_CPPFLAGS@ \
