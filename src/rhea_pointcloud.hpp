@@ -383,6 +383,39 @@ class rhea_pointcloud_KDTree
   }
 
   /**
+   * Finds point of the cloud that is nearest to a target point. Returns distance
+   * to nearest point.
+   */
+  inline double
+  find_nearest (double *nearest_coordinates, double *nearest_value,
+                int *nearest_label, const double *target_coordinates)
+  const
+  {
+    size_t              return_index;
+    double              dist_sq;
+    nanoflann::KNNResultSet<double>  result_set (1);
+
+    /* perform nearest neighbor search */
+    result_set.init (&return_index, &dist_sq);
+    tree->findNeighbors (result_set, target_coordinates,
+                         nanoflann::SearchParams ());
+
+    /* get point data */
+    if (nearest_coordinates != NULL) {
+      cloud.get_point_coordinates (nearest_coordinates, return_index);
+    }
+    if (nearest_value != NULL) {
+      *nearest_value = cloud.get_point_value (return_index);
+    }
+    if (nearest_label != NULL) {
+      *nearest_label = cloud.get_point_label (return_index);
+    }
+
+    /* return Euclidean distance */
+    return sqrt (dist_sq);
+  }
+
+  /**
    * Finds the shortest distance from the target point to any point of the
    * cloud.
    */
