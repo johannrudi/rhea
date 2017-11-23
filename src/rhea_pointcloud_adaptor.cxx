@@ -20,7 +20,6 @@ struct rhea_pointcloud_weakzone
 
 rhea_pointcloud_weakzone_t *
 rhea_pointcloud_weakzone_new (const double *point_coordinates,
-                              const int *point_labels,
                               const size_t n_points)
 {
   rhea_pointcloud_weakzone_t *ptcl_weak;
@@ -28,9 +27,12 @@ rhea_pointcloud_weakzone_new (const double *point_coordinates,
   /* create weak zone object */
   ptcl_weak = RHEA_ALLOC (rhea_pointcloud_weakzone_t, 1);
 
-  /* create point cloud and fill with points */
+  /* create point cloud */
   ptcl_weak->cloud = new rhea_pointcloud_Cloud ();
-  ptcl_weak->cloud->set_points (point_coordinates, n_points);
+
+  /* fill the cloud with points */
+  rhea_pointcloud_weakzone_set_coordinates (ptcl_weak, point_coordinates,
+                                            n_points);
 
   /* create kd-tree corresponding to point cloud */
   ptcl_weak->tree = new rhea_pointcloud_KDTree (*(ptcl_weak->cloud));
@@ -46,7 +48,27 @@ rhea_pointcloud_weakzone_destroy (rhea_pointcloud_weakzone_t *ptcl_weak)
   RHEA_FREE (ptcl_weak);
 }
 
+void
+rhea_pointcloud_weakzone_set_coordinates (rhea_pointcloud_weakzone_t *ptcl_weak,
+                                          const double *point_coordinates,
+                                          const size_t n_points)
+{
+  ptcl_weak->cloud->set_point_coordinates_all (point_coordinates, n_points);
+}
 
+void
+rhea_pointcloud_weakzone_set_factors (rhea_pointcloud_weakzone_t *ptcl_weak,
+                                      const double *factors)
+{
+  ptcl_weak->cloud->set_point_value_all (factors);
+}
+
+void
+rhea_pointcloud_weakzone_set_labels (rhea_pointcloud_weakzone_t *ptcl_weak,
+                                     const int *labels)
+{
+  ptcl_weak->cloud->set_point_label_all (labels);
+}
 
 
 //TODO deprecated below:
@@ -71,7 +93,7 @@ void
 rhea_pointcloud_Cloud_set_points (rhea_pointcloud_Cloud_t *cloud,
                                   const double *point, const size_t n_points)
 {
-  cloud->set_points (point, n_points);
+  cloud->set_point_coordinates_all (point, n_points);
 }
 
 /******************************************************************************

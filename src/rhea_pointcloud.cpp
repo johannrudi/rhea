@@ -46,6 +46,15 @@ rhea_pointcloud_Cloud::set_point_label_all (const int *label)
 }
 
 void
+rhea_pointcloud_Cloud::set_point_all (const double *xyz, const double *value,
+                                      const int *label, const size_t n_points)
+{
+  set_point_coordinates_all (xyz, n_points);
+  set_point_value_all (value);
+  set_point_label_all (label);
+}
+
+void
 rhea_pointcloud_Cloud::read_points_text_file (
                                           const char *filename,
                                           const size_t estimated_n_points = 10)

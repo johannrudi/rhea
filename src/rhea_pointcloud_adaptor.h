@@ -16,17 +16,42 @@ SC_EXTERN_C_BEGIN;
 /* weak zone point cloud (opaque) */
 typedef struct rhea_pointcloud_weakzone rhea_pointcloud_weakzone_t;
 
+/**
+ * Creates a new weak zone point cloud object.
+ */
 rhea_pointcloud_weakzone_t *rhea_pointcloud_weakzone_new (
-                                              const double *point_coordinates,
-                                              const int *point_labels,
-                                              const size_t n_points);
+                                        const double *point_coordinates,
+                                        const size_t n_points);
 
+/**
+ * Destroys a weak zone point cloud object.
+ */
 void                rhea_pointcloud_weakzone_destroy (
                                         rhea_pointcloud_weakzone_t *ptcl_weak);
 
-//TODO rhea_pointcloud_weakzone_set_coordinates
-//TODO rhea_pointcloud_weakzone_set_factors
-//TODO rhea_pointcloud_weakzone_set_labels
+/**
+ * Sets coordinates of the points and adjusts the size of the cloud.
+ */
+void                rhea_pointcloud_weakzone_set_coordinates (
+                                        rhea_pointcloud_weakzone_t *ptcl_weak,
+                                        const double *point_coordinates,
+                                        const size_t n_points);
+
+/**
+ * Sets factors corresponding to the points.
+ * Assumes that the number of factors equals the point count.
+ */
+void                rhea_pointcloud_weakzone_set_factors (
+                                        rhea_pointcloud_weakzone_t *ptcl_weak,
+                                        const double *factors);
+
+/**
+ * Sets labels corresponding to the points.
+ * Assumes that the number of factors equals the point count.
+ */
+void                rhea_pointcloud_weakzone_set_labels (
+                                        rhea_pointcloud_weakzone_t *ptcl_weak,
+                                        const int *labels);
 
 /******************************************************************************
  * Topography Point Cloud

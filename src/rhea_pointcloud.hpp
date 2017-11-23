@@ -202,6 +202,13 @@ class rhea_pointcloud_Cloud
   set_point_label_all (const int *label);
 
   /**
+   * Sets coordinates of all points.
+   */
+  void
+  set_point_all (const double *xyz, const double *value, const int *label,
+                 const size_t n_points);
+
+  /**
    * Adds a new point to the end of the cloud array.
    */
   inline void
