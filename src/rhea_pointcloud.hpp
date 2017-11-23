@@ -7,52 +7,189 @@
 #include "nanoflann/include/nanoflann.hpp"
 #include <cstdlib>
 
-/* set dimension */
-#define RHEA_POINTCLOUD_DIM 3
-
-/* set bottom and top radius of spherical shell */
-#define RHEA_POINTCLOUD_SHELL_RADIUS_BOTTOM 0.55
-#define RHEA_POINTCLOUD_SHELL_RADIUS_TOP 1.0
-
-/* set margin factor for point cloud bounding box */
-#define RHEA_POINTCLOUD_MARGIN 1.01
-
-/* set max number of nodes that a leaf of the kd-tree can have */
-#define RHEA_POINTCLOUD_KDTREE_LEAF_MAX_SIZE 10
-
 /******************************************************************************
  * Point Cloud
  *****************************************************************************/
 
+/* spatial dimension */
+#define RHEA_POINTCLOUD_DIM 3
+
+/* margin for the limits of the bounding box containing the point cloud */
+#define RHEA_POINTCLOUD_BOX_MARGIN 0.01
+
 /**
- * Structure defining a single point.
+ * rhea_pointcloud_point: One single point
+ *
+ *  x, y, z --- coordinates
+ *  value   --- can be the weak zone factor or topography displacement
+ *  label   --- a label to distinguish geological entities, e.g., plates
  */
-struct rhea_pointcloud_Point
+struct rhea_pointcloud_point
 {
   double              x, y, z;
+  double              value;
+  int                 label;
 };
 
 /**
- * Dataset class that defines a point cloud in a spherical shell domain.
+ * rhea_pointcloud_Cloud: Collection of points that constitute the point cloud.
  */
 class rhea_pointcloud_Cloud
 {
   private:
 
-  /* point cloud data */
-  std::vector<rhea_pointcloud_Point>  point;
+  /* point data */
+  std::vector<rhea_pointcloud_point>  point;
+
+  /* bounding box size */
+  double              bbox_x_min, bbox_x_max;
+  double              bbox_y_min, bbox_y_max;
+  double              bbox_z_min, bbox_z_max;
 
   public:
 
   /**
-   * Constructs a new rhea_pointcloud_Cloud object.
+   * Constructs a new object (or an instance of the class).
    */
-  rhea_pointcloud_Cloud () {}
+  rhea_pointcloud_Cloud () {
+    const double        xyz_limit = 1.0 + RHEA_POINTCLOUD_BOX_MARGIN;
+
+    /* initialize limits of the bounding box */
+    bbox_x_min = -xyz_limit;
+    bbox_x_max = +xyz_limit;
+
+    bbox_y_min = -xyz_limit;
+    bbox_y_max = +xyz_limit;
+
+    bbox_z_min = -xyz_limit;
+    bbox_z_max = +xyz_limit;
+  }
 
   /**
-   * Destroys a rhea_pointcloud_Cloud object.
+   * Destroys an object.
    */
   ~rhea_pointcloud_Cloud () {}
+
+  /**
+   * Sets limits of the bounding box.
+   */
+  void
+  set_bounding_box (const double x_min, const double x_max,
+                    const double y_min, const double y_max,
+                    const double z_min, const double z_max,
+                    const int add_margin)
+  {
+    /* set limits */
+    bbox_x_min = x_min;
+    bbox_x_max = x_max;
+
+    bbox_y_min = y_min;
+    bbox_y_max = y_max;
+
+    bbox_z_min = z_min;
+    bbox_z_max = z_max;
+
+    /* add a margin to the limits */
+    if (add_margin) {
+      const double        margin = RHEA_POINTCLOUD_BOX_MARGIN;
+      double              length;
+
+      length = fabs (x_max - x_min);
+      bbox_x_min -= length * margin;
+      bbox_x_max += length * margin;
+
+      length = fabs (y_max - y_min);
+      bbox_y_min -= length * margin;
+      bbox_y_max += length * margin;
+
+      length = fabs (z_max - z_min);
+      bbox_z_min -= length * margin;
+      bbox_z_max += length * margin;
+    }
+  }
+
+  /**
+   * Gets (x,y,z) coordinates and data of one point.
+   */
+  inline void
+  get_point (double *point_coordinates, const size_t idx)
+  const
+  {
+    point_coordinates[0] = point[idx].x;
+    point_coordinates[1] = point[idx].y;
+    point_coordinates[2] = point[idx].z;
+  }
+
+  /**
+   * Sets (x,y,z) coordinates and data of one point.
+   */
+  inline void
+  set_point (const size_t idx, const double x, const double y, const double z)
+  {
+    point[idx].x = x;
+    point[idx].y = y;
+    point[idx].z = z;
+
+    //TODO
+    point[idx].value = NAN;
+    point[idx].label = 0;
+  }
+
+  /**
+   * Sets coordinates and data of all points.
+   */
+  void
+  set_points (const double *xyz, const size_t n_points);
+
+  /**
+   * Adds a new point to the end of the cloud array.
+   */
+  inline void
+  push_back_point (rhea_pointcloud_point pt)
+  {
+    point.push_back (pt);
+  }
+
+  /**
+   * Resizes the point cloud.
+   */
+  void
+  resize (const size_t n_points)
+  {
+    point.resize (n_points);
+  }
+
+  /**
+   * Reserves a size for point cloud.
+   */
+  void
+  reserve (const size_t n_points)
+  {
+    point.reserve (n_points);
+  }
+
+  /**
+   * Gets size of point cloud.
+   */
+  inline size_t
+  size ()
+  const
+  {
+    return point.size ();
+  }
+
+  /**
+   * Reads points from a text file and fills them into the cloud.
+   */
+  void
+  read_points_text_file (const char *filename, const size_t estimated_n_points);
+
+  /**
+   * Prints all points in the cloud.
+   */
+  void
+  print_points ()
+  const;
 
   /* -------------------- Nanoflann Interface -------------------- */
 
@@ -60,14 +197,15 @@ class rhea_pointcloud_Cloud
    * Returns the number of data points.
    */
   inline size_t
-  kdtree_get_point_count () const
+  kdtree_get_point_count ()
+  const
   {
     return point.size ();
   }
 
   /**
-   * Returns the square distance between the vector `pt[0:size-1]` and the data
-   * point with index `idx` stored in the class.
+   * Computes the square distance between the vector `pt[0:size-1]` and the
+   * point associated to index `idx`.
    */
   inline double
   kdtree_distance (const double *pt, const size_t idx, size_t size)
@@ -77,13 +215,13 @@ class rhea_pointcloud_Cloud
     const double      d1 = pt[1] - point[idx].y;
     const double      d2 = pt[2] - point[idx].z;
 
-    return d0 * d0 + d1 * d1 + d2 * d2;
+    return d0*d0 + d1*d1 + d2*d2;
   }
 
   /**
    * Returns the dim'th component of the point with index `idx`.
    * Note: Since this is inlined and the `dim` argument is typically an
-   * immediate value, the "if/else's" are actually solved at compile time.
+   *       immediate value, the "if/else's" are actually solved at compile time.
    */
   inline double
   kdtree_get_pt (const size_t idx, int dim)
@@ -101,120 +239,37 @@ class rhea_pointcloud_Cloud
   }
 
   /**
-   * Sets the bounding box for the point cloud.
+   * Gets the bounding box for the point cloud.
    */
   template <class BBOX>
   bool
-  kdtree_get_bbox (BBOX &bb)
+  kdtree_get_bbox (BBOX &bbox)
   const
   {
-    /* 0th dimension limits */
-    bb[0].low  = - RHEA_POINTCLOUD_MARGIN
-                 * RHEA_POINTCLOUD_SHELL_RADIUS_TOP;
-    bb[0].high = + RHEA_POINTCLOUD_MARGIN
-                 * RHEA_POINTCLOUD_SHELL_RADIUS_TOP;
+    /* set limits for each dimension */
+    bbox[0].low  = bbox_x_min;
+    bbox[0].high = bbox_x_max;
 
-    /* 1st dimension limits */
-    bb[1].low  = - RHEA_POINTCLOUD_MARGIN
-                 * RHEA_POINTCLOUD_SHELL_RADIUS_TOP;
-    bb[1].high = + RHEA_POINTCLOUD_MARGIN
-                 * RHEA_POINTCLOUD_SHELL_RADIUS_TOP;
+    bbox[1].low  = bbox_y_min;
+    bbox[1].high = bbox_y_max;
 
-    /* 2nd dimension limits */
-    bb[2].low  = - RHEA_POINTCLOUD_MARGIN
-                 * RHEA_POINTCLOUD_SHELL_RADIUS_TOP;
-    bb[2].high = + RHEA_POINTCLOUD_MARGIN
-                 * RHEA_POINTCLOUD_SHELL_RADIUS_TOP;
+    bbox[2].low  = bbox_z_min;
+    bbox[2].high = bbox_z_max;
 
     return true;
   }
-
-  /* -------------------- Functions -------------------- */
-
-  /**
-   * Get coordinates of one point.
-   */
-  inline void
-  get_point (double *pt, const size_t idx)
-  const
-  {
-    pt[0] = point[idx].x;
-    pt[1] = point[idx].y;
-    pt[2] = point[idx].z;
-  }
-
-  /**
-   * Set coordinates of one point.
-   */
-  inline void
-  set_point (const size_t idx, const double x, const double y, const double z)
-  {
-    point[idx].x = x;
-    point[idx].y = y;
-    point[idx].z = z;
-  }
-
-  /**
-   * Set coordinates of all points.
-   */
-  void
-  set_points (const double *coord, const size_t n_points);
-
-  /**
-   * Add new point to the end of the cloud array.
-   */
-  inline void
-  push_back_point (rhea_pointcloud_Point pt)
-  {
-    point.push_back (pt);
-  }
-
-  /**
-   * Resize point cloud.
-   */
-  void
-  resize (const size_t n_points)
-  {
-    point.resize (n_points);
-  }
-
-  /**
-   * Reserve a size for point cloud.
-   */
-  void
-  reserve (const size_t n_points)
-  {
-    point.reserve (n_points);
-  }
-
-  /**
-   * Gets size of point cloud.
-   */
-  inline size_t
-  size () const
-  {
-    return point.size ();
-  }
-
-  /**
-   * Reads points from a text file and fills them into the cloud.
-   */
-  void
-  read_points_text_file (const char *filename, const size_t estimated_n_points);
-
-  /**
-   * Prints all points in the cloud.
-   */
-  void
-  print_points () const;
-}; /* rhea_pointcloud_Cloud */
+}; /* class rhea_pointcloud_Cloud */
 
 /******************************************************************************
  * KD-Tree
  *****************************************************************************/
 
+/* max number of nodes that a leaf of the kd-tree can have */
+#define RHEA_POINTCLOUD_KDTREE_LEAF_MAX_SIZE 10
+
 /**
- * Kd-tree for computing the shortest distance to any point in the cloud.
+ * rhea_pointcloud_KDTree: Kd-tree topology for fast computation of the shortest
+ * distance to any point in the cloud.
  */
 class rhea_pointcloud_KDTree
 {
@@ -232,19 +287,20 @@ class rhea_pointcloud_KDTree
   public:
 
   /**
-   * Constructs a new rhea_pointcloud_KDTree object.
+   * Constructs a new object.
    */
   rhea_pointcloud_KDTree (const rhea_pointcloud_Cloud &cloud_in) :
     cloud (cloud_in)
   {
+    const size_t        leaf_max_size = RHEA_POINTCLOUD_KDTREE_LEAF_MAX_SIZE;
+
     /* create new tree */
     tree = new nanoflann::KDTreeSingleIndexAdaptor<
         nanoflann::L2_Simple_Adaptor<double, rhea_pointcloud_Cloud>,
         rhea_pointcloud_Cloud, RHEA_POINTCLOUD_DIM
     > (
         RHEA_POINTCLOUD_DIM, cloud,
-        nanoflann::KDTreeSingleIndexAdaptorParams (
-            RHEA_POINTCLOUD_KDTREE_LEAF_MAX_SIZE)
+        nanoflann::KDTreeSingleIndexAdaptorParams (leaf_max_size)
     );
 
     /* build kd-tree index */
@@ -252,7 +308,7 @@ class rhea_pointcloud_KDTree
   }
 
   /**
-   * Destroys a rhea_pointcloud_KDTree object.
+   * Destroys an object.
    */
   ~rhea_pointcloud_KDTree ()
   {
@@ -260,10 +316,11 @@ class rhea_pointcloud_KDTree
   }
 
   /**
-   * Finds the shortest distance from the target point to a point of the cloud.
+   * Finds the shortest distance from the target point to any point of the
+   * cloud.
    */
   inline double
-  find_shortest_distance_single (const double *target_pt)
+  find_shortest_distance (const double *target_pt)
   const
   {
     size_t              return_index;
@@ -279,7 +336,7 @@ class rhea_pointcloud_KDTree
   }
 
   /**
-   * Finds the shortest distance from a set of target points to a point of
+   * Finds the shortest distance from a set of target points to any point of
    * the cloud.
    */
   inline void
@@ -312,6 +369,6 @@ class rhea_pointcloud_KDTree
       dist[i] = sqrt (dist_sq);
     }
   }
-};
+}; /* class rhea_pointcloud_KDTree */
 
 #endif /* RHEA_POINTCLOUD_HPP */
