@@ -51,7 +51,8 @@ class rhea_pointcloud_Cloud
   /**
    * Constructs a new object (or an instance of the class).
    */
-  rhea_pointcloud_Cloud () {
+  rhea_pointcloud_Cloud ()
+  {
     const double        xyz_limit = 1.0 + RHEA_POINTCLOUD_BOX_MARGIN;
 
     /* initialize limits of the bounding box */
@@ -109,37 +110,96 @@ class rhea_pointcloud_Cloud
   }
 
   /**
-   * Gets (x,y,z) coordinates and data of one point.
+   * Gets (x,y,z) coordinates of one point.
    */
   inline void
-  get_point (double *point_coordinates, const size_t idx)
+  get_point_coordinates (double *coordinates, const size_t idx)
   const
   {
-    point_coordinates[0] = point[idx].x;
-    point_coordinates[1] = point[idx].y;
-    point_coordinates[2] = point[idx].z;
+    coordinates[0] = point[idx].x;
+    coordinates[1] = point[idx].y;
+    coordinates[2] = point[idx].z;
+  }
+
+  /**
+   * Sets (x,y,z) coordinates of one point.
+   */
+  inline void
+  set_point_coordinates (const size_t idx, const double x, const double y,
+                         const double z)
+  {
+    point[idx].x = x;
+    point[idx].y = y;
+    point[idx].z = z;
+  }
+
+  /**
+   * Gets value of one point.
+   */
+  inline double
+  get_point_value (const size_t idx)
+  const
+  {
+    return point[idx].value;
+  }
+
+  /**
+   * Sets value of one point.
+   */
+  inline void
+  set_point_value (const size_t idx, const double value)
+  {
+    point[idx].value = value;
+  }
+
+  /**
+   * Gets label of one point.
+   */
+  inline int
+  get_point_label (const size_t idx)
+  const
+  {
+    return point[idx].label;
+  }
+
+  /**
+   * Sets label of one point.
+   */
+  inline void
+  set_point_label (const size_t idx, const int label)
+  {
+    point[idx].label = label;
   }
 
   /**
    * Sets (x,y,z) coordinates and data of one point.
    */
   inline void
-  set_point (const size_t idx, const double x, const double y, const double z)
+  set_point (const size_t idx, const double x, const double y, const double z,
+             const double value, const int label)
   {
-    point[idx].x = x;
-    point[idx].y = y;
-    point[idx].z = z;
-
-    //TODO
-    point[idx].value = NAN;
-    point[idx].label = 0;
+    set_point_coordinates (idx, x, y, z);
+    set_point_value (idx, value);
+    set_point_label (idx, label);
   }
 
   /**
-   * Sets coordinates and data of all points.
+   * Sets coordinates of all points.
    */
   void
-  set_points (const double *xyz, const size_t n_points);
+  set_point_coordinates_all (const double *xyz, const size_t n_points);
+
+  /**
+   * Sets values of all points.
+   */
+  void
+  set_point_value_all (const double *value);
+
+  /**
+   * Sets labels of all points.
+   */
+  void
+  set_point_label_all (const int *label);
 
   /**
    * Adds a new point to the end of the cloud array.

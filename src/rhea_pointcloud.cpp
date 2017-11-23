@@ -8,7 +8,8 @@
 #include <fstream>
 
 void
-rhea_pointcloud_Cloud::set_points (const double *xyz, const size_t n_points)
+rhea_pointcloud_Cloud::set_point_coordinates_all (const double *xyz,
+                                                  const size_t n_points)
 {
   /* resize cloud to number of points */
   resize (n_points);
@@ -24,7 +25,23 @@ rhea_pointcloud_Cloud::set_points (const double *xyz, const size_t n_points)
     RHEA_ASSERT (bbox_z_min <= z && z <= bbox_z_max);
 
     /* set coordinates of this point */
-    set_point (i, x, y, z);
+    set_point_coordinates (i, x, y, z);
+  }
+}
+
+void
+rhea_pointcloud_Cloud::set_point_value_all (const double *value)
+{
+  for (size_t i = 0; i < point.size (); i++) { /* loop over all points */
+    set_point_value (i, value[i]);
+  }
+}
+
+void
+rhea_pointcloud_Cloud::set_point_label_all (const int *label)
+{
+  for (size_t i = 0; i < point.size (); i++) { /* loop over all points */
+    set_point_label (i, label[i]);
   }
 }
 
