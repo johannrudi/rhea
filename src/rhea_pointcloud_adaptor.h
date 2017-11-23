@@ -53,6 +53,29 @@ void                rhea_pointcloud_weakzone_set_labels (
                                         rhea_pointcloud_weakzone_t *ptcl_weak,
                                         const int *labels);
 
+/**
+ * Finds point of the cloud that is nearest to a target point. Returns distance
+ * to nearest point.
+ */
+double              rhea_pointcloud_weakzone_find_nearest (
+                                        double *nearest_coordinates,
+                                        double *nearest_factor,
+                                        int *nearest_label,
+                                        rhea_pointcloud_weakzone_t *ptcl_weak,
+                                        const double *target_coordinates);
+
+/**
+ * Finds multiple points of the cloud that are nearest to a target point.
+ */
+void                rhea_pointcloud_weakzone_find_n_nearest (
+                                        double *nearest_dist,
+                                        double *nearest_coordinates,
+                                        double *nearest_factor,
+                                        int *nearest_label,
+                                        const int n_nearest,
+                                        rhea_pointcloud_weakzone_t *ptcl_weak,
+                                        const double *target_coordinates);
+
 /******************************************************************************
  * Topography Point Cloud
  *****************************************************************************/

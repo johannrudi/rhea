@@ -70,6 +70,29 @@ rhea_pointcloud_weakzone_set_labels (rhea_pointcloud_weakzone_t *ptcl_weak,
   ptcl_weak->cloud->set_point_label_all (labels);
 }
 
+double
+rhea_pointcloud_weakzone_find_nearest (double *nearest_coordinates,
+                                       double *nearest_factor,
+                                       int *nearest_label,
+                                       rhea_pointcloud_weakzone_t *ptcl_weak,
+                                       const double *target_coordinates)
+{
+  return ptcl_weak->tree->find_nearest (nearest_coordinates, nearest_factor,
+                                        nearest_label, target_coordinates);
+}
+
+void
+rhea_pointcloud_weakzone_find_n_nearest (double *nearest_dist,
+                                         double *nearest_coordinates,
+                                         double *nearest_factor,
+                                         int *nearest_label,
+                                         const int n_nearest,
+                                         rhea_pointcloud_weakzone_t *ptcl_weak,
+                                         const double *target_coordinates)
+{
+  //TODO
+}
+
 
 //TODO deprecated below:
 
