@@ -32,7 +32,7 @@ rhea_pointcloud_Cloud::set_point_coordinates_all (const double *xyz,
 void
 rhea_pointcloud_Cloud::set_point_value_all (const double *value)
 {
-  for (size_t i = 0; i < point.size (); i++) { /* loop over all points */
+  for (size_t i = 0; i < size (); i++) { /* loop over all points */
     set_point_value (i, value[i]);
   }
 }
@@ -40,7 +40,7 @@ rhea_pointcloud_Cloud::set_point_value_all (const double *value)
 void
 rhea_pointcloud_Cloud::set_point_label_all (const int *label)
 {
-  for (size_t i = 0; i < point.size (); i++) { /* loop over all points */
+  for (size_t i = 0; i < size (); i++) { /* loop over all points */
     set_point_label (i, label[i]);
   }
 }

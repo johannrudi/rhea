@@ -17,6 +17,9 @@
 /* margin for the limits of the bounding box containing the point cloud */
 #define RHEA_POINTCLOUD_BOX_MARGIN 0.01
 
+/* undefined label of a point */
+#define RHEA_POINTCLOUD_LABEL_UNDEF (-404)
+
 /**
  * rhea_pointcloud_point: One single point
  *
@@ -370,8 +373,8 @@ class rhea_pointcloud_KDTree
         nanoflann::KDTreeSingleIndexAdaptorParams (leaf_max_size)
     );
 
-    /* build kd-tree index */
-    tree->buildIndex ();
+    /* setup tree */
+    setup ();
   }
 
   /**
@@ -383,36 +386,117 @@ class rhea_pointcloud_KDTree
   }
 
   /**
-   * Finds point of the cloud that is nearest to a target point. Returns distance
-   * to nearest point.
+   * Builds kd-tree index.
    */
-  inline double
+  void
+  setup ()
+  {
+    tree->buildIndex ();
+  }
+
+  /**
+   * Finds point of the cloud that is nearest to a target point.
+   * Returns Euclidean distance to nearest point, or NAN if no point was found.
+   */
+  double
   find_nearest (double *nearest_coordinates, double *nearest_value,
                 int *nearest_label, const double *target_coordinates)
   const
   {
-    size_t              return_index;
-    double              dist_sq;
-    nanoflann::KNNResultSet<double>  result_set (1);
+    size_t              nearest_idx;
+    double              nearest_dist_sq;
+    nanoflann::KNNResultSet<double> result_set (1 /* #nearest */);
+    size_t              n_results;
 
     /* perform nearest neighbor search */
-    result_set.init (&return_index, &dist_sq);
-    tree->findNeighbors (result_set, target_coordinates,
-                         nanoflann::SearchParams ());
+    n_results = tree->knnSearch (target_coordinates, 1 /* #nearest */,
+                                 &nearest_idx, &nearest_dist_sq);
 
-    /* get point data */
+    /* set output data and return Euclidean distance */
+    if (n_results) {
+      if (nearest_coordinates != NULL) {
+        cloud.get_point_coordinates (nearest_coordinates, nearest_idx);
+      }
+      if (nearest_value != NULL) {
+        *nearest_value = cloud.get_point_value (nearest_idx);
+      }
+      if (nearest_label != NULL) {
+        *nearest_label = cloud.get_point_label (nearest_idx);
+      }
+      return sqrt (nearest_dist_sq);
+    }
+    else {
+      if (nearest_coordinates != NULL) {
+        nearest_coordinates[0] = NAN;
+        nearest_coordinates[1] = NAN;
+        nearest_coordinates[2] = NAN;
+      }
+      if (nearest_value != NULL) {
+        *nearest_value = NAN;
+      }
+      if (nearest_label != NULL) {
+        *nearest_label = RHEA_POINTCLOUD_LABEL_UNDEF;
+      }
+      return NAN;
+    }
+  }
+
+  /**
+   * Finds multiple points of the cloud that are nearest to a target point.
+   * Returns number of nearest points found.
+   */
+  size_t
+  find_n_nearest (double *nearest_dist, double *nearest_coordinates,
+                  double *nearest_value, int *nearest_label,
+                  const size_t n_nearest, const double *target_coordinates)
+  const
+  {
+    std::vector<size_t> nearest_idx (n_nearest);
+    std::vector<double> nearest_dist_sq (n_nearest);
+    size_t              n_results;
+
+    /* perform nearest neighbor search */
+    n_results = tree->knnSearch (target_coordinates, n_nearest,
+                                 &nearest_idx[0], &nearest_dist_sq[0]);
+
+    /* set output data */
+    if (nearest_dist != NULL) {
+      for (size_t k = 0; k < n_results; k++) {
+        nearest_dist[k] = sqrt (nearest_dist_sq[k]);
+      }
+      for (size_t k = n_results; k < n_nearest; k++) {
+        nearest_dist[k] = NAN;
+      }
+    }
     if (nearest_coordinates != NULL) {
-      cloud.get_point_coordinates (nearest_coordinates, return_index);
+      for (size_t k = 0; k < n_results; k++) {
+        cloud.get_point_coordinates (&nearest_coordinates[3*k], nearest_idx[k]);
+      }
+      for (size_t k = n_results; k < n_nearest; k++) {
+        nearest_coordinates[3*k    ] = NAN;
+        nearest_coordinates[3*k + 1] = NAN;
+        nearest_coordinates[3*k + 2] = NAN;
+      }
     }
     if (nearest_value != NULL) {
-      *nearest_value = cloud.get_point_value (return_index);
+      for (size_t k = 0; k < n_results; k++) {
+        nearest_value[k] = cloud.get_point_value (nearest_idx[k]);
+      }
+      for (size_t k = n_results; k < n_nearest; k++) {
+        nearest_value[k] = NAN;
+      }
     }
     if (nearest_label != NULL) {
-      *nearest_label = cloud.get_point_label (return_index);
+      for (size_t k = 0; k < n_results; k++) {
+        nearest_label[k] = cloud.get_point_label (nearest_idx[k]);
+      }
+      for (size_t k = n_results; k < n_nearest; k++) {
+        nearest_label[k] = RHEA_POINTCLOUD_LABEL_UNDEF;
+      }
     }
 
-    /* return Euclidean distance */
-    return sqrt (dist_sq);
+    /* return number of nearest points found */
+    return n_results;
   }
 
   /**
