@@ -81,7 +81,7 @@ rhea_pointcloud_weakzone_find_nearest (double *nearest_coordinates,
                                         nearest_label, target_coordinates);
 }
 
-void
+int
 rhea_pointcloud_weakzone_find_n_nearest (double *nearest_dist,
                                          double *nearest_coordinates,
                                          double *nearest_factor,
@@ -90,7 +90,9 @@ rhea_pointcloud_weakzone_find_n_nearest (double *nearest_dist,
                                          rhea_pointcloud_weakzone_t *ptcl_weak,
                                          const double *target_coordinates)
 {
-  //TODO
+  return (int) ptcl_weak->tree->find_n_nearest (
+      nearest_dist, nearest_coordinates, nearest_factor, nearest_label,
+      (size_t) n_nearest, target_coordinates);
 }
 
 

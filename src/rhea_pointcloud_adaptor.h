@@ -67,7 +67,7 @@ double              rhea_pointcloud_weakzone_find_nearest (
 /**
  * Finds multiple points of the cloud that are nearest to a target point.
  */
-void                rhea_pointcloud_weakzone_find_n_nearest (
+int                 rhea_pointcloud_weakzone_find_n_nearest (
                                         double *nearest_dist,
                                         double *nearest_coordinates,
                                         double *nearest_factor,
