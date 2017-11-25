@@ -303,7 +303,7 @@ rhea_stokes_problem_amr_partition_field (sc_dmatrix_t *buffer_adapted,
 {
   /* adapted mesh */
   mangll_gloidx_t    *RtoGEO_adapted = mangll_adapted->mesh->RtoGEO;
-  MPI_Comm            mpicomm = mangll_adapted->mpicomm;
+  sc_MPI_Comm         mpicomm = mangll_adapted->mpicomm;
   const int           mpisize = mangll_adapted->mpisize;
   const int           mpirank = mangll_adapted->mpirank;
   /* partitoned mesh */

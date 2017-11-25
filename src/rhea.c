@@ -10,12 +10,12 @@
 /* initialization parameters */
 int                 rhea_argc = 0;
 char              **rhea_argv = NULL;
-MPI_Comm            rhea_mpicomm = MPI_COMM_NULL;
+sc_MPI_Comm         rhea_mpicomm = sc_MPI_COMM_NULL;
 int                 rhea_production_run = RHEA_DEFAULT_PRODUCTION_RUN;
 
 void
 rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
-                 int argc, char **argv, MPI_Comm mpicomm)
+                 int argc, char **argv, sc_MPI_Comm mpicomm)
 {
   int                 mpiret;
 
@@ -29,10 +29,10 @@ rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
 
   /* get MPI environment */
   if (mpisize != NULL) {
-    mpiret = MPI_Comm_size (mpicomm, mpisize); YMIR_CHECK_MPI (mpiret);
+    mpiret = sc_MPI_Comm_size (mpicomm, mpisize); SC_CHECK_MPI (mpiret);
   }
   if (mpirank != NULL) {
-    mpiret = MPI_Comm_rank (mpicomm, mpirank); YMIR_CHECK_MPI (mpiret);
+    mpiret = sc_MPI_Comm_rank (mpicomm, mpirank); SC_CHECK_MPI (mpiret);
   }
 
   /* get OpenMP environment */
@@ -54,7 +54,7 @@ rhea_init_end (ymir_options_t *opt)
   /* check */
   RHEA_ASSERT (0 < rhea_argc);
   RHEA_ASSERT (rhea_argv != NULL);
-  RHEA_ASSERT (rhea_mpicomm != MPI_COMM_NULL);
+  RHEA_ASSERT (rhea_mpicomm != sc_MPI_COMM_NULL);
 
   /* parse options */
   optret = ymir_options_parse (err_priority, opt, rhea_argc, rhea_argv);

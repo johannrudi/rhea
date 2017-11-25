@@ -61,7 +61,7 @@ void                rhea_discretization_options_clear (
  *****************************************************************************/
 
 p4est_t            *rhea_discretization_p4est_new (
-                                        MPI_Comm mpicomm,
+                                        sc_MPI_Comm mpicomm,
                                         rhea_discretization_options_t *opt,
                                         rhea_domain_options_t *domain_options);
 

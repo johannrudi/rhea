@@ -30,7 +30,8 @@
  * of the parallel envirionment.
  */
 void                rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
-                                     int argc, char **argv, MPI_Comm mpicomm);
+                                     int argc, char **argv,
+                                     sc_MPI_Comm mpicomm);
 
 /**
  * Ends the initialization of a program powered by rhea.  Should follow after

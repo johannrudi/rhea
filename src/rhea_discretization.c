@@ -368,7 +368,7 @@ rhea_p4est_init_fn (p4est_t *p4est, p4est_topidx_t tree,
 }
 
 p4est_t *
-rhea_discretization_p4est_new (MPI_Comm mpicomm,
+rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
                                rhea_discretization_options_t *opt,
                                rhea_domain_options_t *domain_options)
 {
@@ -528,7 +528,7 @@ rhea_discretization_mangll_continuous_new (mangll_t **mangll,
                                            p4est_t *p4est,
                                            rhea_discretization_options_t *opt)
 {
-  MPI_Comm            mpicomm = p4est->mpicomm;
+  sc_MPI_Comm         mpicomm = p4est->mpicomm;
   const int           order = opt->order;
   const mangll_refel_quadrature_type_t  quad_type = MANGLL_REFEL_QUAD_GAUSS;
 
