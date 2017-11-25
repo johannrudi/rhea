@@ -1720,7 +1720,7 @@ rhea_stokes_problem_nonlinear_modify_hessian_system_fn (
       ymir_vec_t         *vel_aniso;
 
       vel_aniso = ymir_stress_op_nsp_lin_aniso_get_velocity (NULL, stress_op);
-      YMIR_ASSERT (vel_aniso != NULL);
+      RHEA_ASSERT (vel_aniso != NULL);
     }
 #endif
 
