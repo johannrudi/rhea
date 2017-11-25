@@ -24,6 +24,7 @@ librhea_installed_headers = \
         src/rhea_stokes_problem_amr.h \
         src/rhea_newton.h \
         src/rhea_newton_check.h \
+        src/rhea_io_std.h \
         src/rhea_vtk.h \
         src/rhea_vis.h \
         src/rhea_vis_adaptor.h \
@@ -49,6 +50,7 @@ librhea_compiled_sources = \
         src/rhea_stokes_problem_amr.c \
         src/rhea_newton.c \
         src/rhea_newton_check.c \
+        src/rhea_io_std.c \
         src/rhea_vtk.c \
         src/rhea_vis.c \
         src/rhea_vis_adaptor.cxx \
