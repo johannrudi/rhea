@@ -76,7 +76,7 @@ size_t              rhea_io_std_write_txt (const char *file_path,
  * Reads double values from a text file.
  */
 size_t              rhea_io_std_read_double_from_txt (double *values,
-                                                      const size_t n_entries,
+                                                      size_t n_entries,
                                                       const char *file_path);
 
 /**
@@ -85,7 +85,7 @@ size_t              rhea_io_std_read_double_from_txt (double *values,
 size_t              rhea_io_std_write_double_to_txt (
                                           const char *file_path,
                                           const double *values,
-                                          const size_t n_entries,
+                                          size_t n_entries,
                                           int n_entries_per_line);
 
 #endif /* RHEA_IO_STD_H */

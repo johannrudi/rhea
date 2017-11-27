@@ -70,7 +70,13 @@ rhea_io_std_read_double (double *values, const size_t n_entries,
   FILE               *file_ptr;
   size_t              n_read;
 
-  RHEA_INFOF ("Into %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+              (int) n_entries);
+
+  /* exit if nothing to do */
+  if (0 == n_entries) {
+    return 0;
+  }
 
   /* open binary file */
   file_ptr = rhea_io_std_file_open (file_path, "rb", this_fn_name);
@@ -104,7 +110,13 @@ rhea_io_std_write_double (const char *file_path, const double *values,
   FILE               *file_ptr;
   size_t              n_written;
 
-  RHEA_INFOF ("Into %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+              (int) n_entries);
+
+  /* exit if nothing to do */
+  if (0 == n_entries) {
+    return 0;
+  }
 
   /* open binary file */
   file_ptr = rhea_io_std_file_open (file_path, "wb", this_fn_name);
@@ -205,13 +217,17 @@ rhea_io_std_fscanf_double_fn (void *data, void *params, FILE *file_ptr,
                               const size_t n_read)
 {
   double             *values = data;
+#ifdef RHEA_ENABLE_DEBUG
+  const size_t        n_entries = *((size_t *) params);
 
+  RHEA_ASSERT (n_read < n_entries);
+#endif
   return fscanf (file_ptr, "%lf", &values[n_read]);
 }
 
 size_t
 rhea_io_std_read_double_from_txt (double *values,
-                                  const size_t n_entries,
+                                  size_t n_entries,
                                   const char *file_path)
 {
   const char         *this_fn_name = "rhea_io_std_read_double_from_txt";
@@ -219,7 +235,7 @@ rhea_io_std_read_double_from_txt (double *values,
 
   /* read double values */
   n_read = rhea_io_std_read_txt (values, rhea_io_std_fscanf_double_fn,
-                                 NULL /* params */, file_path);
+                                 &n_entries, file_path);
 
   /* check #entries requested vs. read */
   if (0 < n_entries && n_entries != n_read) {
@@ -255,7 +271,7 @@ rhea_io_std_fprintf_double_fn (FILE *file_ptr, const void *data, void *params,
 size_t
 rhea_io_std_write_double_to_txt (const char *file_path,
                                  const double *values,
-                                 const size_t n_entries,
+                                 size_t n_entries,
                                  int n_entries_per_line)
 {
   const char         *this_fn_name = "rhea_io_std_write_double_to_txt";
