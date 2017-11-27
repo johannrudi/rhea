@@ -10,9 +10,9 @@
  * Reads double values from a binary or text file with one processor (i.e., MPI
  * rank), then broadcasts to all processors.
  */
-void                rhea_io_mpi_read_broadcast_double (
+int                 rhea_io_mpi_read_broadcast_double (
                                                     double *values_all,
-                                                    const int n_entries,
+                                                    int n_entries,
                                                     const char *file_path_bin,
                                                     const char *file_path_txt,
                                                     sc_MPI_Comm mpicomm);
