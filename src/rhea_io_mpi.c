@@ -56,8 +56,7 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
   SC_CHECK_MPI (mpiret);
 
   if (file_path_txt == NULL) { /* if read from binary file */
-    RHEA_GLOBAL_INFOF ("Done %s (%s, #entries %i)\n", this_fn_name,
-                       file_path_bin, n_entries);
+    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, file_path_bin);
   }
   else {
     RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", this_fn_name,
