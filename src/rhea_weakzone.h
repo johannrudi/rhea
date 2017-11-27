@@ -16,9 +16,21 @@
 /* options for weak zones */
 typedef struct rhea_weakzone_options
 {
+  //TODO weak zone type
+
   /* binary/text file with (x,y,z) coordinates of weak zone points */
   char               *points_file_path_bin;
   char               *points_file_path_txt;
+
+  /* number of points */
+  int                 n_points;
+
+  /* output */
+  char               *write_points_file_path_bin;
+  char               *write_points_file_path_txt;
+
+  /* data */
+  double             *coordinates;
 }
 rhea_weakzone_options_t;
 
@@ -74,5 +86,20 @@ double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,
 void                rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec,
                                                   sc_dmatrix_t *weak_el_mat,
                                                   const ymir_locidx_t elid);
+
+/******************************************************************************
+ * Data
+ *****************************************************************************/
+
+/**
+ *
+ */
+void                rhea_weakzone_data_create (rhea_weakzone_options_t *opt,
+                                               sc_MPI_Comm mpicomm);
+
+/**
+ *
+ */
+void                rhea_weakzone_data_clear (rhea_weakzone_options_t *opt);
 
 #endif /* RHEA_WEAKZONE_H */
