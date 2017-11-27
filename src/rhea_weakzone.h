@@ -9,6 +9,34 @@
 /* constant: neutral/default value for weak zone (i.e., no weakening) */
 #define RHEA_WEAKZONE_NEUTRAL_VALUE (1.0)
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/* options for weak zones */
+typedef struct rhea_weakzone_options
+{
+  /* binary/text file with (x,y,z) coordinates of weak zone points */
+  char               *points_file_path_bin;
+  char               *points_file_path_txt;
+}
+rhea_weakzone_options_t;
+
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_weakzone_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Processes options and stores them.
+ */
+void                rhea_weakzone_process_options (
+                                                rhea_weakzone_options_t *opt);
+
+/******************************************************************************
+ * Weak Zone Vector
+ *****************************************************************************/
+
 /**
  * Creates a new weak zone vector.
  */
@@ -28,6 +56,10 @@ int                 rhea_weakzone_check_vec_type (ymir_vec_t *vec);
  * Checks entries of a vector.
  */
 int                 rhea_weakzone_is_valid (ymir_vec_t *vec);
+
+/******************************************************************************
+ * Get & Set Functions
+ *****************************************************************************/
 
 /**
  * Gets the weak zone of one element at Gauss nodes.
