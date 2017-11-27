@@ -44,7 +44,7 @@ rhea_io_std_file_close (FILE *file_ptr, const char *file_path,
   status = fclose (file_ptr);
 
   /* check status */
-  if (!status) {
+  if (0 != status) {
     if (this_fn_name != NULL && file_path != NULL) {
       RHEA_LERRORF ("%s: Could not close file \"%s\"\n",
                     this_fn_name, file_path);
@@ -80,6 +80,9 @@ rhea_io_std_read_double (double *values, const size_t n_entries,
 
   /* open binary file */
   file_ptr = rhea_io_std_file_open (file_path, "rb", this_fn_name);
+  if (!file_ptr) {
+    return 0;
+  }
 
   /* read values */
   n_read = fread (values, sizeof (double), n_entries, file_ptr);
@@ -120,6 +123,9 @@ rhea_io_std_write_double (const char *file_path, const double *values,
 
   /* open binary file */
   file_ptr = rhea_io_std_file_open (file_path, "wb", this_fn_name);
+  if (!file_ptr) {
+    return 0;
+  }
 
   /* write values */
   n_written = fwrite (values, sizeof (double), n_entries, file_ptr);
@@ -159,6 +165,9 @@ rhea_io_std_read_txt (void *data, rhea_io_std_fscanf_fn_t fscanf_fn,
 
   /* open text file */
   file_ptr = rhea_io_std_file_open (file_path, "r", this_fn_name);
+  if (!file_ptr) {
+    return 0;
+  }
 
   /* read data */
   n_read = 0;
@@ -192,6 +201,9 @@ rhea_io_std_write_txt (const char *file_path, const void *data,
 
   /* open binary file */
   file_ptr = rhea_io_std_file_open (file_path, "w", this_fn_name);
+  if (!file_ptr) {
+    return 0;
+  }
 
   /* write data */
   n_written = 0;
@@ -217,12 +229,18 @@ rhea_io_std_fscanf_double_fn (void *data, void *params, FILE *file_ptr,
                               const size_t n_read)
 {
   double             *values = data;
-#ifdef RHEA_ENABLE_DEBUG
   const size_t        n_entries = *((size_t *) params);
+  int                 status;
 
-  RHEA_ASSERT (n_read < n_entries);
-#endif
-  return fscanf (file_ptr, "%lf", &values[n_read]);
+  if (0 < n_entries) {
+    RHEA_ASSERT (n_read <= n_entries);
+    status = fscanf (file_ptr, "%lf", &values[SC_MIN (n_read, n_entries)]);
+  }
+  else {
+    status = fscanf (file_ptr, "%lf", &values[n_read]);
+  }
+
+  return status;
 }
 
 size_t
@@ -239,11 +257,12 @@ rhea_io_std_read_double_from_txt (double *values,
 
   /* check #entries requested vs. read */
   if (0 < n_entries && n_entries != n_read) {
-    RHEA_LERRORF (
+    RHEA_INFOF (
         "%s: Mismatch of #entries read: "
         "Requested #entries %lli, actually read %lli, file path %s\n",
         this_fn_name, (long long int) n_entries, (long long int) n_read,
         file_path);
+    RHEA_ASSERT (n_read < n_entries);
   }
 
   /* return number of read entries */
@@ -255,17 +274,23 @@ rhea_io_std_fprintf_double_fn (FILE *file_ptr, const void *data, void *params,
                                const size_t n_written)
 {
   const double       *values = data;
-  const int           n_entries_per_line = *((int *) params);
+  int                *p = params;
+  const int           n_entries = p[0];
+  const int           n_entries_per_line = p[1];
   int                 status;
+
+  if (n_written >= n_entries) {
+    return 0;
+  }
 
   status = fprintf (file_ptr, "%+.16e ", values[n_written]);
 
-  if ( 0 < status && 0 < n_entries_per_line &&
-       !((status + (int) n_written) % n_entries_per_line) ) {
+  if (0 < status && 0 < n_entries_per_line &&
+      0 == (n_written + 1) % n_entries_per_line){
     fprintf (file_ptr, "\n");
   }
 
-  return status;
+  return (0 < status);
 }
 
 size_t
@@ -275,6 +300,7 @@ rhea_io_std_write_double_to_txt (const char *file_path,
                                  int n_entries_per_line)
 {
   const char         *this_fn_name = "rhea_io_std_write_double_to_txt";
+  int                 params[2] = {(int) n_entries, n_entries_per_line};
   size_t              n_written;
 
   /* check input */
@@ -282,8 +308,7 @@ rhea_io_std_write_double_to_txt (const char *file_path,
 
   /* write double values */
   n_written = rhea_io_std_write_txt (file_path, values,
-                                     rhea_io_std_fprintf_double_fn,
-                                     &n_entries_per_line);
+                                     rhea_io_std_fprintf_double_fn, params);
 
   /* check #entries written vs. requested */
   if (n_entries != n_written) {
