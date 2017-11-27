@@ -1372,7 +1372,8 @@ slabs_layers_viscosity_old_elem (double *_sc_restrict visc_elem,
 
   /* compute viscosity in this element */
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
-    if (topo->tZ != NULL) {
+    if (topo != NULL) {   /*ATTENTION! This causes code crash all the time;
+                           the code cannot judge topo right now*/
       for (m = 0; m < nsurf; m++)  {
         if (fabs(x[nodeid] - tX[m]) < SC_1000_EPS &&
             fabs(y[nodeid] - tY[m]) < SC_1000_EPS)  {
@@ -1408,7 +1409,9 @@ slabs_layers_viscosity_elem (double *_sc_restrict visc_elem,
   double              z_mid = slabs_options->slabs_visc_options->z_lith;
   double              visc_lith = slabs_options->slabs_visc_options->visc_lith;
   double              visc_asthen = slabs_options->slabs_visc_options->visc_asthen;
-  int                 m;
+  double              visc_smooth;
+  double              factor = 1.0;
+  int     m;
 
   /* compute viscosity in this element */
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
@@ -1998,32 +2001,6 @@ slabs_X_fn_sine (mangll_tag_t tag, mangll_locidx_t np,
   }
 }
 
-static void
-slabs_X_fn_function (mangll_tag_t tag, mangll_locidx_t np,
-                       const double *_sc_restrict EX,
-                       const double *_sc_restrict EY,
-                       const double *_sc_restrict EZ,
-                       double *_sc_restrict X,
-                       double *_sc_restrict Y,
-                       double *_sc_restrict Z, void *data)
-{
-  mangll_locidx_t     il;
-  int           k;
-  double        factor;
-  double        coeff[11] = {1.0146, -0.0030374, -0.11728, -1.788, 14.385,
-                            -64.742, 177.44, -283.49, 258.25, -124.93, 24.987};
-
-  for (il = 0; il < np; ++il) {
-    X[il] = EX[il];
-    Y[il] = EY[il];
-    factor = .0;
-    for (k = 0; k <= 10; k++) {
-      factor += coeff[k] * pow(EY[il],(double) k);
-    }
-    Z[il] = EZ[il] * factor;
-  }
-}
-
 /*distort mesh following the imposed topography on the surface
  * the topography information is given in void *data */
 static void
@@ -2058,58 +2035,6 @@ slabs_X_fn_profile (mangll_tag_t tag, mangll_locidx_t np,
     Z[il] = EZ[il] * factor;
   }
 }
-
-#if 0
-static void
-slabs_X_fn_profile_interpolation (mangll_tag_t tag, mangll_locidx_t np,
-                   const double *_sc_restrict EX,
-                   const double *_sc_restrict EY,
-                   const double *_sc_restrict EZ,
-                   double *_sc_restrict X,
-                   double *_sc_restrict Y,
-                   double *_sc_restrict Z, void *data)
-{
-  mangll_locidx_t     il;
-  double factor;
-  slabs_topo_profile_t *topo = (slabs_topo_profile_t *) data;
-  double *tX = topo->tX;
-  double *tY = topo->tY;
-  double *tZ = topo->tZ;
-  int     m, nsurf = topo->nsurf;
-
-  /*loop for nodes in each element*/
-  for (il = 0; il < np; ++il) {
-    X[il] = EX[il];
-    Y[il] = EY[il];
-    /*loop over all the topography information
-     * to find the corresponding distortion factor */
-    for (m = 0; m < nsurf; m++)  {
-      if ((tX[m] - EX[il]) >= SC_1000_EPS)
-        continue;
-      else if (fabs(EX[il] - tX[m]) < SC_1000_EPS) {
-        if ((tY[m] - EY[il]) >= SC_1000_EPS)
-          continue;
-        else if (fabs(EY[il] - tY[m]) < SC_1000_EPS)
-          factor = tZ[m];
-          break;
-        }
-        else {
-          interpolation;
-          factor = **;
-          break;
-        }
-      }
-      else {
-
-        interpolation of tX
-      }
-
-    }
-    Z[il] = EZ[il] * factor;
-  }
-}
-
-#endif
 
 void
 slabs_surface_location (slabs_options_t *slabs_options,
@@ -4578,7 +4503,6 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet = NULL;
   void               *solver_options = NULL;
-  int                 mpirank = ymir_mesh->ma->mpirank;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -4647,6 +4571,7 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
       RHEA_ABORT_NOT_REACHED ();
   }
 
+
   rhs_vel = rhea_velocity_new (ymir_mesh);
   /* for the test using manufactured solution,
    * overwrite rhs_vel with estimated forcing term from given velocity and pressure field.
@@ -4674,11 +4599,11 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
     }
   }
 
+
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
       ymir_mesh, press_elem, domain_options, visc_options, solver_options);
-
 
   /* add the anisotropic viscosity to the viscous stress operator */
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
@@ -4703,13 +4628,10 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                        vtk_write_input_path);
   }
 
+
   /* set up Stokes solver */
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
-if (mpirank == 0) {
-printf("Got here!");
-fflush (stdout);
-}
   /* destroy */
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
       == SLABS_VISC_TRANSVERSELY_ISOTROPY)  {
@@ -4835,8 +4757,6 @@ main (int argc, char **argv)
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
 
-  double                  *tX, *tY, *tZ;
-  slabs_topo_profile_t    topo = {.tZ=NULL};
   double                  surf_dist;
   double                  visc_trial;
   int                     buoyancy_type;
@@ -4850,7 +4770,7 @@ main (int argc, char **argv)
   int                     test_stress_comp;
 
   /* slabs options */
-  slabs_domain_options_t   slabs_domain_options;
+  slabs_domain_options_t     slabs_domain_options;
   slabs_temp_options_t     slabs_temp_options;
   slabs_custom_sinker_t    slabs_sinker_options;
   slabs_visc_options_t     slabs_visc_options;
@@ -4872,13 +4792,14 @@ main (int argc, char **argv)
   char               *vtk_write_freesurface_path;
   char               *vtk_write_input2_path;
   char               *vtk_write_solution2_path;
+  char               *vtk_write_input3_path;
+  char               *vtk_write_solution3_path;
   char               *vtk_write_io_path;
   char               *vtk_write_mpiio_path;
   char               *vtk_read_io_path;
   char               *vtk_read_mpiio_path;
   char               *vtk_write_ioface_path;
   char               *vtk_read_ioface_path;
-  char               *ascii_read_topo_path;
 
   /* mesh */
   p4est_t            *p4est;
@@ -5123,6 +5044,12 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solution2-path", '\0',
     &(vtk_write_solution2_path), NULL,
     "File path for vtk files for the solution of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-input3-path", '\0',
+    &(vtk_write_input3_path), NULL,
+    "File path for vtk files for the input of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-solution3-path", '\0',
+    &(vtk_write_solution3_path), NULL,
+    "File path for vtk files for the solution of the Stokes problem",
   YMIR_OPTIONS_S, "vtk-write-io-path", '\0',
     &(vtk_write_io_path), NULL,
     "File path for the test of io",
@@ -5141,9 +5068,6 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-read-ioface-path", '\0',
     &(vtk_read_ioface_path), NULL,
     "File path for the test of face_mesh io",
-  YMIR_OPTIONS_S, "ascii-read-topo-path", '\0',
-    &(ascii_read_topo_path), NULL,
-    "File path for reading topography path",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -5172,6 +5096,7 @@ main (int argc, char **argv)
     buoyancy_type = 4;
   slabs_options.buoyancy_type = (slabs_buoyancy_type_t) buoyancy_type;
 
+
   /* temperature */
   slabs_temp_options.temp_background_plate_age = temp_back_plate_age;
   slabs_temp_options.temp_2plates_trench_longitude = temp_2pl_trench_lon;
@@ -5187,6 +5112,7 @@ main (int argc, char **argv)
   slabs_temp_options.temp_2plates_over_plate_age = temp_2pl_over_plate_age;
 
   slabs_temp_options.custom_type = (slabs_temp_custom_t) temp_custom;
+  RHEA_GLOBAL_INFOF ("custom_type = %d\n", slabs_temp_options.custom_type);
   slabs_sinker_options.center_x = center_x;
   slabs_sinker_options.center_y = center_y;
   slabs_sinker_options.center_z = center_z;
@@ -5284,61 +5210,16 @@ main (int argc, char **argv)
   /*
    * Setup Mesh
    */
-  if (ascii_read_topo_path != NULL) {
-    int                   Ncn = 1161;
-    int                   i;
-    FILE                  *infile;
-    char                  infilename[BUFSIZ];
 
-    RHEA_GLOBAL_PRODUCTIONF ("Read topography from %s\n", ascii_read_topo_path);
-
-    tX = RHEA_ALLOC (double, Ncn);
-    tY = RHEA_ALLOC (double, Ncn);
-    tZ = RHEA_ALLOC (double, Ncn);
-
-    snprintf (infilename, BUFSIZ, "%s_visc_%04d", ascii_read_topo_path, mpirank);
-    infile = fopen (infilename, "r");
-    if (infile == NULL) {
-      YMIR_LERRORF ("Could not open %s for reading!\n", infilename);
-      return -1;
-    }
-    for (i = 0; i < Ncn; i++) {
-      fscanf (infile, "%lf %lf %lf\n", &tX[i], &tY[i], &tZ[i]);
-    }
-    if (fclose (infile)) {
-      YMIR_LERROR ("main: Error closing footer\n");
-      return -1;
-    }
-
-      /*store topography information in slabs_surf_options*/
-    topo.tX = tX;
-    topo.tY = tY;
-    topo.tZ = tZ;
-    topo.nsurf = Ncn;
-    slabs_surf_options.topo_profile = &topo;
-
-  /* discr influences domain ? */
-    rhea_discretization_process_options (&discr_options, &domain_options);
-
-    rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_profile, &topo);
-    slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
-                          &domain_options, &discr_options, &slabs_options);
-
-    RHEA_GLOBAL_PRODUCTIONF ("Done read topography from %s\n", ascii_read_topo_path);
-  }
-  else {
-    rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_function, NULL);
-    slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
+  rhea_discretization_set_user_X_fn (&discr_options,
+                                     slabs_X_fn_identity, NULL);
+  slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                       &domain_options, &discr_options, &slabs_options);
-  }
- /*
+
+  /*
    * Setup Stokes Problem
    */
 
-  /*try different viscosity on the top layer*/
-  slabs_visc_options.visc_lith *= visc_trial;
   slabs_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                         &domain_options, &temp_options, &visc_options,
                         &slabs_options, vtk_write_input_path);
@@ -5715,12 +5596,10 @@ main (int argc, char **argv)
     ymir_topidx_t         fm;
     ymir_face_mesh_t      *fmesh;
     int                   Ncn;
-    int                   i;
+    int                   Ntotal;
     double                *tX, *tY, *tZ;
     double                avg_stress, topo_nondim;
     slabs_topo_profile_t  topo;
-    FILE                  *outfile;
-    char                  outfilename[BUFSIZ];
 
     RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_write_freesurface\n", this_fn_name);
 
@@ -5758,21 +5637,7 @@ main (int argc, char **argv)
     tY = vec_y->cvec->e[0];
     tZ = vec_topo->cvec->e[0];
 
-    snprintf (outfilename, BUFSIZ, "%s_visc_%04d", vtk_write_freesurface_path, mpirank);
-    outfile = fopen (outfilename, "w");
-    if (outfile == NULL) {
-      YMIR_LERRORF ("Could not open %s for output!\n", outfilename);
-      return -1;
-    }
-    for (i = 0; i < Ncn; i++) {
-      fprintf (outfile, "%10.6e   %10.6e   %10.6e\n", tX[i], tY[i], tZ[i]);
-    }
-    if (fclose (outfile)) {
-      YMIR_LERROR ("main: Error closing footer\n");
-      return -1;
-    }
-
-    /*store topograhy information in slabs_surf_options*/
+    /*store topography information in slabs_surf_options*/
     topo.tX = tX;
     topo.tY = tY;
     topo.tZ = tZ;
@@ -6306,14 +6171,6 @@ main (int argc, char **argv)
 
   /* destroy options */
   ymir_options_global_destroy ();
-
-  if (ascii_read_topo_path != NULL) {
-    RHEA_FREE(tX);
-    RHEA_FREE(tY);
-    RHEA_FREE(tZ);
-    slabs_surf_options.topo_profile = NULL;
-  }
-
 
   /* print that this function is ending */
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);

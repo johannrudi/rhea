@@ -593,7 +593,8 @@ rhea_discretization_mangll_and_cnodes_new (mangll_t **mangll,
 
   /* assign mapping to physical space */
   mangll_mesh->X_fn = opt->X_fn;
-  mangll_mesh->X_data = NULL;
+//  mangll_mesh->X_data = NULL;
+  mangll_mesh->X_data = opt->X_data;
 
   RHEA_ASSERT (mangll != NULL);
   if (cnodes != NULL) { /* if mesh with continuous nodes should be created */

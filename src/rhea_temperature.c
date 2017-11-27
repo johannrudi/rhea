@@ -292,6 +292,9 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   else if (strcmp (rhea_temperature_type_name, "cold_plate") == 0) {
     opt->type = RHEA_TEMPERATURE_COLD_PLATE;
   }
+  else if (strcmp (rhea_temperature_type_name, "zero") == 0) {
+    opt->type = RHEA_TEMPERATURE_ZERO;
+  }
   else { /* unknown temperature type */
     RHEA_ABORT ("Unknown temperature type");
   }
@@ -866,6 +869,9 @@ rhea_temperature_background_node (const double x, const double y,
   switch (opt->type) {
   case RHEA_TEMPERATURE_NONE:
     back_temp = RHEA_TEMPERATURE_NEUTRAL_VALUE;
+    break;
+  case RHEA_TEMPERATURE_ZERO:
+    back_temp = 0.0;
     break;
   case RHEA_TEMPERATURE_COLD_PLATE:
     {
