@@ -234,7 +234,7 @@ rhea_io_std_fscanf_double_fn (void *data, void *params, FILE *file_ptr,
 
   if (0 < n_entries) {
     RHEA_ASSERT (n_read <= n_entries);
-    status = fscanf (file_ptr, "%lf", &values[SC_MIN (n_read, n_entries)]);
+    status = fscanf (file_ptr, "%lf", &values[SC_MIN (n_read, n_entries-1)]);
   }
   else {
     status = fscanf (file_ptr, "%lf", &values[n_read]);
