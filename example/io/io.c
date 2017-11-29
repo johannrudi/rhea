@@ -101,7 +101,7 @@ main (int argc, char **argv)
    */
 
   example_share_stokes_new (&stokes_problem, ymir_mesh, press_elem,
-                            &domain_options, &temp_options, &visc_options,
+                            &temp_options, &weak_options, &visc_options,
                             &newton_options, NULL);
 
   /* write vtk of input data */
@@ -115,7 +115,8 @@ main (int argc, char **argv)
   /* destroy Stokes problem */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-  example_share_stokes_destroy (stokes_problem);
+  example_share_stokes_destroy (stokes_problem, &temp_options, &weak_options,
+                                &visc_options);
 
   /* destroy mesh */
   example_share_mesh_destroy (ymir_mesh, press_elem, p4est, &discr_options);

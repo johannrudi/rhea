@@ -14,25 +14,30 @@ void
 example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
                           ymir_mesh_t *ymir_mesh,
                           ymir_pressure_elem_t *press_elem,
-                          rhea_domain_options_t *domain_options,
                           rhea_temperature_options_t *temp_options,
+                          rhea_weakzone_options_t *weak_options,
                           rhea_viscosity_options_t *visc_options,
                           rhea_newton_options_t *newton_options,
                           char *vtk_write_newton_itn_path)
 {
   const char         *this_fn_name = "example_share_stokes_new";
+  rhea_domain_options_t *domain_options = visc_options->domain_options;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
   ymir_vec_t         *temperature, *weakzone;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
   void               *solver_options;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
+  /* set up data */
+  rhea_weakzone_data_create (weak_options, mpicomm);
+
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
   rhea_temperature_compute (temperature, temp_options);
 
   /* compute weak zone */
-  weakzone = NULL;  /* TODO create weak zones */
+  weakzone = NULL; //TODO
 
   /* create velocity right-hand side volume forcing */
   rhs_vel = rhea_velocity_new (ymir_mesh);
@@ -66,7 +71,10 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
 }
 
 void
-example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem)
+example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
+                              rhea_temperature_options_t *temp_options,
+                              rhea_weakzone_options_t *weak_options,
+                              rhea_viscosity_options_t *visc_options)
 {
   const char         *this_fn_name = "example_share_stokes_destroy";
   ymir_vec_t         *temperature, *weakzone;
@@ -97,6 +105,9 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem)
   if (rhs_vel_nonzero_dirichlet != NULL) {
     rhea_velocity_destroy (rhs_vel_nonzero_dirichlet);
   }
+
+  /* destroy data */
+  rhea_weakzone_data_clear (weak_options);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
