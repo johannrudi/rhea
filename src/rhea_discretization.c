@@ -334,9 +334,9 @@ rhea_discretization_set_user_X_fn (rhea_discretization_options_t *opt,
 }
 
 void
-rhea_discretization_options_set_boundary (rhea_discretization_options_t *opt,
-                                          p4est_t *p4est,
-                                          rhea_domain_options_t *domain_options)
+rhea_discretization_boundary_create (rhea_discretization_options_t *opt,
+                                     p4est_t *p4est,
+                                     rhea_domain_options_t *domain_options)
 {
   opt->boundary = rhea_domain_boundary_new (p4est, domain_options);
 
@@ -348,7 +348,7 @@ rhea_discretization_options_set_boundary (rhea_discretization_options_t *opt,
 }
 
 void
-rhea_discretization_options_clear (rhea_discretization_options_t *opt)
+rhea_discretization_boundary_clear (rhea_discretization_options_t *opt)
 {
   rhea_domain_boundary_destroy (opt->boundary);
   opt->boundary = NULL;

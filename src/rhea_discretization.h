@@ -45,7 +45,7 @@ void                rhea_discretization_set_user_X_fn (
 /**
  * Sets boundary information in the discretization options object.
  */
-void                rhea_discretization_options_set_boundary (
+void                rhea_discretization_boundary_create (
                                         rhea_discretization_options_t *opt,
                                         p4est_t *p4est,
                                         rhea_domain_options_t *domain_options);
@@ -53,7 +53,7 @@ void                rhea_discretization_options_set_boundary (
 /**
  * Clears discretization options object.
  */
-void                rhea_discretization_options_clear (
+void                rhea_discretization_boundary_clear (
                                         rhea_discretization_options_t *opt);
 
 /******************************************************************************

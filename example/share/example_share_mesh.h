@@ -19,7 +19,7 @@ void                example_share_mesh_new (
                                 p4est_t **p4est,
                                 ymir_mesh_t **ymir_mesh,
                                 ymir_pressure_elem_t **press_elem,
-                                MPI_Comm mpicomm,
+                                sc_MPI_Comm mpicomm,
                                 rhea_domain_options_t *domain_options,
                                 rhea_discretization_options_t *discr_options);
 
