@@ -131,6 +131,9 @@ rhea_weakzone_process_options (rhea_weakzone_options_t *opt,
 
   /* init data */
   opt->pointcloud = NULL;
+
+  /* set dependent options */
+  opt->domain_options = domain_options;
 }
 
 int
@@ -229,6 +232,7 @@ void
 rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
 {
   const char         *this_fn_name = "rhea_weakzone_data_create";
+  rhea_domain_options_t *domain_options = opt->domain_options;
   const char         *file_path_bin = opt->points_file_path_bin;
   const char         *file_path_txt = opt->points_file_path_txt;
   const char         *write_file_path_bin = opt->write_points_file_path_bin;
@@ -311,7 +315,11 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
   }
 
   /* create point cloud */
-  opt->pointcloud = rhea_pointcloud_weakzone_new (coordinates, opt->n_points);
+  opt->pointcloud = rhea_pointcloud_weakzone_new (
+      domain_options->x_min, domain_options->x_max,
+      domain_options->y_min, domain_options->y_max,
+      domain_options->z_min, domain_options->z_max,
+      coordinates, opt->n_points);
 
   /* destroy */
   RHEA_FREE (coordinates);

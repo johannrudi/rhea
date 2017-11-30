@@ -49,6 +49,9 @@ typedef struct rhea_weakzone_options
 
   /* data */
   rhea_pointcloud_weakzone_t *pointcloud;
+
+  /* options & properties of the computational domain */
+  rhea_domain_options_t *domain_options;
 }
 rhea_weakzone_options_t;
 
