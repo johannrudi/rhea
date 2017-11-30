@@ -138,16 +138,6 @@ rhea_domain_compute_bounds (rhea_domain_options_t *opt)
   opt->radius_max = RHEA_DOMAIN_REFERENCE_SHELL_RADIUS;
   opt->radius_min = opt->radius_max * radius_min_m/radius_max_m;
 
-  /* initialize other values */
-  opt->x_min = NAN;
-  opt->x_max = NAN;
-  opt->y_min = NAN;
-  opt->y_max = NAN;
-  opt->z_min = NAN;
-  opt->z_max = NAN;
-  opt->lon_min = NAN;
-  opt->lon_max = NAN;
-
   /* set domain-specific bounds */
   switch (opt->shape) {
   case RHEA_DOMAIN_CUBE:
@@ -174,13 +164,32 @@ rhea_domain_compute_bounds (rhea_domain_options_t *opt)
     opt->lon_max = +M_PI/8.0 * opt->box_length_y;
     break;
   case RHEA_DOMAIN_SHELL:
-    /* keep all default values (above) */
+    opt->x_min = -1.0;
+    opt->y_min = -1.0;
+    opt->z_min = -1.0;
+    opt->x_max = +1.0;
+    opt->y_max = +1.0;
+    opt->z_max = +1.0;
+    opt->lon_min = NAN;
+    opt->lon_max = NAN;
     break;
   case RHEA_DOMAIN_CUBE_SPHERICAL:
+    opt->x_min = -1.0;
+    opt->y_min = -1.0;
+    opt->z_min = -1.0;
+    opt->x_max = +1.0;
+    opt->y_max = +1.0;
+    opt->z_max = +1.0;
     opt->lon_min = -M_PI/8.0;
     opt->lon_max = +M_PI/8.0;
     break;
   case RHEA_DOMAIN_BOX_SPHERICAL:
+    opt->x_min = -1.0;
+    opt->y_min = -1.0;
+    opt->z_min = -1.0;
+    opt->x_max = +1.0;
+    opt->y_max = +1.0;
+    opt->z_max = +1.0;
     RHEA_ASSERT (0 < opt->box_subdivision_y);
     RHEA_ASSERT (0 < opt->box_subdivision_z);
     {
