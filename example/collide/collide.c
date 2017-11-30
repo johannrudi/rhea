@@ -1109,7 +1109,6 @@ collide_set_rhs_vel_nonzero_dir_double_unipush (
  */
 collide_write_input (ymir_mesh_t *ymir_mesh,
                      ymir_vec_t *temperature,
-                     ymir_vec_t *weakzone,
                      ymir_vec_t *visc_TI_svisc,
                      ymir_vec_t *visc_TI_rotate,
                      rhea_stokes_problem_t *stokes_problem_lin,
@@ -1129,7 +1128,7 @@ collide_write_input (ymir_mesh_t *ymir_mesh,
 
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity, NULL,
+                             background_temp, NULL, viscosity, NULL,
                              rhs_vel);
 
   rhea_temperature_destroy (background_temp);
@@ -1168,12 +1167,13 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                       ymir_pressure_elem_t *press_elem,
                       rhea_domain_options_t *domain_options,
                       rhea_temperature_options_t *temp_options,
+                      rhea_weakzone_options_t *weak_options,
                       rhea_viscosity_options_t *visc_options,
                       collide_options_t *collide_options,
                       const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "collide_setup_stokes";
-  ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *temperature;
   ymir_vec_t         *coeff_TI_svisc, *TI_rotate = NULL;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
   void               *solver_options = NULL;
@@ -1183,10 +1183,6 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
   rhea_temperature_compute (temperature, temp_options);
-
-  /* compute weak zone */
-  weakzone = rhea_weakzone_new (ymir_mesh);
-  ymir_vec_set_value (weakzone, 1.0);
 
   /* set custom function to compute viscosity */
   rhea_viscosity_set_viscosity_compute_fn (collide_viscosity_compute,
@@ -1249,8 +1245,8 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
-      ymir_mesh, press_elem, domain_options, visc_options, solver_options);
+      temperature, rhs_vel, rhs_vel_nonzero_dirichlet, ymir_mesh, press_elem,
+      domain_options, weak_options, visc_options, solver_options);
 
   /* add the anisotropic viscosity to the viscous stress operator */
   if (collide_options->viscosity_anisotropy == COLLIDE_VISC_TRANSVERSELY_ISOTROPY) {
@@ -1281,7 +1277,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* write vtk of problem input */
   if (vtk_write_input_path != NULL) {
-    collide_write_input (ymir_mesh, temperature, weakzone, coeff_TI_svisc,
+    collide_write_input (ymir_mesh, temperature, coeff_TI_svisc,
                          TI_rotate, *stokes_problem, temp_options,
                          vtk_write_input_path);
   }
@@ -1308,7 +1304,7 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                          rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "collide_setup_clear_all";
-  ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *temperature;
   ymir_vec_t         *visc_TI_svisc;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
 
@@ -1316,7 +1312,6 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
 
   /* get vectors */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
-  weakzone = rhea_stokes_problem_get_weakzone (stokes_problem);
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
   rhs_vel_nonzero_dirichlet =
     rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
@@ -1340,9 +1335,6 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
   /* destroy vectors */
   if (temperature != NULL) {
     rhea_temperature_destroy (temperature);
-  }
-  if (weakzone != NULL) {
-    rhea_weakzone_destroy (weakzone);
   }
   if (rhs_vel != NULL) {
     rhea_velocity_destroy (rhs_vel);
@@ -1689,8 +1681,8 @@ main (int argc, char **argv)
    */
 
   collide_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
-                        &domain_options, &temp_options, &visc_options,
-                        &collide_options, vtk_write_input_path);
+                        &domain_options, &temp_options, &weak_options,
+                        &visc_options, &collide_options, vtk_write_input_path);
 
   /*
    * Run Tests
