@@ -5,6 +5,7 @@
 #define RHEA_STOKES_PROBLEM_H
 
 #include <rhea_domain.h>
+#include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
@@ -36,12 +37,12 @@ typedef struct rhea_stokes_problem rhea_stokes_problem_t;
  */
 rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     ymir_vec_t *temperature,
-                                    ymir_vec_t *weakzone,
                                     ymir_vec_t *rhs_vel,
                                     ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
                                     rhea_domain_options_t *domain_options,
+                                    rhea_weakzone_options_t *weak_options,
                                     rhea_viscosity_options_t *visc_options,
                                     void *solver_options);
 
