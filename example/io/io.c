@@ -11,7 +11,7 @@
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
 #include <rhea_vis.h> //TODO put into rhea.h
-//#include <ymir_vtk.h> //###DEV###
+#include <ymir_vtk.h> //###DEV###
 
 /******************************************************************************
  * Main Program
@@ -107,6 +107,20 @@ main (int argc, char **argv)
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_write_input_path, stokes_problem,
                                       &temp_options, &visc_options);
+
+  /* write vtk of weak zone data */
+  if (rhea_weakzone_exists (&weak_options)) {
+    ymir_vec_t         *distance;
+    char                path[BUFSIZ];
+
+    distance = rhea_weakzone_new (ymir_mesh);
+    rhea_weakzone_compute_distance (distance, &weak_options);
+
+    snprintf (path, BUFSIZ, "%s_weakzone", vtk_write_input_path);
+    ymir_vtk_write (ymir_mesh, path, distance, "weakzone_distance", NULL);
+
+    rhea_weakzone_destroy (distance);
+  }
 
   /*
    * Finalize
