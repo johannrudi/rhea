@@ -249,12 +249,6 @@ class rhea_pointcloud_Cloud
   }
 
   /**
-   * Reads points from a text file and fills them into the cloud.
-   */
-  void
-  read_points_text_file (const char *filename, const size_t estimated_n_points);
-
-  /**
    * Prints all points in the cloud.
    */
   void
@@ -497,61 +491,6 @@ class rhea_pointcloud_KDTree
 
     /* return number of nearest points found */
     return n_results;
-  }
-
-  /**
-   * Finds the shortest distance from the target point to any point of the
-   * cloud.
-   */
-  inline double
-  find_shortest_distance (const double *target_pt)
-  const
-  {
-    size_t              return_index;
-    nanoflann::KNNResultSet<double>  result_set (1);
-    double              dist_sq;
-
-    /* perform nearest neighbor search */
-    result_set.init (&return_index, &dist_sq);
-    tree->findNeighbors (result_set, target_pt, nanoflann::SearchParams ());
-
-    /* return Euclidean distance */
-    return sqrt (dist_sq);
-  }
-
-  /**
-   * Finds the shortest distance from a set of target points to any point of
-   * the cloud.
-   */
-  inline void
-  find_shortest_distance_multi (double *dist,
-                                const double *target_x,
-                                const double *target_y,
-                                const double *target_z,
-                                const unsigned int n_target_points)
-  const
-  {
-    size_t              return_index;
-    nanoflann::KNNResultSet<double>  result_set (1);
-    nanoflann::SearchParams  search_params;
-    double              pt[3];
-    double              dist_sq;
-
-    /* perform nearest neighbor search for all target points */
-    for (size_t i = 0; i < n_target_points; i++) {
-      pt[0] = target_x[i];
-      pt[1] = target_y[i];
-      pt[2] = target_z[i];
-
-      /* initialize result set object */
-      result_set.init (&return_index, &dist_sq);
-
-      /* find nearest neighbor */
-      tree->findNeighbors (result_set, pt, search_params);
-
-      /* set Euclidean distance */
-      dist[i] = sqrt (dist_sq);
-    }
   }
 }; /* class rhea_pointcloud_KDTree */
 
