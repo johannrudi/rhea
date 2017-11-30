@@ -4,6 +4,8 @@
 #ifndef RHEA_WEAKZONE_H
 #define RHEA_WEAKZONE_H
 
+#include <rhea_domain.h>
+#include <rhea_pointcloud_adaptor.h>
 #include <ymir_vec_ops.h>
 
 /* constant: neutral/default value for weak zone (i.e., no weakening) */
@@ -13,10 +15,26 @@
  * Options
  *****************************************************************************/
 
+/* types of weak zones */
+typedef enum
+{
+  RHEA_WEAKZONE_NONE = -1,                  /* weak zone does not exist */
+  RHEA_WEAKZONE_DATA_POINTS = 0,            /* points (coordinates) */
+  RHEA_WEAKZONE_DATA_POINTS_LABELS,         /* pt's (coord, labels) */
+  RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS, /* pt's (coord, labels, factors) */
+}
+rhea_weakzone_t;
+
 /* options for weak zones */
 typedef struct rhea_weakzone_options
 {
-  //TODO weak zone type
+  /* type of weak zone */
+  rhea_weakzone_t     type;
+
+  /* parameters for smoothed weak zones */
+  double              thickness;
+  double              thickness_const;
+  double              weak_factor_interior;
 
   /* binary/text file with (x,y,z) coordinates of weak zone points */
   char               *points_file_path_bin;
@@ -30,7 +48,7 @@ typedef struct rhea_weakzone_options
   char               *write_points_file_path_txt;
 
   /* data */
-  double             *coordinates;
+  rhea_pointcloud_weakzone_t *pointcloud;
 }
 rhea_weakzone_options_t;
 
@@ -43,7 +61,13 @@ void                rhea_weakzone_add_options (ymir_options_t * opt_sup);
  * Processes options and stores them.
  */
 void                rhea_weakzone_process_options (
-                                                rhea_weakzone_options_t *opt);
+                                        rhea_weakzone_options_t *opt,
+                                        rhea_domain_options_t *domain_options);
+
+/**
+ * Checks whether a weak zone exists for the given set of options.
+ */
+int                 rhea_weakzone_exists (rhea_weakzone_options_t *opt);
 
 /******************************************************************************
  * Weak Zone Vector
@@ -70,7 +94,7 @@ int                 rhea_weakzone_check_vec_type (ymir_vec_t *vec);
 int                 rhea_weakzone_is_valid (ymir_vec_t *vec);
 
 /******************************************************************************
- * Get & Set Functions
+ * Get & Set Values
  *****************************************************************************/
 
 /**
@@ -101,5 +125,16 @@ void                rhea_weakzone_data_create (rhea_weakzone_options_t *opt,
  *
  */
 void                rhea_weakzone_data_clear (rhea_weakzone_options_t *opt);
+
+/******************************************************************************
+ * Weak Zone Computation
+ *****************************************************************************/
+
+void                rhea_weakzone_compute (ymir_vec_t *weakzone,
+                                           rhea_weakzone_options_t *opt);
+
+void                rhea_weakzone_compute_distance (
+                                                ymir_vec_t *distance,
+                                                rhea_weakzone_options_t *opt);
 
 #endif /* RHEA_WEAKZONE_H */

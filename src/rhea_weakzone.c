@@ -12,6 +12,10 @@
  *****************************************************************************/
 
 /* default options */
+#define RHEA_WEAKZONE_DEFAULT_TYPE_NAME "NONE"
+#define RHEA_WEAKZONE_DEFAULT_THICKNESS_M (20.0e3)
+#define RHEA_WEAKZONE_DEFAULT_THICKNESS_CONST_M (5.0e3)
+#define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR (1.0e-5)
 #define RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_BIN NULL
 #define RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_N_POINTS (5000000)
@@ -19,6 +23,13 @@
 #define RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_TXT NULL
 
 /* initialize options */
+char               *rhea_weakzone_type_name = RHEA_WEAKZONE_DEFAULT_TYPE_NAME;
+double              rhea_weakzone_thickness_m =
+  RHEA_WEAKZONE_DEFAULT_THICKNESS_M;
+double              rhea_weakzone_thickness_const_m =
+  RHEA_WEAKZONE_DEFAULT_THICKNESS_CONST_M;
+double              rhea_weakzone_weak_factor_interior =
+  RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR;
 char               *rhea_weakzone_points_file_path_bin =
   RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_BIN;
 char               *rhea_weakzone_points_file_path_txt =
@@ -38,6 +49,21 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
 
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
+
+  YMIR_OPTIONS_S, "type", '\0',
+    &(rhea_weakzone_type_name), RHEA_WEAKZONE_DEFAULT_TYPE_NAME,
+    "Weak zone type name: 'DATA'",
+
+  YMIR_OPTIONS_D, "thickness", '\0',
+    &(rhea_weakzone_thickness_m), RHEA_WEAKZONE_DEFAULT_THICKNESS_M,
+    "Width about center of weak zone [m]",
+  YMIR_OPTIONS_D, "thickness-const", '\0',
+    &(rhea_weakzone_thickness_const_m), RHEA_WEAKZONE_DEFAULT_THICKNESS_CONST_M,
+    "Width of smoothing of edges of weak zone [m]",
+  YMIR_OPTIONS_D, "weak-factor-interior", '\0',
+    &(rhea_weakzone_weak_factor_interior),
+    RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR,
+    "Min weak zone factor, which is assumed in the weak zone's interior",
 
   YMIR_OPTIONS_S, "points-file-path-bin", '\0',
     &(rhea_weakzone_points_file_path_bin),
@@ -72,22 +98,25 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
 }
 
 void
-rhea_weakzone_process_options (rhea_weakzone_options_t *opt)
+rhea_weakzone_process_options (rhea_weakzone_options_t *opt,
+                               rhea_domain_options_t *domain_options)
 {
   /* set weak zone type */
-  //TODO
-//if (strcmp (rhea_viscosity_model_name, "UWYL") == 0) {
-//  opt->model = RHEA_VISCOSITY_MODEL_UWYL;
-//}
-//else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_UCUT") == 0) {
-//  opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT;
-//}
-//else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_USHIFT") == 0) {
-//  opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT;
-//}
-//else { /* unknown model name */
-//  RHEA_ABORT ("Unknown viscosity model name");
-//}
+  if (strcmp (rhea_weakzone_type_name, "NONE") == 0) {
+    opt->type = RHEA_WEAKZONE_NONE;
+  }
+  else if (strcmp (rhea_weakzone_type_name, "data_points") == 0) {
+    opt->type = RHEA_WEAKZONE_DATA_POINTS;
+  }
+  else { /* unknown type name */
+    RHEA_ABORT ("Unknown weak zone type name");
+  }
+
+  /* set (nondimensional) parameters for smoothed weak zones */
+  opt->thickness = rhea_weakzone_thickness_m / domain_options->radius_max_m;
+  opt->thickness_const = rhea_weakzone_thickness_const_m /
+                         domain_options->radius_max_m;
+  opt->weak_factor_interior = rhea_weakzone_weak_factor_interior;
 
   /* set paths to binary & text files of (x,y,z) coordinates */
   opt->points_file_path_bin = rhea_weakzone_points_file_path_bin;
@@ -101,7 +130,21 @@ rhea_weakzone_process_options (rhea_weakzone_options_t *opt)
   opt->write_points_file_path_txt = rhea_weakzone_write_points_file_path_txt;
 
   /* init data */
-  opt->coordinates = NULL;
+  opt->pointcloud = NULL;
+}
+
+int
+rhea_weakzone_exists (rhea_weakzone_options_t *opt)
+{
+  switch (opt->type) {
+  case RHEA_WEAKZONE_NONE:
+    return 0;
+  case RHEA_WEAKZONE_DATA_POINTS:
+    return 1;
+  default: /* unknown weak zone type */
+    RHEA_ABORT_NOT_REACHED ();
+    return 0;
+  }
 }
 
 /******************************************************************************
@@ -140,7 +183,7 @@ rhea_weakzone_is_valid (ymir_vec_t *vec)
 }
 
 /******************************************************************************
- * Get & Set Functions
+ * Get & Set Values
  *****************************************************************************/
 
 double *
@@ -192,66 +235,235 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
   const char         *write_file_path_txt = opt->write_points_file_path_txt;
   const int           n_entries = 3 * opt->n_points;
   int                 n_read;
-  double             *coordinates;
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+  int                 create_coordinates = 0;
+  double             *coordinates = NULL;
+
+//TODO
+//int                 create_labels = 0;
+//int                *labels = NULL;
+
+//TODO
+//int                 create_factors = 0;
+//double             *factors = NULL;
+
+  /* decide what data needs to be created */
+  switch (opt->type) {
+  case RHEA_WEAKZONE_NONE:
+    return;
+  case RHEA_WEAKZONE_DATA_POINTS:
+    create_coordinates = 1;
+    break;
+  default: /* unknown weak zone type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  RHEA_GLOBAL_INFOF ("Into %s (type %i)\n", this_fn_name, opt->type);
 
   /* check input */
   RHEA_ASSERT (0 < opt->n_points);
 
-  /* create coordinates array */
-  opt->coordinates = coordinates = RHEA_ALLOC (double, n_entries);
+  /* create coordinates */
+  if (create_coordinates) {
+    coordinates = RHEA_ALLOC (double, n_entries);
 
-  /* read coordinates of weak zone points */
-  if (file_path_bin != NULL) { /* if read from binary file */
-    n_read = rhea_io_mpi_read_broadcast_double (
-        coordinates, n_entries, file_path_bin, NULL /* path txt */, mpicomm);
-    RHEA_ASSERT (n_entries == n_read);
-  }
-  else if (file_path_txt != NULL) { /* if read from text file */
-    n_read = rhea_io_mpi_read_broadcast_double (
-        coordinates, 0 /* #entries */, NULL /* path bin */, file_path_txt,
-        mpicomm);
-    RHEA_ASSERT (0 < n_read && n_read <= n_entries);
-    RHEA_ASSERT (!(n_read % 3));
-    opt->n_points = n_read / 3;
-  }
-  else { /* otherwise no reading possible */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
-  RHEA_GLOBAL_INFOF ("%s: Number of weak zone points: %i\n", this_fn_name,
-                     opt->n_points);
-
-  /* write weak zone data */
-  if (write_file_path_bin != NULL || write_file_path_txt != NULL) {
-    int                 mpirank, mpiret;
-
-    /* get parallel environment */
-    mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
-
-    /* write coordinates to binary file */
-    if (mpirank == 0 && write_file_path_bin != NULL) {
-      rhea_io_std_write_double (write_file_path_bin, coordinates,
-                                (size_t) 3 * opt->n_points);
+    /* read coordinates of weak zone points */
+    if (file_path_bin != NULL) { /* if read from binary file */
+      n_read = rhea_io_mpi_read_broadcast_double (
+          coordinates, n_entries, file_path_bin, NULL /* path txt */, mpicomm);
+      RHEA_ASSERT (n_entries == n_read);
+    }
+    else if (file_path_txt != NULL) { /* if read from text file */
+      n_read = rhea_io_mpi_read_broadcast_double (
+          coordinates, 0 /* #entries */, NULL /* path bin */, file_path_txt,
+          mpicomm);
+      RHEA_ASSERT (0 < n_read && n_read <= n_entries);
+      RHEA_ASSERT (!(n_read % 3));
+      opt->n_points = n_read / 3;
+    }
+    else { /* otherwise no reading possible */
+      RHEA_ABORT_NOT_REACHED ();
     }
 
-    /* write coordinates to text file */
-    if (mpirank == 0 && write_file_path_txt != NULL) {
-      rhea_io_std_write_double_to_txt (write_file_path_txt, coordinates,
-                                       (size_t) 3 * opt->n_points,
-                                       3 /* entries per line */);
+    RHEA_GLOBAL_INFOF ("%s: Number of weak zone points: %i\n", this_fn_name,
+                       opt->n_points);
+
+    /* write weak zone data */
+    if (write_file_path_bin != NULL || write_file_path_txt != NULL) {
+      int                 mpirank, mpiret;
+
+      /* get parallel environment */
+      mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+
+      /* write coordinates to binary file */
+      if (mpirank == 0 && write_file_path_bin != NULL) {
+        rhea_io_std_write_double (write_file_path_bin, coordinates,
+                                  (size_t) 3 * opt->n_points);
+      }
+
+      /* write coordinates to text file */
+      if (mpirank == 0 && write_file_path_txt != NULL) {
+        rhea_io_std_write_double_to_txt (write_file_path_txt, coordinates,
+                                         (size_t) 3 * opt->n_points,
+                                         3 /* entries per line */);
+      }
     }
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  /* create point cloud */
+  opt->pointcloud = rhea_pointcloud_weakzone_new (coordinates, opt->n_points);
+
+  /* destroy */
+  RHEA_FREE (coordinates);
+
+  RHEA_GLOBAL_INFOF ("Done %s (type %i)\n", this_fn_name, opt->type);
 }
 
 void
 rhea_weakzone_data_clear (rhea_weakzone_options_t *opt)
 {
-  /* destroy */
-  if (opt->coordinates != NULL) {
-    RHEA_FREE (opt->coordinates);
+  if (opt->pointcloud != NULL) {
+    rhea_pointcloud_weakzone_destroy (opt->pointcloud);
+  }
+}
+
+/******************************************************************************
+ * Weak Zone Computation
+ *****************************************************************************/
+
+/**
+ * Computes the distance to the weak zone surface (e.g., shortest distance to
+ * point cloud).
+ */
+static double
+rhea_weakzone_dist_node (const double x, const double y, const double z,
+                         rhea_weakzone_options_t *opt)
+{
+  const double        pt[3] = {x, y, z};
+  double              dist;
+
+  switch (opt->type) {
+  case RHEA_WEAKZONE_DATA_POINTS:
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS:
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
+    RHEA_ASSERT (opt->pointcloud != NULL);
+    dist = rhea_pointcloud_weakzone_find_nearest (NULL, NULL, NULL,
+                                                  opt->pointcloud, pt);
+    break;
+  default: /* unknown weak zone type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+  RHEA_ASSERT (isfinite (dist));
+  RHEA_ASSERT (0.0 <= dist);
+
+  return dist;
+}
+
+/**
+ * Computes the weak zone factor depending on the distance to a weak zone.
+ * The edges of the weak zone are smoothed by a Gaussian.
+ *
+ *   1 - (1 - weak_factor_interior) * exp ( - dist^2 / (2 * (0.5*thickness)^2) )
+ */
+static double
+rhea_weakzone_factor_node (const double distance,
+                           const double thickness,
+                           const double thickness_const,
+                           const double weak_factor_interior)
+{
+  const double        d = distance - 0.5 * thickness_const;
+  const double        std_dev = 0.5 * (thickness - thickness_const);
+
+  /* check input */
+  RHEA_ASSERT (isfinite (distance));
+  RHEA_ASSERT (0.0 <= distance);
+  RHEA_ASSERT (thickness_const <= thickness);
+
+  if (d <= 0.0) {
+    /* return value inside zone with constant weak factor */
+    return weak_factor_interior;
+  }
+  else {
+    /* return smoothed weak zone */
+    return 1.0 - (1.0 - weak_factor_interior) *
+                 exp (-d*d / (2.0 * std_dev*std_dev));
+  }
+}
+
+/**
+ * Computes the value of the weak zone at given coordinates.
+ */
+static double
+rhea_weakzone_node (const double x, const double y, const double z,
+                    rhea_weakzone_options_t *opt)
+{
+  const double        thickness = opt->thickness;
+  const double        thickness_const = opt->thickness_const;
+  const double        weak_factor_interior = opt->weak_factor_interior;
+  double              distance;
+
+  distance = rhea_weakzone_dist_node (x, y, z, opt);
+  return rhea_weakzone_factor_node (distance, thickness, thickness_const,
+                                    weak_factor_interior);
+}
+
+static void
+rhea_weakzone_node_fn (double *w, double x, double y, double z,
+                       ymir_locidx_t nid, void *data)
+{
+  rhea_weakzone_options_t *opt = data;
+
+  *w = rhea_weakzone_node (x, y, z, opt);
+}
+
+void
+rhea_weakzone_compute (ymir_vec_t *weakzone, rhea_weakzone_options_t *opt)
+{
+  /* check input */
+  RHEA_ASSERT (opt->type == RHEA_WEAKZONE_NONE || weakzone != NULL);
+
+  switch (opt->type) {
+  case RHEA_WEAKZONE_NONE:
+    if (weakzone != NULL) {
+      ymir_vec_set_value (weakzone, 1.0);
+    }
+    break;
+  case RHEA_WEAKZONE_DATA_POINTS:
+    ymir_dvec_set_function (weakzone, rhea_weakzone_node_fn, opt);
+    break;
+  default: /* unknown weak zone type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+static void
+rhea_weakzone_dist_node_fn (double *dist, double x, double y, double z,
+                            ymir_locidx_t nid, void *data)
+{
+  rhea_weakzone_options_t *opt = data;
+
+  *dist = rhea_weakzone_dist_node (x, y, z, opt);
+}
+
+void
+rhea_weakzone_compute_distance (ymir_vec_t *distance,
+                                rhea_weakzone_options_t *opt)
+{
+  /* check input */
+  RHEA_ASSERT (opt->type == RHEA_WEAKZONE_NONE || distance != NULL);
+
+  switch (opt->type) {
+  case RHEA_WEAKZONE_NONE:
+    if (distance != NULL) {
+      ymir_vec_set_value (distance, NAN);
+    }
+    break;
+  case RHEA_WEAKZONE_DATA_POINTS:
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS:
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
+    ymir_dvec_set_function (distance, rhea_weakzone_dist_node_fn, opt);
+    break;
+  default: /* unknown weak zone type */
+    RHEA_ABORT_NOT_REACHED ();
   }
 }
