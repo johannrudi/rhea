@@ -117,7 +117,7 @@ main (int argc, char **argv)
     rhea_weakzone_compute_distance (distance, &weak_options);
 
     snprintf (path, BUFSIZ, "%s_weakzone", vtk_write_input_path);
-    ymir_vtk_write (ymir_mesh, path, distance, "weakzone_distance", NULL);
+    ymir_vtk_write (ymir_mesh, path, distance, "distance", NULL);
 
     rhea_weakzone_destroy (distance);
   }
