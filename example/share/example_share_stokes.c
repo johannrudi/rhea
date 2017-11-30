@@ -37,7 +37,13 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   rhea_temperature_compute (temperature, temp_options);
 
   /* compute weak zone */
-  weakzone = NULL; //TODO
+  if (rhea_weakzone_exists (weak_options)) {
+    weakzone = rhea_weakzone_new (ymir_mesh);
+    rhea_weakzone_compute (weakzone, weak_options);
+  }
+  else {
+    weakzone = NULL;
+  }
 
   /* create velocity right-hand side volume forcing */
   rhs_vel = rhea_velocity_new (ymir_mesh);
