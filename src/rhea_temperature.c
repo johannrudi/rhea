@@ -5,6 +5,7 @@
 #include <rhea_base.h>
 #include <rhea_io_mpi.h>
 #include <ymir_vec_getset.h>
+#include <ymir_comm.h>
 
 /* constant: seconds in a year (= 365.25*24*3600) */
 #define RHEA_TEMPERATURE_SECONDS_PER_YEAR (31557600.0)
@@ -937,73 +938,78 @@ rhea_temperature_compute_fn (double *temp, double x, double y, double z,
   *temp = rhea_temperature_node (x, y, z, opt);
 }
 
+static void
+rhea_temperature_read (ymir_vec_t *temperature)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (temperature);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpisize, mpiret;
+
+  char               *file_path_bin;
+  char               *file_path_txt;
+  double             *temp_data = ymir_cvec_index (temperature, 0, 0);
+  int                *segment_offset;
+  int                 r;
+
+  /* set file paths */
+  if (rhea_temperature_data_file_path_bin != NULL) {
+    file_path_bin = rhea_temperature_data_file_path_bin;
+    file_path_txt = NULL;
+  }
+  else if (rhea_temperature_data_file_path_txt != NULL) {
+    file_path_bin = rhea_temperature_write_data_file_path_bin;
+    file_path_txt = rhea_temperature_data_file_path_txt;
+  }
+  else { /* unknown file path */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* get parallel environment */
+  mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
+
+  /* create segment offsets */
+  segment_offset = RHEA_ALLOC (int, mpisize + 1);
+  segment_offset[0] = 0;
+  for (r = 0; r < mpisize; r++) {
+    RHEA_ASSERT ((segment_offset[r] + n_nodes[r]) <= INT_MAX);
+    segment_offset[r+1] = segment_offset[r] + (int) n_nodes[r];
+  }
+
+  /* read temperature */
+  rhea_io_mpi_read_scatter_double (temp_data, segment_offset,
+                                   file_path_bin, file_path_txt, mpicomm);
+  RHEA_FREE (segment_offset);
+
+  /* communicate shared node values */
+  ymir_vec_share_owned (temperature);
+}
+
 void
 rhea_temperature_compute (ymir_vec_t *temperature,
                           rhea_temperature_options_t *opt)
 {
   switch (opt->type) {
   case RHEA_TEMPERATURE_DATA:
-    {
-      ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (temperature);
-      const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
-      sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
-      int                 mpisize, mpiret;
+    /* read temperature */
+    rhea_temperature_read (temperature);
 
-      char               *file_path_bin;
-      char               *file_path_txt;
-      double             *temp_data = ymir_cvec_index (temperature, 0, 0);
-      int                *segment_offset;
-      int                 r;
+    /* multiply in sinker/plume anomalies */
+    ymir_cvec_set_function (temperature,
+                            rhea_temperature_anomaly_multiply_in_fn, opt);
 
-      /* set file paths */
-      if (rhea_temperature_data_file_path_bin != NULL) {
-        file_path_bin = rhea_temperature_data_file_path_bin;
-        file_path_txt = NULL;
-      }
-      else if (rhea_temperature_data_file_path_txt != NULL) {
-        file_path_bin = rhea_temperature_write_data_file_path_bin;
-        file_path_txt = rhea_temperature_data_file_path_txt;
-      }
-      else { /* unknown file path */
-        RHEA_ABORT_NOT_REACHED ();
-      }
-
-      /* get parallel environment */
-      mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
-
-      /* create segment offsets */
-      segment_offset = RHEA_ALLOC (int, mpisize + 1);
-      segment_offset[0] = 0;
-      for (r = 0; r < mpisize; r++) {
-        RHEA_ASSERT ((segment_offset[r] + n_nodes[r]) <= INT_MAX);
-        segment_offset[r+1] = segment_offset[r] + (int) n_nodes[r];
-      }
-
-      /* read temperature */
-      rhea_io_mpi_read_scatter_double (temp_data, segment_offset,
-                                       file_path_bin, file_path_txt, mpicomm);
-      RHEA_FREE (segment_offset);
-
-      /* communicate shared node values */
-      ymir_vec_share_owned (temperature);
-
-      /* multiply in sinker/plume anomalies */
-      ymir_cvec_set_function (temperature,
-                              rhea_temperature_anomaly_multiply_in_fn, opt);
-
-      /* scale and shift */
-      if (isfinite (opt->scale)) {
-        ymir_vec_scale (opt->scale, temperature);
-      }
-      if (isfinite (opt->shift)) {
-        ymir_vec_shift (opt->shift, temperature);
-      }
-
-      /* bound temperature to valid interval */
-      //TODO create separate fnc, use in amr
-      ymir_vec_bound_min (temperature, 0.0);
-      ymir_vec_bound_max (temperature, 1.0);
+    /* scale and shift */
+    if (isfinite (opt->scale)) {
+      ymir_vec_scale (opt->scale, temperature);
     }
+    if (isfinite (opt->shift)) {
+      ymir_vec_shift (opt->shift, temperature);
+    }
+
+    /* bound temperature to valid interval */
+    //TODO create separate fnc, use in amr
+    ymir_vec_bound_min (temperature, 0.0);
+    ymir_vec_bound_max (temperature, 1.0);
     break;
   case RHEA_TEMPERATURE_NONE:
   case RHEA_TEMPERATURE_COLD_PLATE:
