@@ -1175,7 +1175,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   const char         *this_fn_name = "collide_setup_stokes";
   ymir_vec_t         *temperature;
   ymir_vec_t         *coeff_TI_svisc, *TI_rotate = NULL;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
   void               *solver_options = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
@@ -1183,14 +1183,6 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
   rhea_temperature_compute (temperature, temp_options);
-
-  /* set custom function to compute viscosity */
-  rhea_viscosity_set_viscosity_compute_fn (collide_viscosity_compute,
-                                           collide_options);
-
-  /* compute velocity right-hand side volume forcing */
-  rhs_vel = rhea_velocity_new (ymir_mesh);
-  rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
 
   /* set velocity boundary conditions & nonzero Dirichlet values */
   if (domain_options->velocity_bc_type == RHEA_DOMAIN_VELOCITY_BC_USER) {
@@ -1242,11 +1234,17 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
     rhs_vel_nonzero_dirichlet = NULL;
   }
 
-
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      temperature, rhs_vel, rhs_vel_nonzero_dirichlet, ymir_mesh, press_elem,
-      domain_options, weak_options, visc_options, solver_options);
+      ymir_mesh, press_elem, temperature, domain_options, temp_options,
+      weak_options, visc_options, solver_options);
+
+  /* set custom function to compute viscosity */
+  rhea_stokes_prbolem_set_viscosity_compute_fn (
+      *stokes_problem, collide_viscosity_compute, collide_options);
+
+  /* set custom function to compute RHS velocity for nonzero Dirichlet BC's */
+  //TODO
 
   /* add the anisotropic viscosity to the viscous stress operator */
   if (collide_options->viscosity_anisotropy == COLLIDE_VISC_TRANSVERSELY_ISOTROPY) {
@@ -1306,15 +1304,11 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
   const char         *this_fn_name = "collide_setup_clear_all";
   ymir_vec_t         *temperature;
   ymir_vec_t         *visc_TI_svisc;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
 
   RHEA_GLOBAL_PRODUCTIONF ("into %s\n", this_fn_name);
 
   /* get vectors */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
-  rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
-  rhs_vel_nonzero_dirichlet =
-    rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
 
   /* destroy anisotropic viscosity */
   {
@@ -1335,12 +1329,6 @@ collide_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
   /* destroy vectors */
   if (temperature != NULL) {
     rhea_temperature_destroy (temperature);
-  }
-  if (rhs_vel != NULL) {
-    rhea_velocity_destroy (rhs_vel);
-  }
-  if (rhs_vel_nonzero_dirichlet != NULL) {
-    rhea_velocity_destroy (rhs_vel_nonzero_dirichlet);
   }
 
   /* destroy mesh */
