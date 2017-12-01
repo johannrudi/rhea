@@ -3,6 +3,7 @@
 
 #include <rhea_velocity.h>
 #include <rhea_base.h>
+#include <rhea_temperature.h>
 #include <ymir_vec_getset.h>
 #include <ymir_velocity_elem.h>
 
@@ -35,7 +36,7 @@ rhea_velocity_is_valid (ymir_vec_t *vec)
 }
 
 /******************************************************************************
- * Get & Set Functions
+ * Get & Set Values
  *****************************************************************************/
 
 void
@@ -56,4 +57,17 @@ rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
   /* interpolate from continuous nodes to discontinuous GLL nodes */
   ymir_cvec_get_elem_interp (vel_vec, vel_el_mat, YMIR_STRIDE_NODE,
                              elid, YMIR_GLL_NODE, YMIR_READ);
+}
+
+/******************************************************************************
+ * Right-Hand Side Computation
+ *****************************************************************************/
+
+void
+rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel, ymir_vec_t *temperature,
+                           void *data)
+{
+  rhea_temperature_options_t *temp_options = data;
+
+  rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
 }
