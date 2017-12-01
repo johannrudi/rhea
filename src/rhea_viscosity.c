@@ -1450,18 +1450,6 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
  * Viscosity Computation
  *****************************************************************************/
 
-/* callback function for computing the viscosity */
-rhea_viscosity_compute_fn_t   rhea_viscosity_compute_fn = NULL;
-void                         *rhea_viscosity_compute_fn_data = NULL;
-
-void
-rhea_viscosity_set_viscosity_compute_fn (rhea_viscosity_compute_fn_t fn,
-                                         void *data)
-{
-  rhea_viscosity_compute_fn = fn;
-  rhea_viscosity_compute_fn_data = data;
-}
-
 void
 rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *proj_scal,
@@ -1470,16 +1458,9 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *temperature,
                         ymir_vec_t *weakzone,
                         ymir_vec_t *velocity,
-                        rhea_viscosity_options_t *opt)
+                        void *data)
 {
-  /* compute custom viscosity and exit */
-  if (rhea_viscosity_compute_fn != NULL) {
-    rhea_viscosity_compute_fn (viscosity, proj_scal, bounds_marker,
-                               yielding_marker, temperature, weakzone,
-                               velocity, opt, rhea_viscosity_compute_fn_data);
-    RHEA_ASSERT (rhea_viscosity_is_valid (viscosity));
-    return;
-  }
+  rhea_viscosity_options_t *opt = data;
 
   switch (opt->type) {
   case RHEA_VISCOSITY_LINEAR:
@@ -1509,9 +1490,6 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
   RHEA_ASSERT (rhea_viscosity_is_valid (viscosity));
 }
 
-/**
- * Computes viscosity to initialize a nonlinear solver with zero velocity.
- */
 void
 rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
                                        ymir_vec_t *proj_scal,
@@ -1519,8 +1497,9 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
                                        ymir_vec_t *yielding_marker,
                                        ymir_vec_t *temperature,
                                        ymir_vec_t *weakzone,
-                                       rhea_viscosity_options_t *opt)
+                                       void *data)
 {
+  rhea_viscosity_options_t *opt = data;
   const rhea_viscosity_nonlinear_init_t  type = opt->type_nonlinear_init;
 
   switch (type) {
@@ -1753,7 +1732,7 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
 }
 
 /******************************************************************************
- * Get & Set Values of Viscosity
+ * Get & Set Values
  *****************************************************************************/
 
 double *

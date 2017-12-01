@@ -165,18 +165,7 @@ typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
                                                   ymir_vec_t *temperature,
                                                   ymir_vec_t *weakzone,
                                                   ymir_vec_t *velocity,
-                                                  rhea_viscosity_options_t *opt,
                                                   void *data);
-
-/**
- * Sets a custom function that is called whenever the viscosity is computed.
- *
- * \param [in] fn   Function name
- * \param [in] data Function data (may be NULL)
- */
-void                rhea_viscosity_set_viscosity_compute_fn (
-                                                rhea_viscosity_compute_fn_t fn,
-                                                void *data);
 
 /**
  * Computes the viscosity.
@@ -201,7 +190,7 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
                                             ymir_vec_t *temperature,
                                             ymir_vec_t *weakzone,
                                             ymir_vec_t *velocity,
-                                            rhea_viscosity_options_t *opt);
+                                            void *data);
 
 /**
  * Computes the viscosity to initialize a nonlinear solver with zero velocity.
@@ -224,7 +213,7 @@ void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *yielding_marker,
                                                ymir_vec_t *temperature,
                                                ymir_vec_t *weakzone,
-                                               rhea_viscosity_options_t *opt);
+                                               void *data);
 
 /******************************************************************************
  * Get & Set
@@ -295,7 +284,7 @@ double              rhea_viscosity_get_visc_shift_proj (
                                                rhea_viscosity_options_t *opt);
 
 /******************************************************************************
- * Get & Set Values of Viscosity
+ * Get & Set Values
  *****************************************************************************/
 
 /**
