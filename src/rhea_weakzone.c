@@ -69,7 +69,6 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
     &(rhea_weakzone_points_file_path_bin),
     RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_BIN,
     "Path to a binary file with (x,y,z) coordinates of weak zone points",
-
   YMIR_OPTIONS_S, "points-file-path-txt", '\0',
     &(rhea_weakzone_points_file_path_txt),
     RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_TXT,
@@ -83,7 +82,6 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
     &(rhea_weakzone_write_points_file_path_bin),
     RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_BIN,
     "Output path for a binary file with weak zone points",
-
   YMIR_OPTIONS_S, "write-points-file-path-txt", '\0',
     &(rhea_weakzone_write_points_file_path_txt),
     RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_TXT,
@@ -425,8 +423,10 @@ rhea_weakzone_node_fn (double *w, double x, double y, double z,
 }
 
 void
-rhea_weakzone_compute (ymir_vec_t *weakzone, rhea_weakzone_options_t *opt)
+rhea_weakzone_compute (ymir_vec_t *weakzone, void *data)
 {
+  rhea_weakzone_options_t *opt = data;
+
   /* check input */
   RHEA_ASSERT (opt->type == RHEA_WEAKZONE_NONE || weakzone != NULL);
 

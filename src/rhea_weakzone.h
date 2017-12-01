@@ -133,8 +133,10 @@ void                rhea_weakzone_data_clear (rhea_weakzone_options_t *opt);
  * Weak Zone Computation
  *****************************************************************************/
 
-void                rhea_weakzone_compute (ymir_vec_t *weakzone,
-                                           rhea_weakzone_options_t *opt);
+typedef void      (*rhea_weakzone_compute_fn_t) (ymir_vec_t *weakzone,
+                                                 void *data);
+
+void                rhea_weakzone_compute (ymir_vec_t *weakzone, void *data);
 
 void                rhea_weakzone_compute_distance (
                                                 ymir_vec_t *distance,
