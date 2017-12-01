@@ -5,6 +5,7 @@
 #define RHEA_STOKES_PROBLEM_H
 
 #include <rhea_domain.h>
+#include <rhea_temperature.h>
 #include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
@@ -36,12 +37,11 @@ typedef struct rhea_stokes_problem rhea_stokes_problem_t;
  * Creates/destroys a Stokes problem.
  */
 rhea_stokes_problem_t *rhea_stokes_problem_new (
-                                    ymir_vec_t *temperature,
-                                    ymir_vec_t *rhs_vel,
-                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
+                                    ymir_vec_t *temperature,
                                     rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options,
                                     rhea_weakzone_options_t *weak_options,
                                     rhea_viscosity_options_t *visc_options,
                                     void *solver_options);
@@ -109,7 +109,6 @@ void                rhea_stokes_problem_remove_velocity_pressure (
 
 rhea_domain_options_t    *rhea_stokes_problem_get_domain_options (
                                     rhea_stokes_problem_t *stokes_problem);
-
 rhea_viscosity_options_t *rhea_stokes_problem_get_viscosity_options (
                                     rhea_stokes_problem_t *stokes_problem);
 
@@ -117,13 +116,29 @@ void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 
-//TODO
 ymir_vec_t         *rhea_stokes_problem_get_weakzone (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
+
+void                rhea_stokes_prbolem_set_weakzone_compute_fn (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_weakzone_compute_fn_t fn,
+                                    void *data);
+void                rhea_stokes_prbolem_set_viscosity_compute_fn (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_viscosity_compute_fn_t fn,
+                                    void *data);
+void                rhea_stokes_prbolem_set_rhs_vel_compute_fn (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_velocity_rhs_compute_fn_t fn,
+                                    void *data);
+void                rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_velocity_rhs_nz_dir_compute_fn_t fn,
+                                    void *data);
 
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
                                     rhea_stokes_problem_t *stokes_problem);
