@@ -46,33 +46,6 @@ typedef struct rhea_stokes_problem_amr_data
 }
 rhea_stokes_problem_amr_data_t;
 
-//TODO deprecated
-static void
-rhea_stokes_problem_amr_data_stokes_clear (
-                                      rhea_stokes_problem_amr_data_t *amr_data)
-{
-  rhea_stokes_problem_t  *stokes_problem = amr_data->stokes_problem;
-  ymir_vec_t         *weakzone;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
-
-  /* get vectors */
-  weakzone = rhea_stokes_problem_get_weakzone (stokes_problem);
-  rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
-  rhs_vel_nonzero_dirichlet =
-    rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
-
-  /* destroy vectors */
-  if (weakzone != NULL) {
-    rhea_weakzone_destroy (weakzone);
-  }
-  if (rhs_vel != NULL) {
-    rhea_velocity_destroy (rhs_vel);
-  }
-  if (rhs_vel_nonzero_dirichlet != NULL) {
-    rhea_velocity_destroy (rhs_vel_nonzero_dirichlet);
-  }
-}
-
 static void
 rhea_stokes_problem_amr_data_clear_fields (
                                       rhea_stokes_problem_amr_data_t *amr_data)
@@ -387,7 +360,6 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
 
   /* destroy */
   rhea_stokes_problem_amr_data_clear_fields (d);
-  rhea_stokes_problem_amr_data_stokes_clear (d); //TODO remove
   rhea_stokes_problem_clear_mesh_dependencies (d->stokes_problem);
 
   /*
