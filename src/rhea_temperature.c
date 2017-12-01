@@ -3,6 +3,7 @@
 
 #include <rhea_temperature.h>
 #include <rhea_base.h>
+#include <rhea_io_mpi.h>
 #include <ymir_vec_getset.h>
 
 /* constant: seconds in a year (= 365.25*24*3600) */
@@ -13,12 +14,16 @@
  *****************************************************************************/
 
 /* default options */
-#define RHEA_TEMPERATURE_DEFAULT_TYPE_NAME "none"
+#define RHEA_TEMPERATURE_DEFAULT_TYPE_NAME "NONE"
 #define RHEA_TEMPERATURE_DEFAULT_SCALE (1.0)
 #define RHEA_TEMPERATURE_DEFAULT_SHIFT (0.0)
 #define RHEA_TEMPERATURE_DEFAULT_COLD_PLATE_AGE_YR (50.0e6)        /* [yr] */
 #define RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S (1.0e-6) /* [m^2/s] */
 #define RHEA_TEMPERATURE_DEFAULT_RHS_SCALING (1.0)
+#define RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_BIN NULL
+#define RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_TXT NULL
+#define RHEA_TEMPERATURE_DEFAULT_WRITE_DATA_FILE_PATH_BIN NULL
+
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_ACTIVE (0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_RANDOM_COUNT (0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_DECAY (100.0)
@@ -31,6 +36,7 @@
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_X (0.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Y (0.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Z (0.0)
+
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE (0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_RANDOM_COUNT (0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY (100.0)
@@ -55,6 +61,12 @@ double              rhea_temperature_thermal_diffusivity_m2_s =
   RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S;
 double              rhea_temperature_rhs_scaling =
   RHEA_TEMPERATURE_DEFAULT_RHS_SCALING;
+char               *rhea_temperature_data_file_path_bin =
+  RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_BIN;
+char               *rhea_temperature_data_file_path_txt =
+  RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_TXT;
+char               *rhea_temperature_write_data_file_path_bin =
+  RHEA_TEMPERATURE_DEFAULT_WRITE_DATA_FILE_PATH_BIN;
 
 int                 rhea_temperature_sinker_active =
   RHEA_TEMPERATURE_SINKER_DEFAULT_ACTIVE;
@@ -117,7 +129,7 @@ rhea_temperature_add_options (ymir_options_t * opt_sup)
 
   YMIR_OPTIONS_S, "type", '\0',
     &(rhea_temperature_type_name), RHEA_TEMPERATURE_DEFAULT_TYPE_NAME,
-    "Type of temperature: none, import, cold_plate, 2plates_poly2",
+    "Type of temperature: NONE, data, cold_plate, 2plates_poly2",
 
   YMIR_OPTIONS_D, "scale", '\0',
     &(rhea_temperature_scale), RHEA_TEMPERATURE_DEFAULT_SCALE,
@@ -139,6 +151,19 @@ rhea_temperature_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "right-hand-side-scaling", '\0',
     &(rhea_temperature_rhs_scaling), RHEA_TEMPERATURE_DEFAULT_RHS_SCALING,
     "Scaling factor for velocity right-hand side from temperature",
+
+  YMIR_OPTIONS_S, "data-file-path-bin", '\0',
+    &(rhea_temperature_data_file_path_bin),
+    RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_BIN,
+    "Path to a binary file that contains a temperature field",
+  YMIR_OPTIONS_S, "data-file-path-txt", '\0',
+    &(rhea_temperature_data_file_path_txt),
+    RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_TXT,
+    "Path to a text file that contains a temperature field",
+  YMIR_OPTIONS_S, "write-data-file-path-bin", '\0',
+    &(rhea_temperature_write_data_file_path_bin),
+    RHEA_TEMPERATURE_DEFAULT_WRITE_DATA_FILE_PATH_BIN,
+    "Output path for a binary file containing a temperature field",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -283,11 +308,11 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
                                   rhea_domain_options_t *domain_options)
 {
   /* set temperature type */
-  if (strcmp (rhea_temperature_type_name, "none") == 0) {
+  if (strcmp (rhea_temperature_type_name, "NONE") == 0) {
     opt->type = RHEA_TEMPERATURE_NONE;
   }
-  else if (strcmp (rhea_temperature_type_name, "import") == 0) {
-    opt->type = RHEA_TEMPERATURE_IMPORT;
+  else if (strcmp (rhea_temperature_type_name, "data") == 0) {
+    opt->type = RHEA_TEMPERATURE_DATA;
   }
   else if (strcmp (rhea_temperature_type_name, "cold_plate") == 0) {
     opt->type = RHEA_TEMPERATURE_COLD_PLATE;
@@ -374,6 +399,48 @@ rhea_temperature_is_valid (ymir_vec_t *vec)
       sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff) &&
       0.0 <= ymir_cvec_min_global (vec) && ymir_cvec_max_global (vec) <= 1.0
   );
+}
+
+/******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
+
+/**
+ * Restrict temperature to its valid range [0,1].
+ */
+static void
+rhea_temperature_bound_range_data (double *_sc_restrict temp_data,
+                                   const sc_bint_t size)
+{
+  sc_bint_t           i;
+
+  for (i = 0; i < size; i++) {
+    RHEA_ASSERT (isfinite (temp_data[i]));
+    temp_data[i] = SC_MAX (0.0, SC_MIN (temp_data[i], 1.0));
+  }
+}
+
+double *
+rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
+                                 ymir_vec_t *temp_vec,
+                                 const ymir_locidx_t elid)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (temp_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  RHEA_ASSERT (rhea_temperature_check_vec_type (temp_vec));
+  RHEA_ASSERT (temp_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (temp_el_mat->n == 1);
+
+  /* interpolate from continuous nodes to (discontinuous) Gauss nodes */
+  ymir_cvec_get_elem_interp (temp_vec, temp_el_mat, YMIR_STRIDE_NODE, elid,
+                             YMIR_GAUSS_NODE, YMIR_READ);
+
+  /* restrict temperature to valid range to account for interpolation erros */
+  rhea_temperature_bound_range_data (temp_el_mat->e[0], n_nodes_per_el);
+
+  return temp_el_mat->e[0];
 }
 
 /******************************************************************************
@@ -729,6 +796,84 @@ rhea_temperature_plume_random (const int n_plumes,
  *****************************************************************************/
 
 /**
+ * Sets multiplier for sinker anomalies and plume anomalies.
+ */
+static double
+rhea_temperature_anomaly_multiplier (const double x, const double y,
+                                     const double z,
+                                     rhea_temperature_options_t *opt)
+{
+  double              mult = 1.0;
+
+  /* multiply in sinker anomaly */
+  if (opt->sinker_active) {
+    const double        decay = opt->sinker_decay;
+    const double        width = opt->sinker_width;
+    const double        scaling = opt->sinker_scaling;
+
+    if (0 < opt->sinker_random_count) { /* if multiple randomly placed */
+      const double        dilat = opt->sinker_dilatation;
+      const double        transl_x = opt->sinker_translation_x;
+      const double        transl_y = opt->sinker_translation_y;
+      const double        transl_z = opt->sinker_translation_z;
+
+      mult *= rhea_temperature_sinker_random (
+          opt->sinker_random_count, x, y, z,
+          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
+    }
+    else { /* if single sinker */
+      const double        center_x = opt->sinker_center_x;
+      const double        center_y = opt->sinker_center_y;
+      const double        center_z = opt->sinker_center_z;
+
+      mult *= rhea_temperature_sinker (
+          x, y, z, center_x, center_y, center_z, decay, width, scaling);
+    }
+  }
+
+  /* multiply in plume anomaly */
+  if (opt->plume_active) {
+    const double        decay = opt->plume_decay;
+    const double        width = opt->plume_width;
+    const double        scaling = opt->plume_scaling;
+
+    if (0 < opt->plume_random_count) { /* if multiple randomly placed */
+      const double        dilat = opt->plume_dilatation;
+      const double        transl_x = opt->plume_translation_x;
+      const double        transl_y = opt->plume_translation_y;
+      const double        transl_z = opt->plume_translation_z;
+
+      mult *= rhea_temperature_plume_random (
+          opt->plume_random_count, x, y, z,
+          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
+    }
+    else { /* if single plume */
+      const double        center_x = opt->plume_center_x;
+      const double        center_y = opt->plume_center_y;
+      const double        center_z = opt->plume_center_z;
+
+      mult *= rhea_temperature_plume (
+          x, y, z, center_x, center_y, center_z, decay, width, scaling);
+    }
+  }
+
+  return mult;
+}
+
+/**
+ * Callback function to multiply in anomalies.
+ */
+static void
+rhea_temperature_anomaly_multiply_in_fn (double *temp, double x, double y,
+                                         double z, ymir_locidx_t nodeid,
+                                         void *data)
+{
+  rhea_temperature_options_t  *opt = data;
+
+  *temp *= rhea_temperature_anomaly_multiplier (x, y, z, opt);
+}
+
+/**
  * Computes the temperature at one node.
  */
 static double
@@ -759,57 +904,8 @@ rhea_temperature_node (const double x, const double y, const double z,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  /* multiply in sinker anomaly */
-  if (opt->sinker_active) {
-    const double        decay = opt->sinker_decay;
-    const double        width = opt->sinker_width;
-    const double        scaling = opt->sinker_scaling;
-
-    if (0 < opt->sinker_random_count) { /* if multiple randomly placed */
-      const double        dilat = opt->sinker_dilatation;
-      const double        transl_x = opt->sinker_translation_x;
-      const double        transl_y = opt->sinker_translation_y;
-      const double        transl_z = opt->sinker_translation_z;
-
-      temp *= rhea_temperature_sinker_random (
-          opt->sinker_random_count, x, y, z,
-          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
-    }
-    else { /* if single sinker */
-      const double        center_x = opt->sinker_center_x;
-      const double        center_y = opt->sinker_center_y;
-      const double        center_z = opt->sinker_center_z;
-
-      temp *= rhea_temperature_sinker (
-          x, y, z, center_x, center_y, center_z, decay, width, scaling);
-    }
-  }
-
-  /* multiply in plume anomaly */
-  if (opt->plume_active) {
-    const double        decay = opt->plume_decay;
-    const double        width = opt->plume_width;
-    const double        scaling = opt->plume_scaling;
-
-    if (0 < opt->plume_random_count) { /* if multiple randomly placed */
-      const double        dilat = opt->plume_dilatation;
-      const double        transl_x = opt->plume_translation_x;
-      const double        transl_y = opt->plume_translation_y;
-      const double        transl_z = opt->plume_translation_z;
-
-      temp *= rhea_temperature_plume_random (
-          opt->plume_random_count, x, y, z,
-          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
-    }
-    else { /* if single plume */
-      const double        center_x = opt->plume_center_x;
-      const double        center_y = opt->plume_center_y;
-      const double        center_z = opt->plume_center_z;
-
-      temp *= rhea_temperature_plume (
-          x, y, z, center_x, center_y, center_z, decay, width, scaling);
-    }
-  }
+  /* multiply in sinker/plume anomalies */
+  temp *= rhea_temperature_anomaly_multiplier (x, y, z, opt);
 
   /* scale and shift */
   if (isfinite (opt->scale)) {
@@ -819,13 +915,13 @@ rhea_temperature_node (const double x, const double y, const double z,
     temp += opt->shift;
   }
 
-  /* check background temperature for `nan` and `inf` */
+  /* check temperature for `nan` and `inf` */
   RHEA_ASSERT (isfinite (temp));
 
-  /* bound background temperature to valid interval */
+  /* bound temperature to valid interval */
   temp = SC_MAX (0.0, SC_MIN (temp, 1.0));
 
-  /* return background temperature */
+  /* return temperature */
   return temp;
 }
 
@@ -845,7 +941,77 @@ void
 rhea_temperature_compute (ymir_vec_t *temperature,
                           rhea_temperature_options_t *opt)
 {
-  ymir_cvec_set_function (temperature, rhea_temperature_compute_fn, opt);
+  switch (opt->type) {
+  case RHEA_TEMPERATURE_DATA:
+    {
+      ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (temperature);
+      const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+      sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+      int                 mpisize, mpiret;
+
+      char               *file_path_bin;
+      char               *file_path_txt;
+      double             *temp_data = ymir_cvec_index (temperature, 0, 0);
+      int                *segment_offset;
+      int                 r;
+
+      /* set file paths */
+      if (rhea_temperature_data_file_path_bin != NULL) {
+        file_path_bin = rhea_temperature_data_file_path_bin;
+        file_path_txt = NULL;
+      }
+      else if (rhea_temperature_data_file_path_txt != NULL) {
+        file_path_bin = rhea_temperature_write_data_file_path_bin;
+        file_path_txt = rhea_temperature_data_file_path_txt;
+      }
+      else { /* unknown file path */
+        RHEA_ABORT_NOT_REACHED ();
+      }
+
+      /* get parallel environment */
+      mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
+
+      /* create segment offsets */
+      segment_offset = RHEA_ALLOC (int, mpisize + 1);
+      segment_offset[0] = 0;
+      for (r = 0; r < mpisize; r++) {
+        RHEA_ASSERT ((segment_offset[r] + n_nodes[r]) <= INT_MAX);
+        segment_offset[r+1] = segment_offset[r] + (int) n_nodes[r];
+      }
+
+      /* read temperature */
+      rhea_io_mpi_read_scatter_double (temp_data, segment_offset,
+                                       file_path_bin, file_path_txt, mpicomm);
+      RHEA_FREE (segment_offset);
+
+      /* communicate shared node values */
+      ymir_vec_share_owned (temperature);
+
+      /* multiply in sinker/plume anomalies */
+      ymir_cvec_set_function (temperature,
+                              rhea_temperature_anomaly_multiply_in_fn, opt);
+
+      /* scale and shift */
+      if (isfinite (opt->scale)) {
+        ymir_vec_scale (opt->scale, temperature);
+      }
+      if (isfinite (opt->shift)) {
+        ymir_vec_shift (opt->shift, temperature);
+      }
+
+      /* bound temperature to valid interval */
+      //TODO create separate fnc, use in amr
+      ymir_vec_bound_min (temperature, 0.0);
+      ymir_vec_bound_max (temperature, 1.0);
+    }
+    break;
+  case RHEA_TEMPERATURE_NONE:
+  case RHEA_TEMPERATURE_COLD_PLATE:
+    ymir_cvec_set_function (temperature, rhea_temperature_compute_fn, opt);
+    break;
+  default: /* unknown temperature type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 /******************************************************************************
@@ -867,6 +1033,7 @@ rhea_temperature_background_node (const double x, const double y,
   case RHEA_TEMPERATURE_NONE:
     back_temp = RHEA_TEMPERATURE_NEUTRAL_VALUE;
     break;
+  case RHEA_TEMPERATURE_DATA:
   case RHEA_TEMPERATURE_COLD_PLATE:
     {
       const double        radius_max = domain_options->radius_max;
@@ -1020,46 +1187,4 @@ rhea_temperature_compute_rhs_vel (ymir_vec_t *rhs_vel,
   data.temperature = temperature;
   data.temp_options = opt;
   ymir_cvec_set_function (rhs_vel, rhea_temperature_compute_rhs_vel_fn, &data);
-}
-
-/******************************************************************************
- * Get & Set Functions
- *****************************************************************************/
-
-/**
- * Restrict temperature to its valid range [0,1].
- */
-static void
-rhea_temperature_bound_range_data (double *_sc_restrict temp_data,
-                                   const sc_bint_t size)
-{
-  sc_bint_t           i;
-
-  for (i = 0; i < size; i++) {
-    RHEA_ASSERT (isfinite (temp_data[i]));
-    temp_data[i] = SC_MAX (0.0, SC_MIN (temp_data[i], 1.0));
-  }
-}
-
-double *
-rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
-                                 ymir_vec_t *temp_vec,
-                                 const ymir_locidx_t elid)
-{
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (temp_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  RHEA_ASSERT (rhea_temperature_check_vec_type (temp_vec));
-  RHEA_ASSERT (temp_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (temp_el_mat->n == 1);
-
-  /* interpolate from continuous nodes to (discontinuous) Gauss nodes */
-  ymir_cvec_get_elem_interp (temp_vec, temp_el_mat, YMIR_STRIDE_NODE, elid,
-                             YMIR_GAUSS_NODE, YMIR_READ);
-
-  /* restrict temperature to valid range to account for interpolation erros */
-  rhea_temperature_bound_range_data (temp_el_mat->e[0], n_nodes_per_el);
-
-  return temp_el_mat->e[0];
 }

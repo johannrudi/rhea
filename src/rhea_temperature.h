@@ -15,8 +15,8 @@
 typedef enum
 {
   RHEA_TEMPERATURE_NONE,
-  RHEA_TEMPERATURE_COLD_PLATE,
-  RHEA_TEMPERATURE_IMPORT
+  RHEA_TEMPERATURE_DATA,
+  RHEA_TEMPERATURE_COLD_PLATE
 }
 rhea_temperature_t;
 
@@ -123,6 +123,17 @@ int                 rhea_temperature_check_vec_type (ymir_vec_t *vec);
 int                 rhea_temperature_is_valid (ymir_vec_t *vec);
 
 /******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
+
+/**
+ * Gets the temperature of one element at Gauss nodes.
+ */
+double             *rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
+                                                     ymir_vec_t *temp_vec,
+                                                     const ymir_locidx_t elid);
+
+/******************************************************************************
  * Computation
  *****************************************************************************/
 
@@ -138,13 +149,6 @@ void                rhea_temperature_compute (ymir_vec_t *temperature,
 void                rhea_temperature_background_compute (
                                               ymir_vec_t *back_temperature,
                                               rhea_temperature_options_t *opt);
-
-/**
- * Gets the temperature of one element at Gauss nodes.
- */
-double             *rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
-                                                     ymir_vec_t *temp_vec,
-                                                     const ymir_locidx_t elid);
 
 /**
  * Computes velocity right-hand side in (primal) function space, given a
