@@ -11,6 +11,10 @@
 #include <ymir_stokes_vec.h>
 #include <ymir_stress_op.h>
 #include <ymir_pressure_vec.h>
+#include <ymir_interp_vec.h>
+#include <ymir_mass_vec.h>
+#include <ymir_vtk.h>
+#include <ymir.h>
 
 /* basic constants */
 #define SLABS_SEC_PER_YEAR (31557600.0)    /* seconds in a year (365.25*24*3600) */
@@ -800,7 +804,7 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
 
   /* return temperature */
   RHEA_ASSERT (isfinite (temp));
-  return temp;
+  return 0.5 * temp;
 }
 
 void
@@ -2010,8 +2014,10 @@ slabs_X_fn_function (mangll_tag_t tag, mangll_locidx_t np,
   mangll_locidx_t     il;
   int           k;
   double        factor;
-  double        coeff[11] = {1.0146, -0.0030374, -0.11728, -1.788, 14.385,
-                            -64.742, 177.44, -283.49, 258.25, -124.93, 24.987};
+//  double        coeff[11] = {1.0146, -0.0030374, -0.11728, -1.788, 14.385,
+//                            -64.742, 177.44, -283.49, 258.25, -124.93, 24.987};
+  double        coeff[11] = {1.0097, 0.43443, -15.87, 215.89, -1498.6, 5957.5,
+                            -14314, 21096, -18626, 9034.4, -1850.3};
 
   for (il = 0; il < np; ++il) {
     X[il] = EX[il];
@@ -5321,7 +5327,7 @@ main (int argc, char **argv)
     rhea_discretization_process_options (&discr_options, &domain_options);
 
     rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_profile, &topo);
+                                       slabs_X_fn_identity, &topo);
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                           &domain_options, &discr_options, &slabs_options);
 
@@ -5546,6 +5552,15 @@ main (int argc, char **argv)
     ymir_vec_t            *tauII = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
     ymir_vec_t            *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
                                                      RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    ymir_vec_t            *vec_e = ymir_face_cvec_new (ymir_mesh,
+                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    ymir_vec_t            *masse = ymir_face_cvec_new (ymir_mesh,
+                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    ymir_vec_t            *massu = ymir_face_cvec_new (ymir_mesh,
+                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    ymir_vec_t            *vec_topo = ymir_face_cvec_new (ymir_mesh,
+                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    double                avg_stress, tempe, tempu;
 
     RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_write_stress\n", this_fn_name);
 
@@ -5592,6 +5607,22 @@ main (int argc, char **argv)
                    rhea_stokes_problem_get_rhs_vel (stokes_problem),
                    rhea_stokes_problem_get_stokes_op (stokes_problem));
 
+    /*compute average surface normal stress
+     * vec_e is 1.0
+     * average = (e, M*u)/(e, M*e)*/
+    ymir_vec_set_value(vec_e, 1.0)
+    ymir_mass_apply (surf_normal_stress, massu);
+    ymir_mass_apply (vec_e, masse);
+    tempe = ymir_vec_innerprod (vec_e, masse);
+    tempu = ymir_vec_innerprod (vec_e, massu);
+    avg_stress = tempu/tempe;
+
+    /*scale normal stress to topography*/
+    ymir_vec_copy (surf_normal_stress, vec_topo);
+    ymir_vec_shift (-avg_stress, vec_topo);
+    /*vec_topo = (-2.0/Ra) * (nstress-avg_stress) + 1.0, here Ra=1 */
+    ymir_vec_scale_shift (-2.0, 1.0, vec_topo);
+
     {
       char            path[BUFSIZ];
 
@@ -5600,6 +5631,7 @@ main (int argc, char **argv)
                       edotII, "edotII",
                       tauII, "tauII",
                       surf_normal_stress, "surf_normal_stress",
+                      vec_topo, "topography",
                       NULL);
     }
 
@@ -5609,6 +5641,10 @@ main (int argc, char **argv)
     ymir_vec_destroy (edotII);
     ymir_vec_destroy (tauII);
     ymir_vec_destroy (surf_normal_stress);
+    ymir_vec_destroy (vec_e);
+    ymir_vec_destroy (masse);
+    ymir_vec_destroy (massu);
+    ymir_vec_destroy (vec_topo);
     ymir_velocity_elem_destroy (vel_elem);
 
     RHEA_GLOBAL_PRODUCTIONF ("In %s: Done vtk_write_stress\n", this_fn_name);
