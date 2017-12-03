@@ -2014,10 +2014,10 @@ slabs_X_fn_function (mangll_tag_t tag, mangll_locidx_t np,
   mangll_locidx_t     il;
   int           k;
   double        factor;
-//  double        coeff[11] = {1.0146, -0.0030374, -0.11728, -1.788, 14.385,
-//                            -64.742, 177.44, -283.49, 258.25, -124.93, 24.987};
-  double        coeff[11] = {1.0097, 0.43443, -15.87, 215.89, -1498.6, 5957.5,
-                            -14314, 21096, -18626, 9034.4, -1850.3};
+  double        coeff[11] = {1.0146, -0.0030374, -0.11728, -1.788, 14.385,
+                            -64.742, 177.44, -283.49, 258.25, -124.93, 24.987};
+//  double        coeff[11] = {1.0097, 0.43443, -15.87, 215.89, -1498.6, 5957.5,
+//                            -14314, 21096, -18626, 9034.4, -1850.3};
 
   for (il = 0; il < np; ++il) {
     X[il] = EX[il];
@@ -4885,6 +4885,7 @@ main (int argc, char **argv)
   char               *vtk_write_ioface_path;
   char               *vtk_read_ioface_path;
   char               *ascii_read_topo_path;
+  char               *vtk_write_testdist_path;
 
   /* mesh */
   p4est_t            *p4est;
@@ -5150,6 +5151,9 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "ascii-read-topo-path", '\0',
     &(ascii_read_topo_path), NULL,
     "File path for reading topography path",
+  YMIR_OPTIONS_S, "vtk-write-testdist-path", '\0',
+    &(vtk_write_testdist_path), NULL,
+    "File path for the test of distorted surface",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -5333,6 +5337,45 @@ main (int argc, char **argv)
 
     RHEA_GLOBAL_PRODUCTIONF ("Done read topography from %s\n", ascii_read_topo_path);
   }
+  else if (vtk_write_testdist_path != NULL) {
+    p4est_t            *p4est_I;
+    ymir_mesh_t        *ymir_mesh_I;
+    ymir_pressure_elem_t  *press_elem_I;
+    rhea_discretization_options_t discr_options_I;
+    ymir_vec_t         *temperature_I;
+    ymir_vec_t         *temperature_D;
+
+
+    /*have to use a new discr_option, otherwise the code crashes with memory balance error*/
+    rhea_discretization_process_options (&discr_options_I, &domain_options);
+    slabs_setup_mesh (&p4est_I, &ymir_mesh_I, &press_elem_I, mpicomm,
+                      &domain_options, &discr_options_I, &slabs_options);
+    /* compute temperature */
+    temperature_I = rhea_temperature_new (ymir_mesh_I);
+    slabs_poly2_temperature_compute (temperature_I, &slabs_options);
+
+    rhea_discretization_set_user_X_fn (&discr_options,
+                                       slabs_X_fn_function, NULL);
+    slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
+                      &domain_options, &discr_options, &slabs_options);
+
+    temperature_D = rhea_temperature_new (ymir_mesh);
+    temperature_D->cd = temperature_I->cd;
+    temperature_D->cdo = temperature_I->cdo;
+
+      char            path[BUFSIZ];
+      snprintf (path, BUFSIZ, "%s", vtk_write_testdist_path);
+      ymir_vtk_write (ymir_mesh, path,
+                    temperature_I, "temperature",
+                    temperature_D, "temperature_D",
+                    NULL);
+
+    rhea_temperature_destroy (temperature_I);
+    rhea_temperature_destroy (temperature_D);
+    rhea_discretization_ymir_mesh_destroy (ymir_mesh_I, press_elem_I);
+    rhea_discretization_p4est_destroy (p4est_I);
+    rhea_discretization_options_clear (&discr_options_I);
+  }
   else {
     rhea_discretization_set_user_X_fn (&discr_options,
                                        slabs_X_fn_function, NULL);
@@ -5344,7 +5387,8 @@ main (int argc, char **argv)
    */
 
   /*try different viscosity on the top layer*/
-  slabs_visc_options.visc_lith *= visc_trial;
+//  slabs_visc_options.visc_lith *= visc_trial;
+
   slabs_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                         &domain_options, &temp_options, &visc_options,
                         &slabs_options, vtk_write_input_path);
