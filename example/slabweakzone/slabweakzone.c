@@ -1262,9 +1262,10 @@ slabs_weakzone_elem (double *_sc_restrict weak_elem,
 }
 
 void
-slabs_weakzone_compute (ymir_dvec_t *weakzone, slabs_options_t *slabs_options)
+slabs_weakzone_compute (ymir_dvec_t *weakzone, void *data)
 {
   const char         *this_fn_name = "slabs_weakzone_compute";
+  slabs_options_t    *slabs_options = data;
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (weakzone);
   const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
@@ -2411,9 +2412,11 @@ slabs_set_rhs_vel_nonzero_dir_inoutflow_double_tanh_3layer (
 }
 
 void
-slabs_vel_nonzero_dirichlet_compute ( ymir_vec_t * rhs_vel_nonzero_dirichlet,
-                                      slabs_options_t * slabs_options)
+slabs_vel_nonzero_dirichlet_compute (ymir_vec_t * rhs_vel_nonzero_dirichlet,
+                                     void * data)
 {
+  slabs_options_t    *slabs_options = data;
+
   switch (slabs_options->slabs_velbc_options->vel_dir_bc) {
     case SLABS_VEL_DIR_BC_INOUTFLOW_SIN:
       rhea_domain_set_user_velocity_dirichlet_bc (
@@ -2751,9 +2754,11 @@ slabs_test_poly1_manufactured_set_velbc (double * vel, double x, double y,
 /* manufactured solution */
 static void
 slabs_test_manufactured_rhs_compute (ymir_vec_t *rhs_vel,
-                                     slabs_options_t *slabs_options)
+                                     ymir_vec_t *temperature /* unused */,
+                                     void *data)
 {
   const char          *this_fn_name = "slabs_test_manufactured_rhs_compute";
+  slabs_options_t     *slabs_options = data;
   const               slabs_test_manufactured_t
                       test_type = slabs_options->slabs_test_options->test_manufactured;
 
@@ -2814,9 +2819,10 @@ slabs_test_manufactured_rhs_compute (ymir_vec_t *rhs_vel,
 
 void
 slabs_test_manufactured_velbc_compute (ymir_vec_t * rhs_vel_nonzero_dirichlet,
-                                       slabs_options_t * slabs_options)
+                                       void * data)
 {
   const char          *this_fn_name = "slabs_test_manufactured_velbc_compute";
+  slabs_options_t     *slabs_options = data;
   const               slabs_test_manufactured_t
                       test_type = slabs_options->slabs_test_options->test_manufactured;
 
@@ -4557,8 +4563,8 @@ slabs_setup_mesh (p4est_t **p4est,
                                           domain_options);
 
   /* set up boundary, store in `discr_options` */
-  rhea_discretization_options_set_boundary (discr_options, *p4est,
-                                            domain_options);
+  rhea_discretization_boundary_create (discr_options, *p4est,
+                                       domain_options);
 
   /* create ymir mesh and pressure element */
   rhea_discretization_ymir_mesh_new_from_p4est (ymir_mesh, press_elem, *p4est,
@@ -4576,14 +4582,14 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     ymir_pressure_elem_t *press_elem,
                     rhea_domain_options_t *domain_options,
                     rhea_temperature_options_t *temp_options,
+                    rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
                     slabs_options_t *slabs_options,
                     const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "slabs_setup_stokes";
-  ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *temperature;
   ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet = NULL;
   void               *solver_options = NULL;
   int                 mpirank = ymir_mesh->ma->mpirank;
 
@@ -4591,101 +4597,91 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
-  /* compute weak zone */
-  weakzone = rhea_viscosity_new (ymir_mesh);
-  ymir_vec_set_value (weakzone, 1.0);
-
   switch (slabs_options->buoyancy_type)  {
   /* if non-specified, use: rhea_temperature_compute (temperature, temp_options); */
     case SINKER:
       rhea_temperature_compute (temperature, temp_options);
-    break;
-
+      break;
     case SLAB:
       slabs_poly2_temperature_compute (temperature, slabs_options);
-      if (slabs_options->slabs_visc_options->viscosity_anisotropy
-         == SLABS_VISC_ISOTROPY) {
-        slabs_weakzone_compute (weakzone, slabs_options);
-      }
-    break;
-
+      break;
     case COLLIDE:
       rhea_temperature_compute (temperature, temp_options);
-      if (slabs_options->slabs_visc_options->viscosity_anisotropy
-        == SLABS_VISC_ISOTROPY) {
-        slabs_weakzone_compute (weakzone, slabs_options);
-      }
-      /* set custom function to compute viscosity */
-      rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
-                                               slabs_options);
-    break;
-
+      break;
     case DRAG:
       ymir_cvec_set_function (temperature, drag_temperature_set_fn, slabs_options);
-      if (slabs_options->slabs_visc_options->viscosity_anisotropy
-        == SLABS_VISC_ISOTROPY) {
-        slabs_weakzone_compute (weakzone, slabs_options);
-      }
-      /* set custom function to compute viscosity */
-      rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
-                                               slabs_options);
-    break;
-
+      break;
     case TEST_MANUFACTURED:
       RHEA_GLOBAL_PRODUCTIONF ("buoyancy from %i\n", slabs_options->buoyancy_type);
       rhea_temperature_compute (temperature, temp_options);  // neutral value: T=0.5
-      rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
-                                               slabs_options);
-    break;
-
+      break;
     case CUSTOM:
       slabs_custom_temperature_compute (temperature, slabs_options);
-
-      /* set custom function to compute viscosity */
-      rhea_viscosity_set_viscosity_compute_fn (slabs_viscosity_compute,
-                                               slabs_options);
-    break;
-
+      break;
     case TESTNONE:
       ymir_vec_set_value (temperature, 0.5);
-    break;
-
+      break;
     default:
       RHEA_ABORT_NOT_REACHED ();
   }
 
-  rhs_vel = rhea_velocity_new (ymir_mesh);
+  /* create Stokes problem */
+  *stokes_problem = rhea_stokes_problem_new (
+      ymir_mesh, press_elem, temperature, domain_options, temp_options,
+      weak_options, visc_options, solver_options);
+
+  /* provide own function to compute weak zones and viscosity */
+  switch (slabs_options->buoyancy_type) {
+    case SINKER:
+    case TESTNONE:
+      break;
+    case SLAB:
+      rhea_stokes_prbolem_set_weakzone_compute_fn (
+          stokes_problem, slabs_weakzone_compute, slabs_options);
+      break;
+    case DRAG:
+    case COLLIDE:
+      if (slabs_options->slabs_visc_options->viscosity_anisotropy
+        == SLABS_VISC_ISOTROPY) {
+        rhea_stokes_prbolem_set_weakzone_compute_fn (
+            stokes_problem, slabs_weakzone_compute, slabs_options);
+      }
+      rhea_stokes_prbolem_set_viscosity_compute_fn (
+          stokes_problem, slabs_viscosity_compute, slabs_options);
+      break;
+    case TEST_MANUFACTURED:
+      rhea_stokes_prbolem_set_viscosity_compute_fn (
+          stokes_problem, slabs_viscosity_compute, slabs_options);
+      break;
+    case CUSTOM:
+      rhea_stokes_prbolem_set_viscosity_compute_fn (
+          stokes_problem, slabs_viscosity_compute, slabs_options);
+      break;
+    default:
+      RHEA_ABORT_NOT_REACHED ();
+  }
+
   /* for the test using manufactured solution,
    * overwrite rhs_vel with estimated forcing term from given velocity and pressure field.
    * don't apply mass now */
   if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
       slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
-    slabs_test_manufactured_rhs_compute (rhs_vel, slabs_options);
-  }
-  else {
-    /* compute velocity right-hand side volume forcing */
-    rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
+    rhea_stokes_prbolem_set_rhs_vel_compute_fn (
+        stokes_problem, slabs_test_manufactured_rhs_compute, slabs_options);
   }
 
   /* set velocity boundary conditions & nonzero Dirichlet values */
   if (domain_options->velocity_bc_type == RHEA_DOMAIN_VELOCITY_BC_USER) {
-    rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
     if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
         slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
-      slabs_test_manufactured_velbc_compute (rhs_vel_nonzero_dirichlet,
-                                             slabs_options);
+      rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+          stokes_problem, slabs_test_manufactured_velbc_compute, slabs_options);
     }
     else {
-      slabs_vel_nonzero_dirichlet_compute (rhs_vel_nonzero_dirichlet,
-                                           slabs_options);
+      rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+          stokes_problem, slabs_vel_nonzero_dirichlet_compute, slabs_options);
     }
   }
-
-  /* create Stokes problem */
-  *stokes_problem = rhea_stokes_problem_new (
-      temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
-      ymir_mesh, press_elem, domain_options, visc_options, solver_options);
-
 
   /* add the anisotropic viscosity to the viscous stress operator */
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
@@ -4706,7 +4702,7 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* write vtk of problem input */
   if (vtk_write_input_path != NULL) {
     slabs_write_input (ymir_mesh, *stokes_problem, temp_options,
-                       temperature, weakzone, coeff_TI_svisc, TI_rotate,
+                       temperature, NULL, coeff_TI_svisc, TI_rotate,
                        vtk_write_input_path);
   }
 
@@ -4752,7 +4748,7 @@ slabs_setup_stokes_surfdist (rhea_stokes_problem_t **stokes_problem,
    * don't apply mass now */
   if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
       slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
-    slabs_test_manufactured_rhs_compute (rhs_vel, slabs_options);
+    slabs_test_manufactured_rhs_compute (rhs_vel, NULL, slabs_options);
   }
   else {
     /* compute velocity right-hand side volume forcing */
@@ -4774,10 +4770,10 @@ slabs_setup_stokes_surfdist (rhea_stokes_problem_t **stokes_problem,
   }
 
   /* create Stokes problem */
-  *stokes_problem = rhea_stokes_problem_new (
-      temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
-      ymir_mesh, press_elem, domain_options, visc_options, solver_options);
-
+  //TODO change function arguments as above
+//*stokes_problem = rhea_stokes_problem_new (
+//    temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
+//    ymir_mesh, press_elem, domain_options, visc_options, solver_options);
 
   /* add the anisotropic viscosity to the viscous stress operator */
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
@@ -4828,18 +4824,13 @@ slabs_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                          rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "slabs_setup_clear_all";
-  ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *temperature;
   ymir_vec_t         *visc_TI_svisc;
-  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* get vectors */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
-  weakzone = rhea_stokes_problem_get_weakzone (stokes_problem);
-  rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
-  rhs_vel_nonzero_dirichlet =
-    rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
 
   /* destroy anisotropic viscosity */
   {
@@ -4861,22 +4852,13 @@ slabs_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
   if (temperature != NULL) {
     rhea_temperature_destroy (temperature);
   }
-  if (weakzone != NULL) {
-    rhea_weakzone_destroy (weakzone);
-  }
-  if (rhs_vel != NULL) {
-    rhea_velocity_destroy (rhs_vel);
-  }
-  if (rhs_vel_nonzero_dirichlet != NULL) {
-    rhea_velocity_destroy (rhs_vel_nonzero_dirichlet);
-  }
 
   /* destroy mesh */
   rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
   rhea_discretization_p4est_destroy (p4est);
 
   /* destroy (some) options */
-  rhea_discretization_options_clear (discr_options);
+  rhea_discretization_boundary_clear (discr_options);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
@@ -4929,6 +4911,7 @@ main (int argc, char **argv)
   ymir_options_t     *opt;
   rhea_domain_options_t         domain_options;
   rhea_temperature_options_t    temp_options;
+  rhea_weakzone_options_t       weak_options;
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
@@ -5366,7 +5349,7 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_process_options_all (&domain_options, &temp_options,
+  rhea_process_options_all (&domain_options, &temp_options, &weak_options,
                             &visc_options, &discr_options,
                             &newton_options);
 
@@ -5479,7 +5462,7 @@ main (int argc, char **argv)
 //    rhea_temperature_destroy (weakzone_D);
     rhea_discretization_ymir_mesh_destroy (ymir_mesh_I, press_elem_I);
     rhea_discretization_p4est_destroy (p4est_I);
-    rhea_discretization_options_clear (&discr_options_I);
+    rhea_discretization_boundary_clear (&discr_options_I);
   }
   else {
     rhea_discretization_set_user_X_fn (&discr_options,
@@ -5494,8 +5477,8 @@ main (int argc, char **argv)
 //  slabs_visc_options.visc_lith *= visc_trial;
 
   slabs_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
-                        &domain_options, &temp_options, &visc_options,
-                        &slabs_options, vtk_write_input_path);
+                      &domain_options, &temp_options, &weak_options,
+                      &visc_options, &slabs_options, vtk_write_input_path);
 
   }
   /*
@@ -5979,8 +5962,8 @@ main (int argc, char **argv)
     slabs_visc_options.visc_lith *= visc_trial;
 
     slabs_setup_stokes (&stokes_problem2, ymir_mesh2, press_elem2,
-                        &domain_options, &temp_options, &visc_options,
-                        &slabs_options, vtk_write_input2_path);
+                        &domain_options, &temp_options, &weak_options,
+                        &visc_options, &slabs_options, vtk_write_input2_path);
 
     /* initialize solution vector */
     sol_vel_press2 = rhea_velocity_pressure_new (ymir_mesh2, press_elem2);
