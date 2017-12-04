@@ -29,10 +29,8 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
   RHEA_ASSERT (file_path_txt != NULL ||
                (file_path_bin != NULL && 0 < n_entries));
 
-  /* get parallel environment */
-  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
-
   /* read file with one processor */
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
   if (mpirank == 0) {
     if (file_path_txt == NULL) { /* if read from binary file */
       rhea_io_std_read_double (values_all, total_size, file_path_bin);
@@ -53,6 +51,66 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
     SC_CHECK_MPI (mpiret);
   }
   mpiret = sc_MPI_Bcast (values_all, n_entries, sc_MPI_DOUBLE, 0, mpicomm);
+  SC_CHECK_MPI (mpiret);
+
+  if (file_path_txt == NULL) { /* if read from binary file */
+    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, file_path_bin);
+  }
+  else {
+    RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", this_fn_name,
+                       file_path_bin, file_path_txt);
+  }
+
+  /* return number of entries read */
+  return n_entries;
+}
+
+int
+rhea_io_mpi_read_broadcast_int (int *values_all,
+                                int n_entries,
+                                const char *file_path_bin,
+                                const char *file_path_txt,
+                                sc_MPI_Comm mpicomm)
+{
+  const char         *this_fn_name = "rhea_io_mpi_read_broadcast_int";
+  int                 mpirank, mpiret;
+  size_t              total_size = (size_t) n_entries;
+
+  if (file_path_txt == NULL) { /* if read from binary file */
+    RHEA_GLOBAL_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name,
+                       file_path_bin, n_entries);
+  }
+  else {
+    RHEA_GLOBAL_INFOF ("Into %s (bin: %s, txt: %s)\n", this_fn_name,
+                       file_path_bin, file_path_txt);
+  }
+
+  /* check input */
+  RHEA_ASSERT (file_path_txt != NULL ||
+               (file_path_bin != NULL && 0 < n_entries));
+
+  /* read file with one processor */
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+  if (mpirank == 0) {
+    if (file_path_txt == NULL) { /* if read from binary file */
+      rhea_io_std_read_int (values_all, total_size, file_path_bin);
+    }
+    else { /* otherwise read from text file */
+      total_size = rhea_io_std_read_int_from_txt (values_all, total_size,
+                                                  file_path_txt);
+      if (file_path_bin != NULL) {
+        rhea_io_std_write_int (file_path_bin, values_all, total_size);
+      }
+    }
+  }
+
+  /* broadcast values to all processors */
+  if (n_entries <= 0) { /* if #entries is not known */
+    n_entries = (int) total_size;
+    mpiret = sc_MPI_Bcast (&n_entries, 1, sc_MPI_INT, 0, mpicomm);
+    SC_CHECK_MPI (mpiret);
+  }
+  mpiret = sc_MPI_Bcast (values_all, n_entries, sc_MPI_INT, 0, mpicomm);
   SC_CHECK_MPI (mpiret);
 
   if (file_path_txt == NULL) { /* if read from binary file */
