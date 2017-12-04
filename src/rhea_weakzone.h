@@ -36,9 +36,13 @@ typedef struct rhea_weakzone_options
   double              thickness_const;
   double              weak_factor_interior;
 
-  /* binary/text file with (x,y,z) coordinates of weak zone points */
+  /* binary/text files with coordinates, labels, factors of weak zone points */
   char               *points_file_path_bin;
   char               *points_file_path_txt;
+  char               *labels_file_path_bin;
+  char               *labels_file_path_txt;
+  char               *factors_file_path_bin;
+  char               *factors_file_path_txt;
 
   /* number of points */
   int                 n_points;
@@ -46,6 +50,8 @@ typedef struct rhea_weakzone_options
   /* output */
   char               *write_points_file_path_bin;
   char               *write_points_file_path_txt;
+  char               *write_labels_file_path_bin;
+  char               *write_factors_file_path_bin;
 
   /* data */
   rhea_pointcloud_weakzone_t *pointcloud;
@@ -119,13 +125,14 @@ void                rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec,
  *****************************************************************************/
 
 /**
- *
+ * Allocates and performs the setup of data that is required to compute the
+ * weak zone field.
  */
 void                rhea_weakzone_data_create (rhea_weakzone_options_t *opt,
                                                sc_MPI_Comm mpicomm);
 
 /**
- *
+ * Clears storage of weak zone data.
  */
 void                rhea_weakzone_data_clear (rhea_weakzone_options_t *opt);
 
@@ -133,11 +140,20 @@ void                rhea_weakzone_data_clear (rhea_weakzone_options_t *opt);
  * Weak Zone Computation
  *****************************************************************************/
 
+/**
+ * Computes a custom weak zone.  Callback function for weak zone computation.
+ */
 typedef void      (*rhea_weakzone_compute_fn_t) (ymir_vec_t *weakzone,
                                                  void *data);
 
+/**
+ * Computes the weak zone at each node of the mesh.
+ */
 void                rhea_weakzone_compute (ymir_vec_t *weakzone, void *data);
 
+/**
+ * Computes the distances to the weak zone surfaces at each node of the mesh.
+ */
 void                rhea_weakzone_compute_distance (
                                                 ymir_vec_t *distance,
                                                 rhea_weakzone_options_t *opt);
