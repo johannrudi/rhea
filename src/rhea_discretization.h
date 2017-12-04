@@ -122,4 +122,22 @@ void                rhea_discretization_ymir_mesh_destroy (
                                           ymir_mesh_t *ymir_mesh,
                                           ymir_pressure_elem_t *press_elem);
 
+/******************************************************************************
+ * Other
+ *****************************************************************************/
+
+/* types of coordinates */
+typedef enum
+{
+  RHEA_DISCRETIZATION_COORDINATE_CARTESIAN,
+  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_MATH,
+  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO
+}
+rhea_discretization_coordinate_type_t;
+
+void                rhea_discretization_write_coordinates_cont (
+                                  const char *file_path_txt,
+                                  ymir_mesh_t *ymir_mesh,
+                                  rhea_discretization_coordinate_type_t type);
+
 #endif /* RHEA_DISCRETIZATION_H */
