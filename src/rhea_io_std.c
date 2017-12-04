@@ -148,6 +148,92 @@ rhea_io_std_write_double (const char *file_path, const double *values,
   return n_written;
 }
 
+size_t
+rhea_io_std_read_int (int *values, const size_t n_entries,
+                      const char *file_path)
+{
+  const char         *this_fn_name = "rhea_io_std_read_int";
+  FILE               *file_ptr;
+  size_t              n_read;
+
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+              (int) n_entries);
+
+  /* exit if nothing to do */
+  if (0 == n_entries) {
+    return 0;
+  }
+
+  /* open binary file */
+  file_ptr = rhea_io_std_file_open (file_path, "rb", this_fn_name);
+  if (!file_ptr) {
+    return 0;
+  }
+
+  /* read values */
+  n_read = fread (values, sizeof (int), n_entries, file_ptr);
+
+  /* check #entries read vs. requested */
+  if (n_read != n_entries) {
+    RHEA_LERRORF (
+        "%s: Mismatch of #entries read: "
+        "Requested #entries %lli, actually read %lli, file path %s\n",
+        this_fn_name, (long long int) n_entries, (long long int) n_read,
+        file_path);
+  }
+
+  /* close file */
+  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+
+  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+
+  /* return number of read entries */
+  return n_read;
+}
+
+size_t
+rhea_io_std_write_int (const char *file_path, const int *values,
+                       const size_t n_entries)
+{
+  const char         *this_fn_name = "rhea_io_std_write_int";
+  FILE               *file_ptr;
+  size_t              n_written;
+
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+              (int) n_entries);
+
+  /* exit if nothing to do */
+  if (0 == n_entries) {
+    return 0;
+  }
+
+  /* open binary file */
+  file_ptr = rhea_io_std_file_open (file_path, "wb", this_fn_name);
+  if (!file_ptr) {
+    return 0;
+  }
+
+  /* write values */
+  n_written = fwrite (values, sizeof (int), n_entries, file_ptr);
+
+  /* check #entries written vs. requested */
+  if (n_written != n_entries) {
+    RHEA_LERRORF (
+        "%s: Mismatch of #entries written: "
+        "Requested #entries %lli, actually written %lli, file path %s\n",
+        this_fn_name, (long long int) n_entries, (long long int) n_written,
+        file_path);
+  }
+
+  /* close file */
+  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+
+  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+
+  /* return number of written entries */
+  return n_written;
+}
+
 /******************************************************************************
  * Text Files
  *****************************************************************************/
@@ -306,7 +392,7 @@ rhea_io_std_write_double_to_txt (const char *file_path,
   /* check input */
   RHEA_ASSERT (0 < n_entries);
 
-  /* write double values */
+  /* write values */
   n_written = rhea_io_std_write_txt (file_path, values,
                                      rhea_io_std_fprintf_double_fn, params);
 
@@ -321,4 +407,49 @@ rhea_io_std_write_double_to_txt (const char *file_path,
 
   /* return number of written entries */
   return n_written;
+}
+
+static int
+rhea_io_std_fscanf_int_fn (void *data, void *params, FILE *file_ptr,
+                           const size_t n_read)
+{
+  int                *values = data;
+  const size_t        n_entries = *((size_t *) params);
+  int                 status;
+
+  if (0 < n_entries) {
+    RHEA_ASSERT (n_read <= n_entries);
+    status = fscanf (file_ptr, "%i", &values[SC_MIN (n_read, n_entries-1)]);
+  }
+  else {
+    status = fscanf (file_ptr, "%i", &values[n_read]);
+  }
+
+  return status;
+}
+
+size_t
+rhea_io_std_read_int_from_txt (int *values,
+                               size_t n_entries,
+                               const char *file_path)
+{
+  const char         *this_fn_name = "rhea_io_std_read_int_from_txt";
+  size_t              n_read;
+
+  /* read values */
+  n_read = rhea_io_std_read_txt (values, rhea_io_std_fscanf_int_fn,
+                                 &n_entries, file_path);
+
+  /* check #entries requested vs. read */
+  if (0 < n_entries && n_entries != n_read) {
+    RHEA_INFOF (
+        "%s: Mismatch of #entries read: "
+        "Requested #entries %lli, actually read %lli, file path %s\n",
+        this_fn_name, (long long int) n_entries, (long long int) n_read,
+        file_path);
+    RHEA_ASSERT (n_read < n_entries);
+  }
+
+  /* return number of read entries */
+  return n_read;
 }
