@@ -77,6 +77,8 @@ include example/amr/Makefile.am
 include example/basic/Makefile.am
 include example/collide/Makefile.am
 include example/io/Makefile.am
+include example/slabweakzone/Makefile.am
+include example/slabtest/Makefile.am
 include example/newton_polynomial/Makefile.am
 include example/yielding/Makefile.am
 ##endif
