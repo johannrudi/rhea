@@ -9,7 +9,7 @@
 
 /* constant: neutral/default value for temperature (gives const viscosity due
  * to implementation of function `rhea_viscosity_linear_arrhenius`) */
-#define RHEA_TEMPERATURE_NEUTRAL_VALUE (1.0)
+#define RHEA_TEMPERATURE_NEUTRAL_VALUE (0.5)
 
 /* enumerator for types of temperature */
 typedef enum

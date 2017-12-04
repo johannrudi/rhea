@@ -804,7 +804,7 @@ slabs_temperature_brick_2plates_poly2 (double r, double lon,
 
   /* return temperature */
   RHEA_ASSERT (isfinite (temp));
-  return 0.5 * temp;
+  return temp;
 }
 
 void
@@ -2014,10 +2014,11 @@ slabs_X_fn_function (mangll_tag_t tag, mangll_locidx_t np,
   mangll_locidx_t     il;
   int           k;
   double        factor;
-  double        coeff[11] = {1.0146, -0.0030374, -0.11728, -1.788, 14.385,
-                            -64.742, 177.44, -283.49, 258.25, -124.93, 24.987};
-//  double        coeff[11] = {1.0097, 0.43443, -15.87, 215.89, -1498.6, 5957.5,
-//                            -14314, 21096, -18626, 9034.4, -1850.3};
+//  double        coeff[11] = {1.0146, -0.0030374, -0.11728, -1.788, 14.385,
+//                            -64.742, 177.44, -283.49, 258.25, -124.93, 24.987};
+  double        coeff[11] = {1.0511, 0.97075, -14.253, 78.626, -214.55,
+                              324.36, -289.11, 154.51, -47.999, 7.7874, -0.48331};
+
 
   for (il = 0; il < np; ++il) {
     X[il] = EX[il];
@@ -4725,6 +4726,97 @@ fflush (stdout);
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
+static void
+slabs_setup_stokes_surfdist (rhea_stokes_problem_t **stokes_problem,
+                    ymir_mesh_t *ymir_mesh,
+                    ymir_pressure_elem_t *press_elem,
+                    rhea_domain_options_t *domain_options,
+                    rhea_temperature_options_t *temp_options,
+                    rhea_viscosity_options_t *visc_options,
+                    slabs_options_t *slabs_options,
+                    const char *vtk_write_input_path,
+                    ymir_vec_t *temperature, ymir_vec_t *weakzone)
+{
+  const char         *this_fn_name = "slabs_setup_stokes";
+//  ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
+  ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet = NULL;
+  void               *solver_options = NULL;
+  int                 mpirank = ymir_mesh->ma->mpirank;
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  rhs_vel = rhea_velocity_new (ymir_mesh);
+  /* for the test using manufactured solution,
+   * overwrite rhs_vel with estimated forcing term from given velocity and pressure field.
+   * don't apply mass now */
+  if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
+      slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
+    slabs_test_manufactured_rhs_compute (rhs_vel, slabs_options);
+  }
+  else {
+    /* compute velocity right-hand side volume forcing */
+    rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
+  }
+
+  /* set velocity boundary conditions & nonzero Dirichlet values */
+  if (domain_options->velocity_bc_type == RHEA_DOMAIN_VELOCITY_BC_USER) {
+    rhs_vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
+    if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
+        slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
+      slabs_test_manufactured_velbc_compute (rhs_vel_nonzero_dirichlet,
+                                             slabs_options);
+    }
+    else {
+      slabs_vel_nonzero_dirichlet_compute (rhs_vel_nonzero_dirichlet,
+                                           slabs_options);
+    }
+  }
+
+  /* create Stokes problem */
+  *stokes_problem = rhea_stokes_problem_new (
+      temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
+      ymir_mesh, press_elem, domain_options, visc_options, solver_options);
+
+
+  /* add the anisotropic viscosity to the viscous stress operator */
+  if (slabs_options->slabs_visc_options->viscosity_anisotropy
+      == SLABS_VISC_TRANSVERSELY_ISOTROPY) {
+    coeff_TI_svisc = rhea_viscosity_new (ymir_mesh);
+    TI_rotate = rhea_viscosity_new (ymir_mesh);
+    if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
+        slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
+      slabs_stokes_problem_setup_TI_manufactured (ymir_mesh, *stokes_problem, slabs_options,
+                                     coeff_TI_svisc, TI_rotate);
+    }
+    else {
+      slabs_stokes_problem_setup_TI (ymir_mesh, *stokes_problem, slabs_options,
+                                     coeff_TI_svisc, TI_rotate);
+    }
+  }
+
+  /* write vtk of problem input */
+  if (vtk_write_input_path != NULL) {
+    slabs_write_input (ymir_mesh, *stokes_problem, temp_options,
+                       temperature, weakzone, coeff_TI_svisc, TI_rotate,
+                       vtk_write_input_path);
+  }
+
+  /* set up Stokes solver */
+  rhea_stokes_problem_setup_solver (*stokes_problem);
+
+if (mpirank == 0) {
+printf("Got here!");
+fflush (stdout);
+}
+  /* destroy */
+  if (slabs_options->slabs_visc_options->viscosity_anisotropy
+      == SLABS_VISC_TRANSVERSELY_ISOTROPY)  {
+      rhea_viscosity_destroy (TI_rotate);
+  }
+
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
 /**
  * Cleans up Stokes problem and mesh.
  */
@@ -5342,46 +5434,57 @@ main (int argc, char **argv)
     ymir_mesh_t        *ymir_mesh_I;
     ymir_pressure_elem_t  *press_elem_I;
     rhea_discretization_options_t discr_options_I;
-    ymir_vec_t         *temperature_I;
-    ymir_vec_t         *temperature_D;
-
+    rhea_stokes_problem_t *stokes_problem_I;
+    ymir_vec_t         *temperature_I, *weakzone_I;
+    ymir_vec_t         *temperature, *weakzone;
 
     /*have to use a new discr_option, otherwise the code crashes with memory balance error*/
     rhea_discretization_process_options (&discr_options_I, &domain_options);
     slabs_setup_mesh (&p4est_I, &ymir_mesh_I, &press_elem_I, mpicomm,
                       &domain_options, &discr_options_I, &slabs_options);
-    /* compute temperature */
+
+//    /* compute temperature */
     temperature_I = rhea_temperature_new (ymir_mesh_I);
+    weakzone_I = rhea_viscosity_new (ymir_mesh_I);
+
     slabs_poly2_temperature_compute (temperature_I, &slabs_options);
+    slabs_weakzone_compute (weakzone_I, &slabs_options);
 
     rhea_discretization_set_user_X_fn (&discr_options,
                                        slabs_X_fn_function, NULL);
+
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                       &domain_options, &discr_options, &slabs_options);
 
-    temperature_D = rhea_temperature_new (ymir_mesh);
-    temperature_D->cd = temperature_I->cd;
-    temperature_D->cdo = temperature_I->cdo;
-
-      char            path[BUFSIZ];
-      snprintf (path, BUFSIZ, "%s", vtk_write_testdist_path);
-      ymir_vtk_write (ymir_mesh, path,
-                    temperature_I, "temperature",
-                    temperature_D, "temperature_D",
-                    NULL);
+    temperature = rhea_temperature_new (ymir_mesh);
+    weakzone = rhea_viscosity_new (ymir_mesh);
+    temperature->cd = temperature_I->cd;
+    temperature->cdo = temperature_I->cdo;
+    weakzone->dd = weakzone_I->dd;
+    slabs_setup_stokes_surfdist (&stokes_problem, ymir_mesh, press_elem,
+                        &domain_options, &temp_options, &visc_options,
+                        &slabs_options, vtk_write_input_path, temperature, weakzone);
+//
+//      char            path[BUFSIZ];
+//      snprintf (path, BUFSIZ, "%s", vtk_write_testdist_path);
+//      ymir_vtk_write (ymir_mesh, path,
+//                    temperature_I, "temperature",
+//                    temperature_D, "temperature_D",
+//                    NULL);
 
     rhea_temperature_destroy (temperature_I);
-    rhea_temperature_destroy (temperature_D);
+    rhea_temperature_destroy (weakzone_I);
+//    rhea_temperature_destroy (temperature_D);
+//    rhea_temperature_destroy (weakzone_D);
     rhea_discretization_ymir_mesh_destroy (ymir_mesh_I, press_elem_I);
     rhea_discretization_p4est_destroy (p4est_I);
     rhea_discretization_options_clear (&discr_options_I);
   }
   else {
     rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_function, NULL);
+                                       slabs_X_fn_identity, NULL);
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                       &domain_options, &discr_options, &slabs_options);
-  }
  /*
    * Setup Stokes Problem
    */
@@ -5393,6 +5496,7 @@ main (int argc, char **argv)
                         &domain_options, &temp_options, &visc_options,
                         &slabs_options, vtk_write_input_path);
 
+  }
   /*
    * Solve Stokes Problem
    */
