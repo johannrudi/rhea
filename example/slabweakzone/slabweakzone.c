@@ -5387,7 +5387,7 @@ main (int argc, char **argv)
    * Setup Mesh
    */
   if (ascii_read_topo_path != NULL) {
-    int                   Ncn = 1161;
+    int                   Ncn;
     int                   i;
     FILE                  *infile;
     char                  infilename[BUFSIZ];
@@ -5398,12 +5398,13 @@ main (int argc, char **argv)
     tY = RHEA_ALLOC (double, Ncn);
     tZ = RHEA_ALLOC (double, Ncn);
 
-    snprintf (infilename, BUFSIZ, "%s_visc_%04d", ascii_read_topo_path, mpirank);
+    snprintf (infilename, BUFSIZ, "%s_visc", ascii_read_topo_path);
     infile = fopen (infilename, "r");
     if (infile == NULL) {
       YMIR_LERRORF ("Could not open %s for reading!\n", infilename);
       return -1;
     }
+    fscanf (infile, "%d\n", &Ncn);
     for (i = 0; i < Ncn; i++) {
       fscanf (infile, "%lf %lf %lf\n", &tX[i], &tY[i], &tZ[i]);
     }
@@ -5423,7 +5424,7 @@ main (int argc, char **argv)
     rhea_discretization_process_options (&discr_options, &domain_options);
 
     rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_identity, &topo);
+                                       slabs_X_fn_profile, &topo);
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                           &domain_options, &discr_options, &slabs_options);
 
@@ -6418,6 +6419,81 @@ main (int argc, char **argv)
     sc_dmatrix_destroy (elem);
     ymir_vec_destroy (surf_normal_stress);
   }
+
+#if 0
+  if (vtk_write_mpiioface_path != NULL) {
+    ymir_vec_t            *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
+                                                     RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    mangll_cnodes_t       *cnodes = ymir_mesh->cnodes;
+    const int             N = cnodes->N;
+    int                   Np;
+    int                   mpirank = ymir_mesh->ma->mpirank;
+    int                   mpirank = ymir_mesh->ma->mpisize;
+    ymir_locidx_t         n_elements, elid, Ntotal;
+    ymir_locidx_t         fm = surf_normal_stress->meshnum;
+    ymir_face_mesh_t      *fmesh = &(ymir_mesh->fmeshes[fm]);
+    int                   i, j, k;
+    double                *Xd, *Yd, *Zd;
+    double                *Ax, *Ay, *Az, *Asurf;
+    double                *Px, *Py, *Pz, *Psurf;
+    double                *elemd;
+    sc_dmatrix_t          *elem;
+    FILE                  *outfile;
+    char                  outfilename[BUFSIZ];
+
+
+    RHEA_GLOBAL_PRODUCTIONF ("In %s: Start vtk_write_ioface\n", this_fn_name);
+
+    /* compute surface normal stress sigma */
+    slabs_physics_compute_normal_boundary_stress (
+                   surf_normal_stress, sol_vel_press,
+                   rhea_stokes_problem_get_rhs_vel (stokes_problem),
+                   rhea_stokes_problem_get_stokes_op (stokes_problem));
+
+    Np = (N + 1) * (N + 1);
+    n_elements = fmesh->K;
+    Ntotal = Np * n_elements;
+    Xd = fmesh->X->e[0];
+    Yd = fmesh->Y->e[0];
+    Zd = fmesh->Z->e[0];
+
+    snprintf (outfilename, BUFSIZ, "%s_nstress_%04d.face%d", vtk_write_ioface_path, mpirank,
+              (int) fm);
+
+    outfile = fopen (outfilename, "w");
+    if (outfile == NULL) {
+      YMIR_LERRORF ("Could not open %s for output!\n", outfilename);
+      return -1;
+    }
+
+    elem = sc_dmatrix_new (Np, 1);
+    elemd = elem->e[0];
+    for (elid = 0; elid < n_elements; elid++) {
+      ymir_cvec_get_elem_interp (surf_normal_stress, elem, YMIR_STRIDE_NODE, elid,
+                                 YMIR_GAUSS_NODE, YMIR_COPY);
+
+      for (i = 0; i < Np; ++i)  {
+        j = elid * Np + i;
+        fprintf (outfile, "%24.16e    %24.16e    %24.16e    %24.16e\n", Xd[j],
+               Yd[j], Zd[j], elemd[i]);
+      }
+    }
+    if (fclose (outfile)) {
+      YMIR_LERROR ("main: Error closing footer\n");
+      return -1;
+    }
+
+    char            path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_original", vtk_write_ioface_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    surf_normal_stress, "surf_normal_stress",
+                    NULL);
+
+    sc_dmatrix_destroy (elem);
+    ymir_vec_destroy (surf_normal_stress);
+  }
+#endif
 
   if (vtk_read_ioface_path != NULL) {
     ymir_vec_t            *surf_normal_stress = ymir_face_cvec_new (ymir_mesh,
