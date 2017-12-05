@@ -729,17 +729,17 @@ static ymir_topidx_t *
 rhea_domain_get_tree_to_bf (p4est_connectivity_t *conn,
                             rhea_domain_shape_t domain_shape)
 {
-  const ymir_topidx_t ntrees = conn->num_trees;
+  const ymir_topidx_t n_trees = conn->num_trees;
   ymir_topidx_t       treeid;
   int                 faceid;
-  ymir_topidx_t      *tree_to_bf = RHEA_ALLOC (ymir_topidx_t, 6 * ntrees);
+  ymir_topidx_t      *tree_to_bf = RHEA_ALLOC (ymir_topidx_t, 6 * n_trees);
 
   switch (domain_shape) {
   case RHEA_DOMAIN_CUBE:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    for (treeid = 0; treeid < ntrees; treeid++) { /* loop over all trees */
+    for (treeid = 0; treeid < n_trees; treeid++) { /* loop over all trees */
       /* set sides */
       for (faceid = 0; faceid < 4; faceid++) { /* loop over all side faces */
         if (conn->tree_to_tree[6 * treeid + faceid] == treeid) {
@@ -771,7 +771,7 @@ rhea_domain_get_tree_to_bf (p4est_connectivity_t *conn,
     break;
 
   case RHEA_DOMAIN_SHELL:
-    for (treeid = 0; treeid < ntrees; treeid++) { /* loop over all trees */
+    for (treeid = 0; treeid < n_trees; treeid++) { /* loop over all trees */
       /* set sides */
       for (faceid = 0; faceid < 4; faceid++) { /* loop over all side faces */
         tree_to_bf[6 * treeid + faceid] = RHEA_DOMAIN_BOUNDARY_FACE_NONE;
