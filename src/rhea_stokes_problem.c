@@ -500,6 +500,7 @@ rhea_stokes_problem_linear_create_solver_data (
   RHEA_ASSERT (stokes_problem_lin->coeff   != NULL);
   RHEA_ASSERT (stokes_problem_lin->rhs_vel != NULL);
   RHEA_ASSERT (stokes_problem_lin->domain_options != NULL);
+  RHEA_ASSERT (stokes_problem_lin->stokes_op == NULL);
 
   /* compute viscosity */
   rhea_stokes_problem_compute_coefficient (stokes_problem_lin, 0 /* unused */);
@@ -617,7 +618,7 @@ rhea_stokes_problem_linear_setup_solver (
                                     rhea_stokes_problem_t *stokes_problem_lin)
 {
   const char         *this_fn_name = "rhea_stokes_problem_linear_setup_solver";
-  ymir_stokes_op_t   *stokes_op = stokes_problem_lin->stokes_op;
+  ymir_stokes_op_t   *stokes_op;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet;
   ymir_vec_t         *rhs_vel_press;
 
@@ -626,13 +627,15 @@ rhea_stokes_problem_linear_setup_solver (
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
   RHEA_ASSERT (stokes_problem_lin->rhs_vel_press != NULL);
-  RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
+  RHEA_ASSERT (stokes_problem_lin->stokes_op == NULL);
   RHEA_ASSERT (stokes_problem_lin->stokes_pc == NULL);
 
   /* create solver data */
   rhea_stokes_problem_linear_create_solver_data (stokes_problem_lin);
+  RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
 
   /* construct right-hand side for Stokes system */
+  stokes_op = stokes_problem_lin->stokes_op;
   rhs_vel = stokes_problem_lin->rhs_vel;
   rhs_vel_nonzero_dirichlet = stokes_problem_lin->rhs_vel_nonzero_dirichlet;
   rhs_vel_press = stokes_problem_lin->rhs_vel_press;
