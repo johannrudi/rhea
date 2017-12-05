@@ -721,40 +721,51 @@ rhea_discretization_set_cont_coordinates (
   ymir_topidx_t       meshid = coordinates->meshnum;
   const ymir_locidx_t n_nodes = ymir_mesh->fmeshes[meshid].Ncn;
   ymir_locidx_t       nodeid;
+  ymir_vec_t         *x_vec, *y_vec, *z_vec;
 
-  ymir_vec_t         *x_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
-  ymir_vec_t         *y_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
-  ymir_vec_t         *z_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
-  const double       *x = ymir_cvec_index (x_vec, 0, 0);
-  const double       *y = ymir_cvec_index (y_vec, 0, 0);
-  const double       *z = ymir_cvec_index (z_vec, 0, 0);
-  double             *coord = ymir_cvec_index (coordinates, 0, 0);
+  /* exit if nothing to do */
+  if (n_nodes <= 0) {
+    return;
+  }
 
   /* get cartesian coordinates */
+  x_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
+  y_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
+  z_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
   ymir_vec_get_coords (x_vec, y_vec, z_vec);
 
   /* set coordinates */
-  RHEA_ASSERT (YMIR_CVEC_STRIDE == YMIR_STRIDE_NODE);
-  for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-    switch (type) {
-    case RHEA_DISCRETIZATION_COORDINATE_CARTESIAN:
-      coord[3*nodeid    ] = x[nodeid];
-      coord[3*nodeid + 1] = y[nodeid];
-      coord[3*nodeid + 2] = z[nodeid];
-      break;
-    case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_MATH:
-      rhea_discretization_convert_cartesian_to_spherical_math (
-          &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
-          x[nodeid], y[nodeid], z[nodeid]);
-      break;
-    case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO:
-      rhea_discretization_convert_cartesian_to_spherical_geo (
-          &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
-          x[nodeid], y[nodeid], z[nodeid]);
-      break;
-    default: /* unknown coordinate type */
-      RHEA_ABORT_NOT_REACHED ();
+  if (YMIR_CVEC_STRIDE == YMIR_STRIDE_NODE) {
+    const double       *_sc_restrict x = ymir_cvec_index (x_vec, 0, 0);
+    const double       *_sc_restrict y = ymir_cvec_index (y_vec, 0, 0);
+    const double       *_sc_restrict z = ymir_cvec_index (z_vec, 0, 0);
+    double             *_sc_restrict coord =
+                          ymir_cvec_index (coordinates, 0, 0);
+
+    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+      switch (type) {
+      case RHEA_DISCRETIZATION_COORDINATE_CARTESIAN:
+        coord[3*nodeid    ] = x[nodeid];
+        coord[3*nodeid + 1] = y[nodeid];
+        coord[3*nodeid + 2] = z[nodeid];
+        break;
+      case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_MATH:
+        rhea_discretization_convert_cartesian_to_spherical_math (
+            &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
+            x[nodeid], y[nodeid], z[nodeid]);
+        break;
+      case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO:
+        rhea_discretization_convert_cartesian_to_spherical_geo (
+            &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
+            x[nodeid], y[nodeid], z[nodeid]);
+        break;
+      default: /* unknown coordinate type */
+        RHEA_ABORT_NOT_REACHED ();
+      }
     }
+  }
+  else {
+    RHEA_ABORT_NOT_REACHED ();
   }
 
   /* destroy */
@@ -776,9 +787,8 @@ rhea_discretization_write_cont_coordinates (
   const int           mpisize = ymir_mesh_get_MPI_Comm_size (ymir_mesh);
   int                *segment_offset;
   int                 r;
-
-  ymir_vec_t         *coordinates = ymir_face_cvec_new (ymir_mesh, meshid, 3);
-  double             *coord_data = ymir_cvec_index (coordinates, 0, 0);
+  ymir_vec_t         *coordinates;
+  double             *coord_data;
 
   /* create segment offsets */
   segment_offset = RHEA_ALLOC (int, mpisize + 1);
@@ -789,7 +799,14 @@ rhea_discretization_write_cont_coordinates (
   }
 
   /* set coordinates */
+  coordinates = ymir_face_cvec_new (ymir_mesh, meshid, 3);
   rhea_discretization_set_cont_coordinates (coordinates, type);
+  if (0 < face_mesh->Ncn) { /* if nodes exist on this rank */
+    coord_data = ymir_cvec_index (coordinates, 0, 0);
+  }
+  else { /* otherwise this rank is empty */
+    coord_data = NULL;
+  }
 
   /* write coordiantes */
   rhea_io_mpi_gather_write_double_to_txt (file_path_txt, coord_data,
