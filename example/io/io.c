@@ -36,7 +36,8 @@ main (int argc, char **argv)
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
   /* options local to this program */
-  char               *write_coordinates_file_path_txt;
+  char               *write_vol_coord_file_path_txt;
+  char               *write_surf_coord_file_path_txt;
   char               *vtk_write_input_path;
   /* mesh */
   p4est_t            *p4est;
@@ -60,14 +61,18 @@ main (int argc, char **argv)
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
 
-  /* vtk output options */
+  /* coordinates output */
+  YMIR_OPTIONS_S, "write-volume-coordinates-file-path-txt", '\0',
+    &(write_vol_coord_file_path_txt), NULL,
+    "Output path for text file with coordinates of continuous nodes in volume",
+  YMIR_OPTIONS_S, "write-surface-coordinates-file-path-txt", '\0',
+    &(write_surf_coord_file_path_txt), NULL,
+    "Output path for text file with coordinates of continuous nodes at surface",
+
+  /* vtk output */
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
     &(vtk_write_input_path), NULL,
     "File path for vtk files for the input of the Stokes problem",
-
-  YMIR_OPTIONS_S, "write-coordinates-file-path-txt", '\0',
-    &(write_coordinates_file_path_txt), NULL,
-    "Output path for a text file with coordinates of continuous nodes",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -102,9 +107,14 @@ main (int argc, char **argv)
                           &domain_options, &discr_options);
 
   /* write coordinates */
-  if (write_coordinates_file_path_txt != NULL) {
-    rhea_discretization_write_coordinates_cont (
-        write_coordinates_file_path_txt, ymir_mesh,
+  if (write_vol_coord_file_path_txt != NULL) {
+    rhea_discretization_write_cont_coordinates_volume (
+        write_vol_coord_file_path_txt, ymir_mesh,
+        RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO);
+  }
+  if (write_surf_coord_file_path_txt != NULL) {
+    rhea_discretization_write_cont_coordinates_surface (
+        write_surf_coord_file_path_txt, ymir_mesh,
         RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO);
   }
 
