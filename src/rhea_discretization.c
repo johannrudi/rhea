@@ -713,40 +713,44 @@ rhea_discretization_convert_cartesian_to_spherical_geo (
 }
 
 static void
-rhea_discretization_set_coordinates_cont (
+rhea_discretization_set_cont_coordinates (
                                   ymir_vec_t *coordinates,
                                   rhea_discretization_coordinate_type_t type)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (coordinates);
-  ymir_vec_t         *x_vec = ymir_cvec_new (ymir_mesh, 1);
-  ymir_vec_t         *y_vec = ymir_cvec_new (ymir_mesh, 1);
-  ymir_vec_t         *z_vec = ymir_cvec_new (ymir_mesh, 1);
-  const mangll_locidx_t n_nodes = ymir_mesh->cnodes->Ncn;
-  mangll_locidx_t     nodeid;
+  ymir_topidx_t       meshid = coordinates->meshnum;
+  const ymir_locidx_t n_nodes = ymir_mesh->fmeshes[meshid].Ncn;
+  ymir_locidx_t       nodeid;
+
+  ymir_vec_t         *x_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
+  ymir_vec_t         *y_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
+  ymir_vec_t         *z_vec = ymir_face_cvec_new (ymir_mesh, meshid, 1);
+  const double       *x = ymir_cvec_index (x_vec, 0, 0);
+  const double       *y = ymir_cvec_index (y_vec, 0, 0);
+  const double       *z = ymir_cvec_index (z_vec, 0, 0);
+  double             *coord = ymir_cvec_index (coordinates, 0, 0);
 
   /* get cartesian coordinates */
   ymir_vec_get_coords (x_vec, y_vec, z_vec);
 
   /* set coordinates */
+  RHEA_ASSERT (YMIR_CVEC_STRIDE == YMIR_STRIDE_NODE);
   for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-    const double       *x = ymir_cvec_index (x_vec, nodeid, 0);
-    const double       *y = ymir_cvec_index (y_vec, nodeid, 0);
-    const double       *z = ymir_cvec_index (z_vec, nodeid, 0);
-    double             *coord = ymir_cvec_index (coordinates, nodeid, 0);
-
     switch (type) {
     case RHEA_DISCRETIZATION_COORDINATE_CARTESIAN:
-      coord[0] = *x;
-      coord[1] = *y;
-      coord[2] = *z;
+      coord[3*nodeid    ] = x[nodeid];
+      coord[3*nodeid + 1] = y[nodeid];
+      coord[3*nodeid + 2] = z[nodeid];
       break;
     case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_MATH:
       rhea_discretization_convert_cartesian_to_spherical_math (
-          &coord[0], &coord[1], &coord[2], *x, *y, *z);
+          &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
+          x[nodeid], y[nodeid], z[nodeid]);
       break;
     case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO:
       rhea_discretization_convert_cartesian_to_spherical_geo (
-          &coord[0], &coord[1], &coord[2], *x, *y, *z);
+          &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
+          x[nodeid], y[nodeid], z[nodeid]);
       break;
     default: /* unknown coordinate type */
       RHEA_ABORT_NOT_REACHED ();
@@ -760,25 +764,21 @@ rhea_discretization_set_coordinates_cont (
 }
 
 void
-rhea_discretization_write_coordinates_cont (
+rhea_discretization_write_cont_coordinates (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
+                                  ymir_topidx_t meshid,
                                   rhea_discretization_coordinate_type_t type)
 {
-  ymir_vec_t         *coordinates = ymir_cvec_new (ymir_mesh, 3);
-  double             *coord_data = ymir_cvec_index (coordinates, 0, 0);
-
-  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  ymir_face_mesh_t   *face_mesh = &(ymir_mesh->fmeshes[meshid]);
+  const ymir_locidx_t *n_nodes = face_mesh->Ngo;
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
-  int                 mpisize, mpiret;
+  const int           mpisize = ymir_mesh_get_MPI_Comm_size (ymir_mesh);
   int                *segment_offset;
   int                 r;
 
-  /* set coordinates */
-  rhea_discretization_set_coordinates_cont (coordinates, type);
-
-  /* get parallel environment */
-  mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
+  ymir_vec_t         *coordinates = ymir_face_cvec_new (ymir_mesh, meshid, 3);
+  double             *coord_data = ymir_cvec_index (coordinates, 0, 0);
 
   /* create segment offsets */
   segment_offset = RHEA_ALLOC (int, mpisize + 1);
@@ -788,6 +788,9 @@ rhea_discretization_write_coordinates_cont (
     segment_offset[r+1] = segment_offset[r] + (int) 3*n_nodes[r];
   }
 
+  /* set coordinates */
+  rhea_discretization_set_cont_coordinates (coordinates, type);
+
   /* write coordiantes */
   rhea_io_mpi_gather_write_double_to_txt (file_path_txt, coord_data,
                                           segment_offset, 3, mpicomm);
@@ -795,4 +798,25 @@ rhea_discretization_write_coordinates_cont (
   /* destroy */
   ymir_vec_destroy (coordinates);
   RHEA_FREE (segment_offset);
+}
+
+void
+rhea_discretization_write_cont_coordinates_volume (
+                                  const char *file_path_txt,
+                                  ymir_mesh_t *ymir_mesh,
+                                  rhea_discretization_coordinate_type_t type)
+{
+  rhea_discretization_write_cont_coordinates (file_path_txt, ymir_mesh,
+                                              YMIR_VOL_MESH, type);
+}
+
+void
+rhea_discretization_write_cont_coordinates_surface (
+                                  const char *file_path_txt,
+                                  ymir_mesh_t *ymir_mesh,
+                                  rhea_discretization_coordinate_type_t type)
+{
+  rhea_discretization_write_cont_coordinates (file_path_txt, ymir_mesh,
+                                              RHEA_DOMAIN_BOUNDARY_FACE_TOP,
+                                              type);
 }

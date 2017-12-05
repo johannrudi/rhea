@@ -138,6 +138,17 @@ rhea_discretization_coordinate_type_t;
 void                rhea_discretization_write_coordinates_cont (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
+                                  ymir_topidx_t meshid,
+                                  rhea_discretization_coordinate_type_t type);
+
+void                rhea_discretization_write_cont_coordinates_volume (
+                                  const char *file_path_txt,
+                                  ymir_mesh_t *ymir_mesh,
+                                  rhea_discretization_coordinate_type_t type);
+
+void                rhea_discretization_write_cont_coordinates_surface (
+                                  const char *file_path_txt,
+                                  ymir_mesh_t *ymir_mesh,
                                   rhea_discretization_coordinate_type_t type);
 
 #endif /* RHEA_DISCRETIZATION_H */
