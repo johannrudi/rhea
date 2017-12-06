@@ -30,9 +30,9 @@
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_DECAY (100.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_WIDTH (0.1)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_SCALING (1.0)
-#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X (0.5)
-#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y (0.5)
-#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z (0.5)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X (NAN)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y (NAN)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z (NAN)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_DILATATION (1.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_X (0.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Y (0.0)
@@ -43,9 +43,9 @@
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_DECAY (100.0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_WIDTH (0.1)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_SCALING (1.0)
-#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X (0.5)
-#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y (0.5)
-#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z (0.5)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_X (NAN)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Y (NAN)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_CENTER_Z (NAN)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_DILATATION (1.0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_X (0.0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Y (0.0)
@@ -204,15 +204,15 @@ rhea_temperature_add_options_sinker (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "center-x", '\0',
     &(rhea_temperature_sinker_center_x),
     RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_X,
-    "Center of sigle sinker: x-coordinate",
+    "Center of single sinker: x-coordinate",
   YMIR_OPTIONS_D, "center-y", '\0',
     &(rhea_temperature_sinker_center_y),
     RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Y,
-    "Center of sigle sinker: y-coordinate",
+    "Center of single sinker: y-coordinate",
   YMIR_OPTIONS_D, "center-z", '\0',
     &(rhea_temperature_sinker_center_z),
     RHEA_TEMPERATURE_SINKER_DEFAULT_CENTER_Z,
-    "Center of sigle sinker: z-coordinate",
+    "Center of single sinker: z-coordinate",
 
   YMIR_OPTIONS_D, "dilatation", '\0',
     &(rhea_temperature_sinker_dilatation),
@@ -304,6 +304,54 @@ rhea_temperature_add_options_plume (ymir_options_t * opt_sup)
   ymir_options_destroy (opt);
 }
 
+static void
+rhea_temperature_set_default_anomaly_position (
+                                        double *center_x,
+                                        double *center_y,
+                                        double *center_z,
+                                        rhea_domain_options_t *domain_options)
+{
+  double              cx, cy, cz;
+
+  /* set center coordinates of sinker/plume anomaly */
+  switch (domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+    RHEA_ASSERT (isfinite (domain_options->x_min));
+    RHEA_ASSERT (isfinite (domain_options->x_max));
+    RHEA_ASSERT (isfinite (domain_options->y_min));
+    RHEA_ASSERT (isfinite (domain_options->y_max));
+    RHEA_ASSERT (isfinite (domain_options->z_min));
+    RHEA_ASSERT (isfinite (domain_options->z_max));
+    cx = 0.5 * (domain_options->x_min + domain_options->x_max);
+    cy = 0.5 * (domain_options->y_min + domain_options->y_max);
+    cz = 0.5 * (domain_options->z_min + domain_options->z_max);
+    break;
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    RHEA_ASSERT (isfinite (domain_options->radius_min));
+    RHEA_ASSERT (isfinite (domain_options->radius_max));
+    cx = 0.0;
+    cy = 0.0;
+    cz = 0.5 * (domain_options->radius_min + domain_options->radius_max);
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* set output (overwrite only if NaN) */
+  if (center_x != NULL && !isfinite (*center_x)) {
+    *center_x = cx;
+  }
+  if (center_y != NULL && !isfinite (*center_y)) {
+    *center_y = cy;
+  }
+  if (center_z != NULL && !isfinite (*center_z)) {
+    *center_z = cz;
+  }
+}
+
 void
 rhea_temperature_process_options (rhea_temperature_options_t *opt,
                                   rhea_domain_options_t *domain_options)
@@ -341,6 +389,9 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   opt->sinker_center_x = rhea_temperature_sinker_center_x;
   opt->sinker_center_y = rhea_temperature_sinker_center_y;
   opt->sinker_center_z = rhea_temperature_sinker_center_z;
+  rhea_temperature_set_default_anomaly_position (
+      &opt->sinker_center_x, &opt->sinker_center_y, &opt->sinker_center_z,
+      domain_options);
   opt->sinker_dilatation = rhea_temperature_sinker_dilatation;
   opt->sinker_translation_x = rhea_temperature_sinker_translation_x;
   opt->sinker_translation_y = rhea_temperature_sinker_translation_y;
@@ -355,6 +406,9 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   opt->plume_center_x = rhea_temperature_plume_center_x;
   opt->plume_center_y = rhea_temperature_plume_center_y;
   opt->plume_center_z = rhea_temperature_plume_center_z;
+  rhea_temperature_set_default_anomaly_position (
+      &opt->plume_center_x, &opt->plume_center_y, &opt->plume_center_z,
+      domain_options);
   opt->plume_dilatation = rhea_temperature_plume_dilatation;
   opt->plume_translation_x = rhea_temperature_plume_translation_x;
   opt->plume_translation_y = rhea_temperature_plume_translation_y;
