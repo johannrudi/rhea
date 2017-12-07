@@ -309,17 +309,17 @@ rhea_discretization_process_options (rhea_discretization_options_t *opt,
   switch (domain_options->shape) {
   case RHEA_DOMAIN_CUBE:
   case RHEA_DOMAIN_BOX:
-    opt->X_fn = rhea_discretization_X_fn_identity;
-    opt->X_data = NULL;
+    rhea_discretization_set_X_fn (
+        opt, rhea_discretization_X_fn_identity, NULL);
     break;
   case RHEA_DOMAIN_SHELL:
-    opt->X_fn = rhea_discretization_X_fn_shell;
-    opt->X_data = domain_options;
+    rhea_discretization_set_X_fn (
+        opt, rhea_discretization_X_fn_shell, domain_options);
     break;
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    opt->X_fn = rhea_discretization_X_fn_box_spherical;
-    opt->X_data = domain_options;
+    rhea_discretization_set_X_fn (
+        opt, rhea_discretization_X_fn_box_spherical, domain_options);
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
@@ -327,8 +327,8 @@ rhea_discretization_process_options (rhea_discretization_options_t *opt,
 }
 
 void
-rhea_discretization_set_user_X_fn (rhea_discretization_options_t *opt,
-                                   mangll_X_t X_fn, void *X_data)
+rhea_discretization_set_X_fn (rhea_discretization_options_t *opt,
+                              mangll_X_t X_fn, void *X_data)
 {
   opt->X_fn = X_fn;
   opt->X_data = X_data;
