@@ -7,10 +7,10 @@
  *****************************************************************************/
 
 #include <rhea.h>
+#include <rhea_stokes_problem_amr.h>
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
-#include <rhea_vis.h> //TODO put into rhea.h
 #include <ymir_vtk.h> //###DEV###
 
 /******************************************************************************

@@ -10,7 +10,6 @@
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
-#include <rhea_vis.h> //TODO put into rhea.h
 
 /******************************************************************************
  * Main Program
