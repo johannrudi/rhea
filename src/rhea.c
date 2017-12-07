@@ -123,7 +123,6 @@ rhea_add_options_all (ymir_options_t *options)
   rhea_weakzone_add_options (options);
   rhea_viscosity_add_options (options);
   rhea_discretization_add_options (options);
-  rhea_amr_add_options (options);
   rhea_stokes_problem_add_options (options);
   rhea_newton_add_options (options);
 }
@@ -133,7 +132,6 @@ rhea_add_options_newton (ymir_options_t *options)
 {
   rhea_domain_add_options (options);
   rhea_discretization_add_options (options);
-  rhea_amr_add_options (options);
   rhea_newton_add_options (options);
 }
 

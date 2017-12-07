@@ -45,6 +45,9 @@ rhea_discretization_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
+  /* add sub-options */
+  rhea_amr_add_options (opt);
+
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
   ymir_options_destroy (opt);
