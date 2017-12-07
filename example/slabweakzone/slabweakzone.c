@@ -2129,18 +2129,15 @@ slabs_surface_location (slabs_options_t *slabs_options,
     /* set custom X-function */
   switch (slabs_surf_options->x_func) {
     case SLABS_X_FUNCTION_IDENTITY:
-      rhea_discretization_set_user_X_fn (discr_options,
-                                     slabs_X_fn_identity, NULL);
+      rhea_discretization_set_X_fn (discr_options, slabs_X_fn_identity, NULL);
       break;
 
     case SLABS_X_FUNCTION_SINE:
-      rhea_discretization_set_user_X_fn (discr_options,
-                                       slabs_X_fn_sine, NULL);
+      rhea_discretization_set_X_fn (discr_options, slabs_X_fn_sine, NULL);
       break;
 
     case SLABS_X_FUNCTION_PROFILE:
-      rhea_discretization_set_user_X_fn (discr_options,
-                                       slabs_X_fn_profile, topo);
+      rhea_discretization_set_X_fn (discr_options, slabs_X_fn_profile, topo);
       break;
 
     default:
@@ -5406,8 +5403,7 @@ main (int argc, char **argv)
   /* discr influences domain ? */
     rhea_discretization_process_options (&discr_options, &domain_options);
 
-    rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_profile, &topo);
+    rhea_discretization_set_X_fn (&discr_options, slabs_X_fn_profile, &topo);
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                           &domain_options, &discr_options, &slabs_options);
 
@@ -5434,8 +5430,7 @@ main (int argc, char **argv)
     slabs_poly2_temperature_compute (temperature_I, &slabs_options);
     slabs_weakzone_compute (weakzone_I, &slabs_options);
 
-    rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_function, NULL);
+    rhea_discretization_set_X_fn (&discr_options, slabs_X_fn_function, NULL);
 
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                       &domain_options, &discr_options, &slabs_options);
@@ -5465,8 +5460,7 @@ main (int argc, char **argv)
     rhea_discretization_boundary_clear (&discr_options_I);
   }
   else {
-    rhea_discretization_set_user_X_fn (&discr_options,
-                                       slabs_X_fn_identity, NULL);
+    rhea_discretization_set_X_fn (&discr_options, slabs_X_fn_identity, NULL);
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
                       &domain_options, &discr_options, &slabs_options);
  /*
@@ -5948,8 +5942,7 @@ main (int argc, char **argv)
     slabs_surf_options.topo_profile = &topo;
     /*creat new discr and domain options with the distorted surface*/
     rhea_discretization_process_options (&discr_options2, &domain_options);
-    rhea_discretization_set_user_X_fn (&discr_options2,
-                                       slabs_X_fn_profile, &topo);
+    rhea_discretization_set_X_fn (&discr_options2, slabs_X_fn_profile, &topo);
 
     slabs_setup_mesh (&p4est2, &ymir_mesh2, &press_elem2, mpicomm,
                       &domain_options, &discr_options2, &slabs_options);
