@@ -7,6 +7,7 @@
 #include <rhea_stress.h>
 #include <rhea_stokes_norm.h>
 #include <rhea_newton.h>
+#include <rhea_stokes_problem_amr.h>
 #include <rhea.h>
 #include <ymir_mass_vec.h>
 #include <ymir_stress_op_optimized.h>
@@ -80,6 +81,9 @@ rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
+
+  /* add sub-options */
+  rhea_stokes_problem_amr_add_options (opt);
 
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);

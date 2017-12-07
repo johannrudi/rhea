@@ -13,6 +13,39 @@
 #include <mangll_fields.h>
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/* default options */
+#define RHEA_STOKES_PROBLEM_AMR_INIT_INDICATOR_NAME "uniform"
+
+/* initialize options */
+char               *rhea_stokes_problem_amr_init_indicator_name =
+  RHEA_STOKES_PROBLEM_AMR_INIT_INDICATOR_NAME;
+
+void
+rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "AMR";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_S, "init-amr-indicator-name", '\0',
+    &(rhea_stokes_problem_amr_init_indicator_name),
+    RHEA_STOKES_PROBLEM_AMR_INIT_INDICATOR_NAME,
+    "AMR for initial mesh: ....",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+}
+
+/******************************************************************************
  * AMR Data
  *****************************************************************************/
 

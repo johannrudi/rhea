@@ -4,9 +4,18 @@
 #include <rhea_stokes_problem.h>
 #include <rhea_discretization.h>
 
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_stokes_problem_amr_add_options (
+                                                    ymir_options_t * opt_sup);
+
+/**
+ *
+ */
 int                 rhea_stokes_problem_amr (
-                                  rhea_stokes_problem_t *stokes_problem,
-                                  p4est_t *p4est,
-                                  rhea_discretization_options_t *discr_options);
+                                rhea_stokes_problem_t *stokes_problem,
+                                p4est_t *p4est,
+                                rhea_discretization_options_t *discr_options);
 
 #endif /* RHEA_STOKES_PROBLEM_AMR_H */
