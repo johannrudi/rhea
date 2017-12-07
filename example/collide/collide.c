@@ -893,23 +893,23 @@ collide_setup_mesh (p4est_t **p4est,
   /* set custom X-function */
   switch (collide_options->x_func) {
     case COLLIDE_X_FUNCTION_IDENTITY:
-      rhea_discretization_set_user_X_fn (discr_options,
-                                     collide_X_fn_identity, NULL);
+      rhea_discretization_set_X_fn (discr_options,
+                                    collide_X_fn_identity, NULL);
       break;
 
     case COLLIDE_X_FUNCTION_SINE:
-      rhea_discretization_set_user_X_fn (discr_options,
-                                       collide_X_fn_sine, NULL);
+      rhea_discretization_set_X_fn (discr_options,
+                                    collide_X_fn_sine, NULL);
       break;
 
     case COLLIDE_X_FUNCTION_RAMP:
-      rhea_discretization_set_user_X_fn (discr_options,
-                                       collide_X_fn_ramp, NULL);
+      rhea_discretization_set_X_fn (discr_options,
+                                    collide_X_fn_ramp, NULL);
       break;
 
     case COLLIDE_X_FUNCTION_PROFILE:
-      rhea_discretization_set_user_X_fn (discr_options,
-                                       collide_X_fn_profile, NULL);
+      rhea_discretization_set_X_fn (discr_options,
+                                    collide_X_fn_profile, NULL);
       break;
 
     default:
