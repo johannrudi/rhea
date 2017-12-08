@@ -430,8 +430,7 @@ rhea_amr_refine_depth_fn (p4est_t * p4est, p4est_topidx_t which_tree,
 double
 rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
 {
-  const double        n_quadrants = (double) p4est->global_num_quadrants;
-  double              n_flagged;
+  double              n_flagged_glo;
   p4est_locidx_t      n_flagged_loc;
   p4est_topidx_t      ti;
   size_t              tqi;
@@ -444,14 +443,14 @@ rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
 
     for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
       p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
-      rhea_p4est_quadrant_data_t *d = q->p.user_data;
+      rhea_p4est_quadrant_data_t *qd = q->p.user_data;
 
       if (rhea_amr_coarsen_half_fn (p4est, ti, q)) {
-        d->amr_flag = RHEA_AMR_FLAG_COARSEN;
+        qd->amr_flag = RHEA_AMR_FLAG_COARSEN;
         n_flagged_loc++;
       }
       else {
-        d->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
+        qd->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
       }
     }
   }
@@ -466,18 +465,17 @@ rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
     //TODO `sc_MPI_INT64_T` does not exist
     mpiret = sc_MPI_Allreduce (&n_loc, &n_glo, 1, MPI_INT64_T, sc_MPI_SUM,
                                mpicomm); SC_CHECK_MPI (mpiret);
-    n_flagged = (double) n_glo;
+    n_flagged_glo = (double) n_glo;
   }
 
   /* return relative number of flagged quadrants */
-  return n_flagged / n_quadrants;
+  return n_flagged_glo / (double) p4est->global_num_quadrants;
 }
 
 double
 rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
 {
-  const double        n_quadrants = (double) p4est->global_num_quadrants;
-  double              n_flagged;
+  double              n_flagged_glo;
   p4est_locidx_t      n_flagged_loc;
   p4est_topidx_t      ti;
   size_t              tqi;
@@ -490,14 +488,14 @@ rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
 
     for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
       p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
-      rhea_p4est_quadrant_data_t *d = q->p.user_data;
+      rhea_p4est_quadrant_data_t *qd = q->p.user_data;
 
       if (rhea_amr_refine_half_fn (p4est, ti, q)) {
-        d->amr_flag = RHEA_AMR_FLAG_REFINE;
+        qd->amr_flag = RHEA_AMR_FLAG_REFINE;
         n_flagged_loc++;
       }
       else {
-        d->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
+        qd->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
       }
     }
   }
@@ -512,9 +510,9 @@ rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
     //TODO `sc_MPI_INT64_T` does not exist
     mpiret = sc_MPI_Allreduce (&n_loc, &n_glo, 1, MPI_INT64_T, sc_MPI_SUM,
                                mpicomm); SC_CHECK_MPI (mpiret);
-    n_flagged = (double) n_glo;
+    n_flagged_glo = (double) n_glo;
   }
 
   /* return relative number of flagged quadrants */
-  return n_flagged / n_quadrants;
+  return n_flagged_glo / (double) p4est->global_num_quadrants;
 }
