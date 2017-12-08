@@ -2593,6 +2593,20 @@ rhea_stokes_problem_get_domain_options (rhea_stokes_problem_t *stokes_problem)
   return stokes_problem->domain_options;
 }
 
+rhea_temperature_options_t *
+rhea_stokes_problem_get_temperature_options (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->temp_options;
+}
+
+rhea_weakzone_options_t *
+rhea_stokes_problem_get_weakzone_options (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->weak_options;
+}
+
 rhea_viscosity_options_t *
 rhea_stokes_problem_get_viscosity_options (
                                         rhea_stokes_problem_t *stokes_problem)
