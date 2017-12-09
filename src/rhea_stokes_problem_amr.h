@@ -4,6 +4,16 @@
 #include <rhea_stokes_problem.h>
 #include <rhea_discretization.h>
 
+/* set verbosity:
+ *   0: all off
+ *   1: only essentials
+ *   2: concise information
+ *   3: detailed information
+ *   4: all on
+ */
+#define RHEA_STOKES_PROBLEM_AMR_VERBOSE (3)
+#define RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK (3)
+
 /**
  * Defines options and adds them as sub-options.
  */
