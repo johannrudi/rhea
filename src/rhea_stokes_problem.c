@@ -163,7 +163,9 @@ struct rhea_stokes_problem
   rhea_stokes_norm_type_t norm_type;
   ymir_Hminus1_norm_op_t *norm_op;
   double                  norm_op_mass_scaling;
-  char                   *vtk_write_newton_itn_path;
+
+  /* solver VTK output path */
+  char                   *solver_vtk_path;
 };
 
 /**
@@ -218,7 +220,8 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->norm_type = RHEA_STOKES_NORM_NONE;
   stokes_problem->norm_op = NULL;
   stokes_problem->norm_op_mass_scaling = NAN;
-  stokes_problem->vtk_write_newton_itn_path = NULL;
+
+  stokes_problem->solver_vtk_path = NULL;
 
   /* set default callback functions */
   if (rhea_weakzone_exists (weak_options)) {
@@ -493,7 +496,7 @@ rhea_stokes_problem_linear_create_solver_data (
 {
   const char         *this_fn_name =
                         "rhea_stokes_problem_linear_create_solver_data";
-
+  const char         *vtk_path = stokes_problem_lin->solver_vtk_path;
   rhea_domain_options_t *domain_options = stokes_problem_lin->domain_options;
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
@@ -505,6 +508,11 @@ rhea_stokes_problem_linear_create_solver_data (
   RHEA_ASSERT (stokes_problem_lin->rhs_vel != NULL);
   RHEA_ASSERT (stokes_problem_lin->domain_options != NULL);
   RHEA_ASSERT (stokes_problem_lin->stokes_op == NULL);
+
+  /* set VTK path for debuggin */
+  if (vtk_path != NULL) {
+    ymir_vtk_set_debug_path (vtk_path);
+  }
 
   /* compute viscosity */
   rhea_stokes_problem_compute_coefficient (stokes_problem_lin, 0 /* unused */);
@@ -556,6 +564,9 @@ rhea_stokes_problem_linear_clear_solver_data (
     ymir_stokes_op_destroy (stokes_problem_lin->stokes_op);
     stokes_problem_lin->stokes_op = NULL;
   }
+
+  /* clear VTK path for debugging */
+  ymir_vtk_set_debug_path ("");
 
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
@@ -1441,7 +1452,7 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
   const char         *this_fn_name =
                         "rhea_stokes_problem_nonlinear_create_solver_data_fn";
   rhea_stokes_problem_t *stokes_problem_nl = data;
-  const char         *vtk_path = stokes_problem_nl->vtk_write_newton_itn_path;
+  const char         *vtk_path = stokes_problem_nl->solver_vtk_path;
   const int           nonzero_init_guess = (solution != NULL);
 
   RHEA_GLOBAL_VERBOSEF ("Into %s (nonzero init guess %i)\n",
@@ -1978,7 +1989,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   const char         *this_fn_name =
                         "rhea_stokes_problem_nonlinear_output_prestep_fn";
   rhea_stokes_problem_t *stokes_problem_nl = data;
-  const char         *vtk_path = stokes_problem_nl->vtk_write_newton_itn_path;
+  const char         *vtk_path = stokes_problem_nl->solver_vtk_path;
   ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
   ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
   ymir_vec_t         *velocity, *pressure, *viscosity;
@@ -2383,15 +2394,6 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
-void
-rhea_stokes_problem_nonlinear_set_output (
-                              char *vtk_write_newton_iteration_path,
-                              rhea_stokes_problem_t *stokes_problem_nl)
-{
-  stokes_problem_nl->vtk_write_newton_itn_path =
-    vtk_write_newton_iteration_path;
-}
-
 /******************************************************************************
  * General Stokes Problem
  *****************************************************************************/
@@ -2530,6 +2532,14 @@ rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
   }
+}
+
+void
+rhea_stokes_problem_set_solver_vtk_output (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    char *vtk_path)
+{
+  stokes_problem->solver_vtk_path = vtk_path;
 }
 
 /******************************************************************************

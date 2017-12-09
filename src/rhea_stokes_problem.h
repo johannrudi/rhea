@@ -78,9 +78,9 @@ void                rhea_stokes_problem_solve (
 /**
  * Sets output path for vtk output the iterations of a nonlinear solve.
  */
-void                rhea_stokes_problem_nonlinear_set_output (
-                              char *vtk_write_newton_iteration_path,
-                              rhea_stokes_problem_t *stokes_problem_nl);
+void                rhea_stokes_problem_set_solver_vtk_output (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    char *vtk_path);
 
 /**
  * Accesses data of a Stokes problem.
