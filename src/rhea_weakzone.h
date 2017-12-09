@@ -103,24 +103,6 @@ int                 rhea_weakzone_check_vec_type (ymir_vec_t *vec);
 int                 rhea_weakzone_is_valid (ymir_vec_t *vec);
 
 /******************************************************************************
- * Get & Set Values
- *****************************************************************************/
-
-/**
- * Gets the weak zone of one element at Gauss nodes.
- */
-double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,
-                                                  ymir_vec_t *weak_vec,
-                                                  const ymir_locidx_t elid);
-
-/**
- * Sets the weak zone of one element at Gauss nodes.
- */
-void                rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec,
-                                                  sc_dmatrix_t *weak_el_mat,
-                                                  const ymir_locidx_t elid);
-
-/******************************************************************************
  * Data
  *****************************************************************************/
 
@@ -157,5 +139,40 @@ void                rhea_weakzone_compute (ymir_vec_t *weakzone, void *data);
 void                rhea_weakzone_compute_distance (
                                                 ymir_vec_t *distance,
                                                 rhea_weakzone_options_t *opt);
+
+/******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
+
+/**
+ * Gets the weak zone of one element at Gauss nodes.
+ */
+double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,
+                                                  ymir_vec_t *weak_vec,
+                                                  const ymir_locidx_t elid);
+
+/**
+ * Sets the weak zone of one element at Gauss nodes.
+ */
+void                rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec,
+                                                  sc_dmatrix_t *weak_el_mat,
+                                                  const ymir_locidx_t elid);
+
+double              rhea_weakzone_dist_node (int *nearest_label,
+                                             double *nearest_factor,
+                                             const double x, const double y,
+                                             const double z,
+                                             rhea_weakzone_options_t *opt);
+
+double              rhea_weakzone_factor_node (const double distance,
+                                               const double thickness,
+                                               const double thickness_const,
+                                               const double factor_interior);
+
+double              rhea_weakzone_factor_deriv_node (
+                                                 const double distance,
+                                                 const double thickness,
+                                                 const double thickness_const,
+                                                 const double factor_interior);
 
 #endif /* RHEA_WEAKZONE_H */

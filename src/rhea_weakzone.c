@@ -241,45 +241,6 @@ rhea_weakzone_is_valid (ymir_vec_t *vec)
 }
 
 /******************************************************************************
- * Get & Set Values
- *****************************************************************************/
-
-double *
-rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat, ymir_vec_t *weak_vec,
-                              const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (weak_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  RHEA_ASSERT (rhea_weakzone_check_vec_type (weak_vec));
-  RHEA_ASSERT (weak_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (weak_el_mat->n == 1);
-#endif
-
-  ymir_dvec_get_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
-  return weak_el_mat->e[0];
-}
-
-void
-rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec, sc_dmatrix_t *weak_el_mat,
-                              const ymir_locidx_t elid)
-{
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (weak_vec);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-
-  /* check input */
-  RHEA_ASSERT (rhea_weakzone_check_vec_type (weak_vec));
-  RHEA_ASSERT (weak_el_mat->m == n_nodes_per_el);
-  RHEA_ASSERT (weak_el_mat->n == 1);
-#endif
-
-  ymir_dvec_set_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
-}
-
-/******************************************************************************
  * Data
  *****************************************************************************/
 
@@ -493,7 +454,7 @@ rhea_weakzone_data_clear (rhea_weakzone_options_t *opt)
  * Computes the distance to the weak zone surface (e.g., shortest distance to
  * point cloud).
  */
-static double
+double
 rhea_weakzone_dist_node (int *nearest_label, double *nearest_factor,
                          const double x, const double y, const double z,
                          rhea_weakzone_options_t *opt)
@@ -538,7 +499,7 @@ rhea_weakzone_dist_node (int *nearest_label, double *nearest_factor,
  *
  *   1 - (1 - factor_interior) * exp ( - dist^2 / (2 * (0.5*thickness)^2) )
  */
-static double
+double
 rhea_weakzone_factor_node (const double distance,
                            const double thickness,
                            const double thickness_const,
@@ -555,20 +516,48 @@ rhea_weakzone_factor_node (const double distance,
   RHEA_ASSERT (isfinite (factor_interior));
   RHEA_ASSERT (0.0 < factor_interior && factor_interior <= 1.0);
 
-  if (d <= 0.0) {
-    /* set value inside zone with constant weak factor */
+  if (d <= 0.0) { /* if inside (=constant) zone */
     factor = factor_interior;
   }
-  else {
-    /* set smoothed weak zone */
-    factor = 1.0 - (1.0 - factor_interior) *
-                   exp (-d*d / (2.0 * std_dev*std_dev));
+  else { /* otherwise in smoothed zone */
+    factor = 1.0 - (1.0 - factor_interior) * exp (-d*d / (2.0*std_dev*std_dev));
   }
   RHEA_ASSERT (isfinite (factor));
   RHEA_ASSERT (0.0 < factor && factor <= 1.0);
 
   /* return weak factor */
   return factor;
+}
+
+double
+rhea_weakzone_factor_deriv_node (const double distance,
+                                 const double thickness,
+                                 const double thickness_const,
+                                 const double factor_interior)
+{
+  const double        d = distance - 0.5 * thickness_const;
+  const double        std_dev = 0.5 * (thickness - thickness_const);
+  double              factor_deriv;
+
+  /* check input */
+  RHEA_ASSERT (isfinite (distance));
+  RHEA_ASSERT (0.0 <= distance);
+  RHEA_ASSERT (thickness_const <= thickness);
+  RHEA_ASSERT (isfinite (factor_interior));
+  RHEA_ASSERT (0.0 < factor_interior && factor_interior <= 1.0);
+
+  if (d <= 0.0) { /* if inside (=constant) zone */
+    factor_deriv = 0.0;
+  }
+  else { /* otherwise in smoothed zone */
+    factor_deriv = (1.0 - factor_interior) * (d / (std_dev*std_dev)) *
+                   exp (-d*d / (2.0*std_dev*std_dev));
+  }
+  RHEA_ASSERT (isfinite (factor_deriv));
+  RHEA_ASSERT (0.0 <= factor_deriv);
+
+  /* return weak factor */
+  return factor_deriv;
 }
 
 /**
@@ -672,4 +661,43 @@ rhea_weakzone_compute_distance (ymir_vec_t *distance,
     RHEA_ABORT_NOT_REACHED ();
   }
   RHEA_ASSERT (rhea_weakzone_is_valid (distance));
+}
+
+/******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
+
+double *
+rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat, ymir_vec_t *weak_vec,
+                              const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (weak_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  RHEA_ASSERT (rhea_weakzone_check_vec_type (weak_vec));
+  RHEA_ASSERT (weak_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (weak_el_mat->n == 1);
+#endif
+
+  ymir_dvec_get_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid, YMIR_READ);
+  return weak_el_mat->e[0];
+}
+
+void
+rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec, sc_dmatrix_t *weak_el_mat,
+                              const ymir_locidx_t elid)
+{
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (weak_vec);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+
+  /* check input */
+  RHEA_ASSERT (rhea_weakzone_check_vec_type (weak_vec));
+  RHEA_ASSERT (weak_el_mat->m == n_nodes_per_el);
+  RHEA_ASSERT (weak_el_mat->n == 1);
+#endif
+
+  ymir_dvec_set_elem (weak_vec, weak_el_mat, YMIR_STRIDE_NODE, elid, YMIR_SET);
 }
