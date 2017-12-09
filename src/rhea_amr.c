@@ -376,7 +376,7 @@ rhea_amr (p4est_t *p4est,
   /* print statistics */
   //TODO
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s (#iterations %i)\n", this_fn_name, iter);
 
   /* return number of performed AMR iterations */
   return iter;
