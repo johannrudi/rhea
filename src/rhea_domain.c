@@ -206,6 +206,32 @@ rhea_domain_compute_bounds (rhea_domain_options_t *opt)
 }
 
 /**
+ * Computes and stores the representative depth of the domain.
+ */
+static void
+rhea_domain_compute_representative_depth (rhea_domain_options_t *opt)
+{
+  switch (opt->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+    RHEA_ASSERT (isfinite (opt->z_min));
+    RHEA_ASSERT (isfinite (opt->z_max));
+    opt->depth = opt->z_max - opt->z_min;
+    break;
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    RHEA_ASSERT (isfinite (opt->radius_min));
+    RHEA_ASSERT (isfinite (opt->radius_max));
+    opt->depth = opt->radius_max - opt->radius_min;
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+  RHEA_ASSERT (isfinite (opt->depth));
+}
+
+/**
  * Computes and stores the volume of a domain.
  */
 static void
@@ -307,7 +333,6 @@ rhea_domain_compute_center_of_mass (rhea_domain_options_t *opt)
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
   }
-
   RHEA_ASSERT (isfinite (opt->center[0]));
   RHEA_ASSERT (isfinite (opt->center[1]));
   RHEA_ASSERT (isfinite (opt->center[2]));
@@ -562,6 +587,7 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
 
   /* compute domain properties */
   rhea_domain_compute_bounds (opt);
+  rhea_domain_compute_representative_depth (opt);
   rhea_domain_compute_volume (opt);
   rhea_domain_compute_center_of_mass (opt);
   rhea_domain_compute_moment_of_inertia (opt);

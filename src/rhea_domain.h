@@ -110,6 +110,7 @@ typedef struct rhea_domain_options
   double              lon_max;
   double              radius_min;
   double              radius_max;
+  double              depth;
   double              volume;
   double              center[3];
   double              moment_of_inertia[3];
