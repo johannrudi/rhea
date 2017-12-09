@@ -26,8 +26,7 @@ void                example_share_stokes_new (
                                       rhea_weakzone_options_t *weak_options,
                                       rhea_viscosity_options_t *visc_options,
                                       rhea_newton_options_t *newton_options,
-                                      char *vtk_write_newton_itn_path);
-
+                                      char *solver_vtk_path);
 
 /**
  * Destroys a Stokes problem.

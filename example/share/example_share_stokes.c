@@ -18,7 +18,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
                           rhea_weakzone_options_t *weak_options,
                           rhea_viscosity_options_t *visc_options,
                           rhea_newton_options_t *newton_options,
-                          char *vtk_write_newton_itn_path)
+                          char *solver_vtk_path)
 {
   const char         *this_fn_name = "example_share_stokes_new";
   rhea_domain_options_t *domain_options = visc_options->domain_options;
@@ -51,10 +51,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   *stokes_problem = rhea_stokes_problem_new (
       ymir_mesh, press_elem, temperature, domain_options, temp_options,
       weak_options, visc_options, solver_options);
-  if (RHEA_VISCOSITY_NONLINEAR == visc_options->type) {
-    rhea_stokes_problem_nonlinear_set_output (vtk_write_newton_itn_path,
-                                              *stokes_problem);
-  }
+  rhea_stokes_problem_set_solver_vtk_output (*stokes_problem, solver_vtk_path);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
