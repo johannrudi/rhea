@@ -122,6 +122,12 @@ int                 rhea_temperature_check_vec_type (ymir_vec_t *vec);
  */
 int                 rhea_temperature_is_valid (ymir_vec_t *vec);
 
+/**
+ * Bounds temperature vector to valid interval.
+ */
+void                rhea_temperature_bound (ymir_vec_t *temperature);
+void                rhea_temperature_bound_mat (sc_dmatrix_t *temperature_mat);
+
 /******************************************************************************
  * Get & Set Values
  *****************************************************************************/

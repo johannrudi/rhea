@@ -456,6 +456,26 @@ rhea_temperature_is_valid (ymir_vec_t *vec)
   );
 }
 
+void
+rhea_temperature_bound (ymir_vec_t *temperature)
+{
+  ymir_vec_bound_min (temperature, 0.0);
+  ymir_vec_bound_max (temperature, 1.0);
+}
+
+void
+rhea_temperature_bound_mat (sc_dmatrix_t *temperature_mat)
+{
+  double             *data = temperature_mat->e[0];
+  const size_t        totalsize = temperature_mat->m * temperature_mat->n;
+  size_t              i;
+
+  for (i = 0; i < totalsize; i++) {
+    data[i] = SC_MAX (data[i], 0.0);
+    data[i] = SC_MIN (data[i], 1.0);
+  }
+}
+
 /******************************************************************************
  * Get & Set Values
  *****************************************************************************/
@@ -1061,9 +1081,7 @@ rhea_temperature_compute (ymir_vec_t *temperature,
     }
 
     /* bound temperature to valid interval */
-    //TODO create separate fnc, use in amr
-    ymir_vec_bound_min (temperature, 0.0);
-    ymir_vec_bound_max (temperature, 1.0);
+    rhea_temperature_bound (temperature);
     break;
   case RHEA_TEMPERATURE_NONE:
   case RHEA_TEMPERATURE_COLD_PLATE:
