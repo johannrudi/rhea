@@ -1325,10 +1325,11 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
                               ymir_vec_t *vel_vec,
                               rhea_viscosity_options_t *opt)
 {
-  ymir_mesh_t        *mesh = ymir_vec_get_mesh (visc_vec);
-  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
-  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
-  const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (visc_vec);
+  const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (ymir_mesh);
+  const int           n_nodes_per_el =
+                        ymir_mesh_get_num_nodes_per_elem (ymir_mesh);
+  const int          *Vmask = ymir_mesh_get_vertex_indices (ymir_mesh);
   const int           in_temp = (temp_vec != NULL);
   const int           in_weak = (weak_vec != NULL);
   const int           out_proj = (proj_scal_vec != NULL);
@@ -1361,7 +1362,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   proj_scal_el_mat = (out_proj ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   bounds_el_mat    = (out_bounds ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   yielding_el_mat  = (out_yielding ? sc_dmatrix_new (n_nodes_per_el, 1) :
-                                       NULL);
+                                     NULL);
   tmp_grad_vel = sc_dmatrix_new (n_nodes_per_el, 9);
   tmp_dvel     = sc_dmatrix_new (n_nodes_per_el, 3);
   tmp_vel      = sc_dmatrix_new (n_nodes_per_el, 3);
@@ -1381,7 +1382,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates at Gauss nodes */
-    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, ymir_mesh, tmp_el);
 
     /* get temperature and weak zone at Gauss nodes */
     if (in_temp) {
@@ -1468,7 +1469,7 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
     rhea_viscosity_linear_vec (viscosity, bounds_marker,
                                temperature, weakzone, opt);
 
-    /* set default values for vectors pertaining to nonlinear viscosity */
+    /* set default values pertaining to nonlinear viscosity */
     if (proj_scal != NULL) {
       ymir_dvec_set_zero (proj_scal);
     }
@@ -1850,6 +1851,57 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
 
   ymir_dvec_set_elem (marker_vec, marker_el_mat, YMIR_STRIDE_NODE, elid,
                       YMIR_SET);
+}
+
+void
+rhea_viscosity_compute_elem (double *_sc_restrict visc_elem,
+                             double *_sc_restrict proj_scal_elem,
+                             double *_sc_restrict bounds_elem,
+                             double *_sc_restrict yielding_elem,
+                             const double *_sc_restrict temp_elem,
+                             const double *_sc_restrict weak_elem,
+                             const double *_sc_restrict strt_sqrt_2inv_elem,
+                             const double *_sc_restrict x,
+                             const double *_sc_restrict y,
+                             const double *_sc_restrict z,
+                             const int n_nodes,
+                             const int *_sc_restrict Vmask,
+                             rhea_viscosity_options_t *opt)
+{
+  const int           restrict_to_bounds = 1;
+  int                 nodeid;
+
+  switch (opt->type) {
+  case RHEA_VISCOSITY_LINEAR:
+    /* compute linear viscosity and set bounds marker */
+    rhea_viscosity_linear_elem (
+        visc_elem, bounds_elem, temp_elem, weak_elem,
+        x, y, z, n_nodes, Vmask, opt, restrict_to_bounds);
+
+    /* set default values pertaining to nonlinear viscosity */
+    if (proj_scal_elem != NULL) {
+      for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+        proj_scal_elem[nodeid] = 0.0;
+      }
+    }
+    if (yielding_elem != NULL) {
+      for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+        yielding_elem[nodeid] = RHEA_VISCOSITY_YIELDING_OFF;
+      }
+    }
+    break;
+
+  case RHEA_VISCOSITY_NONLINEAR:
+    /* compute nonlinear viscosity */
+    rhea_viscosity_nonlinear_elem (
+        visc_elem, proj_scal_elem, bounds_elem, yielding_elem,
+        temp_elem, weak_elem, strt_sqrt_2inv_elem, x, y, z,
+        n_nodes, Vmask, opt);
+    break;
+
+  default: /* unknown viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 /******************************************************************************
