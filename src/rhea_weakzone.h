@@ -158,6 +158,9 @@ void                rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec,
                                                   sc_dmatrix_t *weak_el_mat,
                                                   const ymir_locidx_t elid);
 
+/**
+ * Computes the weak zone distance/factor/factor derivative at one node.
+ */
 double              rhea_weakzone_dist_node (int *nearest_label,
                                              double *nearest_factor,
                                              const double x, const double y,
@@ -174,5 +177,15 @@ double              rhea_weakzone_factor_deriv_node (
                                                  const double thickness,
                                                  const double thickness_const,
                                                  const double factor_interior);
+
+/**
+ * Computes the weak zone factor of one element.
+ */
+void                rhea_weakzone_compute_elem (double *_sc_restrict weak_elem,
+                                                const double *_sc_restrict x,
+                                                const double *_sc_restrict y,
+                                                const double *_sc_restrict z,
+                                                const int n_nodes,
+                                                rhea_weakzone_options_t *opt);
 
 #endif /* RHEA_WEAKZONE_H */

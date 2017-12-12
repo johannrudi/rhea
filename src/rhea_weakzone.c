@@ -600,6 +600,22 @@ rhea_weakzone_node_fn (double *w, double x, double y, double z,
 }
 
 void
+rhea_weakzone_compute_elem (double *_sc_restrict weak_elem,
+                            const double *_sc_restrict x,
+                            const double *_sc_restrict y,
+                            const double *_sc_restrict z,
+                            const int n_nodes,
+                            rhea_weakzone_options_t *opt)
+{
+  int                 nodeid;
+
+  for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+    weak_elem[nodeid] = rhea_weakzone_node (x[nodeid], y[nodeid], z[nodeid],
+                                            opt);
+  }
+}
+
+void
 rhea_weakzone_compute (ymir_vec_t *weakzone, void *data)
 {
   rhea_weakzone_options_t *opt = data;
