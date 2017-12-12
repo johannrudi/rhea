@@ -10,6 +10,7 @@
 #include <ymir_hmg_intergrid_h.h>
 #include <ymir_mass_vec.h>
 #include <ymir_pressure_vec.h>
+#include <ymir_vec_optimized.h>
 #include <mangll_fields.h>
 
 #if (0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
@@ -230,6 +231,9 @@ rhea_stokes_problem_amr_norm_L2_elem (sc_dmatrix_t *ind_mat,
   size_t              i;
   double              sum;
 
+  /* check input */
+  RHEA_ASSERT (sc_dmatrix_is_valid (ind_mat));
+
   /* take to the 2nd power */
   sc_dmatrix_dotmultiply (ind_mat, ind_mat);
 
@@ -306,6 +310,45 @@ rhea_stokes_problem_amr_flag_elem (const double ind,
   return flag;
 }
 
+/**
+ * Prints statistics of AMR indicators and number of flagged elements.
+ */
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+static void
+rhea_stokes_problem_amr_print_indicator_statistics (
+                                        const double ind_loc_min,
+                                        const double ind_loc_max,
+                                        const double ind_loc_sum,
+                                        const p4est_locidx_t n_flagged_coarsen,
+                                        const p4est_locidx_t n_flagged_refine,
+                                        const char *this_fn_name,
+                                        p4est_t *p4est)
+{
+  sc_MPI_Comm         mpicomm = p4est->mpicomm;
+  int                 mpiret;
+  double              ind_glo_min, ind_glo_max, ind_glo_sum;
+  int64_t             n_loc[2], n_glo[2];
+
+  mpiret = sc_MPI_Allreduce (&ind_loc_min, &ind_glo_min, 1, sc_MPI_DOUBLE,
+                             sc_MPI_MIN, mpicomm); SC_CHECK_MPI (mpiret);
+  mpiret = sc_MPI_Allreduce (&ind_loc_max, &ind_glo_max, 1, sc_MPI_DOUBLE,
+                             sc_MPI_MAX, mpicomm); SC_CHECK_MPI (mpiret);
+  mpiret = sc_MPI_Allreduce (&ind_loc_sum, &ind_glo_sum, 1, sc_MPI_DOUBLE,
+                             sc_MPI_SUM, mpicomm); SC_CHECK_MPI (mpiret);
+  RHEA_GLOBAL_INFOF ("%s: min %.3e, max %.3e, mean %.3e\n",
+                     this_fn_name, ind_glo_min, ind_glo_max,
+                     ind_glo_sum / (double) p4est->global_num_quadrants);
+
+  n_loc[0] = (int64_t) n_flagged_coarsen;
+  n_loc[1] = (int64_t) n_flagged_refine;
+  mpiret = sc_MPI_Allreduce (n_loc, &n_glo, 2, MPI_INT64_T, sc_MPI_SUM,
+                             mpicomm); SC_CHECK_MPI (mpiret);
+  //TODO `sc_MPI_INT64_T` does not exist
+  RHEA_GLOBAL_INFOF ("%s: #flagged coarsen %li, refine %li, sum %li\n",
+                     this_fn_name, n_glo[0], n_glo[1], n_glo[0] + n_glo[1]);
+}
+#endif
+
 static double
 rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
 {
@@ -319,8 +362,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   mangll_t           *mangll = d->mangll_original;
   int                 n_nodes_per_el, nodeid;
 
-  double              n_flagged_glo;
-  p4est_locidx_t      n_flagged_loc;
+  p4est_locidx_t      n_flagged_coarsen, n_flagged_refine, n_flagged;
   p4est_topidx_t      ti;
   size_t              tqi;
 
@@ -341,20 +383,19 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   const double        weak_thickness_const = weak_options->thickness_const;
   double              weak_factor_interior = weak_options->weak_factor_interior;
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
-  double              ind_glo_min, ind_loc_min = DBL_MAX;
-  double              ind_glo_max, ind_loc_max = 0.0;
-  double              ind_glo_sum, ind_loc_sum = 0.0;
+  double              ind_loc_min = DBL_MAX;
+  double              ind_loc_max = 0.0;
+  double              ind_loc_sum = 0.0;
 #endif
 #if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
   int                 write_vtk = 0;
-  sc_dmatrix_t       *indicator_mat;
-  ymir_vec_t         *indicator_vec;
+  sc_dmatrix_t       *indicator_vtk;
   char                debug_path[BUFSIZ], path[BUFSIZ];
 
   /* set up VTK output of AMR indicator */
   if (0 < ymir_vtk_get_debug_path (debug_path) && d->ymir_mesh != NULL) {
     write_vtk = 1;
-    indicator_mat = sc_dmatrix_new (d->ymir_mesh->cnodes->K, 1);
+    indicator_vtk = sc_dmatrix_new (d->ymir_mesh->cnodes->K, 1);
     snprintf (path, BUFSIZ, "%s_%s", debug_path, this_fn_name);
   }
 #endif
@@ -369,7 +410,8 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   ind_data = ind_mat->e[0];
 
   /* flag quadrants */
-  n_flagged_loc = 0;
+  n_flagged_coarsen = 0;
+  n_flagged_refine = 0;
   for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
     p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
     sc_array_t         *tquadrants = &(t->quadrants);
@@ -424,7 +466,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
 #endif
 #if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
       if (write_vtk) {
-        indicator_mat->e[elid][0] = ind;
+        indicator_vtk->e[elid][0] = ind;
       }
 #endif
 
@@ -432,11 +474,21 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
       qd->amr_flag = rhea_stokes_problem_amr_flag_elem (ind, tol_min, tol_max,
                                                         (int) q->level,
                                                         level_min, level_max);
-      if (RHEA_AMR_FLAG_NO_CHANGE != qd->amr_flag) {
-        n_flagged_loc++;
+      switch (qd->amr_flag) {
+      case RHEA_AMR_FLAG_COARSEN:
+        n_flagged_coarsen++;
+        break;
+      case RHEA_AMR_FLAG_NO_CHANGE:
+        break;
+      case RHEA_AMR_FLAG_REFINE:
+        n_flagged_refine++;
+        break;
+      default: /* unknown flag */
+        RHEA_ABORT_NOT_REACHED ();
       }
     }
   }
+  n_flagged = n_flagged_coarsen + n_flagged_refine;
 
   /* destroy work variables */
   sc_dmatrix_destroy (tmp_mat);
@@ -445,43 +497,277 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   /* VTK output of AMR indicator */
 #if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
   if (write_vtk) {
+    ymir_vec_t         *indicator_vec;
+
     indicator_vec = ymir_dvec_new_element_data (d->ymir_mesh, YMIR_GLL_NODE,
-                                                indicator_mat);
+                                                indicator_vtk);
     ymir_vtk_write (d->ymir_mesh, path, indicator_vec, "indicator", NULL);
     ymir_vec_destroy (indicator_vec);
-    sc_dmatrix_destroy (indicator_mat);
+    sc_dmatrix_destroy (indicator_vtk);
   }
 #endif
 
-  /* sum local contributions to get the global number of flagged quadrants */
-  {
-    sc_MPI_Comm         mpicomm = p4est->mpicomm;
-    int                 mpiret;
-    int64_t             n_loc = (int64_t) n_flagged_loc;
-    int64_t             n_glo;
-
-    //TODO `sc_MPI_INT64_T` does not exist
-    mpiret = sc_MPI_Allreduce (&n_loc, &n_glo, 1, MPI_INT64_T, sc_MPI_SUM,
-                               mpicomm); SC_CHECK_MPI (mpiret);
-    n_flagged_glo = (double) n_glo;
-
-    /* print statistics */
+  /* print statistics */
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
-    mpiret = sc_MPI_Allreduce (&ind_loc_min, &ind_glo_min, 1, sc_MPI_DOUBLE,
-                               sc_MPI_MIN, mpicomm); SC_CHECK_MPI (mpiret);
-    mpiret = sc_MPI_Allreduce (&ind_loc_max, &ind_glo_max, 1, sc_MPI_DOUBLE,
-                               sc_MPI_MAX, mpicomm); SC_CHECK_MPI (mpiret);
-    mpiret = sc_MPI_Allreduce (&ind_loc_sum, &ind_glo_sum, 1, sc_MPI_DOUBLE,
-                               sc_MPI_SUM, mpicomm); SC_CHECK_MPI (mpiret);
-    RHEA_GLOBAL_INFOF ("%s: min %.3e, max %.3e, mean %.3e\n",
-                       this_fn_name, ind_glo_min, ind_glo_max,
-                       ind_glo_sum / (double) p4est->global_num_quadrants);
+  rhea_stokes_problem_amr_print_indicator_statistics (
+      ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coarsen,
+      n_flagged_refine, this_fn_name, p4est);
 #endif
-  }
 
   /* return relative number of flagged quadrants */
-  return n_flagged_glo / (double) p4est->global_num_quadrants;
-;
+  return rhea_amr_get_relative_global_num_flagged (n_flagged, p4est);
+}
+
+static double
+rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
+{
+#if (0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE || \
+     0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
+  const char         *this_fn_name =
+                        "rhea_stokes_problem_amr_flag_viscosity_peclet_fn";
+#endif
+  rhea_stokes_problem_amr_data_t *d = data;
+  rhea_stokes_problem_t *stokes_problem = d->stokes_problem;
+  mangll_t           *mangll = d->mangll_original;
+  int                *Vmask;
+  int                 n_nodes_per_el;
+
+  p4est_locidx_t      n_flagged_coarsen, n_flagged_refine, n_flagged;
+  p4est_topidx_t      ti;
+  size_t              tqi;
+
+  sc_dmatrix_t       *ind_mat, *tmp_mat;
+  double              ind, elem_vol;
+  const double        tol_min = d->tol_min;
+  const double        tol_max = d->tol_max;
+  const int           level_min = d->discr_options->level_min;
+  const int           level_max = d->discr_options->level_max;
+
+  rhea_domain_options_t *domain_options =
+    rhea_stokes_problem_get_domain_options (stokes_problem);
+  const double        domain_size = pow (domain_options->depth, 3.0);
+  rhea_weakzone_options_t *weak_options =
+    rhea_stokes_problem_get_weakzone_options (stokes_problem);
+  rhea_viscosity_options_t *visc_options =
+    rhea_stokes_problem_get_viscosity_options (stokes_problem);
+  const int           has_visc = (d->ymir_mesh != NULL);
+  const int           has_temp = (d->temperature_original != NULL);
+  const int           has_weak = rhea_weakzone_exists (weak_options);
+  const int           has_vel = (d->velocity_original != NULL);
+
+  ymir_vec_t         *viscosity = NULL;
+  sc_dmatrix_t       *weak_el_mat = NULL, *vel_el_mat = NULL,
+                     *strt_sqrt_2inv_el_mat = NULL;
+  double             *temp_el_data = NULL, *weak_el_data = NULL,
+                     *strt_sqrt_2inv_el_data = NULL;
+  sc_dmatrix_t       *strt_el_mat = NULL, *geo_el_mat = NULL;
+  sc_dmatrix_t       *ur_el_mat, *us_el_mat, *ut_el_mat;
+  sc_dmatrix_t       *visc_el_mat;
+  double             *visc_el_data, *proj_scal_el_data,
+                     *bounds_el_data, *yielding_el_data;
+  double             *x = NULL, *y = NULL, *z = NULL;
+  double             *tmp_data = NULL;
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+  double              ind_loc_min = DBL_MAX;
+  double              ind_loc_max = 0.0;
+  double              ind_loc_sum = 0.0;
+#endif
+#if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
+  int                 write_vtk = 0;
+  sc_dmatrix_t       *indicator_vtk;
+  char                debug_path[BUFSIZ], path[BUFSIZ];
+
+  /* set up VTK output of AMR indicator */
+  if (0 < ymir_vtk_get_debug_path (debug_path) && d->ymir_mesh != NULL) {
+    write_vtk = 1;
+    indicator_vtk = sc_dmatrix_new (d->ymir_mesh->cnodes->K, 1);
+    snprintf (path, BUFSIZ, "%s_%s", debug_path, this_fn_name);
+  }
+#endif
+
+  /* check input */
+  RHEA_ASSERT (d->mangll_original != NULL);
+
+  /* create work variables */
+  Vmask = mangll->refel->Vmask;
+  n_nodes_per_el = mangll->Np;
+  tmp_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  ind_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  /* *INDENT-OFF* */
+  if (has_visc) {
+    viscosity = ymir_dvec_new (d->ymir_mesh, 1, YMIR_GAUSS_NODE);
+    rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+  }
+  else {
+    if (has_weak) {
+      weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+      weak_el_data = weak_el_mat->e[0];
+    }
+    if (has_vel) {
+      vel_el_mat            = sc_dmatrix_new (n_nodes_per_el, 3);
+      strt_sqrt_2inv_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+      strt_el_mat           = sc_dmatrix_new (n_nodes_per_el, 9);
+      geo_el_mat            = sc_dmatrix_new (n_nodes_per_el, 24);
+      strt_sqrt_2inv_el_data = strt_sqrt_2inv_el_mat->e[0];
+    }
+    x = RHEA_ALLOC (double, n_nodes_per_el);
+    y = RHEA_ALLOC (double, n_nodes_per_el);
+    z = RHEA_ALLOC (double, n_nodes_per_el);
+    tmp_data = tmp_mat->e[0];
+  }
+  ur_el_mat = sc_dmatrix_new (n_nodes_per_el, 3);
+  us_el_mat = sc_dmatrix_new (n_nodes_per_el, 3);
+  ut_el_mat = sc_dmatrix_new (n_nodes_per_el, 3);
+  visc_el_mat       = sc_dmatrix_new (n_nodes_per_el, 1);
+  visc_el_data      = visc_el_mat->e[0];
+  proj_scal_el_data = NULL;
+  bounds_el_data    = NULL;
+  yielding_el_data  = NULL;
+  /* *INDENT-ON* */
+
+  /* flag quadrants */
+  n_flagged_coarsen = 0;
+  n_flagged_refine = 0;
+  for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
+    p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
+    sc_array_t         *tquadrants = &(t->quadrants);
+    const size_t        tqoffset = t->quadrants_offset;
+
+    for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
+      p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
+      rhea_p4est_quadrant_data_t *qd = q->p.user_data;
+      const mangll_locidx_t elid = (mangll_locidx_t) (tqoffset + tqi);
+
+      /* compute element size */
+      sc_dmatrix_set_value (ind_mat, 1.0);
+      elem_vol = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, tmp_mat,
+                                                       elid, mangll);
+
+      /* get/compute viscosity */
+      if (has_visc) {
+        rhea_viscosity_get_elem_gauss (visc_el_mat, viscosity,
+                                       (ymir_locidx_t) elid);
+      }
+      else {
+        /* get coordinates at Gauss nodes */
+        mangll_get_elem_coord_gauss (x, y, z, elid, mangll, tmp_data);
+
+        /* get temperature and weak zone at Gauss nodes */
+        if (has_temp) {
+          temp_el_data = d->temperature_original->e[elid];
+        }
+        if (has_weak) {
+          rhea_weakzone_compute_elem (weak_el_data, x, y, z, n_nodes_per_el,
+                                      weak_options);
+        }
+
+        /* get velocity; compute 2nd inv. of the strain rate at Gauss nodes */
+        if (has_vel) {
+          memcpy (vel_el_mat->e[0], d->velocity_original->e[elid],
+                  3 * n_nodes_per_el * sizeof (double));
+          ymir_elem_strain_rate_2inv_gauss_node (
+              strt_sqrt_2inv_el_mat, vel_el_mat, elid, mangll,
+              ur_el_mat, us_el_mat, ut_el_mat, geo_el_mat, strt_el_mat);
+        }
+
+        /* compute visosity */
+        rhea_viscosity_compute_elem (
+            visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
+            temp_el_data, weak_el_data, strt_sqrt_2inv_el_data, x, y, z,
+            n_nodes_per_el, Vmask, visc_options);
+      }
+      RHEA_ASSERT (sc_dmatrix_is_valid (visc_el_mat));
+
+      /* compute the (pointwise-norm of the) gradient of the viscosity */
+      ymir_elem_gradient_norm_gauss_node (ind_mat, visc_el_mat, elid, mangll,
+                                          ur_el_mat, us_el_mat, ut_el_mat);
+      RHEA_ASSERT (sc_dmatrix_is_valid (ind_mat));
+
+      /* set indicator to be the L2-norm of the quotient |grad fn|/fn */
+      sc_dmatrix_dotdivide (visc_el_mat, ind_mat);
+      ind = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, tmp_mat,
+                                                  elid, mangll);
+
+      /* multiply indicator by relative element size */
+      ind *= elem_vol / domain_size;
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+      ind_loc_min = SC_MIN (ind_loc_min, ind);
+      ind_loc_max = SC_MAX (ind_loc_max, ind);
+      ind_loc_sum += ind;
+#endif
+#if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
+      if (write_vtk) {
+        indicator_vtk->e[elid][0] = ind;
+      }
+#endif
+
+      /* set flag for coarsening/refinement */
+      qd->amr_flag = rhea_stokes_problem_amr_flag_elem (ind, tol_min, tol_max,
+                                                        (int) q->level,
+                                                        level_min, level_max);
+      switch (qd->amr_flag) {
+      case RHEA_AMR_FLAG_COARSEN:
+        n_flagged_coarsen++;
+        break;
+      case RHEA_AMR_FLAG_NO_CHANGE:
+        break;
+      case RHEA_AMR_FLAG_REFINE:
+        n_flagged_refine++;
+        break;
+      default: /* unknown flag */
+        RHEA_ABORT_NOT_REACHED ();
+      }
+    }
+  }
+  n_flagged = n_flagged_coarsen + n_flagged_refine;
+
+  /* destroy work variables */
+  sc_dmatrix_destroy (tmp_mat);
+  sc_dmatrix_destroy (ind_mat);
+  if (has_visc) {
+    ymir_vec_destroy (viscosity);
+  }
+  else {
+    if (has_weak) {
+      sc_dmatrix_destroy (weak_el_mat);
+    }
+    if (has_vel) {
+      sc_dmatrix_destroy (vel_el_mat);
+      sc_dmatrix_destroy (strt_sqrt_2inv_el_mat);
+      sc_dmatrix_destroy (strt_el_mat);
+      sc_dmatrix_destroy (geo_el_mat);
+    }
+    RHEA_FREE (x);
+    RHEA_FREE (y);
+    RHEA_FREE (z);
+  }
+  sc_dmatrix_destroy (ur_el_mat);
+  sc_dmatrix_destroy (us_el_mat);
+  sc_dmatrix_destroy (ut_el_mat);
+  sc_dmatrix_destroy (visc_el_mat);
+
+  /* VTK output of AMR indicator */
+#if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
+  if (write_vtk) {
+    ymir_vec_t         *indicator_vec;
+
+    indicator_vec = ymir_dvec_new_element_data (d->ymir_mesh, YMIR_GLL_NODE,
+                                                indicator_vtk);
+    ymir_vtk_write (d->ymir_mesh, path, indicator_vec, "indicator", NULL);
+    ymir_vec_destroy (indicator_vec);
+    sc_dmatrix_destroy (indicator_vtk);
+  }
+#endif
+
+  /* print statistics */
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+  rhea_stokes_problem_amr_print_indicator_statistics (
+      ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coarsen,
+      n_flagged_refine, this_fn_name, p4est);
+#endif
+
+  /* return relative number of flagged quadrants */
+  return rhea_amr_get_relative_global_num_flagged (n_flagged, p4est);
 }
 
 /******************************************************************************
@@ -834,7 +1120,7 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
     d->temperature_original = NULL;
 
     /* bound values */
-    //TODO
+    rhea_temperature_bound_mat (d->temperature_adapted);
   }
   if (has_vel) {
     RHEA_ASSERT (d->velocity_adapted == NULL);
@@ -950,7 +1236,8 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
   /* set function that flags elements for coarsening/refinement */
   amr_data->tol_min = rhea_stokes_problem_amr_init_tol_min;
   amr_data->tol_max = rhea_stokes_problem_amr_init_tol_max;
-  flag_fn = rhea_stokes_problem_amr_flag_weakzone_peclet_fn;
+  //flag_fn = rhea_stokes_problem_amr_flag_weakzone_peclet_fn;
+  flag_fn = rhea_stokes_problem_amr_flag_viscosity_peclet_fn;
   flag_fn_data = amr_data;
 
   /* perform AMR */
