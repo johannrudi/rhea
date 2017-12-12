@@ -89,7 +89,7 @@ rhea_strainrate_compute_sqrt_of_2inv (ymir_vec_t *strainrate_sqrt_2inv,
 }
 
 void
-rhea_strainrate_compute_sqrt_of_2inv_elem_gauss (
+rhea_strainrate_compute_sqrt_of_2inv_elem (
                                         sc_dmatrix_t *strainrate_2inv_el_mat,
                                         sc_dmatrix_t *vel_el_mat,
                                         ymir_vec_t *vel_vec,
@@ -104,7 +104,7 @@ rhea_strainrate_compute_sqrt_of_2inv_elem_gauss (
   rhea_velocity_get_elem_gll (vel_el_mat, vel_vec, elid);
 
   /* compute the 2nd invariant of the strain rate at Gauss nodes */
-  ymir_velocity_elem_compute_strain_rate_2inv_gauss (
+  ymir_velocity_elem_compute_strain_rate_2inv (
       strainrate_2inv_el_mat, vel_el_mat, mesh, elid,
       tmp_grad_vel, tmp_dvel, tmp_vel);
 }

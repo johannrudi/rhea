@@ -1394,7 +1394,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
     }
 
     /* get velocity; compute 2nd invariant of the strain rate at Gauss nodes */
-    rhea_strainrate_compute_sqrt_of_2inv_elem_gauss (
+    rhea_strainrate_compute_sqrt_of_2inv_elem (
         strt_sqrt_2inv_el_mat, vel_el_mat, vel_vec, elid,
         tmp_grad_vel, tmp_dvel, tmp_vel);
 
