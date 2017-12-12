@@ -427,10 +427,31 @@ rhea_amr_refine_depth_fn (p4est_t * p4est, p4est_topidx_t which_tree,
  * Generic Flagging for Coarsening/Refinement
  *****************************************************************************/
 
+/**
+ * Sums local contributions to get the global number of flagged quadrants.
+ * Returns the relative number of flagged quadrants.
+ */
+double
+rhea_amr_get_relative_global_num_flagged (const p4est_locidx_t n_flagged_loc,
+                                          p4est_t *p4est)
+{
+  sc_MPI_Comm         mpicomm = p4est->mpicomm;
+  int                 mpiret;
+  int64_t             n_loc = (int64_t) n_flagged_loc;
+  int64_t             n_glo;
+
+  /* sum local contributions to get the global number of flagged quadrants */
+  mpiret = sc_MPI_Allreduce (&n_loc, &n_glo, 1, MPI_INT64_T, sc_MPI_SUM,
+                             mpicomm); SC_CHECK_MPI (mpiret);
+  //TODO `sc_MPI_INT64_T` does not exist
+
+  /* return relative number of flagged quadrants */
+  return ((double) n_glo) / ((double) p4est->global_num_quadrants);
+}
+
 double
 rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
 {
-  double              n_flagged_glo;
   p4est_locidx_t      n_flagged_loc;
   p4est_topidx_t      ti;
   size_t              tqi;
@@ -455,27 +476,13 @@ rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
     }
   }
 
-  /* sum local contributions to get the global number of flagged quadrants */
-  {
-    sc_MPI_Comm         mpicomm = p4est->mpicomm;
-    int                 mpiret;
-    int64_t             n_loc = (int64_t) n_flagged_loc;
-    int64_t             n_glo;
-
-    //TODO `sc_MPI_INT64_T` does not exist
-    mpiret = sc_MPI_Allreduce (&n_loc, &n_glo, 1, MPI_INT64_T, sc_MPI_SUM,
-                               mpicomm); SC_CHECK_MPI (mpiret);
-    n_flagged_glo = (double) n_glo;
-  }
-
   /* return relative number of flagged quadrants */
-  return n_flagged_glo / (double) p4est->global_num_quadrants;
+  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
 }
 
 double
 rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
 {
-  double              n_flagged_glo;
   p4est_locidx_t      n_flagged_loc;
   p4est_topidx_t      ti;
   size_t              tqi;
@@ -500,19 +507,6 @@ rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
     }
   }
 
-  /* sum local contributions to get the global number of flagged quadrants */
-  {
-    sc_MPI_Comm         mpicomm = p4est->mpicomm;
-    int                 mpiret;
-    int64_t             n_loc = (int64_t) n_flagged_loc;
-    int64_t             n_glo;
-
-    //TODO `sc_MPI_INT64_T` does not exist
-    mpiret = sc_MPI_Allreduce (&n_loc, &n_glo, 1, MPI_INT64_T, sc_MPI_SUM,
-                               mpicomm); SC_CHECK_MPI (mpiret);
-    n_flagged_glo = (double) n_glo;
-  }
-
   /* return relative number of flagged quadrants */
-  return n_flagged_glo / (double) p4est->global_num_quadrants;
+  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
 }

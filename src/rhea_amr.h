@@ -117,6 +117,14 @@ int                 rhea_amr_refine_depth_fn (p4est_t * p4est,
  * Generic Flagging for Coarsening/Refinement
  *****************************************************************************/
 
+/**
+ * Sums local contributions to get the global number of flagged quadrants.
+ * Returns the relative number of flagged quadrants.
+ */
+double              rhea_amr_get_relative_global_num_flagged (
+                                            const p4est_locidx_t n_flagged_loc,
+                                            p4est_t *p4est);
+
 double              rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data);
 double              rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data);
 
