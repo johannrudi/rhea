@@ -11,8 +11,8 @@
  *   3: detailed information
  *   4: all on
  */
-#define RHEA_STOKES_PROBLEM_AMR_VERBOSE (3)
-#define RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK (3)
+#define RHEA_STOKES_PROBLEM_AMR_VERBOSE (1)
+#define RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK (0)
 
 /**
  * Defines options and adds them as sub-options.
