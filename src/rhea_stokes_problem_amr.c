@@ -120,6 +120,9 @@ typedef struct rhea_stokes_problem_amr_data
   /* thresholds for coarsening/refinement */
   double              tol_min;
   double              tol_max;
+
+  /* boolean to enable merging of coarsening/refinement flags */
+  int                 merge_mode;
 }
 rhea_stokes_problem_amr_data_t;
 
@@ -211,6 +214,7 @@ rhea_stokes_problem_amr_data_new (rhea_stokes_problem_t *stokes_problem,
   amr_data->discr_options = discr_options;
   amr_data->tol_min = NAN;
   amr_data->tol_max = NAN;
+  amr_data->merge_mode = 0;
 
   return amr_data;
 }
@@ -272,12 +276,12 @@ rhea_stokes_problem_amr_norm_L2_elem (sc_dmatrix_t *ind_mat,
 }
 
 static rhea_amr_flag_t
-rhea_stokes_problem_amr_flag_elem (const double ind,
-                                   const double tol_min,
-                                   const double tol_max,
-                                   const int level,
-                                   const int level_min,
-                                   const int level_max)
+rhea_stokes_problem_amr_get_flag (const double ind,
+                                  const double tol_min,
+                                  const double tol_max,
+                                  const int level,
+                                  const int level_min,
+                                  const int level_max)
 {
   int                 level_min_reached = 0;
   int                 level_max_reached = 0;
@@ -329,6 +333,84 @@ rhea_stokes_problem_amr_flag_elem (const double ind,
 
   /* return flag */
   return flag;
+}
+
+static int
+rhea_stokes_problem_amr_assign_flag (rhea_p4est_quadrant_data_t *qd,
+                                     const rhea_amr_flag_t amr_flag,
+                                     const int merge_mode,
+                                     p4est_locidx_t *n_flagged_coarsen,
+                                     p4est_locidx_t *n_flagged_refine)
+{
+  int                 flagged;
+
+  if (!merge_mode) { /* if overwrite previous AMR flag */
+    switch (amr_flag) {
+    case RHEA_AMR_FLAG_COARSEN:
+      (*n_flagged_coarsen)++;
+      flagged = 1;
+      break;
+    case RHEA_AMR_FLAG_NO_CHANGE:
+      flagged = 0;
+      break;
+    case RHEA_AMR_FLAG_REFINE:
+      (*n_flagged_refine)++;
+      flagged = 1;
+      break;
+    default: /* unknown flag */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+    qd->amr_flag = amr_flag;
+  }
+  else { /* if merge AMR flag with previous flag */
+    switch (amr_flag) {
+    case RHEA_AMR_FLAG_COARSEN: /* coarsen + (COAR,NO,REF) => (COAR,NO,REF) */
+      flagged = 0;
+      break;
+
+    case RHEA_AMR_FLAG_NO_CHANGE:
+      switch (qd->amr_flag) {
+      case RHEA_AMR_FLAG_COARSEN: /* no change + coarsen => no change */
+        qd->amr_flag = amr_flag;
+        (*n_flagged_coarsen)--;
+        flagged = -1;
+        break;
+      case RHEA_AMR_FLAG_NO_CHANGE: /* no change + (NO,REF) => (NO,REF) */
+      case RHEA_AMR_FLAG_REFINE:
+        flagged = 0;
+        break;
+      default: /* unknown flag */
+        RHEA_ABORT_NOT_REACHED ();
+      }
+      break;
+
+    case RHEA_AMR_FLAG_REFINE:
+      switch (amr_flag) {
+      case RHEA_AMR_FLAG_COARSEN: /* refine + coarsen => refine */
+        qd->amr_flag = amr_flag;
+        (*n_flagged_coarsen)--;
+        (*n_flagged_refine)++;
+        flagged = 0;
+        break;
+      case RHEA_AMR_FLAG_NO_CHANGE: /* refine + no change => refine */
+        qd->amr_flag = amr_flag;
+        (*n_flagged_refine)++;
+        flagged = 1;
+        break;
+      case RHEA_AMR_FLAG_REFINE: /* refine + refine => refine */
+        flagged = 0;
+        break;
+      default: /* unknown flag */
+        RHEA_ABORT_NOT_REACHED ();
+      }
+      break;
+
+    default: /* unknown flag */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+
+  return flagged;
 }
 
 /**
@@ -383,6 +465,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   mangll_t           *mangll = d->mangll_original;
   int                 n_nodes_per_el, nodeid;
 
+  rhea_amr_flag_t     amr_flag;
   p4est_locidx_t      n_flagged_coarsen, n_flagged_refine, n_flagged;
   p4est_topidx_t      ti;
   size_t              tqi;
@@ -492,21 +575,12 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
 #endif
 
       /* set flag for coarsening/refinement */
-      qd->amr_flag = rhea_stokes_problem_amr_flag_elem (ind, tol_min, tol_max,
-                                                        (int) q->level,
-                                                        level_min, level_max);
-      switch (qd->amr_flag) {
-      case RHEA_AMR_FLAG_COARSEN:
-        n_flagged_coarsen++;
-        break;
-      case RHEA_AMR_FLAG_NO_CHANGE:
-        break;
-      case RHEA_AMR_FLAG_REFINE:
-        n_flagged_refine++;
-        break;
-      default: /* unknown flag */
-        RHEA_ABORT_NOT_REACHED ();
-      }
+      amr_flag = rhea_stokes_problem_amr_get_flag (ind, tol_min, tol_max,
+                                                   (int) q->level,
+                                                   level_min, level_max);
+      rhea_stokes_problem_amr_assign_flag (qd, amr_flag, d->merge_mode,
+                                           &n_flagged_coarsen,
+                                           &n_flagged_refine);
     }
   }
   n_flagged = n_flagged_coarsen + n_flagged_refine;
@@ -553,6 +627,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   int                *Vmask;
   int                 n_nodes_per_el;
 
+  rhea_amr_flag_t     amr_flag;
   p4est_locidx_t      n_flagged_coarsen, n_flagged_refine, n_flagged;
   p4est_topidx_t      ti;
   size_t              tqi;
@@ -723,21 +798,12 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
 #endif
 
       /* set flag for coarsening/refinement */
-      qd->amr_flag = rhea_stokes_problem_amr_flag_elem (ind, tol_min, tol_max,
-                                                        (int) q->level,
-                                                        level_min, level_max);
-      switch (qd->amr_flag) {
-      case RHEA_AMR_FLAG_COARSEN:
-        n_flagged_coarsen++;
-        break;
-      case RHEA_AMR_FLAG_NO_CHANGE:
-        break;
-      case RHEA_AMR_FLAG_REFINE:
-        n_flagged_refine++;
-        break;
-      default: /* unknown flag */
-        RHEA_ABORT_NOT_REACHED ();
-      }
+      amr_flag = rhea_stokes_problem_amr_get_flag (ind, tol_min, tol_max,
+                                                   (int) q->level,
+                                                   level_min, level_max);
+      rhea_stokes_problem_amr_assign_flag (qd, amr_flag, d->merge_mode,
+                                           &n_flagged_coarsen,
+                                           &n_flagged_refine);
     }
   }
   n_flagged = n_flagged_coarsen + n_flagged_refine;
@@ -1117,7 +1183,7 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
 
-  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity %i, pressure %i)\n",
+  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
                      this_fn_name, has_temp, has_vel, has_press);
 
   /* check input */
@@ -1181,7 +1247,7 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   const int           has_vel = (d->velocity_adapted != NULL);
   const int           has_press = (d->pressure_adapted != NULL);
 
-  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity %i, pressure %i)\n",
+  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
                      this_fn_name, has_temp, has_vel, has_press);
 
   /* check input */
