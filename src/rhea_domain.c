@@ -640,6 +640,8 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
                      opt->radius_min, opt->radius_min_m/1.0e3);
   RHEA_GLOBAL_INFOF ("  radius max: %g (%g km)\n",
                      opt->radius_max, opt->radius_max_m/1.0e3);
+  RHEA_GLOBAL_INFOF ("  depth:      %g (%g km)\n",
+                     opt->depth, opt->depth * scal_len_to_km);
   if (0.0 < opt->lm_um_interface_radius) {
     const double        r_lm_um = opt->lm_um_interface_radius;
     const double        r_max = opt->radius_max;
