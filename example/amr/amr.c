@@ -141,6 +141,11 @@ main (int argc, char **argv)
                             &temp_options, &weak_options, &visc_options,
                             &newton_options, vtk_solver_path);
 
+  /* perform initial AMR; update mesh objects */
+  rhea_stokes_problem_init_amr (stokes_problem, p4est, &discr_options);
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
                                       &temp_options, &visc_options);
