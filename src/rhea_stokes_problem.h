@@ -116,6 +116,9 @@ rhea_weakzone_options_t    *rhea_stokes_problem_get_weakzone_options (
 rhea_viscosity_options_t   *rhea_stokes_problem_get_viscosity_options (
                                     rhea_stokes_problem_t *stokes_problem);
 
+void                rhea_stokes_problem_compute_coefficient (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    const int nonlinear_init);
 void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);

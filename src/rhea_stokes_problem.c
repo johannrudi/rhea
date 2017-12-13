@@ -328,7 +328,7 @@ rhea_stokes_problem_retrieve_velocity (ymir_vec_t *velocity_pressure,
 /**
  * Computes viscosity.
  */
-static void
+void
 rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
                                          const int nonlinear_init)
 {
@@ -387,6 +387,37 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
  * Linear Stokes Problem
  *****************************************************************************/
 
+static int
+rhea_stokes_problem_linear_mesh_data_exists (
+                                    rhea_stokes_problem_t *stokes_problem_lin)
+{
+  int                 mesh_exists, vectors_exist;
+  int                 weak_exists, rhs_nonzero_dir_exists;
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
+
+  /* check if mesh and corresponding data exist */
+  mesh_exists = (
+      stokes_problem_lin->ymir_mesh != NULL &&
+      stokes_problem_lin->press_elem != NULL);
+  vectors_exist = (
+      stokes_problem_lin->coeff != NULL &&
+      stokes_problem_lin->rhs_vel != NULL &&
+      stokes_problem_lin->rhs_vel_press != NULL);
+
+  /* check if not required vectors exist */
+  weak_exists = (
+      stokes_problem_lin->weakzone_compute_fn == NULL ||
+      stokes_problem_lin->weakzone != NULL);
+  rhs_nonzero_dir_exists = (
+      stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn == NULL ||
+      stokes_problem_lin->rhs_vel_nonzero_dirichlet != NULL);
+
+  return (mesh_exists && vectors_exist && weak_exists &&
+          rhs_nonzero_dir_exists);
+}
+
 static void
 rhea_stokes_problem_linear_create_mesh_data (
                                     rhea_stokes_problem_t *stokes_problem_lin,
@@ -400,12 +431,8 @@ rhea_stokes_problem_linear_create_mesh_data (
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
-  RHEA_ASSERT (stokes_problem_lin->ymir_mesh  == NULL);
-  RHEA_ASSERT (stokes_problem_lin->press_elem == NULL);
-  RHEA_ASSERT (stokes_problem_lin->coeff         == NULL);
-  RHEA_ASSERT (stokes_problem_lin->weakzone      == NULL);
-  RHEA_ASSERT (stokes_problem_lin->rhs_vel       == NULL);
-  RHEA_ASSERT (stokes_problem_lin->rhs_vel_press == NULL);
+  RHEA_ASSERT (
+      !rhea_stokes_problem_linear_mesh_data_exists (stokes_problem_lin));
   RHEA_ASSERT (stokes_problem_lin->domain_options != NULL);
 
   /* assign mesh objects */
@@ -454,11 +481,8 @@ rhea_stokes_problem_linear_clear_mesh_data (
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
-  RHEA_ASSERT (stokes_problem_lin->ymir_mesh  != NULL);
-  RHEA_ASSERT (stokes_problem_lin->press_elem != NULL);
-  RHEA_ASSERT (stokes_problem_lin->coeff         != NULL);
-  RHEA_ASSERT (stokes_problem_lin->rhs_vel       != NULL);
-  RHEA_ASSERT (stokes_problem_lin->rhs_vel_press != NULL);
+  RHEA_ASSERT (
+      rhea_stokes_problem_linear_mesh_data_exists (stokes_problem_lin));
 
   /* destroy vectors */
   rhea_viscosity_destroy (stokes_problem_lin->coeff);
@@ -490,6 +514,25 @@ rhea_stokes_problem_linear_clear_mesh_data (
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
+static int
+rhea_stokes_problem_linear_solver_data_exists (
+                                    rhea_stokes_problem_t *stokes_problem_lin)
+{
+  int                 mesh_data_exists, stokes_exists;
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
+
+  /* check if mesh data exists */
+  mesh_data_exists =
+    rhea_stokes_problem_linear_mesh_data_exists (stokes_problem_lin);
+
+  /* check if Stokes operator exists */
+  stokes_exists = (stokes_problem_lin->stokes_op != NULL);
+
+  return (mesh_data_exists && stokes_exists);
+}
+
 static void
 rhea_stokes_problem_linear_create_solver_data (
                                     rhea_stokes_problem_t *stokes_problem_lin)
@@ -502,12 +545,12 @@ rhea_stokes_problem_linear_create_solver_data (
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* check input */
-  RHEA_ASSERT (stokes_problem_lin->ymir_mesh  != NULL);
-  RHEA_ASSERT (stokes_problem_lin->press_elem != NULL);
-  RHEA_ASSERT (stokes_problem_lin->coeff   != NULL);
-  RHEA_ASSERT (stokes_problem_lin->rhs_vel != NULL);
+  RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
+  RHEA_ASSERT (
+      rhea_stokes_problem_linear_mesh_data_exists (stokes_problem_lin));
+  RHEA_ASSERT (
+      !rhea_stokes_problem_linear_solver_data_exists (stokes_problem_lin));
   RHEA_ASSERT (stokes_problem_lin->domain_options != NULL);
-  RHEA_ASSERT (stokes_problem_lin->stokes_op == NULL);
 
   /* set VTK path for debuggin */
   if (vtk_path != NULL) {
@@ -641,12 +684,14 @@ rhea_stokes_problem_linear_setup_solver (
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
-  RHEA_ASSERT (stokes_problem_lin->rhs_vel_press != NULL);
-  RHEA_ASSERT (stokes_problem_lin->stokes_op == NULL);
+  RHEA_ASSERT (
+      rhea_stokes_problem_linear_mesh_data_exists (stokes_problem_lin));
   RHEA_ASSERT (stokes_problem_lin->stokes_pc == NULL);
 
   /* create solver data */
-  rhea_stokes_problem_linear_create_solver_data (stokes_problem_lin);
+  if (!rhea_stokes_problem_linear_solver_data_exists (stokes_problem_lin)) {
+    rhea_stokes_problem_linear_create_solver_data (stokes_problem_lin);
+  }
   RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
 
   /* construct right-hand side for Stokes system */
@@ -655,10 +700,10 @@ rhea_stokes_problem_linear_setup_solver (
   rhs_vel_nonzero_dirichlet = stokes_problem_lin->rhs_vel_nonzero_dirichlet;
   rhs_vel_press = stokes_problem_lin->rhs_vel_press;
   ymir_stokes_pc_construct_rhs (
-      rhs_vel_press             /* output: right-hand side */,
-      rhs_vel                   /* input: volume forcing */,
-      NULL                      /* input: Neumann forcing */,
-      rhs_vel_nonzero_dirichlet /* input: nonzero Dirichlet boundary */,
+      rhs_vel_press,              /* output: right-hand side */
+      rhs_vel,                    /* input: volume forcing */
+      NULL,                       /* input: Neumann forcing */
+      rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
       stokes_problem_lin->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
@@ -699,6 +744,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
   RHEA_ASSERT (stokes_problem_lin->rhs_vel_press != NULL);
+  RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
   RHEA_ASSERT (stokes_problem_lin->stokes_pc != NULL);
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
 
@@ -1477,16 +1523,13 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
   }
 
   /* compute viscosity */
-  if (nonzero_init_guess) { /* if a velocity is given as an initial guess */
-    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
-    RHEA_ASSERT (rhea_velocity_pressure_is_valid (solution));
-    rhea_stokes_problem_set_velocity_pressure (stokes_problem_nl, solution);
-    rhea_stokes_problem_compute_coefficient (stokes_problem_nl, 0 /* !init */);
-  }
-  else { /* otherwise assume zero velocity */
-    rhea_stokes_problem_set_velocity_pressure (stokes_problem_nl, NULL);
-    rhea_stokes_problem_compute_coefficient (stokes_problem_nl, 1 /* init */);
-  }
+  RHEA_ASSERT (!nonzero_init_guess ||
+               rhea_velocity_pressure_check_vec_type (solution));
+  RHEA_ASSERT (!nonzero_init_guess ||
+               rhea_velocity_pressure_is_valid (solution));
+  rhea_stokes_problem_set_velocity_pressure (stokes_problem_nl, solution);
+  rhea_stokes_problem_compute_coefficient (stokes_problem_nl,
+                                           !nonzero_init_guess);
 
   /* create Stokes operator */
   stokes_problem_nl->stokes_op = ymir_stokes_op_new_ext (
@@ -1636,10 +1679,10 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient_fn (
 
   /* construct the right-hand side */
   ymir_stokes_pc_construct_rhs (
-      rhs_vel_press             /* output: right-hand side */,
-      rhs_vel                   /* input: volume forcing */,
-      NULL                      /* input: Neumann forcing */,
-      rhs_vel_nonzero_dirichlet /* input: nonzero Dirichlet boundary */,
+      rhs_vel_press,              /* output: right-hand side */
+      rhs_vel,                    /* input: volume forcing */
+      NULL,                       /* input: Neumann forcing */
+      rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
       stokes_problem_nl->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
