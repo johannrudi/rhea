@@ -7,7 +7,6 @@
  *****************************************************************************/
 
 #include <rhea.h>
-#include <rhea_stokes_problem_amr.h>
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
@@ -15,24 +14,6 @@
 /******************************************************************************
  * Main Program
  *****************************************************************************/
-
-/**
- * Runs Stokes solver.
- */
-static void
-yielding_run_solver (ymir_vec_t *sol_vel_press,
-                     const int iter_max, const double rel_tol,
-                     rhea_stokes_problem_t *stokes_problem)
-{
-  const char         *this_fn_name = "yielding_run_solver";
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* run solver */
-  rhea_stokes_problem_solve (sol_vel_press, iter_max, rel_tol, stokes_problem);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
 
 /**
  * Runs the program.
@@ -56,8 +37,8 @@ main (int argc, char **argv)
   int                 solver_iter_max;
   double              solver_rel_tol;
   char               *vtk_write_input_path;
-  char               *vtk_write_newton_itn_path;
   char               *vtk_write_solution_path;
+  char               *vtk_solver_path;
 #ifdef RHEA_USE_CATALYST
   char               *vis_catalyst_script;
 #endif
@@ -96,12 +77,12 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
     &(vtk_write_input_path), NULL,
     "File path for vtk files for the input of the Stokes problem",
-  YMIR_OPTIONS_S, "vtk-write-newton-itn-path", '\0',
-    &(vtk_write_newton_itn_path), NULL,
-    "File path for vtk files for iterations of Newton's method",
   YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
     &(vtk_write_solution_path), NULL,
     "File path for vtk files for the solution of the Stokes problem",
+  YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
+    &(vtk_solver_path), NULL,
+    "VTK file path for solver internals (e.g., iterations of Newton's method)",
 
   /* visualization */
 #ifdef RHEA_USE_CATALYST
@@ -146,14 +127,10 @@ main (int argc, char **argv)
    * Setup Stokes Problem
    */
 
-  example_share_stokes_new (&stokes_problem, ymir_mesh, press_elem,
+  example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &weak_options, &visc_options,
-                            &newton_options, vtk_write_newton_itn_path);
-
-  /* perform initial AMR; update mesh objects */
-  rhea_stokes_problem_init_amr (stokes_problem, p4est, &discr_options);
-  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+                            &newton_options, p4est, &discr_options,
+                            vtk_solver_path);
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_write_input_path, stokes_problem,
@@ -163,15 +140,15 @@ main (int argc, char **argv)
    * Solve Stokes Problem
    */
 
-  /* initialize solution vector */
-  sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-
   /* setup solver */
   rhea_stokes_problem_setup_solver (stokes_problem);
 
+  /* initialize solution vector */
+  sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
   /* run solver */
-  yielding_run_solver (sol_vel_press, solver_iter_max, solver_rel_tol,
-                       stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, solver_iter_max, solver_rel_tol,
+                             stokes_problem);
 
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_write_solution_path, sol_vel_press,

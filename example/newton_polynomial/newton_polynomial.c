@@ -796,7 +796,7 @@ main (int argc, char **argv)
   /* run Newton solver */
   newton_options.nonzero_initial_guess = 1;
   newton_options.status_verbosity = 2;
-  rhea_newton_solve (solution, nl_problem, &newton_options);
+  rhea_newton_solve (&solution, nl_problem, &newton_options);
 
   /*
    * Output of Solution

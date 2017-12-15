@@ -121,9 +121,9 @@ main (int argc, char **argv)
    * Setup Stokes Problem
    */
 
-  example_share_stokes_new (&stokes_problem, ymir_mesh, press_elem,
+  example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &weak_options, &visc_options,
-                            &newton_options, NULL);
+                            &newton_options, NULL, NULL, NULL);
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_write_input_path, stokes_problem,

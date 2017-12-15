@@ -18,24 +18,6 @@
  *****************************************************************************/
 
 /**
- * Runs Stokes solver.
- */
-static void
-amr_run_solver (ymir_vec_t *sol_vel_press,
-                const int iter_max, const double rel_tol,
-                rhea_stokes_problem_t *stokes_problem)
-{
-  const char         *this_fn_name = "amr_run_solver";
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* run solver */
-  rhea_stokes_problem_solve (sol_vel_press, iter_max, rel_tol, stokes_problem);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
-
-/**
  * Runs the program.
  */
 int
@@ -137,14 +119,10 @@ main (int argc, char **argv)
    * Setup Stokes Problem
    */
 
-  example_share_stokes_new (&stokes_problem, ymir_mesh, press_elem,
+  example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &weak_options, &visc_options,
-                            &newton_options, vtk_solver_path);
-
-  /* perform initial AMR; update mesh objects */
-  rhea_stokes_problem_init_amr (stokes_problem, p4est, &discr_options);
-  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+                            &newton_options, p4est, &discr_options,
+                            vtk_solver_path);
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
@@ -154,15 +132,15 @@ main (int argc, char **argv)
    * Solve Stokes Problem
    */
 
-  /* initialize solution vector */
-  sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-
   /* setup solver */
   rhea_stokes_problem_setup_solver (stokes_problem);
 
+  /* initialize solution vector */
+  sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
   /* run solver */
-  amr_run_solver (sol_vel_press, solver_iter_max, solver_rel_tol,
-                  stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, solver_iter_max, solver_rel_tol,
+                             stokes_problem);
 
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
