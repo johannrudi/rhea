@@ -15,6 +15,7 @@
 #include <rhea_velocity_pressure.h>
 #include <rhea_strainrate.h>
 #include <rhea_stress.h>
+#include <rhea_topography.h>
 #include <rhea_stokes_problem.h>
 #include <rhea_newton.h>
 #include <rhea_vis.h>
@@ -70,6 +71,7 @@ void                rhea_process_options_all (
                               rhea_temperature_options_t *temperature_options,
                               rhea_weakzone_options_t *weakzone_options,
                               rhea_viscosity_options_t *viscosity_options,
+                              rhea_topography_options_t *topography_options,
                               rhea_discretization_options_t *discr_options,
                               rhea_newton_options_t *newton_options);
 

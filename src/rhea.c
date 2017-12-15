@@ -122,6 +122,7 @@ rhea_add_options_all (ymir_options_t *options)
   rhea_temperature_add_options_plume (options);
   rhea_weakzone_add_options (options);
   rhea_viscosity_add_options (options);
+  rhea_topography_add_options (options);
   rhea_discretization_add_options (options);
   rhea_stokes_problem_add_options (options);
   rhea_newton_add_options (options);
@@ -140,6 +141,7 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
                           rhea_temperature_options_t *temperature_options,
                           rhea_weakzone_options_t *weakzone_options,
                           rhea_viscosity_options_t *viscosity_options,
+                          rhea_topography_options_t *topography_options,
                           rhea_discretization_options_t *discr_options,
                           rhea_newton_options_t *newton_options)
 {
@@ -147,6 +149,7 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
   rhea_temperature_process_options (temperature_options, domain_options);
   rhea_weakzone_process_options (weakzone_options, domain_options);
   rhea_viscosity_process_options (viscosity_options, domain_options);
+  rhea_topography_process_options (topography_options, domain_options);
   rhea_discretization_process_options (discr_options, domain_options);
   rhea_newton_process_options (newton_options);
 }
