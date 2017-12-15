@@ -7,6 +7,10 @@
 #include <ymir_vec_getset.h>
 #include <ymir_velocity_elem.h>
 
+/******************************************************************************
+ * Velocity Vector
+ *****************************************************************************/
+
 ymir_vec_t *
 rhea_velocity_new (ymir_mesh_t *ymir_mesh)
 {
