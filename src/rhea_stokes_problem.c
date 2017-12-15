@@ -164,8 +164,11 @@ struct rhea_stokes_problem
   ymir_Hminus1_norm_op_t *norm_op;
   double                  norm_op_mass_scaling;
 
+  /* flag for clearing/creating mesh dependencies */
+  int                 recreate_solver_data;
+
   /* solver VTK output path */
-  char                   *solver_vtk_path;
+  char               *solver_vtk_path;
 };
 
 /**
@@ -220,6 +223,8 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->norm_type = RHEA_STOKES_NORM_NONE;
   stokes_problem->norm_op = NULL;
   stokes_problem->norm_op_mass_scaling = NAN;
+
+  stokes_problem->recreate_solver_data = 0;
 
   stokes_problem->solver_vtk_path = NULL;
 
@@ -689,9 +694,7 @@ rhea_stokes_problem_linear_setup_solver (
   RHEA_ASSERT (stokes_problem_lin->stokes_pc == NULL);
 
   /* create solver data */
-  if (!rhea_stokes_problem_linear_solver_data_exists (stokes_problem_lin)) {
-    rhea_stokes_problem_linear_create_solver_data (stokes_problem_lin);
-  }
+  rhea_stokes_problem_linear_create_solver_data (stokes_problem_lin);
   RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
 
   /* construct right-hand side for Stokes system */
@@ -1486,6 +1489,33 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
+static int          rhea_stokes_problem_nonlinear_mesh_data_exists (
+                                    rhea_stokes_problem_t *stokes_problem_nl);
+
+static int
+rhea_stokes_problem_nonlinear_solver_data_exists (
+                                    rhea_stokes_problem_t *stokes_problem_nl)
+{
+  int                 mesh_data_exists, stokes_exists, norm_exists;
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+
+  /* check if mesh data exists */
+  mesh_data_exists =
+    rhea_stokes_problem_nonlinear_mesh_data_exists (stokes_problem_nl);
+
+  /* check if Stokes operator exists */
+  stokes_exists = (stokes_problem_nl->stokes_op != NULL);
+
+  /* check if norm operator exists */
+  if (stokes_problem_nl->norm_type == RHEA_STOKES_NORM_HMINUS1_L2) {
+    norm_exists = (stokes_problem_nl->norm_op != NULL);
+  }
+
+  return (mesh_data_exists && stokes_exists && norm_exists);
+}
+
 /**
  * Initializes user data of the nonlinear problem to be able to run the Newton
  * solver.
@@ -1506,13 +1536,11 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
-  RHEA_ASSERT (stokes_problem_nl->ymir_mesh  != NULL);
-  RHEA_ASSERT (stokes_problem_nl->press_elem != NULL);
-  RHEA_ASSERT (stokes_problem_nl->coeff   != NULL);
-  RHEA_ASSERT (stokes_problem_nl->rhs_vel != NULL);
-  RHEA_ASSERT (stokes_problem_nl->stokes_op == NULL);
+  RHEA_ASSERT (
+      rhea_stokes_problem_nonlinear_mesh_data_exists (stokes_problem_nl));
+  RHEA_ASSERT (
+      !rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem_nl));
   RHEA_ASSERT (stokes_problem_nl->stokes_pc == NULL);
-  RHEA_ASSERT (stokes_problem_nl->norm_op   == NULL);
 
   /* set VTK path for debuggin */
   if (vtk_path != NULL) {
@@ -2099,6 +2127,64 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
  * Nonlinear Stokes Problem
  *****************************************************************************/
 
+static int
+rhea_stokes_problem_nonlinear_mesh_data_exists (
+                                    rhea_stokes_problem_t *stokes_problem_nl)
+{
+  int                 mesh_exists, vectors_exist;
+  int                 weak_exists, rhs_nonzero_dir_exists;
+  int                 nl_vec_exist;
+
+  /* check input */
+  RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
+
+  /* check if mesh and corresponding data exist */
+  mesh_exists = (
+      stokes_problem_nl->ymir_mesh != NULL &&
+      stokes_problem_nl->press_elem != NULL);
+  vectors_exist = (
+      stokes_problem_nl->coeff != NULL &&
+      stokes_problem_nl->bounds_marker != NULL &&
+      stokes_problem_nl->yielding_marker != NULL &&
+      stokes_problem_nl->rhs_vel != NULL &&
+      stokes_problem_nl->rhs_vel_press != NULL);
+
+  /* check if not required vectors exist */
+  weak_exists = (
+      stokes_problem_nl->weakzone_compute_fn == NULL ||
+      stokes_problem_nl->weakzone != NULL);
+  rhs_nonzero_dir_exists = (
+      stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn == NULL ||
+      stokes_problem_nl->rhs_vel_nonzero_dirichlet != NULL);
+
+  /* check if nonlinear solver data exists */
+  nl_vec_exist = (
+      stokes_problem_nl->sol_vel != NULL &&
+      stokes_problem_nl->newton_neg_gradient_vec != NULL &&
+      stokes_problem_nl->newton_step_vec != NULL);
+  switch (stokes_problem_nl->linearization_type) {
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_PICARD:
+    break;
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV2:
+    nl_vec_exist = nl_vec_exist &&
+                   stokes_problem_nl->proj_scal != NULL &&
+                   stokes_problem_nl->proj_tens != NULL;
+    break;
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
+  case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
+    nl_vec_exist = nl_vec_exist &&
+                   stokes_problem_nl->proj_scal != NULL;
+    break;
+  default: /* unknown linearization type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  return (mesh_exists && vectors_exist && weak_exists &&
+          rhs_nonzero_dir_exists && nl_vec_exist);
+}
+
 static void
 rhea_stokes_problem_nonlinear_create_mesh_data (
                                     rhea_stokes_problem_t *stokes_problem_nl,
@@ -2112,19 +2198,8 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
-  RHEA_ASSERT (stokes_problem_nl->ymir_mesh  == NULL);
-  RHEA_ASSERT (stokes_problem_nl->press_elem == NULL);
-  RHEA_ASSERT (stokes_problem_nl->coeff           == NULL);
-  RHEA_ASSERT (stokes_problem_nl->proj_scal       == NULL);
-  RHEA_ASSERT (stokes_problem_nl->bounds_marker   == NULL);
-  RHEA_ASSERT (stokes_problem_nl->yielding_marker == NULL);
-  RHEA_ASSERT (stokes_problem_nl->weakzone  == NULL);
-  RHEA_ASSERT (stokes_problem_nl->sol_vel   == NULL);
-  RHEA_ASSERT (stokes_problem_nl->proj_tens == NULL);
-  RHEA_ASSERT (stokes_problem_nl->rhs_vel       == NULL);
-  RHEA_ASSERT (stokes_problem_nl->rhs_vel_press == NULL);
-  RHEA_ASSERT (stokes_problem_nl->newton_neg_gradient_vec == NULL);
-  RHEA_ASSERT (stokes_problem_nl->newton_step_vec         == NULL);
+  RHEA_ASSERT (
+      !rhea_stokes_problem_nonlinear_mesh_data_exists (stokes_problem_nl));
   RHEA_ASSERT (stokes_problem_nl->domain_options != NULL);
 
   /* assign mesh objects */
@@ -2200,15 +2275,9 @@ rhea_stokes_problem_nonlinear_clear_mesh_data (
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
-  RHEA_ASSERT (stokes_problem_nl->coeff           != NULL);
-  RHEA_ASSERT (stokes_problem_nl->bounds_marker   != NULL);
-  RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
-  RHEA_ASSERT (stokes_problem_nl->sol_vel         != NULL);
-  RHEA_ASSERT (stokes_problem_nl->rhs_vel         != NULL);
-  RHEA_ASSERT (stokes_problem_nl->rhs_vel_press   != NULL);
-  RHEA_ASSERT (stokes_problem_nl->newton_problem          != NULL);
-  RHEA_ASSERT (stokes_problem_nl->newton_neg_gradient_vec != NULL);
-  RHEA_ASSERT (stokes_problem_nl->newton_step_vec         != NULL);
+  RHEA_ASSERT (
+      rhea_stokes_problem_nonlinear_mesh_data_exists (stokes_problem_nl));
+  RHEA_ASSERT (stokes_problem_nl->newton_problem != NULL);
 
   /* destroy vectors of Newton problem */
   rhea_velocity_pressure_destroy (
@@ -2381,11 +2450,11 @@ rhea_stokes_problem_nonlinear_destroy (
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->newton_problem != NULL);
 
-  /* destroy Newton problem */
-  rhea_newton_problem_destroy (stokes_problem_nl->newton_problem);
-
   /* destroy mesh data */
   rhea_stokes_problem_nonlinear_clear_mesh_data (stokes_problem_nl);
+
+  /* destroy Newton problem */
+  rhea_newton_problem_destroy (stokes_problem_nl->newton_problem);
 
   /* destroy problem structure */
   rhea_stokes_problem_struct_destroy (stokes_problem_nl);
@@ -2495,7 +2564,9 @@ rhea_stokes_problem_create_mesh_dependencies (
   case RHEA_STOKES_PROBLEM_LINEAR:
     rhea_stokes_problem_linear_create_mesh_data (
         stokes_problem, ymir_mesh, press_elem);
-    rhea_stokes_problem_linear_create_solver_data (stokes_problem);
+    if (stokes_problem->recreate_solver_data) {
+      rhea_stokes_problem_linear_create_solver_data (stokes_problem);
+    }
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     rhea_stokes_problem_nonlinear_create_mesh_data (
@@ -2507,8 +2578,10 @@ rhea_stokes_problem_create_mesh_dependencies (
         stokes_problem->newton_neg_gradient_vec,
         stokes_problem->newton_step_vec,
         stokes_problem->newton_problem);
-    rhea_stokes_problem_nonlinear_create_solver_data_fn (
-        stokes_problem->velocity_pressure, stokes_problem);
+    if (stokes_problem->recreate_solver_data) {
+      rhea_stokes_problem_nonlinear_create_solver_data_fn (
+          stokes_problem->velocity_pressure, stokes_problem);
+    }
     break;
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
@@ -2528,11 +2601,23 @@ rhea_stokes_problem_clear_mesh_dependencies (
 
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
-    rhea_stokes_problem_linear_clear_solver_data (stokes_problem);
+    if (rhea_stokes_problem_linear_solver_data_exists (stokes_problem)) {
+      rhea_stokes_problem_linear_clear_solver_data (stokes_problem);
+      stokes_problem->recreate_solver_data = 1;
+    }
+    else {
+      stokes_problem->recreate_solver_data = 0;
+    }
     rhea_stokes_problem_linear_clear_mesh_data (stokes_problem);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
-    rhea_stokes_problem_nonlinear_clear_solver_data_fn (stokes_problem);
+    if (rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem)) {
+      rhea_stokes_problem_nonlinear_clear_solver_data_fn (stokes_problem);
+      stokes_problem->recreate_solver_data = 1;
+    }
+    else {
+      stokes_problem->recreate_solver_data = 0;
+    }
     rhea_stokes_problem_nonlinear_clear_mesh_data (stokes_problem);
     break;
   default: /* unknown Stokes type */
