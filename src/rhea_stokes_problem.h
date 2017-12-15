@@ -5,6 +5,7 @@
 #define RHEA_STOKES_PROBLEM_H
 
 #include <rhea_domain.h>
+#include <rhea_discretization.h>
 #include <rhea_temperature.h>
 #include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
@@ -70,10 +71,18 @@ void                rhea_stokes_problem_setup_solver (
  * Solves a Stokes problem.
  */
 void                rhea_stokes_problem_solve (
-                                    ymir_vec_t *sol_vel_press,
+                                    ymir_vec_t **sol_vel_press,
                                     const int iter_max,
                                     const double rel_tol,
                                     rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Sets data to enable solver AMR/grid continuation.
+ */
+void                rhea_stokes_problem_set_solver_amr (
+                                rhea_stokes_problem_t *stokes_problem,
+                                p4est_t *p4est,
+                                rhea_discretization_options_t *discr_options);
 
 /**
  * Sets output path for vtk output the iterations of a nonlinear solve.

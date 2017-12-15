@@ -167,6 +167,10 @@ struct rhea_stokes_problem
   /* flag for clearing/creating mesh dependencies */
   int                 recreate_solver_data;
 
+  /* data for solver AMR/grid continuation (not owned) */
+  p4est_t            *p4est;
+  rhea_discretization_options_t *discr_options;
+
   /* solver VTK output path */
   char               *solver_vtk_path;
 };
@@ -223,6 +227,9 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->norm_type = RHEA_STOKES_NORM_NONE;
   stokes_problem->norm_op = NULL;
   stokes_problem->norm_op_mass_scaling = NAN;
+
+  stokes_problem->p4est = NULL;
+  stokes_problem->discr_options = NULL;
 
   stokes_problem->recreate_solver_data = 0;
 
@@ -717,7 +724,7 @@ rhea_stokes_problem_linear_setup_solver (
 }
 
 static void
-rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
+rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
                                   const int iter_max,
                                   const double rel_tol,
                                   rhea_stokes_problem_t *stokes_problem_lin)
@@ -749,7 +756,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
   RHEA_ASSERT (stokes_problem_lin->rhs_vel_press != NULL);
   RHEA_ASSERT (stokes_problem_lin->stokes_op != NULL);
   RHEA_ASSERT (stokes_problem_lin->stokes_pc != NULL);
-  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (*sol_vel_press));
 
   /* compute residual with zero inital guess */
   if (out_residual) {
@@ -759,7 +766,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
   }
 
   /* run solver for Stokes */
-  stop_reason = ymir_stokes_pc_solve (rhs_vel_press, sol_vel_press,
+  stop_reason = ymir_stokes_pc_solve (rhs_vel_press, *sol_vel_press,
                                       stokes_problem_lin->stokes_pc,
                                       nonzero_initial_guess,
                                       rel_tol, abs_tol, iter_max,
@@ -770,7 +777,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t *sol_vel_press,
   if (out_residual) {
     ymir_vec_t         *residual_vel_press = ymir_vec_template (rhs_vel_press);
 
-    ymir_stokes_pc_apply_stokes_op (sol_vel_press, residual_vel_press,
+    ymir_stokes_pc_apply_stokes_op (*sol_vel_press, residual_vel_press,
                                     stokes_problem_lin->stokes_op, 0, 1);
     ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
     ymir_vec_scale (-1.0, residual_vel_press);
@@ -1512,6 +1519,9 @@ rhea_stokes_problem_nonlinear_solver_data_exists (
   if (stokes_problem_nl->norm_type == RHEA_STOKES_NORM_HMINUS1_L2) {
     norm_exists = (stokes_problem_nl->norm_op != NULL);
   }
+  else {
+    norm_exists = 1;
+  }
 
   return (mesh_data_exists && stokes_exists && norm_exists);
 }
@@ -2050,6 +2060,39 @@ rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
 }
 
 /**
+ * Performs AMR/grid continuation in between Newton steps.
+ * (Callback function for Newton's method)
+ */
+static int
+rhea_stokes_problem_nonlinear_amr_fn (ymir_vec_t **solution, const int iter,
+                                      void *data)
+{
+  rhea_stokes_problem_t *stokes_problem_nl = data;
+  int                 amr_iter;
+
+  /* exit if nothing to do */
+  if (stokes_problem_nl->p4est == NULL ||
+      stokes_problem_nl->discr_options == NULL) {
+    return 0;
+  }
+
+  /* run AMR */
+  rhea_stokes_problem_set_velocity_pressure (stokes_problem_nl, *solution);
+  amr_iter = rhea_stokes_problem_nonlinear_amr (
+      stokes_problem_nl, stokes_problem_nl->p4est,
+      stokes_problem_nl->discr_options, iter);
+
+  /* (possibly) recover new vector for solution */
+  if (0 < amr_iter) { /* if mesh was adapted */
+    *solution = rhea_stokes_problem_get_velocity_pressure (stokes_problem_nl);
+    return 1;
+  }
+  else { /* if mesh stayed the same */
+    return 0;
+  }
+}
+
+/**
  * Writes or prints output at the beginning of a Newton step.
  * (Callback function for Newton's method)
  */
@@ -2424,6 +2467,8 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
         rhea_stokes_problem_nonlinear_update_operator_fn,
         rhea_stokes_problem_nonlinear_update_hessian_fn,
         rhea_stokes_problem_nonlinear_modify_hessian_system_fn, newton_problem);
+    rhea_newton_problem_set_setup_poststep_fn (
+        rhea_stokes_problem_nonlinear_amr_fn, newton_problem);
     rhea_newton_problem_set_output_fn (
         rhea_stokes_problem_nonlinear_output_prestep_fn, newton_problem);
 
@@ -2474,7 +2519,7 @@ rhea_stokes_problem_nonlinear_setup_solver (
 }
 
 static void
-rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
+rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
                                      const int iter_max,
                                      const double rel_tol,
                                      rhea_stokes_problem_t *stokes_problem_nl)
@@ -2489,7 +2534,7 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t *sol_vel_press,
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
-  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (*sol_vel_press));
 
   /* run Newton solver */
   newton_options->nonzero_initial_guess = nonzero_initial_guess;
@@ -2643,7 +2688,7 @@ rhea_stokes_problem_setup_solver (rhea_stokes_problem_t *stokes_problem)
 }
 
 void
-rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
+rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
                            const int iter_max,
                            const double rel_tol,
                            rhea_stokes_problem_t *stokes_problem)
@@ -2660,6 +2705,16 @@ rhea_stokes_problem_solve (ymir_vec_t *sol_vel_press,
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
   }
+}
+
+void
+rhea_stokes_problem_set_solver_amr (
+                                rhea_stokes_problem_t *stokes_problem,
+                                p4est_t *p4est,
+                                rhea_discretization_options_t *discr_options)
+{
+  stokes_problem->p4est = p4est;
+  stokes_problem->discr_options = discr_options;
 }
 
 void
