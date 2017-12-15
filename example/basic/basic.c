@@ -32,6 +32,7 @@ main (int argc, char **argv)
   rhea_temperature_options_t    temp_options;
   rhea_weakzone_options_t       weak_options;
   rhea_viscosity_options_t      visc_options;
+  rhea_topography_options_t     topo_options;
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
   /* options local to this program */
@@ -104,7 +105,7 @@ main (int argc, char **argv)
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options, &weak_options,
-                            &visc_options, &discr_options,
+                            &visc_options, &topo_options, &discr_options,
                             &newton_options);
 
   /*
