@@ -22,26 +22,41 @@
  *****************************************************************************/
 
 /* default options */
-#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TYPE_NAME "NONE"
-#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN (NAN)
-#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_N_FLAGGED_ELEMENTS_TOL (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_ITER (0)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_N_FLAGGED_ELEMENTS_TOL (NAN)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TYPE_NAME "NONE"
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN (NAN)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX (NAN)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TYPE_NAME "NONE"
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MIN (NAN)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MAX (NAN)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_START (0)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_MAX (INT_MAX)
 
 /* initialize options */
-char               *rhea_stokes_problem_amr_init_type_name =
-  RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TYPE_NAME;
-double              rhea_stokes_problem_amr_init_tol_min =
-  RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN;
-double              rhea_stokes_problem_amr_init_tol_max =
-  RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX;
 double              rhea_stokes_problem_amr_n_flagged_elements_tol =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_N_FLAGGED_ELEMENTS_TOL;
 int                 rhea_stokes_problem_amr_recursive_iter =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_ITER;
 double              rhea_stokes_problem_amr_recursive_n_flagged_elements_tol =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_N_FLAGGED_ELEMENTS_TOL;
+char               *rhea_stokes_problem_amr_init_type_name =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TYPE_NAME;
+double              rhea_stokes_problem_amr_init_tol_min =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN;
+double              rhea_stokes_problem_amr_init_tol_max =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX;
+char               *rhea_stokes_problem_amr_nonlinear_type_name =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TYPE_NAME;
+double              rhea_stokes_problem_amr_nonlinear_tol_min =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MIN;
+double              rhea_stokes_problem_amr_nonlinear_tol_max =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MAX;
+int                 rhea_stokes_problem_amr_nonlinear_iter_start =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_START;
+int                 rhea_stokes_problem_amr_nonlinear_iter_max =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_MAX;
 
 void
 rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
@@ -52,6 +67,19 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
 
+  YMIR_OPTIONS_D, "num-flagged-elements-tol", '\0',
+    &(rhea_stokes_problem_amr_n_flagged_elements_tol),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_N_FLAGGED_ELEMENTS_TOL,
+    "Minimum relative #elements flagged to start AMR",
+  YMIR_OPTIONS_I, "recursive-iter", '\0',
+    &(rhea_stokes_problem_amr_recursive_iter),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_ITER,
+    "#iterations to run AMR recursively",
+  YMIR_OPTIONS_D, "recursive-num-flagged-elements-tol", '\0',
+    &(rhea_stokes_problem_amr_recursive_n_flagged_elements_tol),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_N_FLAGGED_ELEMENTS_TOL,
+    "Minimum relative #elements flagged to keep recursing",
+
   YMIR_OPTIONS_S, "init-amr-name", '\0',
     &(rhea_stokes_problem_amr_init_type_name),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TYPE_NAME,
@@ -59,23 +87,32 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "init-amr-tol-min", '\0',
     &(rhea_stokes_problem_amr_init_tol_min),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN,
-    "AMR for initial mesh: tolerance under which the mesh is coarsened",
+    "AMR for initial mesh: tolerance below which the mesh is coarsened",
   YMIR_OPTIONS_D, "init-amr-tol-max", '\0',
     &(rhea_stokes_problem_amr_init_tol_max),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX,
     "AMR for initial mesh: tolerance above which the mesh is refined",
-  YMIR_OPTIONS_D, "init-amr-num-flagged-elements-tol", '\0',
-    &(rhea_stokes_problem_amr_n_flagged_elements_tol),
-    RHEA_STOKES_PROBLEM_AMR_DEFAULT_N_FLAGGED_ELEMENTS_TOL,
-    "AMR for initial mesh: min relative #elements flagged to start AMR",
-  YMIR_OPTIONS_I, "init-amr-recursive-iter", '\0',
-    &(rhea_stokes_problem_amr_recursive_iter),
-    RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_ITER,
-    "AMR for initial mesh: #iterations to run AMR recursively",
-  YMIR_OPTIONS_D, "init-amr-recursive-num-flagged-elements-tol", '\0',
-    &(rhea_stokes_problem_amr_recursive_n_flagged_elements_tol),
-    RHEA_STOKES_PROBLEM_AMR_DEFAULT_RECURSIVE_N_FLAGGED_ELEMENTS_TOL,
-    "AMR for initial mesh: min relative #elements flagged to keep recursing",
+
+  YMIR_OPTIONS_S, "nonlinear-amr-name", '\0',
+    &(rhea_stokes_problem_amr_nonlinear_type_name),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TYPE_NAME,
+    "AMR for nl. solver/grid cont.: name of coarsening/refinemen indicator",
+  YMIR_OPTIONS_D, "nonlinear-amr-tol-min", '\0',
+    &(rhea_stokes_problem_amr_nonlinear_tol_min),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MIN,
+    "AMR for nl. solver/grid cont.: tol. below which the mesh is coarsened",
+  YMIR_OPTIONS_D, "nonlinear-amr-tol-max", '\0',
+    &(rhea_stokes_problem_amr_nonlinear_tol_max),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MAX,
+    "AMR for nl. solver/grid cont.: tol. above which the mesh is refined",
+  YMIR_OPTIONS_I, "nonlinear-amr-iter-start", '\0',
+    &(rhea_stokes_problem_amr_nonlinear_iter_start),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_START,
+    "AMR for nl. solver/grid cont.: start AMR at this nonlinear iteration",
+  YMIR_OPTIONS_I, "nonlinear-amr-iter-max", '\0',
+    &(rhea_stokes_problem_amr_nonlinear_iter_max),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_MAX,
+    "AMR for nl. solver/grid cont.: max # of nonlinear iterations with AMR",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -704,7 +741,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
     if (has_vel) {
       vel_el_mat            = sc_dmatrix_new (n_nodes_per_el, 3);
       strt_sqrt_2inv_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-      strt_el_mat           = sc_dmatrix_new (n_nodes_per_el, 9);
+      strt_el_mat           = sc_dmatrix_new (n_nodes_per_el, 6);
       geo_el_mat            = sc_dmatrix_new (n_nodes_per_el, 24);
       strt_sqrt_2inv_el_data = strt_sqrt_2inv_el_mat->e[0];
     }
@@ -1340,6 +1377,10 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
 
   RHEA_GLOBAL_INFOF ("Into %s (%s)\n", this_fn_name, type_name);
 
+  /* check input */
+  RHEA_ASSERT (p4est != NULL);
+  RHEA_ASSERT (discr_options != NULL);
+
   /* create AMR data */
   amr_data = rhea_stokes_problem_amr_data_new (stokes_problem, discr_options);
 
@@ -1361,6 +1402,73 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data->tol_min = tol_min;
   amr_data->tol_max = tol_max;
 
+  /* perform AMR */
+  amr_iter = rhea_amr (p4est, n_flagged_tol, recursive_iter,
+                       n_flagged_recursive_tol, flag_fn, flag_fn_data,
+                       rhea_stokes_problem_amr_data_initialize_fn,
+                       rhea_stokes_problem_amr_data_finalize_fn,
+                       rhea_stokes_problem_amr_data_project_fn,
+                       rhea_stokes_problem_amr_data_partition_fn, amr_data);
+
+  /* destroy */
+  rhea_stokes_problem_amr_data_destroy (amr_data);
+
+  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, type_name);
+
+  /* return number of performed AMR iterations */
+  return amr_iter;
+}
+
+int
+rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
+                                   p4est_t *p4est,
+                                   rhea_discretization_options_t *discr_options,
+                                   const int nonlinear_iter)
+{
+  const char         *this_fn_name = "rhea_stokes_problem_nonlinear_amr";
+  const char         *type_name = rhea_stokes_problem_amr_nonlinear_type_name;
+  const double        tol_min = rhea_stokes_problem_amr_nonlinear_tol_min;
+  const double        tol_max = rhea_stokes_problem_amr_nonlinear_tol_max;
+  const int           iter_start = rhea_stokes_problem_amr_nonlinear_iter_start;
+  const int           iter_max = rhea_stokes_problem_amr_nonlinear_iter_max;
+  const double        n_flagged_tol =
+    rhea_stokes_problem_amr_n_flagged_elements_tol;
+  const int           recursive_iter = rhea_stokes_problem_amr_recursive_iter;
+  const double        n_flagged_recursive_tol =
+    rhea_stokes_problem_amr_recursive_n_flagged_elements_tol;
+
+  rhea_stokes_problem_amr_data_t *amr_data;
+  rhea_amr_flag_elements_fn_t     flag_fn;
+  void                           *flag_fn_data;
+  int                 amr_iter;
+
+  /* exit if nothing to do */
+  if (strcmp (type_name, "NONE") == 0 ||
+      nonlinear_iter < iter_start || iter_max < nonlinear_iter) {
+    return 0;
+  }
+
+  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", this_fn_name, type_name);
+
+  /* check input */
+  RHEA_ASSERT (p4est != NULL);
+  RHEA_ASSERT (discr_options != NULL);
+
+  /* create AMR data */
+  amr_data = rhea_stokes_problem_amr_data_new (stokes_problem, discr_options);
+
+  /* set up flagging of elements for coarsening/refinement */
+  if (strcmp (type_name, "viscosity_peclet") == 0) {
+    flag_fn = rhea_stokes_problem_amr_flag_viscosity_peclet_fn;
+    flag_fn_data = amr_data;
+  }
+  else { /* unknown type name */
+    RHEA_ABORT ("Unknown nonlinear AMR name");
+    flag_fn = NULL;
+    flag_fn_data = NULL;
+  }
+  amr_data->tol_min = tol_min;
+  amr_data->tol_max = tol_max;
 
   /* perform AMR */
   amr_iter = rhea_amr (p4est, n_flagged_tol, recursive_iter,

@@ -31,6 +31,15 @@ int                 rhea_stokes_problem_init_amr (
 /**
  *
  */
+int                 rhea_stokes_problem_nonlinear_amr (
+                                rhea_stokes_problem_t *stokes_problem,
+                                p4est_t *p4est,
+                                rhea_discretization_options_t *discr_options,
+                                const int nonlinear_iter);
+
+/**
+ *
+ */
 int                 rhea_stokes_problem_amr (
                                 rhea_stokes_problem_t *stokes_problem,
                                 p4est_t *p4est,
