@@ -86,11 +86,49 @@ int                 rhea_pointcloud_weakzone_find_n_nearest (
 /* topography point cloud (opaque) */
 typedef struct rhea_pointcloud_topography rhea_pointcloud_topography_t;
 
-//TODO rhea_pointcloud_topography_new
-//TODO rhea_pointcloud_topography_destroy
-//TODO rhea_pointcloud_topography_set_coordinates (2D?)
-//TODO rhea_pointcloud_topography_set_displacements
-//TODO rhea_pointcloud_topography_set_labels
+/**
+ * Creates a new topography point cloud object.
+ */
+rhea_pointcloud_topography_t *rhea_pointcloud_topography_new (
+                                      const double x_min, const double x_max,
+                                      const double y_min, const double y_max,
+                                      const double z_min, const double z_max,
+                                      const double *point_coordinates,
+                                      const size_t n_points);
+
+/**
+ * Destroys a topography point cloud object.
+ */
+void                rhea_pointcloud_topography_destroy (
+                                      rhea_pointcloud_topography_t *ptcl_topo);
+
+/**
+ * Sets factors corresponding to the points.
+ * Assumes that the number of factors equals the point count.
+ */
+void                rhea_pointcloud_topography_set_displacements (
+                                      rhea_pointcloud_topography_t *ptcl_topo,
+                                      const double *factors);
+
+/**
+ * Sets labels corresponding to the points.
+ * Assumes that the number of factors equals the point count.
+ */
+void                rhea_pointcloud_topography_set_labels (
+                                      rhea_pointcloud_topography_t *ptcl_topo,
+                                      const int *labels);
+
+/**
+ * Finds multiple points of the cloud that are nearest to a target point.
+ */
+int                 rhea_pointcloud_topography_find_n_nearest (
+                                      double *nearest_dist,
+                                      double *nearest_coordinates,
+                                      double *nearest_factor,
+                                      int *nearest_label,
+                                      const int n_nearest,
+                                      rhea_pointcloud_topography_t *ptcl_topo,
+                                      const double *target_coordinates);
 
 SC_EXTERN_C_END;
 
