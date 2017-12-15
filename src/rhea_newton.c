@@ -85,8 +85,11 @@ struct rhea_newton_problem
   rhea_newton_data_init_fn_t   data_init;
   rhea_newton_data_clear_fn_t  data_clear;
 
+  /* setup post Newton step */
+  rhea_newton_setup_poststep_fn_t setup_poststep;
+
   /* user output */
-  rhea_newton_output_prestep_fn_t  output_prestep;
+  rhea_newton_output_prestep_fn_t output_prestep;
 
   /* status (not owned) */
   rhea_newton_status_t *status;
@@ -353,6 +356,7 @@ rhea_newton_problem_new (
                                              NULL, NULL, 0, nl_problem);
   rhea_newton_problem_set_apply_hessian_fn (NULL, nl_problem);
   rhea_newton_problem_set_update_fn (NULL, NULL, NULL, nl_problem);
+  rhea_newton_problem_set_setup_poststep_fn (NULL, nl_problem);
   rhea_newton_problem_set_output_fn (NULL, nl_problem);
   rhea_newton_problem_set_checks (0, 0, nl_problem);
 
@@ -449,6 +453,14 @@ rhea_newton_problem_set_update_fn (
   nl_problem->update_operator = update_operator;
   nl_problem->update_hessian = update_hessian;
   nl_problem->modify_hessian_system = modify_hessian_system;
+}
+
+void
+rhea_newton_problem_set_setup_poststep_fn (
+              rhea_newton_setup_poststep_fn_t setup_poststep,
+              rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->setup_poststep = setup_poststep;
 }
 
 void
@@ -612,7 +624,8 @@ rhea_newton_problem_update_hessian (ymir_vec_t *solution,
 }
 
 int
-rhea_newton_problem_modify_hessian_system_exists (rhea_newton_problem_t *nl_problem)
+rhea_newton_problem_modify_hessian_system_exists (
+                                            rhea_newton_problem_t *nl_problem)
 {
   return (NULL != nl_problem->modify_hessian_system);
 }
@@ -625,6 +638,26 @@ rhea_newton_problem_modify_hessian_system (ymir_vec_t *neg_gradient,
   if (rhea_newton_problem_modify_hessian_system_exists (nl_problem)) {
     nl_problem->modify_hessian_system (neg_gradient, solution,
                                        nl_problem->data);
+  }
+}
+
+int
+rhea_newton_problem_setup_poststep_exists (rhea_newton_problem_t *nl_problem)
+{
+  return (NULL != nl_problem->setup_poststep);
+}
+
+int
+rhea_newton_problem_setup_poststep (ymir_vec_t **solution,
+                                    const int iter,
+                                    rhea_newton_problem_t *nl_problem)
+{
+  if (rhea_newton_problem_setup_poststep_exists (nl_problem)) {
+    RHEA_ASSERT (solution != NULL);
+    return nl_problem->setup_poststep (solution, iter, nl_problem->data);
+  }
+  else {
+    return 0;
   }
 }
 
@@ -1664,7 +1697,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
 }
 
 void
-rhea_newton_solve (ymir_vec_t *solution,
+rhea_newton_solve (ymir_vec_t **solution,
                    rhea_newton_problem_t *nl_problem,
                    rhea_newton_options_t *opt)
 {
@@ -1701,7 +1734,7 @@ rhea_newton_solve (ymir_vec_t *solution,
   {
     /* initialize data */
     if (nl_problem->data_init != NULL) {
-      nl_problem->data_init ((opt->nonzero_initial_guess ? solution : NULL),
+      nl_problem->data_init ((opt->nonzero_initial_guess ? *solution : NULL),
                              nl_problem->data);
     }
 
@@ -1714,11 +1747,11 @@ rhea_newton_solve (ymir_vec_t *solution,
     /* initialize solution vector and status */
     if (opt->nonzero_initial_guess) { /* if nonzero initial guess */
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
-                                       solution, nl_problem,
+                                       *solution, nl_problem,
                                        print_all_conv_criteria);
     }
     else { /* if zero initial guess */
-      ymir_vec_set_zero (solution);
+      ymir_vec_set_zero (*solution);
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
                                        NULL, nl_problem,
                                        print_all_conv_criteria);
@@ -1758,7 +1791,7 @@ rhea_newton_solve (ymir_vec_t *solution,
       }
 
       /* call user output function */
-      rhea_newton_problem_output_prestep (solution, iter, nl_problem);
+      rhea_newton_problem_output_prestep (*solution, iter, nl_problem);
     }
 
     /*
@@ -1783,13 +1816,13 @@ rhea_newton_solve (ymir_vec_t *solution,
     {
       /* update Hessian operator */
       if (iter == iter_start) { /* if at first Newton step */
-        rhea_newton_problem_update_hessian (solution, NULL, NAN, nl_problem);
+        rhea_newton_problem_update_hessian (*solution, NULL, NAN, nl_problem);
       }
       else { /* if not at first Newton step */
-        rhea_newton_problem_update_hessian (solution, nl_problem->step_vec,
+        rhea_newton_problem_update_hessian (*solution, nl_problem->step_vec,
                                             step.length, nl_problem);
         if (nl_problem->check_hessian) {
-          rhea_newton_check_hessian (solution, nl_problem);
+          rhea_newton_check_hessian (*solution, nl_problem);
         }
       }
 
@@ -1802,9 +1835,9 @@ rhea_newton_solve (ymir_vec_t *solution,
       /* compute right-hand side for the step solve */
       if (!neg_gradient_updated) { /* if (neg.) gradient not yet updated */
         rhea_newton_problem_compute_neg_gradient (nl_problem->neg_gradient_vec,
-                                                  solution, nl_problem);
+                                                  *solution, nl_problem);
         if (nl_problem->check_gradient) {
-          rhea_newton_check_gradient (solution, nl_problem);
+          rhea_newton_check_gradient (*solution, nl_problem);
         }
       }
 
@@ -1816,7 +1849,7 @@ rhea_newton_solve (ymir_vec_t *solution,
       }
       else { /* if solution vector exists and it is not zero */
         rhea_newton_problem_modify_hessian_system (nl_problem->neg_gradient_vec,
-                                                   solution, nl_problem);
+                                                   *solution, nl_problem);
       }
 
       /* solve the linearized system to get an inexact Newton step */
@@ -1827,7 +1860,7 @@ rhea_newton_solve (ymir_vec_t *solution,
       /* perform line search to get the step length (updates the solution and
        * the nonlinear operator) */
       rhea_newton_search_step_length (
-          /* out: */ solution, &step, &status, &neg_gradient_updated,
+          /* out: */ *solution, &step, &status, &neg_gradient_updated,
           /* in:  */ nl_problem, opt);
     }
 
@@ -1861,7 +1894,15 @@ rhea_newton_solve (ymir_vec_t *solution,
      * Setup Next Step
      */
     {
-      //TODO call user setup function
+      int                 recompute_status;
+
+      recompute_status = rhea_newton_problem_setup_poststep (solution, iter,
+                                                             nl_problem);
+      if (recompute_status) {
+        rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
+                                         *solution, nl_problem,
+                                         print_all_conv_criteria);
+      }
     }
 
   } /* END: Newton iter */

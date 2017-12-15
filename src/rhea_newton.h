@@ -129,6 +129,18 @@ typedef void      (*rhea_newton_modify_hessian_system_fn_t) (
                                             void *data);
 
 /**
+ * Performs additional setup for next Newton step, e.g., AMR.
+ *
+ * \return              Flag whether to recompute Newton status
+ * \param [in] solution Pointer to solution vector
+ * \param [in] iter     Iteration number of Newton's method
+ * \param [in] data     User data
+ */
+typedef int       (*rhea_newton_setup_poststep_fn_t) (ymir_vec_t **solution,
+                                                      const int iter,
+                                                      void *data);
+
+/**
  * Writes or prints output at the beginning of a Newton step.
  *
  * \param [in] solution Solution vector
@@ -269,6 +281,13 @@ void                rhea_newton_problem_set_update_fn (
               rhea_newton_problem_t *nl_problem);
 
 /**
+ * Sets callback functions for performing additional setup for next Newton step.
+ */
+void                rhea_newton_problem_set_setup_poststep_fn (
+              rhea_newton_setup_poststep_fn_t setup_poststep,
+              rhea_newton_problem_t *nl_problem);
+
+/**
  * Sets callback function for output.
  */
 void                rhea_newton_problem_set_output_fn (
@@ -300,7 +319,7 @@ void                rhea_newton_problem_set_check_hessian (
 /**
  * Solves a nonlinear problem with inexact Newton--Krylov.
  */
-void                rhea_newton_solve (ymir_vec_t *solution,
+void                rhea_newton_solve (ymir_vec_t **solution,
                                        rhea_newton_problem_t *nl_problem,
                                        rhea_newton_options_t *opt);
 
@@ -361,6 +380,13 @@ int                 rhea_newton_problem_modify_hessian_system_exists (
 void                rhea_newton_problem_modify_hessian_system (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution,
+                                            rhea_newton_problem_t *nl_problem);
+
+int                 rhea_newton_problem_setup_poststep_exists (
+                                            rhea_newton_problem_t *nl_problem);
+int                 rhea_newton_problem_setup_poststep (
+                                            ymir_vec_t **solution,
+                                            const int iter,
                                             rhea_newton_problem_t *nl_problem);
 
 int                 rhea_newton_problem_output_prestep_exists (
