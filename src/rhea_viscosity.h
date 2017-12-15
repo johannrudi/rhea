@@ -215,6 +215,38 @@ void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *weakzone,
                                                void *data);
 
+/**
+ * Computes the viscosity of one element.
+ */
+void                rhea_viscosity_compute_elem (
+                                double *_sc_restrict visc_elem,
+                                double *_sc_restrict proj_scal_elem,
+                                double *_sc_restrict bounds_elem,
+                                double *_sc_restrict yielding_elem,
+                                const double *_sc_restrict temp_elem,
+                                const double *_sc_restrict weak_elem,
+                                const double *_sc_restrict strt_sqrt_2inv_elem,
+                                const double *_sc_restrict x,
+                                const double *_sc_restrict y,
+                                const double *_sc_restrict z,
+                                const int n_nodes,
+                                const int *_sc_restrict Vmask,
+                                rhea_viscosity_options_t *opt);
+
+void                rhea_viscosity_compute_nonlinear_init_elem (
+                                double *_sc_restrict visc_elem,
+                                double *_sc_restrict proj_scal_elem,
+                                double *_sc_restrict bounds_elem,
+                                double *_sc_restrict yielding_elem,
+                                const double *_sc_restrict temp_elem,
+                                const double *_sc_restrict weak_elem,
+                                const double *_sc_restrict x,
+                                const double *_sc_restrict y,
+                                const double *_sc_restrict z,
+                                const int n_nodes,
+                                const int *_sc_restrict Vmask,
+                                rhea_viscosity_options_t *opt);
+
 /******************************************************************************
  * Get & Set
  *****************************************************************************/
@@ -332,24 +364,6 @@ void                rhea_viscosity_marker_set_elem_gauss (
                                                   ymir_vec_t *marker_vec,
                                                   sc_dmatrix_t *marker_el_mat,
                                                   const ymir_locidx_t elid);
-
-/**
- * Computes the viscosity of one element.
- */
-void                rhea_viscosity_compute_elem (
-                                double *_sc_restrict visc_elem,
-                                double *_sc_restrict proj_scal_elem,
-                                double *_sc_restrict bounds_elem,
-                                double *_sc_restrict yielding_elem,
-                                const double *_sc_restrict temp_elem,
-                                const double *_sc_restrict weak_elem,
-                                const double *_sc_restrict strt_sqrt_2inv_elem,
-                                const double *_sc_restrict x,
-                                const double *_sc_restrict y,
-                                const double *_sc_restrict z,
-                                const int n_nodes,
-                                const int *_sc_restrict Vmask,
-                                rhea_viscosity_options_t *opt);
 
 /******************************************************************************
  * Statistics
