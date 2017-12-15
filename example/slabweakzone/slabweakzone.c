@@ -1473,7 +1473,6 @@ slabs_viscosity_compute (ymir_vec_t *viscosity,
                          ymir_vec_t *temperature,
                          ymir_vec_t *weakzone,
                          ymir_vec_t *velocity,
-                         rhea_viscosity_options_t *viscosity_options,
                          void *data)
 {
   slabs_options_t  *slabs_options = data;
@@ -4634,25 +4633,25 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
       break;
     case SLAB:
       rhea_stokes_prbolem_set_weakzone_compute_fn (
-          stokes_problem, slabs_weakzone_compute, slabs_options);
+          *stokes_problem, slabs_weakzone_compute, slabs_options);
       break;
     case DRAG:
     case COLLIDE:
       if (slabs_options->slabs_visc_options->viscosity_anisotropy
         == SLABS_VISC_ISOTROPY) {
         rhea_stokes_prbolem_set_weakzone_compute_fn (
-            stokes_problem, slabs_weakzone_compute, slabs_options);
+            *stokes_problem, slabs_weakzone_compute, slabs_options);
       }
       rhea_stokes_prbolem_set_viscosity_compute_fn (
-          stokes_problem, slabs_viscosity_compute, slabs_options);
+          *stokes_problem, slabs_viscosity_compute, slabs_options);
       break;
     case TEST_MANUFACTURED:
       rhea_stokes_prbolem_set_viscosity_compute_fn (
-          stokes_problem, slabs_viscosity_compute, slabs_options);
+          *stokes_problem, slabs_viscosity_compute, slabs_options);
       break;
     case CUSTOM:
       rhea_stokes_prbolem_set_viscosity_compute_fn (
-          stokes_problem, slabs_viscosity_compute, slabs_options);
+          *stokes_problem, slabs_viscosity_compute, slabs_options);
       break;
     default:
       RHEA_ABORT_NOT_REACHED ();
@@ -4664,7 +4663,7 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
       slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
     rhea_stokes_prbolem_set_rhs_vel_compute_fn (
-        stokes_problem, slabs_test_manufactured_rhs_compute, slabs_options);
+        *stokes_problem, slabs_test_manufactured_rhs_compute, slabs_options);
   }
 
   /* set velocity boundary conditions & nonzero Dirichlet values */
@@ -4672,11 +4671,11 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
     if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
         slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
       rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
-          stokes_problem, slabs_test_manufactured_velbc_compute, slabs_options);
+          *stokes_problem, slabs_test_manufactured_velbc_compute, slabs_options);
     }
     else {
       rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
-          stokes_problem, slabs_vel_nonzero_dirichlet_compute, slabs_options);
+          *stokes_problem, slabs_vel_nonzero_dirichlet_compute, slabs_options);
     }
   }
 
@@ -4876,7 +4875,7 @@ slabs_run_solver (ymir_vec_t *sol_vel_press,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* run solver */
-  rhea_stokes_problem_solve (sol_vel_press, iter_max, rel_tol, stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, iter_max, rel_tol, stokes_problem);
 
   /* add nonzero dirichlet values of the velocity to the solution */
   rhs_vel_nonzero_dirichlet =
