@@ -70,7 +70,8 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
 
   YMIR_OPTIONS_S, "type", '\0',
     &(rhea_weakzone_type_name), RHEA_WEAKZONE_DEFAULT_TYPE_NAME,
-    "Weak zone type name: 'DATA'",
+    "Weak zone type name: data_points, data_points_labels, "
+    "data_points_labels_factors",
 
   YMIR_OPTIONS_D, "thickness", '\0',
     &(rhea_weakzone_thickness_m), RHEA_WEAKZONE_DEFAULT_THICKNESS_M,
@@ -285,19 +286,25 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
   case RHEA_WEAKZONE_NONE:
     return;
   case RHEA_WEAKZONE_DATA_POINTS:
-    RHEA_ASSERT (create_coordinates == 1);
+    RHEA_CHECK_ABORT (create_coordinates,
+                      "file path missing: weak zone coordinates");
     create_labels = 0;
     create_factors = 0;
     break;
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
-    RHEA_ASSERT (create_coordinates == 1);
-    RHEA_ASSERT (create_labels == 1);
+    RHEA_CHECK_ABORT (create_coordinates,
+                      "file path missing: weak zone coordinates");
+    RHEA_CHECK_ABORT (create_labels,
+                      "file path missing: weak zone labels");
     create_factors = 0;
     break;
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
-    RHEA_ASSERT (create_coordinates == 1);
-    RHEA_ASSERT (create_labels == 1);
-    RHEA_ASSERT (create_factors == 1);
+    RHEA_CHECK_ABORT (create_coordinates,
+                      "file path missing: weak zone coordinates");
+    RHEA_CHECK_ABORT (create_labels,
+                      "file path missing: weak zone labels");
+    RHEA_CHECK_ABORT (create_factors,
+                      "file path missing: weak zone factors");
     break;
   default: /* unknown weak zone type */
     RHEA_ABORT_NOT_REACHED ();
