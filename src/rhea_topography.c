@@ -15,10 +15,10 @@
 #define RHEA_TOPOGRAPHY_DEFAULT_TYPE_NAME "NONE"
 #define RHEA_TOPOGRAPHY_DEFAULT_POINTS_FILE_PATH_BIN NULL
 #define RHEA_TOPOGRAPHY_DEFAULT_POINTS_FILE_PATH_TXT NULL
-#define RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_BIN NULL
-#define RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_TXT NULL
 #define RHEA_TOPOGRAPHY_DEFAULT_DISPLACEMENTS_FILE_PATH_BIN NULL
 #define RHEA_TOPOGRAPHY_DEFAULT_DISPLACEMENTS_FILE_PATH_TXT NULL
+#define RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_BIN NULL
+#define RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_TXT NULL
 #define RHEA_TOPOGRAPHY_DEFAULT_N_POINTS (5000000)
 #define RHEA_TOPOGRAPHY_DEFAULT_WRITE_POINTS_FILE_PATH_BIN NULL
 #define RHEA_TOPOGRAPHY_DEFAULT_WRITE_LABELS_FILE_PATH_BIN NULL
@@ -31,14 +31,14 @@ char               *rhea_topography_points_file_path_bin =
   RHEA_TOPOGRAPHY_DEFAULT_POINTS_FILE_PATH_BIN;
 char               *rhea_topography_points_file_path_txt =
   RHEA_TOPOGRAPHY_DEFAULT_POINTS_FILE_PATH_TXT;
-char               *rhea_topography_labels_file_path_bin =
-  RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_BIN;
-char               *rhea_topography_labels_file_path_txt =
-  RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_TXT;
 char               *rhea_topography_displacements_file_path_bin =
   RHEA_TOPOGRAPHY_DEFAULT_DISPLACEMENTS_FILE_PATH_BIN;
 char               *rhea_topography_displacements_file_path_txt =
   RHEA_TOPOGRAPHY_DEFAULT_DISPLACEMENTS_FILE_PATH_TXT;
+char               *rhea_topography_labels_file_path_bin =
+  RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_BIN;
+char               *rhea_topography_labels_file_path_txt =
+  RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_TXT;
 int                 rhea_topography_n_points =
   RHEA_TOPOGRAPHY_DEFAULT_N_POINTS;
 char               *rhea_topography_write_points_file_path_bin =
@@ -70,14 +70,6 @@ rhea_topography_add_options (ymir_options_t * opt_sup)
     &(rhea_topography_points_file_path_txt),
     RHEA_TOPOGRAPHY_DEFAULT_POINTS_FILE_PATH_TXT,
     "Path to a text file with (x,y,z) coordinates of topography points",
-  YMIR_OPTIONS_S, "labels-file-path-bin", '\0',
-    &(rhea_topography_labels_file_path_bin),
-    RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_BIN,
-    "Path to a binary file with labels of topography points",
-  YMIR_OPTIONS_S, "labels-file-path-txt", '\0',
-    &(rhea_topography_labels_file_path_txt),
-    RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_TXT,
-    "Path to a text file with labels of topography points",
   YMIR_OPTIONS_S, "displacements-file-path-bin", '\0',
     &(rhea_topography_displacements_file_path_bin),
     RHEA_TOPOGRAPHY_DEFAULT_DISPLACEMENTS_FILE_PATH_BIN,
@@ -86,6 +78,14 @@ rhea_topography_add_options (ymir_options_t * opt_sup)
     &(rhea_topography_displacements_file_path_txt),
     RHEA_TOPOGRAPHY_DEFAULT_DISPLACEMENTS_FILE_PATH_TXT,
     "Path to a text file with displacements of topography points",
+  YMIR_OPTIONS_S, "labels-file-path-bin", '\0',
+    &(rhea_topography_labels_file_path_bin),
+    RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_BIN,
+    "Path to a binary file with labels of topography points",
+  YMIR_OPTIONS_S, "labels-file-path-txt", '\0',
+    &(rhea_topography_labels_file_path_txt),
+    RHEA_TOPOGRAPHY_DEFAULT_LABELS_FILE_PATH_TXT,
+    "Path to a text file with labels of topography points",
 
   YMIR_OPTIONS_I, "num-points", '\0',
     &(rhea_topography_n_points), RHEA_TOPOGRAPHY_DEFAULT_N_POINTS,
@@ -95,14 +95,14 @@ rhea_topography_add_options (ymir_options_t * opt_sup)
     &(rhea_topography_write_points_file_path_bin),
     RHEA_TOPOGRAPHY_DEFAULT_WRITE_POINTS_FILE_PATH_BIN,
     "Output path for a binary file with coordinates of topography points",
-  YMIR_OPTIONS_S, "write-labels-file-path-bin", '\0',
-    &(rhea_topography_write_labels_file_path_bin),
-    RHEA_TOPOGRAPHY_DEFAULT_WRITE_LABELS_FILE_PATH_BIN,
-    "Output path for a binary file with labels of topography points",
   YMIR_OPTIONS_S, "write-displacements-file-path-bin", '\0',
     &(rhea_topography_write_displacements_file_path_bin),
     RHEA_TOPOGRAPHY_DEFAULT_WRITE_DISPLACEMENTS_FILE_PATH_BIN,
     "Output path for a binary file with displacements of topography points",
+  YMIR_OPTIONS_S, "write-labels-file-path-bin", '\0',
+    &(rhea_topography_write_labels_file_path_bin),
+    RHEA_TOPOGRAPHY_DEFAULT_WRITE_LABELS_FILE_PATH_BIN,
+    "Output path for a binary file with labels of topography points",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
