@@ -650,6 +650,8 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_weak = rhea_weakzone_exists (weak_options);
   const int           has_vel = (d->velocity_original != NULL);
+  const int           nonlinear_init =
+    (visc_options->type == RHEA_VISCOSITY_NONLINEAR && !has_vel);
 
   ymir_vec_t         *viscosity = NULL;
   sc_dmatrix_t       *weak_el_mat = NULL, *vel_el_mat = NULL,
@@ -767,10 +769,22 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
         }
 
         /* compute visosity */
-        rhea_viscosity_compute_elem (
-            visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
-            temp_el_data, weak_el_data, strt_sqrt_2inv_el_data, x, y, z,
-            n_nodes_per_el, Vmask, visc_options);
+        switch (nonlinear_init) {
+        case 0:
+          rhea_viscosity_compute_elem (
+              visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
+              temp_el_data, weak_el_data, strt_sqrt_2inv_el_data, x, y, z,
+              n_nodes_per_el, Vmask, visc_options);
+          break;
+        case 1:
+          rhea_viscosity_compute_nonlinear_init_elem (
+              visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
+              temp_el_data, weak_el_data, x, y, z,
+              n_nodes_per_el, Vmask, visc_options);
+          break;
+        default:
+          RHEA_ABORT_NOT_REACHED ();
+        }
       }
       RHEA_ASSERT (sc_dmatrix_is_valid (visc_el_mat));
 
