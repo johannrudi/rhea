@@ -229,7 +229,6 @@ collide_viscosity_compute (ymir_vec_t *viscosity,
                            ymir_vec_t *temperature,
                            ymir_vec_t *weakzone,
                            ymir_vec_t *velocity,
-                           rhea_viscosity_options_t *viscosity_options,
                            void *data)
 {
   collide_options_t  *collide_options = data;
@@ -1832,7 +1831,7 @@ collide_run_solver (ymir_vec_t *sol_vel_press,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* run solver */
-  rhea_stokes_problem_solve (sol_vel_press, iter_max, rel_tol, stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, iter_max, rel_tol, stokes_problem);
 
   /* add nonzero dirichlet values of the velocity to the solution */
   rhs_vel_nonzero_dirichlet =
