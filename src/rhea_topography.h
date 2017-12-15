@@ -12,9 +12,21 @@
  * Options
  *****************************************************************************/
 
+/* types of topography */
+typedef enum
+{
+  RHEA_TOPOGRAPHY_NONE = -1,                /* topography does not exist */
+  RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS = 0,   /* points (coord, displ) */
+  RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS_LABELS /* points (coord, displ, labels) */
+}
+rhea_topography_t;
+
 /* options for topography */
 typedef struct rhea_topography_options
 {
+  /* type of topography */
+  rhea_topography_t   type;
+
   /* binary/text files with coordinates, labels, displ. of topography points */
   char               *points_file_path_bin;
   char               *points_file_path_txt;
