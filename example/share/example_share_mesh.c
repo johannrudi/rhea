@@ -14,11 +14,15 @@ example_share_mesh_new (p4est_t **p4est,
                         ymir_pressure_elem_t **press_elem,
                         sc_MPI_Comm mpicomm,
                         rhea_domain_options_t *domain_options,
+                        rhea_topography_options_t *topo_options,
                         rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "example_share_mesh_new";
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  /* set up data */
+  rhea_topography_data_create (topo_options, mpicomm);
 
   /* create p4est */
   *p4est = rhea_discretization_p4est_new (mpicomm, discr_options,
@@ -38,6 +42,7 @@ void
 example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
                             ymir_pressure_elem_t *press_elem,
                             p4est_t *p4est,
+                            rhea_topography_options_t *topo_options,
                             rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "example_share_mesh_destroy";
@@ -50,6 +55,9 @@ example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
 
   /* destroy boundary */
   rhea_discretization_boundary_clear (discr_options);
+
+  /* destroy data */
+  rhea_topography_data_clear (topo_options);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
