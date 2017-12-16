@@ -696,12 +696,10 @@ rhea_domain_compute_radius (const double x, const double y, const double z,
 
       return z / z_max * (radius_max - radius_min) + radius_min;
     }
-
   case RHEA_DOMAIN_SHELL:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
     return sqrt (x * x + y * y + z * z);
-
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
   }
@@ -744,6 +742,33 @@ rhea_domain_elem_is_in_upper_mantle (const double *x, const double *y,
 
   /* return if radius of the element's center is in upper mantle */
   return (lm_um_interface_radius <= r_center);
+}
+
+void
+rhea_domain_project_to_surface (double *x, double *y, double *z,
+                                rhea_domain_options_t *opt)
+{
+  double              radius;
+
+  /* compute radius */
+  radius = rhea_domain_compute_radius (*x, *y, *z, opt);
+
+  /* map coordinates onto surface parallel to radius */
+  switch (opt->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+    *z *= 1.0 / radius;
+    break;
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    *x *= 1.0 / radius;
+    *y *= 1.0 / radius;
+    *z *= 1.0 / radius;
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 /******************************************************************************

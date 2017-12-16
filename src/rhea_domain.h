@@ -162,6 +162,13 @@ int                 rhea_domain_elem_is_in_upper_mantle (
                                                   rhea_domain_options_t *opt);
 
 /**
+ * Maps coordinates onto the surface parallel to the radial direction.
+ */
+void                rhea_domain_project_to_surface (double *x, double *y,
+                                                    double *z,
+                                                    rhea_domain_options_t *opt);
+
+/**
  * Creates a new boundary object.
  */
 rhea_domain_boundary_t *rhea_domain_boundary_new (p4est_t *p4est,
