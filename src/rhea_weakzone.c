@@ -679,11 +679,11 @@ rhea_weakzone_compute_distance (ymir_vec_t *distance,
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
     ymir_dvec_set_function (distance, rhea_weakzone_dist_node_fn, opt);
+    RHEA_ASSERT (rhea_weakzone_is_valid (distance));
     break;
   default: /* unknown weak zone type */
     RHEA_ABORT_NOT_REACHED ();
   }
-  RHEA_ASSERT (rhea_weakzone_is_valid (distance));
 }
 
 /******************************************************************************
