@@ -152,9 +152,9 @@ rhea_pointcloud_topography_destroy (rhea_pointcloud_topography_t *ptcl_topo)
 void
 rhea_pointcloud_topography_set_displacements (
                                       rhea_pointcloud_topography_t *ptcl_topo,
-                                      const double *factors)
+                                      const double *displacements)
 {
-  ptcl_topo->cloud->set_point_value_all (factors);
+  ptcl_topo->cloud->set_point_value_all (displacements);
 }
 
 void
@@ -168,14 +168,14 @@ int
 rhea_pointcloud_topography_find_n_nearest (
                                       double *nearest_dist,
                                       double *nearest_coordinates,
-                                      double *nearest_factor,
+                                      double *nearest_displacements,
                                       int *nearest_label,
                                       const int n_nearest,
                                       rhea_pointcloud_topography_t *ptcl_topo,
                                       const double *target_coordinates)
 {
   return (int) ptcl_topo->tree->find_n_nearest (
-      nearest_dist, nearest_coordinates, nearest_factor, nearest_label,
+      nearest_dist, nearest_coordinates, nearest_displacements, nearest_label,
       (size_t) n_nearest, target_coordinates);
 }
 

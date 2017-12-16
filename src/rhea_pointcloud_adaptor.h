@@ -50,7 +50,7 @@ void                rhea_pointcloud_weakzone_set_factors (
 
 /**
  * Sets labels corresponding to the points.
- * Assumes that the number of factors equals the point count.
+ * Assumes that the number of labels equals the point count.
  */
 void                rhea_pointcloud_weakzone_set_labels (
                                         rhea_pointcloud_weakzone_t *ptcl_weak,
@@ -103,16 +103,16 @@ void                rhea_pointcloud_topography_destroy (
                                       rhea_pointcloud_topography_t *ptcl_topo);
 
 /**
- * Sets factors corresponding to the points.
- * Assumes that the number of factors equals the point count.
+ * Sets displacements corresponding to the points.
+ * Assumes that the number of displacements equals the point count.
  */
 void                rhea_pointcloud_topography_set_displacements (
                                       rhea_pointcloud_topography_t *ptcl_topo,
-                                      const double *factors);
+                                      const double *displacements);
 
 /**
  * Sets labels corresponding to the points.
- * Assumes that the number of factors equals the point count.
+ * Assumes that the number of labels equals the point count.
  */
 void                rhea_pointcloud_topography_set_labels (
                                       rhea_pointcloud_topography_t *ptcl_topo,
@@ -124,7 +124,7 @@ void                rhea_pointcloud_topography_set_labels (
 int                 rhea_pointcloud_topography_find_n_nearest (
                                       double *nearest_dist,
                                       double *nearest_coordinates,
-                                      double *nearest_factor,
+                                      double *nearest_displacements,
                                       int *nearest_label,
                                       const int n_nearest,
                                       rhea_pointcloud_topography_t *ptcl_topo,
