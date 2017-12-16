@@ -693,9 +693,9 @@ rhea_domain_compute_radius (const double x, const double y, const double z,
   case RHEA_DOMAIN_BOX:
     /* transform interval of `z` to the interval of the shell slice's radius */
     {
-      const double    z_max = opt->z_max;
-      const double    radius_min = opt->radius_min;
-      const double    radius_max = opt->radius_max;
+      const double        z_max = opt->z_max;
+      const double        radius_min = opt->radius_min;
+      const double        radius_max = opt->radius_max;
 
       return z / z_max * (radius_max - radius_min) + radius_min;
     }
@@ -751,6 +751,7 @@ void
 rhea_domain_project_to_surface (double *x, double *y, double *z,
                                 rhea_domain_options_t *opt)
 {
+  const double        radius_max = opt->radius_max;
   double              radius;
 
   /* compute radius */
@@ -760,14 +761,14 @@ rhea_domain_project_to_surface (double *x, double *y, double *z,
   switch (opt->shape) {
   case RHEA_DOMAIN_CUBE:
   case RHEA_DOMAIN_BOX:
-    *z *= 1.0 / radius;
+    *z *= radius_max / radius;
     break;
   case RHEA_DOMAIN_SHELL:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    *x *= 1.0 / radius;
-    *y *= 1.0 / radius;
-    *z *= 1.0 / radius;
+    *x *= radius_max / radius;
+    *y *= radius_max / radius;
+    *z *= radius_max / radius;
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
