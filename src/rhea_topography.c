@@ -383,4 +383,77 @@ rhea_topography_data_clear (rhea_topography_options_t *opt)
  * Topography Computation
  *****************************************************************************/
 
-//TODO
+static double
+rhea_topography_displacement_integrate (
+                                      const double *_sc_restrict nearest_dist,
+                                      const double *_sc_restrict nearest_displ,
+                                      const int n_nearest)
+{
+  double              displ;
+  int                 k;
+
+  /* compute average */ //TODO better compute via interpolation
+  displ = 0.0;
+  for (k = 0; k < n_nearest; k++) {
+    displ += nearest_displ[k];
+  }
+  displ *= 1.0 / (double) n_nearest;
+
+  return displ;
+}
+
+#define RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST (3)
+
+double
+rhea_topography_displacement_node (int *nearest_label,
+                                   double x, double y, double z,
+                                   rhea_topography_options_t *opt)
+{
+  double              nearest_dist[RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST];
+  double              nearest_displ[RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST];
+  double              displ;
+  int                 n_found;
+
+  /* check input */
+  RHEA_ASSERT (opt->pointcloud != NULL);
+
+  /* project target coordinates onto the surface */
+  rhea_domain_project_to_surface (&x, &y, &z, opt->domain_options);
+
+  /* find `n` nearest points from the cloud */
+  {
+    const double        pt[3] = {x, y, z};
+    const int           n_nearest = RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST;
+#ifdef RHEA_ENABLE_DEBUG
+    int                 k;
+#endif
+
+    switch (opt->type) {
+    case RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS:
+      n_found = rhea_pointcloud_topography_find_n_nearest (
+          nearest_dist, NULL /* coord's */, nearest_displ, NULL /* labels */,
+          n_nearest, opt->pointcloud, pt);
+      break;
+    case RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS_LABELS:
+      RHEA_ASSERT (nearest_label != NULL);
+      n_found = rhea_pointcloud_topography_find_n_nearest (
+          nearest_dist, NULL /* coord's */, nearest_displ, nearest_label,
+          n_nearest, opt->pointcloud, pt);
+      break;
+    default: /* unknown topography type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+    RHEA_ASSERT (n_nearest == n_found);
+#ifdef RHEA_ENABLE_DEBUG
+    for (k = 0; k < n_found; k++) {
+      RHEA_ASSERT (isfinite (nearest_displ[k]));
+    }
+#endif
+  }
+
+  /* calculate displacement for target coordinates */
+  displ = rhea_topography_displacement_integrate (nearest_dist, nearest_displ,
+                                                  n_found);
+  RHEA_ASSERT (isfinite (displ));
+  return displ;
+}

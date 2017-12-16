@@ -106,6 +106,13 @@ void                rhea_topography_data_clear (rhea_topography_options_t *opt);
  * Topography Computation
  *****************************************************************************/
 
-//TODO
+/**
+ * Calculates topography displacement for a single point with coordinates
+ * (x,y,z).
+ */
+double              rhea_topography_displacement_node (
+                                              int *nearest_label,
+                                              double x, double y, double z,
+                                              rhea_topography_options_t *opt);
 
 #endif /* RHEA_TOPOGRAPHY_H */
