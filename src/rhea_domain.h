@@ -10,6 +10,10 @@
 #include <ymir_mesh.h>
 #include <ymir_velocity_dirichlet.h>
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /* enumerator for domain shapes */
 typedef enum
 {
@@ -131,6 +135,10 @@ void                rhea_domain_add_options (ymir_options_t * opt_sup);
  */
 void                rhea_domain_process_options (rhea_domain_options_t *opt);
 
+/******************************************************************************
+ * Basic Calculations
+ *****************************************************************************/
+
 /**
  * Converts dimensional depth [m] to nondimensional depth.
  */
@@ -168,6 +176,10 @@ void                rhea_domain_project_to_surface (double *x, double *y,
                                                     double *z,
                                                     rhea_domain_options_t *opt);
 
+/******************************************************************************
+ * Domain Boundary
+ *****************************************************************************/
+
 /**
  * Creates a new boundary object.
  */
@@ -179,6 +191,10 @@ rhea_domain_boundary_t *rhea_domain_boundary_new (p4est_t *p4est,
  */
 void                rhea_domain_boundary_destroy (
                                             rhea_domain_boundary_t *boundary);
+
+/******************************************************************************
+ * Boundary Conditions
+ *****************************************************************************/
 
 /**
  * Sets function that defines velocity Dirichlet BC's.

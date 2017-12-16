@@ -8,10 +8,9 @@
 /* constant: reference value for shell radius */
 #define RHEA_DOMAIN_REFERENCE_SHELL_RADIUS (1.0)
 
-/* user provided velocity boundary conditions */
-ymir_vel_dir_fn_t   rhea_domain_velocity_bc_user_fn = NULL;
-void               *rhea_domain_velocity_bc_user_data = NULL;
-int                 rhea_domain_velocity_bc_user_nonzero = -1;
+/******************************************************************************
+ * Options
+ *****************************************************************************/
 
 /* default options */
 #define RHEA_DOMAIN_DEFAULT_SHAPE_NAME "cube"
@@ -667,6 +666,10 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   RHEA_GLOBAL_INFO ("========================================\n");
 }
 
+/******************************************************************************
+ * Basic Calculations
+ *****************************************************************************/
+
 double
 rhea_domain_depth_m_to_depth (const double depth_m,
                               rhea_domain_options_t *opt)
@@ -871,6 +874,11 @@ rhea_domain_boundary_destroy (rhea_domain_boundary_t *boundary)
 /******************************************************************************
  * Boundary Conditions
  *****************************************************************************/
+
+/* user provided velocity boundary conditions */
+ymir_vel_dir_fn_t   rhea_domain_velocity_bc_user_fn = NULL;
+void               *rhea_domain_velocity_bc_user_data = NULL;
+int                 rhea_domain_velocity_bc_user_nonzero = -1;
 
 /**
  *
