@@ -144,6 +144,25 @@ main (int argc, char **argv)
     rhea_weakzone_destroy (distance);
   }
 
+  /* write vtk of topography data */
+  if (rhea_topography_exists (&topo_options)) {
+    ymir_vec_t         *displacement, *displacement_surf;
+    char                path[BUFSIZ];
+
+    displacement = ymir_dvec_new (ymir_mesh, 1, YMIR_GLL_NODE);
+    displacement_surf = rhea_topography_new (ymir_mesh);
+    rhea_topography_displacement_vec (displacement, &topo_options);
+    rhea_topography_displacement_vec (displacement_surf, &topo_options);
+
+    snprintf (path, BUFSIZ, "%s_topography", vtk_write_input_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    displacement, "displacement",
+                    displacement_surf, "displacement_surf", NULL);
+
+    ymir_vec_destroy (displacement);
+    rhea_topography_destroy (displacement_surf);
+  }
+
   /*
    * Finalize
    */
