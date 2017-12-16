@@ -5401,7 +5401,8 @@ main (int argc, char **argv)
     slabs_surf_options.topo_profile = &topo;
 
   /* discr influences domain ? */
-    rhea_discretization_process_options (&discr_options, &domain_options);
+    rhea_discretization_process_options (&discr_options, &domain_options,
+                                         &topo_options);
 
     rhea_discretization_set_X_fn (&discr_options, slabs_X_fn_profile, &topo);
     slabs_setup_mesh (&p4est, &ymir_mesh, &press_elem, mpicomm,
@@ -5419,7 +5420,8 @@ main (int argc, char **argv)
     ymir_vec_t         *temperature, *weakzone;
 
     /*have to use a new discr_option, otherwise the code crashes with memory balance error*/
-    rhea_discretization_process_options (&discr_options_I, &domain_options);
+    rhea_discretization_process_options (&discr_options_I, &domain_options,
+                                         &topo_options);
     slabs_setup_mesh (&p4est_I, &ymir_mesh_I, &press_elem_I, mpicomm,
                       &domain_options, &discr_options_I, &slabs_options);
 
@@ -5941,7 +5943,8 @@ main (int argc, char **argv)
     topo.nsurf = Ncn;
     slabs_surf_options.topo_profile = &topo;
     /*creat new discr and domain options with the distorted surface*/
-    rhea_discretization_process_options (&discr_options2, &domain_options);
+    rhea_discretization_process_options (&discr_options2, &domain_options,
+                                         &topo_options);
     rhea_discretization_set_X_fn (&discr_options2, slabs_X_fn_profile, &topo);
 
     slabs_setup_mesh (&p4est2, &ymir_mesh2, &press_elem2, mpicomm,
