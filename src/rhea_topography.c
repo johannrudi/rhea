@@ -159,6 +159,21 @@ rhea_topography_process_options (rhea_topography_options_t *opt,
   opt->domain_options = domain_options;
 }
 
+int
+rhea_topography_exists (rhea_topography_options_t *opt)
+{
+  switch (opt->type) {
+  case RHEA_TOPOGRAPHY_NONE:
+    return 0;
+  case RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS:
+  case RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS_LABELS:
+    return 1;
+  default: /* unknown topography type */
+    RHEA_ABORT_NOT_REACHED ();
+    return 0;
+  }
+}
+
 /******************************************************************************
  * Topography Vector
  *****************************************************************************/
@@ -251,7 +266,7 @@ rhea_topography_data_create (rhea_topography_options_t *opt,
     RHEA_CHECK_ABORT (create_labels,
                       "file path missing: topography labels");
     break;
-  default: /* unknown weak zone type */
+  default: /* unknown topography type */
     RHEA_ABORT_NOT_REACHED ();
   }
 
@@ -402,7 +417,7 @@ rhea_topography_displacement_integrate (
   return displ;
 }
 
-#define RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST (3)
+#define RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST (1) //TODO increase
 
 double
 rhea_topography_displacement_node (int *nearest_label,

@@ -63,6 +63,11 @@ void                rhea_topography_process_options (
                                         rhea_topography_options_t *opt,
                                         rhea_domain_options_t *domain_options);
 
+/**
+ * Checks whether a topography exists for the given set of options.
+ */
+int                 rhea_topography_exists (rhea_topography_options_t *opt);
+
 /******************************************************************************
  * Topography Vector
  *****************************************************************************/
