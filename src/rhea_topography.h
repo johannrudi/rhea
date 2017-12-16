@@ -115,4 +115,11 @@ double              rhea_topography_displacement_node (
                                               double x, double y, double z,
                                               rhea_topography_options_t *opt);
 
+/**
+ * Fills values of a vector with displacement calculations.
+ */
+void                rhea_topography_displacement_vec (
+                                              ymir_vec_t *displacement,
+                                              rhea_topography_options_t *opt);
+
 #endif /* RHEA_TOPOGRAPHY_H */

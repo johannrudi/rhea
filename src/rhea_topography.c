@@ -457,3 +457,88 @@ rhea_topography_displacement_node (int *nearest_label,
   RHEA_ASSERT (isfinite (displ));
   return displ;
 }
+
+static void
+rhea_topography_displacement_node_vol_fn (double *displ, double x, double y,
+                                          double z, ymir_locidx_t nid,
+                                          void *data)
+{
+  rhea_topography_options_t *opt = data;
+  int                 label[RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST];
+
+  *displ = rhea_topography_displacement_node (label, x, y, z, opt);
+}
+
+static void
+rhea_topography_displacement_node_face_fn (double *displ, double x, double y,
+                                           double z, double nx, double ny,
+                                           double nz, ymir_topidx_t face,
+                                           ymir_locidx_t node_id, void *data)
+{
+  rhea_topography_options_t *opt = data;
+  int                 label[RHEA_TOPOGRAPHY_DISPLACEMENT_N_NEAREST];
+
+  *displ = rhea_topography_displacement_node (label, x, y, z, opt);
+}
+
+void
+rhea_topography_displacement_vec (ymir_vec_t *displacement,
+                                  rhea_topography_options_t *opt)
+{
+  int                 is_cvec = 0;
+  int                 is_dvec = 0;
+
+  /* check input */
+  RHEA_ASSERT (opt->type == RHEA_TOPOGRAPHY_NONE || displacement != NULL);
+
+  /* set vector type */
+  if (displacement != NULL) {
+    is_cvec = ymir_vec_is_cvec (displacement);
+    is_dvec = ymir_vec_is_dvec (displacement);
+  }
+
+  /* set values of displacement vector */
+  switch (opt->type) {
+  case RHEA_TOPOGRAPHY_NONE:
+    if (displacement != NULL) {
+      ymir_vec_set_value (displacement, NAN);
+    }
+    break;
+
+  case RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS:
+  case RHEA_TOPOGRAPHY_DATA_POINTS_DISPLS_LABELS:
+    if (!ymir_vec_is_face_vec (displacement)) { /* if volume vector */
+      if (is_cvec) {
+        ymir_cvec_set_function (
+            displacement, rhea_topography_displacement_node_vol_fn, opt);
+      }
+      else if (is_dvec) {
+        ymir_dvec_set_function (
+            displacement, rhea_topography_displacement_node_vol_fn, opt);
+      }
+      else {
+        RHEA_ABORT_NOT_REACHED ();
+      }
+    }
+    else { /* if face vector */
+      if (is_cvec) {
+        ymir_face_cvec_set_function (
+            displacement, rhea_topography_displacement_node_face_fn, opt);
+      }
+      else if (is_dvec) {
+        ymir_face_dvec_set_function (
+            displacement, rhea_topography_displacement_node_face_fn, opt);
+      }
+      else {
+        RHEA_ABORT_NOT_REACHED ();
+      }
+    }
+    RHEA_ASSERT (!is_cvec || (sc_dmatrix_is_valid (displacement->dataown) &&
+                              sc_dmatrix_is_valid (displacement->coff)));
+    RHEA_ASSERT (!is_dvec || sc_dmatrix_is_valid (displacement->dataown));
+    break;
+
+  default: /* unknown topography type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
