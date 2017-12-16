@@ -296,10 +296,110 @@ rhea_discretization_X_fn_box_spherical (mangll_tag_t tag, mangll_locidx_t np,
   }
 }
 
+/**
+ * Geometry transformation functions with added topography.
+ */
+static void
+rhea_discretization_X_fn_identity_topo (mangll_tag_t tag, mangll_locidx_t np,
+                                        const double *_sc_restrict EX,
+                                        const double *_sc_restrict EY,
+                                        const double *_sc_restrict EZ,
+                                        double *_sc_restrict X,
+                                        double *_sc_restrict Y,
+                                        double *_sc_restrict Z, void *data)
+{
+  rhea_topography_options_t *topo_options = data;
+  rhea_domain_options_t     *domain_options = topo_options->domain_options;
+  const double        radius_min = domain_options->radius_min;
+  const double        radius_max = domain_options->radius_max;
+  const double        radius_diff = radius_max - radius_min;
+  double              radius, displ, scaling;
+  mangll_locidx_t     il;
+
+  rhea_discretization_X_fn_identity (tag, np, EX, EY, EZ, X, Y, Z, NULL);
+
+  for (il = 0; il < np; ++il) {
+    radius = rhea_domain_compute_radius (X[il], Y[il], Z[il], domain_options);
+    displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
+                                               Z[il], topo_options);
+    scaling = 1.0 + displ/radius_max * (radius - radius_min) / radius_diff;
+    Z[il] *= scaling;
+  }
+}
+
+static void
+rhea_discretization_X_fn_shell_topo (mangll_tag_t tag, mangll_locidx_t np,
+                                     const double *_sc_restrict EX,
+                                     const double *_sc_restrict EY,
+                                     const double *_sc_restrict EZ,
+                                     double *_sc_restrict X,
+                                     double *_sc_restrict Y,
+                                     double *_sc_restrict Z, void *data)
+{
+  rhea_topography_options_t *topo_options = data;
+  rhea_domain_options_t     *domain_options = topo_options->domain_options;
+  const double        radius_min = domain_options->radius_min;
+  const double        radius_max = domain_options->radius_max;
+  const double        radius_diff = radius_max - radius_min;
+  double              radius, displ, scaling;
+  mangll_locidx_t     il;
+
+  rhea_discretization_X_fn_shell (tag, np, EX, EY, EZ, X, Y, Z,
+                                  domain_options);
+
+  for (il = 0; il < np; ++il) {
+    radius = rhea_domain_compute_radius (X[il], Y[il], Z[il], domain_options);
+    displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
+                                               Z[il], topo_options);
+    scaling = 1.0 + displ/radius_max * (radius - radius_min) / radius_diff;
+    X[il] *= scaling;
+    Y[il] *= scaling;
+    Z[il] *= scaling;
+  }
+}
+
+static void
+rhea_discretization_X_fn_box_spherical_topo (mangll_tag_t tag,
+                                             mangll_locidx_t np,
+                                             const double *_sc_restrict EX,
+                                             const double *_sc_restrict EY,
+                                             const double *_sc_restrict EZ,
+                                             double *_sc_restrict X,
+                                             double *_sc_restrict Y,
+                                             double *_sc_restrict Z,
+                                             void *data)
+{
+  rhea_topography_options_t *topo_options = data;
+  rhea_domain_options_t     *domain_options = topo_options->domain_options;
+  const double        radius_min = domain_options->radius_min;
+  const double        radius_max = domain_options->radius_max;
+  const double        radius_diff = radius_max - radius_min;
+  double              radius, displ, scaling;
+  mangll_locidx_t     il;
+
+  rhea_discretization_X_fn_box_spherical (tag, np, EX, EY, EZ, X, Y, Z,
+                                          domain_options);
+
+  for (il = 0; il < np; ++il) {
+    radius = rhea_domain_compute_radius (X[il], Y[il], Z[il], domain_options);
+    displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
+                                               Z[il], topo_options);
+    scaling = 1.0 + displ/radius_max * (radius - radius_min) / radius_diff;
+    X[il] *= scaling;
+    Y[il] *= scaling;
+    Z[il] *= scaling;
+  }
+}
+
 void
 rhea_discretization_process_options (rhea_discretization_options_t *opt,
-                                     rhea_domain_options_t *domain_options)
+                                     rhea_domain_options_t *domain_options,
+                                     rhea_topography_options_t *topo_options)
 {
+  int                 topo_exists;
+  mangll_X_t          X_fn;
+  void               *X_data;
+
   /* set discretization order and mesh refinement levels */
   opt->order = rhea_discretization_order;
   opt->level_min = rhea_discretization_level_min;
@@ -308,25 +408,52 @@ rhea_discretization_process_options (rhea_discretization_options_t *opt,
   /* set undefined boundary information */
   opt->boundary = NULL;
 
+  /* check whether topography exists */
+  if (topo_options != NULL) {
+    topo_exists = rhea_topography_exists (topo_options);
+  }
+  else {
+    topo_exists = 0;
+  }
+
   /* set reference-to-physical transformation function */
   switch (domain_options->shape) {
   case RHEA_DOMAIN_CUBE:
   case RHEA_DOMAIN_BOX:
-    rhea_discretization_set_X_fn (
-        opt, rhea_discretization_X_fn_identity, NULL);
+    if (!topo_exists) {
+      X_fn = rhea_discretization_X_fn_identity;
+      X_data = NULL;
+    }
+    else {
+      X_fn = rhea_discretization_X_fn_identity_topo;
+      X_data = topo_options;
+    }
     break;
   case RHEA_DOMAIN_SHELL:
-    rhea_discretization_set_X_fn (
-        opt, rhea_discretization_X_fn_shell, domain_options);
+    if (!topo_exists) {
+      X_fn = rhea_discretization_X_fn_shell;
+      X_data = domain_options;
+    }
+    else {
+      X_fn = rhea_discretization_X_fn_shell_topo;
+      X_data = topo_options;
+    }
     break;
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    rhea_discretization_set_X_fn (
-        opt, rhea_discretization_X_fn_box_spherical, domain_options);
+    if (!topo_exists) {
+      X_fn = rhea_discretization_X_fn_box_spherical;
+      X_data = domain_options;
+    }
+    else {
+      X_fn = rhea_discretization_X_fn_box_spherical_topo;
+      X_data = topo_options;
+    }
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
   }
+  rhea_discretization_set_X_fn (opt, X_fn, X_data);
 }
 
 void

@@ -2,6 +2,7 @@
 #define RHEA_DISCRETIZATION_H
 
 #include <rhea_domain.h>
+#include <rhea_topography.h>
 #include <ymir_pressure_elem.h>
 
 /* options for the discretization */
@@ -32,8 +33,9 @@ void                rhea_discretization_add_options (ymir_options_t * opt_sup);
  * Processes options and stores them.
  */
 void                rhea_discretization_process_options (
-                                        rhea_discretization_options_t *opt,
-                                        rhea_domain_options_t *domain_options);
+                                      rhea_discretization_options_t *opt,
+                                      rhea_domain_options_t *domain_options,
+                                      rhea_topography_options_t *topo_options);
 
 /**
  * Sets an X-function for geometry transformation of the mesh.
