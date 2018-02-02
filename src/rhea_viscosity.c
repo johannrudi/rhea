@@ -1013,6 +1013,8 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
         double              strainrate_min;
         double              strainrate_shift;
 
+        RHEA_ASSERT (restrict_max);
+
         /* compute minimal strain rate for nonlinear viscosity
          *
          *   e_min = a / visc_max * (visc_max * n / a)^(1 / (1 - n))
@@ -1046,12 +1048,8 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
             visc_lin, strainrate_sqrt_2inv, strainrate_shift, stress_exp);
 
         /* (U) apply upper bound */
-        if (strainrate_sqrt_2inv < strainrate_min) {
-          *viscosity = visc_max;
-          *proj_scal = 0.0;
-          *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
-          srw_exp = 1.0;
-        }
+        rhea_viscosity_nonlinear_restrict_max (
+            viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
       }
       else {
         *viscosity = visc_lin;
