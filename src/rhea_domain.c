@@ -627,6 +627,14 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   RHEA_GLOBAL_INFO ("========================================\n");
   RHEA_GLOBAL_INFOF ("%s\n", this_fn_name);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
+  RHEA_GLOBAL_INFOF ("  shape:                    %s (ID: %i)\n",
+                     rhea_domain_shape_name, opt->shape);
+  RHEA_GLOBAL_INFOF ("  box subdivision (x,y,z):  (%i %i %i)\n",
+                     opt->box_subdivision_x, opt->box_subdivision_y,
+                     opt->box_subdivision_z);
+  RHEA_GLOBAL_INFOF ("  box length (x,y,z):       (%g %g %g)\n",
+                     opt->box_length_x, opt->box_length_y, opt->box_length_z);
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   RHEA_GLOBAL_INFOF ("  x min:      %g\n", opt->x_min);
   RHEA_GLOBAL_INFOF ("  x max:      %g\n", opt->x_max);
   RHEA_GLOBAL_INFOF ("  y min:      %g\n", opt->y_min);
