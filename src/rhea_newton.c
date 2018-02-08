@@ -1709,6 +1709,7 @@ rhea_newton_solve (ymir_vec_t **solution,
   int                 iter;
   const double        rtol = opt->rtol;
   int                 neg_gradient_updated;
+  int                 solution_post_update = 0;
   rhea_newton_step_t  step;
   rhea_newton_status_t  status;
   char              **summary = NULL;
@@ -1815,10 +1816,10 @@ rhea_newton_solve (ymir_vec_t **solution,
      */
     {
       /* update Hessian operator */
-      if (iter == iter_start) { /* if at first Newton step */
+      if (iter == iter_start || solution_post_update) { /* if no step exists */
         rhea_newton_problem_update_hessian (*solution, NULL, NAN, nl_problem);
       }
-      else { /* if not at first Newton step */
+      else { /* if step does exist */
         rhea_newton_problem_update_hessian (*solution, nl_problem->step_vec,
                                             step.length, nl_problem);
         if (nl_problem->check_hessian) {
@@ -1894,11 +1895,9 @@ rhea_newton_solve (ymir_vec_t **solution,
      * Setup Next Step
      */
     {
-      int                 recompute_status;
-
-      recompute_status = rhea_newton_problem_setup_poststep (solution, iter,
-                                                             nl_problem);
-      if (recompute_status) {
+      solution_post_update = rhea_newton_problem_setup_poststep (
+          solution, iter, nl_problem);
+      if (solution_post_update) {
         rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
                                          *solution, nl_problem,
                                          print_all_conv_criteria);
