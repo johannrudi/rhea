@@ -903,11 +903,13 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->stokes_op != NULL);
   RHEA_ASSERT (stokes_problem_nl->sol_vel != NULL);
-  if (solution != NULL) {
+  if (solution_exists) {
     RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
+    RHEA_ASSERT (rhea_velocity_pressure_is_valid (solution));
   }
-  if (step_vec != NULL) {
+  if (step_exists) {
     RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (step_vec));
+    RHEA_ASSERT (rhea_velocity_pressure_is_valid (step_vec));
   }
 #endif
 
