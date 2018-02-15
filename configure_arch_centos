@@ -4,8 +4,10 @@
 #
 # Configures the rhea code in the directory from which this script is called.
 #
-###############################################################################
-# Author:             Johann Rudi
+# Modules:
+#   1) c7              3) gdb/7.10        5) gcc/5.2       7) mpich2/3.1.4
+#   2) autotools/1.2   4) python/2.7.11   6) cmake/3.3.2   8) mkl/15.3
+#
 ###############################################################################
 
 declare -r THIS_ARCHITECTURE="ICES machine with Cent OS for GCC"

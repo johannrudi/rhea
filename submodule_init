@@ -3,10 +3,8 @@
 ###############################################################################
 #
 # Initializes all git submodules and augments the URL to bitbucket.org with
-# your user name.  Pulls all submodules.
+# your user name.  Clones all submodules.
 #
-###############################################################################
-# Author:             Johann Rudi
 ###############################################################################
 
 ########################################
