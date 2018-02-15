@@ -18,3 +18,7 @@
 	path = nanoflann
 	url = https://github.com/jlblancoc/nanoflann
 	ignore = untracked
+[submodule "fet"]
+	path = fet
+	url = https://bitbucket.org/ccgo/fet.git
+	ignore = untracked
