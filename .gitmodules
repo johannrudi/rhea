@@ -1,19 +1,20 @@
 [submodule "sc"]
 	path = sc
 	url = https://github.com/cburstedde/libsc.git
-  ignore = untracked
+	ignore = untracked
 [submodule "p4est"]
 	path = p4est
 	url = https://github.com/cburstedde/p4est.git
-  ignore = untracked
+	ignore = untracked
 [submodule "mangll"]
 	path = mangll
 	url = https://bitbucket.org/ccgo/mangll.git
-  ignore = untracked
+	ignore = untracked
 [submodule "ymir"]
 	path = ymir
 	url = https://bitbucket.org/ccgo/ymir.git
-  ignore = untracked
+	ignore = untracked
 [submodule "nanoflann"]
 	path = nanoflann
 	url = https://github.com/jlblancoc/nanoflann
+	ignore = untracked
