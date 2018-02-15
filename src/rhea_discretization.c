@@ -105,20 +105,20 @@ rhea_discretization_X_fn_shell (mangll_tag_t tag, mangll_locidx_t np,
   RHEA_ASSERT (0 <= tag && tag < 24);
 #ifdef RHEA_ENABLE_DEBUG
   for (il = 0; il < np; ++il) {
-    RHEA_ASSERT (EX[il] < 1.0 + SC_1000_EPS && EX[il] > -1.0 - SC_1000_EPS);
-    RHEA_ASSERT (EY[il] < 1.0 + SC_1000_EPS && EY[il] > -1.0 - SC_1000_EPS);
-    RHEA_ASSERT (EZ[il] < 2.0 + SC_1000_EPS && EZ[il] > +1.0 - SC_1000_EPS);
+    RHEA_ASSERT (-1.0 - SC_1000_EPS < EX[il] && EX[il] < 1.0 + SC_1000_EPS);
+    RHEA_ASSERT (-1.0 - SC_1000_EPS < EY[il] && EY[il] < 1.0 + SC_1000_EPS);
+    RHEA_ASSERT (+1.0 - SC_1000_EPS < EZ[il] && EZ[il] < 2.0 + SC_1000_EPS);
   }
 #endif
 
   switch (tag / 4) {
   case RHEA_DISCR_SHELL_X_TAG_TOP:  /* top (+z) */
     for (il = 0; il < np; ++il) {
-      /* transform abc[0] and y in-place for nicer grading */
+      /* transform in-place for nicer grading */
       x = tan (EX[il] * M_PI_4);
       y = tan (EY[il] * M_PI_4);
 
-      /* compute transformation ingredients */
+      /* compute transformation components */
       R = R1sqrbyR2 * pow (R2byR1, EZ[il]);
       q = R / sqrt (x * x + y * y + 1.);
 
@@ -228,8 +228,30 @@ rhea_discretization_X_fn_box_spherical_get_tag (const double EX,
   }
 }
 
+static double
+rhea_discretization_X_fn_box_spherical_remove_mean (double *E_no_mean,
+                                                    const double *E,
+                                                    const mangll_locidx_t np)
+{
+  double              mean = 0.0;
+  mangll_locidx_t     il;
+
+  /* compute mean */
+  for (il = 0; il < np; ++il) {
+    mean += E[il];
+  }
+  mean *= 1.0 / (double) np;
+
+  /* remove mean */
+  for (il = 0; il < np; ++il) {
+    E_no_mean[il] = E[il] - mean;
+  }
+
+  return mean;
+}
+
 /**
- * Geometry transformation for chunk and slice of hollow sphere.
+ * Geometry transformation for subsections of the full shell domain.
  */
 static void
 rhea_discretization_X_fn_box_spherical (mangll_tag_t tag, mangll_locidx_t np,
@@ -240,59 +262,119 @@ rhea_discretization_X_fn_box_spherical (mangll_tag_t tag, mangll_locidx_t np,
                                         double *_sc_restrict Y,
                                         double *_sc_restrict Z, void *data)
 {
+  rhea_domain_options_t  *domain_options = data;
+  const int           distortion_corr =
+                        domain_options->box_spherical_distortion_corr;
   const mangll_tag_t  n_tags_per_part = 4;
   mangll_tag_t        shell_tag;
-  double             *E_replace;
+  double             *E_corr, *E_shift;
   mangll_locidx_t     il;
 
   /* set tag for shell X-function */
   shell_tag = rhea_discretization_X_fn_box_spherical_get_tag (EX[0], EY[0]);
 
-  /* init replacement for a component of element coordinates */
+  /* create work variables */
+  if (distortion_corr) {
+    E_corr = RHEA_ALLOC (double, np);
+  }
+  else {
+    E_corr = NULL;
+  }
   if (shell_tag/n_tags_per_part != RHEA_DISCR_SHELL_X_TAG_TOP) {
-    E_replace = RHEA_ALLOC (double, np);
+    E_shift = RHEA_ALLOC (double, np);
+  }
+  else {
+    E_shift = NULL;
   }
 
   /* call shell X-function */
   switch (shell_tag/n_tags_per_part) {
   case RHEA_DISCR_SHELL_X_TAG_TOP:  /* top */
-    rhea_discretization_X_fn_shell (shell_tag, np, EX, EY, EZ, X, Y, Z, data);
+    if (!distortion_corr) {
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, EY, EZ, X, Y, Z, data);
+    }
+    else {
+      rhea_discretization_X_fn_box_spherical_remove_mean (E_corr, EY, np);
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, E_corr, EZ, X, Y, Z,
+                                      data);
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, EY, EZ, X, E_corr, Z,
+                                      data);
+    }
     break;
   case RHEA_DISCR_SHELL_X_TAG_BACK:  /* back */
     for (il = 0; il < np; ++il) { /* shift EX from [-3,-1] to [-1,+1] */
-      E_replace[il] = EX[il] + 2.0;
+      E_shift[il] = EX[il] + 2.0;
     }
-    rhea_discretization_X_fn_shell (shell_tag, np, E_replace, EY, EZ, X, Y, Z,
-                                    data);
+    if (!distortion_corr) {
+      rhea_discretization_X_fn_shell (shell_tag, np, E_shift, EY, EZ, X, Y, Z,
+                                      data);
+    }
+    else {
+      rhea_discretization_X_fn_box_spherical_remove_mean (E_corr, EY, np);
+      rhea_discretization_X_fn_shell (shell_tag, np, E_shift, E_corr, EZ,
+                                      X, Y, Z, data);
+      rhea_discretization_X_fn_shell (shell_tag, np, E_shift, EY, EZ,
+                                      X, E_corr, Z, data);
+    }
     break;
   case RHEA_DISCR_SHELL_X_TAG_FRONT:  /* front */
     for (il = 0; il < np; ++il) { /* shift EX from [+1,+3] to [-1,+1] */
-      E_replace[il] = EX[il] - 2.0;
+      E_shift[il] = EX[il] - 2.0;
     }
-    rhea_discretization_X_fn_shell (shell_tag, np, E_replace, EY, EZ, X, Y, Z,
-                                    data);
+    if (!distortion_corr) {
+      rhea_discretization_X_fn_shell (shell_tag, np, E_shift, EY, EZ, X, Y, Z,
+                                      data);
+    }
+    else {
+      rhea_discretization_X_fn_box_spherical_remove_mean (E_corr, EY, np);
+      rhea_discretization_X_fn_shell (shell_tag, np, E_shift, E_corr, EZ,
+                                      X, Y, Z, data);
+      rhea_discretization_X_fn_shell (shell_tag, np, E_shift, EY, EZ,
+                                      X, E_corr, Z, data);
+    }
     break;
   case RHEA_DISCR_SHELL_X_TAG_LEFT:  /* left */
     for (il = 0; il < np; ++il) { /* shift EY from [-3,-1] to [-1,+1] */
-      E_replace[il] = EY[il] + 2.0;
+      E_shift[il] = EY[il] + 2.0;
     }
-    rhea_discretization_X_fn_shell (shell_tag, np, EX, E_replace, EZ, X, Y, Z,
-                                    data);
+    if (!distortion_corr) {
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, E_shift, EZ, X, Y, Z,
+                                      data);
+    }
+    else {
+      rhea_discretization_X_fn_box_spherical_remove_mean (E_corr, E_shift, np);
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, E_corr, EZ,
+                                      X, Y, Z, data);
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, E_shift, EZ,
+                                      X, E_corr, Z, data);
+    }
     break;
   case RHEA_DISCR_SHELL_X_TAG_RIGHT:  /* right */
     for (il = 0; il < np; ++il) { /* shift EY from [+1,+3] to [-1,+1] */
-      E_replace[il] = EY[il] - 2.0;
+      E_shift[il] = EY[il] - 2.0;
     }
-    rhea_discretization_X_fn_shell (shell_tag, np, EX, E_replace, EZ, X, Y, Z,
-                                    data);
+    if (!distortion_corr) {
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, E_shift, EZ, X, Y, Z,
+                                      data);
+    }
+    else {
+      rhea_discretization_X_fn_box_spherical_remove_mean (E_corr, E_shift, np);
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, E_corr, EZ,
+                                      X, Y, Z, data);
+      rhea_discretization_X_fn_shell (shell_tag, np, EX, E_shift, EZ,
+                                      X, E_corr, Z, data);
+    }
     break;
-  default: /* unknown part of spherical shell domain */
+  default: /* unknown part of shell domain */
     RHEA_ABORT_NOT_REACHED ();
   }
 
   /* destroy */
+  if (distortion_corr) {
+    RHEA_FREE (E_corr);
+  }
   if (shell_tag/n_tags_per_part != RHEA_DISCR_SHELL_X_TAG_TOP) {
-    RHEA_FREE (E_replace);
+    RHEA_FREE (E_shift);
   }
 }
 
@@ -511,6 +593,7 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   const size_t        data_size = sizeof (rhea_p4est_quadrant_data_t);
   const p4est_init_t  init_fn = rhea_p4est_init_fn;
   void               *user_pointer = NULL;
+  int                 subdivision_x, subdivision_y, subdivision_z;
   /* p4est objects */
   p4est_connectivity_t *conn;
   p4est_t            *p4est;
@@ -538,10 +621,11 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
     RHEA_ASSERT (0 < domain_options->box_subdivision_y);
     RHEA_ASSERT (0 < domain_options->box_subdivision_z);
 
-    conn = p8est_connectivity_new_brick (domain_options->box_subdivision_x,
-                                         domain_options->box_subdivision_y,
-                                         domain_options->box_subdivision_z,
-                                         0, 0, 0);
+    subdivision_x = domain_options->box_subdivision_x;
+    subdivision_y = domain_options->box_subdivision_y;
+    subdivision_z = domain_options->box_subdivision_z;
+    conn = p8est_connectivity_new_brick (subdivision_x, subdivision_y,
+                                         subdivision_z, 0, 0, 0);
     /* scale & shift reference coordinates of vertices such that
      *   x component: [0, subdivision_x] -> [x_min, x_max]
      *   y component: [0, subdivision_y] -> [y_min, y_max]
@@ -554,9 +638,9 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
       const double        xmax = domain_options->x_max;
       const double        ymax = domain_options->y_max;
       const double        zmax = domain_options->z_max;
-      const double        subx = (double) domain_options->box_subdivision_x;
-      const double        suby = (double) domain_options->box_subdivision_y;
-      const double        subz = (double) domain_options->box_subdivision_z;
+      const double        subx = (double) subdivision_x;
+      const double        suby = (double) subdivision_y;
+      const double        subz = (double) subdivision_z;
       double             *vertices = conn->vertices;
       p4est_topidx_t      vi;
 
@@ -596,19 +680,20 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
     RHEA_ASSERT (0 < domain_options->box_subdivision_y);
     RHEA_ASSERT (0 < domain_options->box_subdivision_z);
 
-    conn = p8est_connectivity_new_brick (domain_options->box_subdivision_x,
-                                         domain_options->box_subdivision_y,
-                                         domain_options->box_subdivision_z,
-                                         0, 0, 0);
+    subdivision_x = domain_options->box_subdivision_y; /* flip x and y */
+    subdivision_y = domain_options->box_subdivision_x; /* flip x and y */
+    subdivision_z = domain_options->box_subdivision_z;
+    conn = p8est_connectivity_new_brick (subdivision_x, subdivision_y,
+                                         subdivision_z, 0, 0, 0);
     /* shift coordinates of vertices, so (modified) shell_X fnc can be used:
-     *   x component: [0, subdiv_x] -> 1/subdiv_z * [-subdiv_x/2, subdiv_x/2]
-     *   y component: [0, subdiv_y] -> 1/subdiv_z * [-subdiv_y/2, subdiv_y/2]
-     *   z component: [0, subdiv_z] ->              [ 1         , 2         ]
+     *   x component: [0, subdiv_x] -> subdiv_x/subdiv_z * [-0.5, 0.5]
+     *   y component: [0, subdiv_y] -> subdiv_y/subdiv_z * [-0.5, 0.5]
+     *   z component: [0, subdiv_z] ->                     [ 1  , 2  ]
      */
     {
-      const double        subx = (double) domain_options->box_subdivision_x;
-      const double        suby = (double) domain_options->box_subdivision_y;
-      const double        subz = (double) domain_options->box_subdivision_z;
+      const double        subx = (double) subdivision_x;
+      const double        suby = (double) subdivision_y;
+      const double        subz = (double) subdivision_z;
       double             *vertices = conn->vertices;
       p4est_topidx_t      vi;
 
