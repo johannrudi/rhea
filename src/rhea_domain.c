@@ -17,9 +17,10 @@
 #define RHEA_DOMAIN_DEFAULT_BOX_LENGTH_X (NAN)
 #define RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Y (NAN)
 #define RHEA_DOMAIN_DEFAULT_BOX_LENGTH_Z (NAN)
-#define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_X (1)
-#define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Y (16)
+#define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_X (16)
+#define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Y (1)
 #define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Z (16)
+#define RHEA_DOMAIN_DEFAULT_BOX_SPHERICAL_DISTORTION_CORR (1)
 #define RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M (6371.0e3)
 #define RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH_M (2866.95e3)
 #define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M (660.0e3)
@@ -41,6 +42,8 @@ int                 rhea_domain_box_subdivision_y =
   RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Y;
 int                 rhea_domain_box_subdivision_z =
   RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Z;
+int                 rhea_domain_box_spherical_distortion_corr =
+  RHEA_DOMAIN_DEFAULT_BOX_SPHERICAL_DISTORTION_CORR;
 double              rhea_domain_earth_radius_m =
   RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M;
 double              rhea_domain_mantle_depth_m =
@@ -87,6 +90,11 @@ rhea_domain_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "box-subdivision-z", '\0',
     &(rhea_domain_box_subdivision_z), RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Z,
     "For 'box' domain: Integer determining subdivision into cubes along x-axis",
+
+  YMIR_OPTIONS_B, "box-spherical-distortion-correction", '\0',
+    &(rhea_domain_box_spherical_distortion_corr),
+    RHEA_DOMAIN_DEFAULT_BOX_SPHERICAL_DISTORTION_CORR,
+    "Correct a pillow-type distortion of domain shape `box_spherical`",
 
   YMIR_OPTIONS_D, "earth-radius", '\0',
     &(rhea_domain_earth_radius_m), RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M,
@@ -517,6 +525,7 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
     opt->box_subdivision_x = 1;
     opt->box_subdivision_y = 1;
     opt->box_subdivision_z = 1;
+    opt->box_spherical_distortion_corr = 0;
     opt->box_length_x = 1.0;
     opt->box_length_y = 1.0;
     opt->box_length_z = 1.0;
@@ -526,6 +535,7 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
     opt->box_subdivision_x = rhea_domain_box_subdivision_x;
     opt->box_subdivision_y = rhea_domain_box_subdivision_y;
     opt->box_subdivision_z = rhea_domain_box_subdivision_z;
+    opt->box_spherical_distortion_corr = 0;
     if (isfinite (rhea_domain_box_length_x) && 0.0 < rhea_domain_box_length_x) {
       opt->box_length_x = rhea_domain_box_length_x;
     }
@@ -552,6 +562,7 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
     opt->box_subdivision_x = 0;
     opt->box_subdivision_y = 0;
     opt->box_subdivision_z = 0;
+    opt->box_spherical_distortion_corr = 0;
     opt->box_length_x = NAN;
     opt->box_length_y = NAN;
     opt->box_length_z = NAN;
@@ -561,15 +572,22 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
     opt->box_subdivision_x = 1;
     opt->box_subdivision_y = 1;
     opt->box_subdivision_z = 1;
+    opt->box_spherical_distortion_corr = 0;
     opt->box_length_x = NAN;
     opt->box_length_y = NAN;
     opt->box_length_z = NAN;
     break;
   case RHEA_DOMAIN_BOX_SPHERICAL:
     /* set partially from input */
+    RHEA_ASSERT (rhea_domain_box_subdivision_y <=
+                 rhea_domain_box_subdivision_x);
+    RHEA_ASSERT (rhea_domain_box_subdivision_x <=
+                 rhea_domain_box_subdivision_z * 6);
     opt->box_subdivision_x = rhea_domain_box_subdivision_x;
     opt->box_subdivision_y = rhea_domain_box_subdivision_y;
     opt->box_subdivision_z = rhea_domain_box_subdivision_z;
+    opt->box_spherical_distortion_corr =
+      rhea_domain_box_spherical_distortion_corr;
     opt->box_length_x = NAN;
     opt->box_length_y = NAN;
     opt->box_length_z = NAN;
@@ -634,6 +652,8 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
                      opt->box_subdivision_z);
   RHEA_GLOBAL_INFOF ("  box length (x,y,z):       (%g %g %g)\n",
                      opt->box_length_x, opt->box_length_y, opt->box_length_z);
+  RHEA_GLOBAL_INFOF ("  box_spherical distortion correction:  %i\n",
+                     opt->box_spherical_distortion_corr);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   RHEA_GLOBAL_INFOF ("  x min:      %g\n", opt->x_min);
   RHEA_GLOBAL_INFOF ("  x max:      %g\n", opt->x_max);

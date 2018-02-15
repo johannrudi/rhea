@@ -95,6 +95,9 @@ typedef struct rhea_domain_options
   int                 box_subdivision_y;
   int                 box_subdivision_z;
 
+  /* correct a pillow-type distortion of domain shape `box_spherical` */
+  int                 box_spherical_distortion_corr;
+
   /* the domain knows the location of the lower-upper mantle interface,
    * which causes discontinuous material properties (input) */
   double              lm_um_interface_radius;
