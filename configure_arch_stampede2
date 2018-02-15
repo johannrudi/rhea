@@ -1,0 +1,93 @@
+#!/bin/bash
+
+###############################################################################
+#
+# Configures the rhea code in the directory from which this script is called.
+#
+###############################################################################
+# Author:             Johann Rudi
+###############################################################################
+
+declare -r THIS_ARCHITECTURE="TACC Stampede 2, Intel compiler"
+declare -r THIS_BLAS_LIBS="-L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl"
+declare -r THIS_PETSC_DIR_DBG="/home1/01501/johann/build/app/petsc/stampede2-debug"
+declare -r THIS_PETSC_DIR_OPT="/home1/01501/johann/build/app/petsc/stampede2-opt"
+
+########################################
+# Functions
+########################################
+
+function print_usage()
+{
+  echo "Usage: configure_centos [-o -p <BUILD_PATH>]"
+}
+
+########################################
+# Process options
+########################################
+
+# initialize parameters
+code_dir="$(dirname ${BASH_SOURCE[0]})"
+build_dir="$(pwd)"
+is_opt=0
+
+# check option flags
+while getopts ":hop:" opt; do
+  case $opt in
+    h) # help
+      print_usage; exit 1
+      ;;
+    o) # optimized build
+      is_opt=1
+      ;;
+    p) # build path/directory
+      build_dir="$(dirname $OPTARG)"
+      ;;
+    \?) # invalid option
+      echo "Invalid option: -$OPTARG" >&2; exit 1
+      ;;
+    :) # option requires argument
+      echo "Option -$OPTARG requires an argument" >&2; exit 1
+      ;;
+  esac
+done
+
+########################################
+# Run configure
+########################################
+
+echo "========================================"
+echo "Build rhea for $THIS_ARCHITECTURE"
+echo "Code directory:  $code_dir"
+echo "Build directory: $build_dir"
+echo "Optimized build: $is_opt"
+echo "========================================"
+
+if [ 1 -le "$is_opt" ]; then
+  # configure optimized build
+  $code_dir/configure \
+    FFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512" \
+    CFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512 -fimf-precision=high -prec-div -prec-sqrt -Wall -w2 -DYMIR_PETSC_CUSTOM" \
+  CXXFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512 -fimf-precision=high -prec-div -prec-sqrt -Wall -w2" \
+  CPPFLAGS="-I${TACC_VALGRIND_INC}" \
+  LDFLAGS="-xCORE-AVX2 -axMIC-AVX512" \
+  --enable-mpi \
+  --enable-openmp="-qopenmp" \
+  --with-fet="$code_dir/fet" \
+  --with-petsc="$THIS_PETSC_DIR_OPT" \
+  BLAS_LIBS="$THIS_BLAS_LIBS"
+else
+  # configure development build
+  $code_dir/configure \
+    FFLAGS="-g -O0 -qopenmp" \
+    CFLAGS="-g -O0 -qopenmp -fimf-precision=high -prec-div -prec-sqrt -Wall -w2 -DYMIR_PETSC_CUSTOM" \
+  CXXFLAGS="-g -O0 -qopenmp -fimf-precision=high -prec-div -prec-sqrt -Wall -w2" \
+  CPPFLAGS="-I${TACC_VALGRIND_INC}" \
+  --enable-debug \
+  --enable-mpi \
+  --enable-openmp="-qopenmp" \
+  --with-fet="$code_dir/fet" \
+  --with-petsc="$THIS_PETSC_DIR_OPT" \
+  BLAS_LIBS="$THIS_BLAS_LIBS"
+  BLAS_LIBS="-L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl"
+fi
