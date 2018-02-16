@@ -13,11 +13,17 @@
 /* default options */
 #define RHEA_AMR_DEFAULT_INIT_REFINE_NAME "uniform"
 #define RHEA_AMR_DEFAULT_INIT_REFINE_DEPTH_M NULL
+#define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN (-1)
+#define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX (-1)
 
 char               *rhea_amr_init_refine_name =
   RHEA_AMR_DEFAULT_INIT_REFINE_NAME;
 char               *rhea_amr_init_refine_depth_m =
   RHEA_AMR_DEFAULT_INIT_REFINE_DEPTH_M;
+int                 rhea_amr_init_refine_level_min =
+  RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN;
+int                 rhea_amr_init_refine_level_max =
+  RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX;
 
 void
 rhea_amr_add_options (ymir_options_t * opt_sup)
@@ -34,6 +40,13 @@ rhea_amr_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_S, "init-refine-depth", '\0',
     &(rhea_amr_init_refine_depth_m), RHEA_AMR_DEFAULT_INIT_REFINE_DEPTH_M,
     "Refinement 'depth': Sorted list of depths [m] (put shallowest at last)",
+
+  YMIR_OPTIONS_I, "init-refine-level-min", '\0',
+    &(rhea_amr_init_refine_level_min), RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN,
+    "Refinement of new/initial mesh: Minumum level of mesh refinement",
+  YMIR_OPTIONS_I, "init-refine-level-max", '\0',
+    &(rhea_amr_init_refine_level_max), RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX,
+    "Refinement of new/initial mesh: Maximum level of mesh refinement",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -93,8 +106,8 @@ rhea_amr_init_refine_decode (const char * name)
 
 int
 rhea_amr_init_refine (p4est_t *p4est,
-                      const int level_min,
-                      const int level_max,
+                      int level_min,
+                      int level_max,
                       rhea_domain_options_t *domain_options)
 {
   /* arguments for refinement */
@@ -109,8 +122,15 @@ rhea_amr_init_refine (p4est_t *p4est,
   const int           partition_for_coarsening = 1;
   p4est_weight_t      partition_weight_fn = RHEA_AMR_P4EST_PARTITION_WEIGHT_FN;
 
-  /* get type of refinement from name */
+  /* get type of refinement from name; update refinement min/max levels */
   type = rhea_amr_init_refine_decode (refine_name);
+  if (0 <= rhea_amr_init_refine_level_min) {
+    level_min = SC_MAX (level_min, rhea_amr_init_refine_level_min);
+  }
+  if (0 <= rhea_amr_init_refine_level_max) {
+    level_max = SC_MIN (level_max, rhea_amr_init_refine_level_max);
+  }
+  RHEA_ASSERT (level_min <= level_max);
 
   /* set refinement function and data */
   switch (type) {
@@ -118,8 +138,11 @@ rhea_amr_init_refine (p4est_t *p4est,
     RHEA_GLOBAL_LERROR ("Unknown refinement type");
     break;
   case RHEA_AMR_INIT_REFINE_NONE:
-  case RHEA_AMR_INIT_REFINE_UNIFORM:
     /* no function necessary */
+    break;
+  case RHEA_AMR_INIT_REFINE_UNIFORM:
+    refine_data = &level_min;
+    refine_fn = rhea_amr_refine_to_min_level_fn;
     break;
   case RHEA_AMR_INIT_REFINE_HALF:
     refine_fn = rhea_amr_refine_half_fn;
@@ -385,6 +408,30 @@ rhea_amr (p4est_t *p4est,
 /******************************************************************************
  * Generic Callback Functions for Coarsening/Refinement
  *****************************************************************************/
+
+int
+rhea_amr_coarsen_all_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                         p4est_quadrant_t * quadrant)
+{
+  return (0 < quadrant->level);
+}
+
+int
+rhea_amr_refine_all_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                        p4est_quadrant_t * quadrant)
+{
+  return 1;
+}
+
+int
+rhea_amr_refine_to_min_level_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                                 p4est_quadrant_t * quadrant)
+{
+  int                *level_min = p4est->user_pointer;
+
+  return (quadrant->level < *level_min);
+}
+
 
 int
 rhea_amr_coarsen_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,

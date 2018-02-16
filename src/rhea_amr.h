@@ -16,8 +16,8 @@ void                rhea_amr_add_options (ymir_options_t * opt_sup);
  * Performs initial refinement of a p4est mesh.
  */
 int                 rhea_amr_init_refine (p4est_t *p4est,
-                                          const int level_min,
-                                          const int level_max,
+                                          int level_min,
+                                          int level_max,
                                           rhea_domain_options_t
                                             *domain_options);
 
@@ -93,6 +93,18 @@ int                 rhea_amr (p4est_t *p4est,
 /******************************************************************************
  * Generic Callback Functions for Coarsening/Refinement
  *****************************************************************************/
+
+int                 rhea_amr_coarsen_all_fn (p4est_t * p4est,
+                                             p4est_topidx_t which_tree,
+                                             p4est_quadrant_t * quadrant);
+int                 rhea_amr_refine_all_fn (p4est_t * p4est,
+                                            p4est_topidx_t which_tree,
+                                            p4est_quadrant_t * quadrant);
+
+int                 rhea_amr_refine_to_min_level_fn (
+                                                  p4est_t * p4est,
+                                                  p4est_topidx_t which_tree,
+                                                  p4est_quadrant_t * quadrant);
 
 int                 rhea_amr_coarsen_half_fn (p4est_t * p4est,
                                               p4est_topidx_t which_tree,
