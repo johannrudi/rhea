@@ -118,12 +118,17 @@ typedef struct rhea_amr_refine_depth_data
   int                *depth;
   int                 count;
   int                 level_min;
+  double              p4est_zmax;
 }
 rhea_amr_refine_depth_data_t;
 
 int                 rhea_amr_refine_depth_fn (p4est_t * p4est,
                                               p4est_topidx_t which_tree,
                                               p4est_quadrant_t * quadrant);
+
+int                 rhea_amr_refine_depth_box_fn (p4est_t * p4est,
+                                                  p4est_topidx_t which_tree,
+                                                  p4est_quadrant_t * quadrant);
 
 /******************************************************************************
  * Generic Flagging for Coarsening/Refinement

@@ -110,6 +110,9 @@ rhea_amr_init_refine (p4est_t *p4est,
                       int level_max,
                       rhea_domain_options_t *domain_options)
 {
+#ifdef RHEA_ENABLE_DEBUG
+  const char         *this_fn_name = "rhea_amr_init_refine";
+#endif
   /* arguments for refinement */
   const char         *refine_name = rhea_amr_init_refine_name;
   rhea_amr_init_refine_t type;
@@ -132,6 +135,10 @@ rhea_amr_init_refine (p4est_t *p4est,
   }
   RHEA_ASSERT (level_min <= level_max);
 
+  RHEA_GLOBAL_VERBOSEF (
+      "Into %s (refine \"%s\", type %i, level min %i, max %i\n",
+      this_fn_name, refine_name, type, level_min, level_max);
+
   /* set refinement function and data */
   switch (type) {
   case RHEA_AMR_INIT_REFINE_UNKNOWN:
@@ -143,9 +150,12 @@ rhea_amr_init_refine (p4est_t *p4est,
   case RHEA_AMR_INIT_REFINE_UNIFORM:
     refine_data = &level_min;
     refine_fn = rhea_amr_refine_to_min_level_fn;
+    recursively = 1;
     break;
   case RHEA_AMR_INIT_REFINE_HALF:
+    refine_data = &level_min;
     refine_fn = rhea_amr_refine_half_fn;
+    recursively = 1;
     break;
   case RHEA_AMR_INIT_REFINE_DEPTH:
     {
@@ -153,7 +163,7 @@ rhea_amr_init_refine (p4est_t *p4est,
       int                 count, k;
       const double        rmin = domain_options->radius_min;
       const double        rmax = domain_options->radius_max;
-      double              d, depth_rel;
+      double              d, depth_rel, p4est_zmax;
       int                *depth;
       rhea_amr_refine_depth_data_t *data;
 
@@ -176,6 +186,23 @@ rhea_amr_init_refine (p4est_t *p4est,
         }
       }
 
+      /* set z-coordinate of the domain's top */
+      switch (domain_options->shape) {
+      case RHEA_DOMAIN_BOX:
+      case RHEA_DOMAIN_BOX_SPHERICAL:
+        p4est_zmax = 2.0;
+        refine_fn = rhea_amr_refine_depth_box_fn;
+        break;
+      case RHEA_DOMAIN_CUBE:
+      case RHEA_DOMAIN_SHELL:
+      case RHEA_DOMAIN_CUBE_SPHERICAL:
+        p4est_zmax = NAN;
+        refine_fn = rhea_amr_refine_depth_fn;
+        break;
+      default: /* unknown domain shape */
+        RHEA_ABORT_NOT_REACHED ();
+      }
+
       /* transform dimensional depths to p4est quadrant coordinates */
       depth = RHEA_ALLOC (int, count);
       for (k = 0; k < count; k++) {
@@ -191,8 +218,8 @@ rhea_amr_init_refine (p4est_t *p4est,
       data->depth = depth;
       data->count = count;
       data->level_min = level_min;
+      data->p4est_zmax = p4est_zmax;
       refine_data = data;
-      refine_fn = rhea_amr_refine_depth_fn;
       recursively = 1;
     }
     break;
@@ -233,6 +260,8 @@ rhea_amr_init_refine (p4est_t *p4est,
   default: /* unknown refinement type */
     RHEA_ABORT_NOT_REACHED ();
   }
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 
   /* return whether refinement was performed */
   return (refine_fn != NULL);
@@ -437,15 +466,17 @@ int
 rhea_amr_coarsen_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
                           p4est_quadrant_t * quadrant)
 {
-  return (0 < quadrant->level &&
-          !rhea_amr_refine_half_fn (p4est, which_tree, quadrant));
+  return (0 < quadrant->level) &&
+         !rhea_amr_refine_half_fn (p4est, which_tree, quadrant);
 }
 
 int
 rhea_amr_refine_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
                          p4est_quadrant_t * quadrant)
 {
-  return (P4EST_ROOT_LEN / 2 <= quadrant->z);
+  const int          *level_min = p4est->user_pointer;
+
+  return (quadrant->level < *level_min) || (P4EST_ROOT_LEN / 2 <= quadrant->z);
 }
 
 int
@@ -460,6 +491,37 @@ rhea_amr_refine_depth_fn (p4est_t * p4est, p4est_topidx_t which_tree,
   if ((int) quadrant->level < d->level_min) {
     return 1;
   }
+
+  for (k = 0; k < d->count; k++) {
+    if (quad_depth <= depth[k] && (int) quadrant->level < d->level_min+k+1) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+int
+rhea_amr_refine_depth_box_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                              p4est_quadrant_t * quadrant)
+{
+  rhea_amr_refine_depth_data_t  *d = p4est->user_pointer;
+  const int          *depth = d->depth;
+  const double        zmax = d->p4est_zmax;
+  const double        zscale = (double) P4EST_ROOT_LEN;
+  double              xyz[3];
+  int                 quad_depth;
+  int                 k;
+
+  RHEA_ASSERT (isfinite (zmax) && 0.0 <= zmax);
+
+  if ((int) quadrant->level < d->level_min) {
+    return 1;
+  }
+
+  p4est_qcoord_to_vertex (p4est->connectivity, which_tree, quadrant->x,
+                          quadrant->y, quadrant->z, xyz);
+  quad_depth = (int) round (zscale * (zmax - xyz[P4EST_DIM-1]));
 
   for (k = 0; k < d->count; k++) {
     if (quad_depth <= depth[k] && (int) quadrant->level < d->level_min+k+1) {
