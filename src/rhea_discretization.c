@@ -585,6 +585,9 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
                                rhea_discretization_options_t *opt,
                                rhea_domain_options_t *domain_options)
 {
+#ifdef RHEA_ENABLE_DEBUG
+  const char         *this_fn_name = "rhea_discretization_p4est_new";
+#endif
   /* arguments for creating a new p4est object */
   const int           level_min = opt->level_min;
   const int           level_max = opt->level_max;
@@ -597,6 +600,8 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   /* p4est objects */
   p4est_connectivity_t *conn;
   p4est_t            *p4est;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /*
    * Create Connectivity
@@ -720,6 +725,8 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   /* refine */
   rhea_amr_init_refine (p4est, level_min, level_max, domain_options);
 
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+
   /* return p4est */
   return p4est;
 }
@@ -744,12 +751,18 @@ rhea_discretization_mangll_continuous_new (mangll_t **mangll,
                                            p4est_t *p4est,
                                            rhea_discretization_options_t *opt)
 {
+#ifdef RHEA_ENABLE_DEBUG
+  const char         *this_fn_name =
+                        "rhea_discretization_mangll_continuous_new";
+#endif
   sc_MPI_Comm         mpicomm = p4est->mpicomm;
   const int           order = opt->order;
   const mangll_refel_quadrature_type_t  quad_type = MANGLL_REFEL_QUAD_GAUSS;
 
   p4est_ghost_t      *ghost;
   mangll_mesh_t      *mangll_mesh;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* create p4est ghost */
   if (cnodes != NULL) {
@@ -781,6 +794,8 @@ rhea_discretization_mangll_continuous_new (mangll_t **mangll,
 
   /* destroy ghost */
   p4est_ghost_destroy (ghost);
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 void
@@ -800,9 +815,18 @@ rhea_discretization_mangll_discontinuous_new (
                                             p4est_t *p4est,
                                             rhea_discretization_options_t *opt)
 {
+#ifdef RHEA_ENABLE_DEBUG
+  const char         *this_fn_name =
+                        "rhea_discretization_mangll_discontinuous_new";
+#endif
   mangll_t           *mangll;
 
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+
   rhea_discretization_mangll_continuous_new (&mangll, NULL, p4est, opt);
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+
   return mangll;
 }
 
@@ -824,9 +848,15 @@ rhea_discretization_ymir_mesh_new_from_mangll (
                                           mangll_cnodes_t *cnodes,
                                           rhea_discretization_options_t *opt)
 {
+#ifdef RHEA_ENABLE_DEBUG
+  const char         *this_fn_name =
+                        "rhea_discretization_ymir_mesh_new_from_mangll";
+#endif
   const int           skip_face_prealloc = 1;
   const int           skip_diag_prealloc = ymir_stress_pc_gmg;
   rhea_domain_boundary_t  *boundary = opt->boundary;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
 
   /* check_input */
   RHEA_ASSERT (opt->boundary != NULL);
@@ -840,6 +870,8 @@ rhea_discretization_ymir_mesh_new_from_mangll (
   if (press_elem != NULL) {
     *press_elem = ymir_pressure_elem_new (mangll->refel, mangll->ompsize);
   }
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
 }
 
 void
