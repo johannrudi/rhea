@@ -15,6 +15,7 @@
 #define RHEA_AMR_DEFAULT_INIT_REFINE_DEPTH_M NULL
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN (-1)
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX (-1)
+#define RHEA_AMR_DEFAULT_LOG_LEVEL_MAX (1)
 
 char               *rhea_amr_init_refine_name =
   RHEA_AMR_DEFAULT_INIT_REFINE_NAME;
@@ -24,6 +25,7 @@ int                 rhea_amr_init_refine_level_min =
   RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN;
 int                 rhea_amr_init_refine_level_max =
   RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX;
+int                 rhea_amr_log_level_max = RHEA_AMR_DEFAULT_LOG_LEVEL_MAX;
 
 void
 rhea_amr_add_options (ymir_options_t * opt_sup)
@@ -47,6 +49,10 @@ rhea_amr_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "init-refine-level-max", '\0',
     &(rhea_amr_init_refine_level_max), RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX,
     "Refinement of new/initial mesh: Maximum level of mesh refinement",
+
+  YMIR_OPTIONS_B, "log-level-max", '\0',
+    &(rhea_amr_log_level_max), RHEA_AMR_DEFAULT_LOG_LEVEL_MAX,
+    "Print max refinement level of the mesh",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -110,9 +116,6 @@ rhea_amr_init_refine (p4est_t *p4est,
                       int level_max,
                       rhea_domain_options_t *domain_options)
 {
-#ifdef RHEA_ENABLE_DEBUG
-  const char         *this_fn_name = "rhea_amr_init_refine";
-#endif
   /* arguments for refinement */
   const char         *refine_name = rhea_amr_init_refine_name;
   rhea_amr_init_refine_t type;
@@ -137,7 +140,7 @@ rhea_amr_init_refine (p4est_t *p4est,
 
   RHEA_GLOBAL_VERBOSEF (
       "Into %s (refine \"%s\", type %i, level min %i, max %i\n",
-      this_fn_name, refine_name, type, level_min, level_max);
+      __func__, refine_name, type, level_min, level_max);
 
   /* set refinement function and data */
   switch (type) {
@@ -261,7 +264,7 @@ rhea_amr_init_refine (p4est_t *p4est,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
 
   /* return whether refinement was performed */
   return (refine_fn != NULL);
@@ -302,11 +305,42 @@ rhea_amr_refine_via_flag_fn (p4est_t *p4est, p4est_topidx_t tree,
   return (d->amr_flag == RHEA_AMR_FLAG_REFINE);
 }
 
+static p4est_gloidx_t
+rhea_amr_get_global_n_elems (p4est_t *p4est)
+{
+  return p4est->global_num_quadrants;
+}
+
+static int
+rhea_amr_get_global_max_level (p4est_t *p4est)
+{
+  MPI_Comm            mpicomm = p4est->mpicomm;
+  int                 mpiret;
+  p4est_topidx_t      ti;
+  int                 level_max_loc;
+  int                 level_max_glo;
+
+  /* find processor local max level among all trees */
+  level_max_loc = 0;
+  for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
+    p4est_tree_t       *tree = p4est_tree_array_index (p4est->trees, ti);
+
+    level_max_loc = SC_MAX (level_max_loc, (int) tree->maxlevel);
+  }
+
+  /* get processor-global max level */
+  level_max_glo = 0;
+  mpiret = sc_MPI_Allreduce (&level_max_loc, &level_max_glo, 1, sc_MPI_INT,
+                             sc_MPI_MAX, mpicomm); SC_CHECK_MPI (mpiret);
+
+  return level_max_glo;
+}
+
 int
 rhea_amr (p4est_t *p4est,
-          const double n_flagged_elements_tol,
-          const int amr_recursive_count,
-          const double n_flagged_elements_recursive_tol,
+          const int n_cycles,
+          const double flagged_elements_thresh_begin,
+          const double flagged_elements_thresh_cycle,
           rhea_amr_flag_elements_fn_t flag_elements_fn,
           void *flag_elements_data,
           rhea_amr_data_initialize_fn_t data_initialize_fn,
@@ -315,9 +349,15 @@ rhea_amr (p4est_t *p4est,
           rhea_amr_data_partition_fn_t data_partition_fn,
           void *data)
 {
-  const char         *this_fn_name = "rhea_amr";
+  const p4est_gloidx_t  n_elements_begin = rhea_amr_get_global_n_elems (p4est);
+  p4est_gloidx_t      n_elements_curr = n_elements_begin;
+  p4est_gloidx_t      n_elements_prev, n_elements_coar, n_elements_refn;
+  const int           iter_max = SC_MAX (1, n_cycles);
+  int                 iter;
+  double              flagged_rel, flagged_thresh;
+  double              changed_rel, refined_rel;
+  int                 data_altered = 0;
   /* arguments for coarsening/refinement */
-  const int           iter_max = SC_MAX (1, amr_recursive_count);
   const int           coarsen_recursively = 0;
   const int           refine_recursively = 0;
   p4est_coarsen_t     coarsen_fn = rhea_amr_coarsen_via_flag_fn;
@@ -327,48 +367,49 @@ rhea_amr (p4est_t *p4est,
   const int           partition_for_coarsening = 1;
   p4est_weight_t      partition_weight_fn = RHEA_AMR_P4EST_PARTITION_WEIGHT_FN;
 
-  double              n_flagged_rel, n_flagged_current_tol;
-  int                 iter;
+  //TODO set flag `uniform` for if a uniform refinement function is detected;
+  //     then avoid p4est calls to balance/partition
+  //TODO set limit for max #elements
 
-  RHEA_GLOBAL_INFOF ("Into %s (#elements flagged tol. %g, recursive %i, "
-                     "#elements flagged recursive tol. %g)\n",
-                     this_fn_name, n_flagged_elements_tol, amr_recursive_count,
-                     n_flagged_elements_recursive_tol);
+  RHEA_GLOBAL_INFOF (
+      "Into %s (#cycles %i, flagged elements threshold begin %g, "
+      "threshold cycle %g)\n", __func__, n_cycles,
+      flagged_elements_thresh_begin, flagged_elements_thresh_cycle);
 
   /* check input */
   RHEA_ASSERT (flag_elements_fn != NULL);
 
-  for (iter = 0; iter < iter_max; iter++) { /* BEGIN: AMR iter */
+  for (iter = 0; iter < iter_max; iter++) { /* BEGIN: AMR iterations */
+    RHEA_GLOBAL_INFOF ("%s -- iter %i: #Elements %lli\n",
+                       __func__, iter, (long long int) n_elements_curr);
+
     /*
      * Flag Elements
      */
 
     /* call function that flags elements for coarsening/refinement */
-    n_flagged_rel = flag_elements_fn (p4est, flag_elements_data);
+    flagged_rel = flag_elements_fn (p4est, flag_elements_data);
+    RHEA_GLOBAL_INFOF ("%s -- iter %i: Relative #elements flagged %g\n",
+                       __func__, iter, flagged_rel);
 
-    /* print statistics */
-    RHEA_GLOBAL_INFOF (
-        "%s -- iter %i: Relative #elements flagged %g\n",
-        this_fn_name, iter, n_flagged_rel);
-
-    /* stop AMR if not enough elements were flagged */
-    n_flagged_current_tol = 0.0;
-    if (0 == iter) {
-      if (isfinite (n_flagged_elements_tol) &&
-          0.0 <= n_flagged_elements_tol) {
-        n_flagged_current_tol = n_flagged_elements_tol;
-      }
+    /* set threshold for #elements flagged for coarsening/refinement */
+    if (isfinite (flagged_elements_thresh_begin) &&
+        0.0 <= flagged_elements_thresh_begin) {
+      flagged_thresh = flagged_elements_thresh_begin;
     }
     else {
-      if (isfinite (n_flagged_elements_recursive_tol) &&
-          0.0 <= n_flagged_elements_recursive_tol) {
-        n_flagged_current_tol = n_flagged_elements_recursive_tol;
-      }
+      flagged_thresh = 0.0;
     }
-    if (n_flagged_rel <= n_flagged_current_tol) {
-      RHEA_GLOBAL_INFOF (
-          "%s -- iter %i: Stop AMR, rel. #elements flagged %g <= tol. %g\n",
-          this_fn_name, iter, n_flagged_rel, n_flagged_current_tol);
+    if (0 < iter && isfinite (flagged_elements_thresh_cycle) &&
+        0.0 <= flagged_elements_thresh_cycle) {
+      flagged_thresh = flagged_elements_thresh_cycle;
+    }
+
+    /* stop AMR if not enough elements were flagged */
+    if (flagged_rel <= flagged_thresh) {
+      RHEA_GLOBAL_INFOF ("%s -- iter %i: Stop AMR, "
+                         "rel. #elements flagged %g <= flagged threshold %g\n",
+                         __func__, iter, flagged_rel, flagged_thresh);
       break;
     }
 
@@ -379,25 +420,26 @@ rhea_amr (p4est_t *p4est,
     /* initialize data at first iteration */
     if (0 == iter && data_initialize_fn != NULL) {
       data_initialize_fn (p4est, data);
+      data_altered = 1;
     }
+
+    /* update previous element count */
+    n_elements_prev = n_elements_curr;
 
     /* coarsen p4est */
     p4est_coarsen (p4est, coarsen_recursively, coarsen_fn, init_fn);
-
-    /* print statistics */
-    //TODO
+    n_elements_coar = rhea_amr_get_global_n_elems (p4est);
+    RHEA_ASSERT (0 <= n_elements_prev - n_elements_coar);
 
     /* refine p4est */
     p4est_refine (p4est, refine_recursively, refine_fn, init_fn);
-
-    /* print statistics */
-    //TODO
+    n_elements_refn = rhea_amr_get_global_n_elems (p4est);
+    RHEA_ASSERT (0 <= n_elements_refn - n_elements_coar);
 
     /* balance p4est */
     p4est_balance (p4est, P4EST_CONNECT_FULL, init_fn);
-
-    /* print statistics */
-    //TODO
+    n_elements_curr = rhea_amr_get_global_n_elems (p4est);
+    RHEA_ASSERT (0 <= n_elements_curr - n_elements_refn);
 
     /* project data onto adapted mesh */
     if (data_project_fn != NULL) {
@@ -411,24 +453,54 @@ rhea_amr (p4est_t *p4est,
     /* partition p4est */
     p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
 
-    /* print statistics */
-    //TODO
-
     /* partition data */
     if (data_partition_fn != NULL) {
       data_partition_fn (p4est, data);
     }
-  } /* END: AMR iter */
+
+    /*
+     * Check Element Count Changes
+     */
+
+    /* stop AMR if not enough elements were actually changed due to
+     * coarsening-balancing tradeoff, i.e., the following is low:
+     *   (n_elements_refn - n_elements_coar) / n_elements_prev
+     */
+    changed_rel = fabs ((double) (n_elements_curr - n_elements_prev)) /
+                  (double) n_elements_prev;
+    refined_rel = (double) (n_elements_refn - n_elements_coar) /
+                  (double) n_elements_prev;
+    if (changed_rel <= flagged_thresh && 2.0*refined_rel <= flagged_thresh) {
+      RHEA_GLOBAL_INFOF (
+          "%s -- iter %i: Stop AMR, rel. #elements changed %g and "
+          "2x rel. #elements refined %g <= flagged threshold %g\n",
+          __func__, iter, changed_rel, refined_rel, flagged_thresh);
+      break;
+    }
+  } /* END: AMR iterations */
+
+  /* print message if stopped due to reaching max #cycles */
+  if (iter_max == iter) {
+    RHEA_GLOBAL_INFOF ("%s -- iter %i: Stop AMR, max #cycles reached\n",
+                       __func__, iter - 1);
+  }
 
   /* finalize data if AMR was performed */
-  if (0 < iter && data_finalize_fn != NULL) {
+  if (data_altered && data_finalize_fn != NULL) {
     data_finalize_fn (p4est, data);
   }
 
   /* print statistics */
-  //TODO
+  RHEA_GLOBAL_INFOF ("%s: #Cycles %i, #elements changed from %lli to %lli\n",
+                     __func__, iter,
+                     (long long int) n_elements_begin,
+                     (long long int) n_elements_curr);
+  if (0 < iter && rhea_amr_log_level_max) {
+    RHEA_GLOBAL_INFOF ("%s: Max level of mesh refinement %i\n", __func__,
+                       rhea_amr_get_global_max_level (p4est));
+  }
 
-  RHEA_GLOBAL_INFOF ("Done %s (#iterations %i)\n", this_fn_name, iter);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 
   /* return number of performed AMR iterations */
   return iter;
@@ -551,7 +623,7 @@ rhea_amr_get_relative_global_num_flagged (const p4est_locidx_t n_flagged_loc,
   //TODO `sc_MPI_INT64_T` does not exist
 
   /* return relative number of flagged quadrants */
-  return ((double) n_glo) / ((double) p4est->global_num_quadrants);
+  return (double) n_glo / (double) p4est->global_num_quadrants;
 }
 
 double

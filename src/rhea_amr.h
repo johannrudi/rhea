@@ -79,9 +79,9 @@ typedef void      (*rhea_amr_data_partition_fn_t) (p4est_t *p4est, void *data);
  * Performs adaptive coarsening and refinement of a p4est mesh.
  */
 int                 rhea_amr (p4est_t *p4est,
-                              const double n_flagged_elements_tol,
-                              const int amr_recursive_count,
-                              const double n_flagged_elements_recursive_tol,
+                              const int n_cycles,
+                              const double flagged_elements_thresh_begin,
+                              const double flagged_elements_thresh_cycle,
                               rhea_amr_flag_elements_fn_t flag_elements_fn,
                               void *flag_elements_data,
                               rhea_amr_data_initialize_fn_t data_initialize_fn,
