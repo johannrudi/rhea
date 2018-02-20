@@ -11,6 +11,7 @@
 #include <ymir_mass_vec.h>
 #include <ymir_pressure_vec.h>
 #include <ymir_vec_optimized.h>
+#include <ymir_monitor.h>
 #include <mangll_fields.h>
 
 #if (0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
@@ -32,7 +33,7 @@
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MIN (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MAX (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_START (0)
-#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_MAX (100)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_MAX (P4EST_MAXLEVEL)
 
 /* initialize options */
 double              rhea_stokes_problem_amr_n_flagged_elements_tol =
@@ -461,7 +462,7 @@ rhea_stokes_problem_amr_print_indicator_statistics (
                                         const double ind_loc_sum,
                                         const p4est_locidx_t n_flagged_coarsen,
                                         const p4est_locidx_t n_flagged_refine,
-                                        const char *this_fn_name,
+                                        const char *func_name,
                                         p4est_t *p4est)
 {
   sc_MPI_Comm         mpicomm = p4est->mpicomm;
@@ -476,7 +477,7 @@ rhea_stokes_problem_amr_print_indicator_statistics (
   mpiret = sc_MPI_Allreduce (&ind_loc_sum, &ind_glo_sum, 1, sc_MPI_DOUBLE,
                              sc_MPI_SUM, mpicomm); SC_CHECK_MPI (mpiret);
   RHEA_GLOBAL_INFOF ("%s: min %.3e, max %.3e, mean %.3e\n",
-                     this_fn_name, ind_glo_min, ind_glo_max,
+                     func_name, ind_glo_min, ind_glo_max,
                      ind_glo_sum / (double) p4est->global_num_quadrants);
 
   n_loc[0] = (int64_t) n_flagged_coarsen;
@@ -485,18 +486,13 @@ rhea_stokes_problem_amr_print_indicator_statistics (
                              mpicomm); SC_CHECK_MPI (mpiret);
   //TODO `sc_MPI_INT64_T` does not exist
   RHEA_GLOBAL_INFOF ("%s: #flagged coarsen %li, refine %li, sum %li\n",
-                     this_fn_name, n_glo[0], n_glo[1], n_glo[0] + n_glo[1]);
+                     func_name, n_glo[0], n_glo[1], n_glo[0] + n_glo[1]);
 }
 #endif
 
 static double
 rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
 {
-#if (0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE || \
-     0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
-  const char         *this_fn_name =
-                        "rhea_stokes_problem_amr_flag_weakzone_peclet_fn";
-#endif
   rhea_stokes_problem_amr_data_t *d = data;
   rhea_stokes_problem_t *stokes_problem = d->stokes_problem;
   mangll_t           *mangll = d->mangll_original;
@@ -537,7 +533,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   if (0 < ymir_vtk_get_debug_path (debug_path) && d->ymir_mesh != NULL) {
     write_vtk = 1;
     indicator_vtk = sc_dmatrix_new (d->ymir_mesh->cnodes->K, 1);
-    snprintf (path, BUFSIZ, "%s_%s", debug_path, this_fn_name);
+    snprintf (path, BUFSIZ, "%s_%s", debug_path, __func__);
   }
 #endif
 
@@ -643,7 +639,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
   rhea_stokes_problem_amr_print_indicator_statistics (
       ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coarsen,
-      n_flagged_refine, this_fn_name, p4est);
+      n_flagged_refine, __func__, p4est);
 #endif
 
   /* return relative number of flagged quadrants */
@@ -653,11 +649,6 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
 static double
 rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
 {
-#if (0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE || \
-     0 < RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
-  const char         *this_fn_name =
-                        "rhea_stokes_problem_amr_flag_viscosity_peclet_fn";
-#endif
   rhea_stokes_problem_amr_data_t *d = data;
   rhea_stokes_problem_t *stokes_problem = d->stokes_problem;
   mangll_t           *mangll = d->mangll_original;
@@ -716,7 +707,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   if (0 < ymir_vtk_get_debug_path (debug_path) && d->ymir_mesh != NULL) {
     write_vtk = 1;
     indicator_vtk = sc_dmatrix_new (d->ymir_mesh->cnodes->K, 1);
-    snprintf (path, BUFSIZ, "%s_%s", debug_path, this_fn_name);
+    snprintf (path, BUFSIZ, "%s_%s", debug_path, __func__);
   }
 #endif
 
@@ -901,7 +892,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
   rhea_stokes_problem_amr_print_indicator_statistics (
       ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coarsen,
-      n_flagged_refine, this_fn_name, p4est);
+      n_flagged_refine, __func__, p4est);
 #endif
 
   /* return relative number of flagged quadrants */
@@ -1064,8 +1055,6 @@ rhea_stokes_problem_amr_partition_field (sc_dmatrix_t *buffer_adapted,
 static void
 rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
 {
-  const char         *this_fn_name =
-                        "rhea_stokes_problem_amr_data_initialize_fn";
   rhea_stokes_problem_amr_data_t *d = data;
   ymir_vec_t         *temperature =
     rhea_stokes_problem_get_temperature (d->stokes_problem);
@@ -1075,7 +1064,7 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
   const int           has_vel_press = (velocity_pressure != NULL);
 
   RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i)\n",
-                     this_fn_name, has_temp, has_vel_press);
+                     __func__, has_temp, has_vel_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original == d->ymir_mesh->ma);
@@ -1134,13 +1123,12 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
   d->ymir_mesh = NULL;
   d->press_elem = NULL;
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 static void
 rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
 {
-  const char         *this_fn_name = "rhea_stokes_problem_amr_data_finalize_fn";
   rhea_stokes_problem_amr_data_t *d = data;
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_vel = (d->velocity_original != NULL);
@@ -1148,7 +1136,7 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   ymir_vec_t         *temperature, *velocity_pressure;
 
   RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
-                     this_fn_name, has_temp, has_vel, has_press);
+                     __func__, has_temp, has_vel, has_press);
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
   RHEA_ASSERT (d->mangll_adapted == NULL);
@@ -1222,20 +1210,19 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   rhea_stokes_problem_create_mesh_dependencies (d->stokes_problem,
                                                 d->ymir_mesh, d->press_elem);
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 static void
 rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
 {
-  const char         *this_fn_name = "rhea_stokes_problem_amr_data_project_fn";
   rhea_stokes_problem_amr_data_t *d = data;
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
 
   RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
-                     this_fn_name, has_temp, has_vel, has_press);
+                     __func__, has_temp, has_vel, has_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
@@ -1285,21 +1272,19 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
   }
   d->mangll_original = NULL;
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 static void
 rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
 {
-  const char         *this_fn_name =
-                        "rhea_stokes_problem_amr_data_partition_fn";
   rhea_stokes_problem_amr_data_t *d = data;
   const int           has_temp = (d->temperature_adapted != NULL);
   const int           has_vel = (d->velocity_adapted != NULL);
   const int           has_press = (d->pressure_adapted != NULL);
 
   RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
-                     this_fn_name, has_temp, has_vel, has_press);
+                     __func__, has_temp, has_vel, has_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original == NULL);
@@ -1343,7 +1328,7 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   d->mangll_original = d->mangll_partitioned;
   d->mangll_partitioned = NULL;
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 /******************************************************************************
@@ -1355,7 +1340,6 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
                               p4est_t *p4est,
                               rhea_discretization_options_t *discr_options)
 {
-  const char         *this_fn_name = "rhea_stokes_problem_init_amr";
   const char         *type_name = rhea_stokes_problem_amr_init_type_name;
   const double        tol_min = rhea_stokes_problem_amr_init_tol_min;
   const double        tol_max = rhea_stokes_problem_amr_init_tol_max;
@@ -1375,7 +1359,7 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
     return 0;
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", this_fn_name, type_name);
+  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, type_name);
 
   /* check input */
   RHEA_ASSERT (p4est != NULL);
@@ -1403,7 +1387,7 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data->tol_max = tol_max;
 
   /* perform AMR */
-  amr_iter = rhea_amr (p4est, n_flagged_tol, recursive_iter,
+  amr_iter = rhea_amr (p4est, recursive_iter, n_flagged_tol,
                        n_flagged_recursive_tol, flag_fn, flag_fn_data,
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
@@ -1413,7 +1397,14 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   /* destroy */
   rhea_stokes_problem_amr_data_destroy (amr_data);
 
-  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, type_name);
+  /* print mesh statistics */
+  if (0 < amr_iter) {
+    ymir_monitor_print_global_mesh_stats (
+        rhea_stokes_problem_get_ymir_mesh (stokes_problem),
+        rhea_stokes_problem_get_press_elem (stokes_problem));
+  }
+
+  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, type_name);
 
   /* return number of performed AMR iterations */
   return amr_iter;
@@ -1425,7 +1416,6 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
                                    rhea_discretization_options_t *discr_options,
                                    const int nonlinear_iter)
 {
-  const char         *this_fn_name = "rhea_stokes_problem_nonlinear_amr";
   const char         *type_name = rhea_stokes_problem_amr_nonlinear_type_name;
   const double        tol_min = rhea_stokes_problem_amr_nonlinear_tol_min;
   const double        tol_max = rhea_stokes_problem_amr_nonlinear_tol_max;
@@ -1448,7 +1438,7 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
     return 0;
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", this_fn_name, type_name);
+  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, type_name);
 
   /* check input */
   RHEA_ASSERT (p4est != NULL);
@@ -1471,7 +1461,7 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data->tol_max = tol_max;
 
   /* perform AMR */
-  amr_iter = rhea_amr (p4est, n_flagged_tol, recursive_iter,
+  amr_iter = rhea_amr (p4est, recursive_iter, n_flagged_tol,
                        n_flagged_recursive_tol, flag_fn, flag_fn_data,
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
@@ -1481,7 +1471,14 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
   /* destroy */
   rhea_stokes_problem_amr_data_destroy (amr_data);
 
-  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, type_name);
+  /* print mesh statistics */
+  if (0 < amr_iter) {
+    ymir_monitor_print_global_mesh_stats (
+        rhea_stokes_problem_get_ymir_mesh (stokes_problem),
+        rhea_stokes_problem_get_press_elem (stokes_problem));
+  }
+
+  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, type_name);
 
   /* return number of performed AMR iterations */
   return amr_iter;
@@ -1492,7 +1489,6 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
                          p4est_t *p4est,
                          rhea_discretization_options_t *discr_options)
 {
-  const char         *this_fn_name = "rhea_stokes_problem_amr";
   //TODO
   const double        tol_min = rhea_stokes_problem_amr_init_tol_min;
   const double        tol_max = rhea_stokes_problem_amr_init_tol_max;
@@ -1505,7 +1501,7 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
   void                           *flag_fn_data;
   int                 amr_iter;
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Into %s\n", __func__);
 
   /* create AMR data */
   amr_data = rhea_stokes_problem_amr_data_new (stokes_problem, discr_options);
@@ -1518,7 +1514,7 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data->tol_max = tol_max;
 
   /* perform AMR */
-  amr_iter = rhea_amr (p4est, n_flagged_tol, recursive_iter,
+  amr_iter = rhea_amr (p4est, recursive_iter, n_flagged_tol,
                        n_flagged_recursive_tol, flag_fn, flag_fn_data,
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
@@ -1528,7 +1524,14 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
   /* destroy */
   rhea_stokes_problem_amr_data_destroy (amr_data);
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  /* print mesh statistics */
+  if (0 < amr_iter) {
+    ymir_monitor_print_global_mesh_stats (
+        rhea_stokes_problem_get_ymir_mesh (stokes_problem),
+        rhea_stokes_problem_get_press_elem (stokes_problem));
+  }
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 
   /* return number of performed AMR iterations */
   return amr_iter;
