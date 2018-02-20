@@ -11,12 +11,14 @@
 #define RHEA_AMR_P4EST_PARTITION_WEIGHT_FN NULL
 
 /* default options */
+#define RHEA_AMR_DEFAULT_N_ELEMENTS_MAX (NAN)
 #define RHEA_AMR_DEFAULT_INIT_REFINE_NAME "uniform"
 #define RHEA_AMR_DEFAULT_INIT_REFINE_DEPTH_M NULL
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN (-1)
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX (-1)
 #define RHEA_AMR_DEFAULT_LOG_LEVEL_MAX (1)
 
+double              rhea_amr_n_elements_max = RHEA_AMR_DEFAULT_N_ELEMENTS_MAX;
 char               *rhea_amr_init_refine_name =
   RHEA_AMR_DEFAULT_INIT_REFINE_NAME;
 char               *rhea_amr_init_refine_depth_m =
@@ -35,6 +37,10 @@ rhea_amr_add_options (ymir_options_t * opt_sup)
 
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
+
+  YMIR_OPTIONS_D, "num-elements-max", '\0',
+    &(rhea_amr_n_elements_max), RHEA_AMR_DEFAULT_N_ELEMENTS_MAX,
+    "Max #elements above which the mesh is not refined further",
 
   YMIR_OPTIONS_S, "init-refine", '\0',
     &(rhea_amr_init_refine_name), RHEA_AMR_DEFAULT_INIT_REFINE_NAME,
@@ -349,13 +355,16 @@ rhea_amr (p4est_t *p4est,
           rhea_amr_data_partition_fn_t data_partition_fn,
           void *data)
 {
+  const double        n_elements_maxd = rhea_amr_n_elements_max;
+  double              n_elements_estd;
+  int                 reached_n_elements_max = 0;
   const p4est_gloidx_t  n_elements_begin = rhea_amr_get_global_n_elems (p4est);
   p4est_gloidx_t      n_elements_curr = n_elements_begin;
   p4est_gloidx_t      n_elements_prev, n_elements_coar, n_elements_refn;
   const int           iter_max = SC_MAX (1, n_cycles);
   int                 iter;
-  double              flagged_rel, flagged_thresh;
-  double              changed_rel, refined_rel;
+  double              flagged_thresh, flagged_rel;
+  double              coarsened_rel, refined_rel, changed_rel;
   int                 data_altered = 0;
   /* arguments for coarsening/refinement */
   const int           coarsen_recursively = 0;
@@ -369,7 +378,6 @@ rhea_amr (p4est_t *p4est,
 
   //TODO set flag `uniform` for if a uniform refinement function is detected;
   //     then avoid p4est calls to balance/partition
-  //TODO set limit for max #elements
 
   RHEA_GLOBAL_INFOF (
       "Into %s (#cycles %i, flagged elements threshold begin %g, "
@@ -430,11 +438,28 @@ rhea_amr (p4est_t *p4est,
     p4est_coarsen (p4est, coarsen_recursively, coarsen_fn, init_fn);
     n_elements_coar = rhea_amr_get_global_n_elems (p4est);
     RHEA_ASSERT (0 <= n_elements_prev - n_elements_coar);
+    coarsened_rel = (double) (n_elements_prev - n_elements_coar) /
+                    (double) n_elements_prev;
+
+    /* check if max #elements is estimated to be reached */
+    n_elements_estd = (flagged_rel - coarsened_rel) * (double) n_elements_prev +
+                      (double) n_elements_coar;
+    if (n_elements_maxd < n_elements_estd) {
+      reached_n_elements_max = 1;
+      RHEA_GLOBAL_INFOF (
+          "%s -- iter %i: No refinement, est. #elements %g above "
+          "max #elements %g\n", __func__, iter,
+          n_elements_estd, n_elements_maxd);
+    }
 
     /* refine p4est */
-    p4est_refine (p4est, refine_recursively, refine_fn, init_fn);
+    if (!reached_n_elements_max) {
+      p4est_refine (p4est, refine_recursively, refine_fn, init_fn);
+    }
     n_elements_refn = rhea_amr_get_global_n_elems (p4est);
     RHEA_ASSERT (0 <= n_elements_refn - n_elements_coar);
+    refined_rel = (double) (n_elements_refn - n_elements_coar) /
+                  (double) n_elements_coar;
 
     /* balance p4est */
     p4est_balance (p4est, P4EST_CONNECT_FULL, init_fn);
@@ -462,19 +487,28 @@ rhea_amr (p4est_t *p4est,
      * Check Element Count Changes
      */
 
+    /* stop AMR if max #elements was estimated to be reached */
+    if (reached_n_elements_max) {
+      RHEA_GLOBAL_INFOF (
+          "%s -- iter %i: Stop AMR, est. #elements %g above "
+          "max #elements %g\n", __func__, iter,
+          n_elements_estd, n_elements_maxd);
+      iter++; /* adjust #cycles */
+      break;
+    }
+
     /* stop AMR if not enough elements were actually changed due to
      * coarsening-balancing tradeoff, i.e., the following is low:
      *   (n_elements_refn - n_elements_coar) / n_elements_prev
      */
     changed_rel = fabs ((double) (n_elements_curr - n_elements_prev)) /
                   (double) n_elements_prev;
-    refined_rel = (double) (n_elements_refn - n_elements_coar) /
-                  (double) n_elements_prev;
     if (changed_rel <= flagged_thresh && 2.0*refined_rel <= flagged_thresh) {
       RHEA_GLOBAL_INFOF (
           "%s -- iter %i: Stop AMR, rel. #elements changed %g and "
           "2x rel. #elements refined %g <= flagged threshold %g\n",
           __func__, iter, changed_rel, refined_rel, flagged_thresh);
+      iter++; /* adjust #cycles */
       break;
     }
   } /* END: AMR iterations */
