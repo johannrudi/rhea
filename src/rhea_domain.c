@@ -495,7 +495,6 @@ rhea_domain_align_radius_with_mesh (double radius, const int level,
 void
 rhea_domain_process_options (rhea_domain_options_t *opt)
 {
-  const char         *this_fn_name = "rhea_domain_process_options";
   double              scal_len_to_km, radius;
 
   /* set shape of domain */
@@ -643,7 +642,7 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
 
   /* print domain properties */
   RHEA_GLOBAL_INFO ("========================================\n");
-  RHEA_GLOBAL_INFOF ("%s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("%s\n", __func__);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   RHEA_GLOBAL_INFOF ("  shape:                    %s (ID: %i)\n",
                      rhea_domain_shape_name, opt->shape);

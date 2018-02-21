@@ -214,7 +214,6 @@ void
 rhea_topography_data_create (rhea_topography_options_t *opt,
                              sc_MPI_Comm mpicomm)
 {
-  const char         *this_fn_name = "rhea_topography_data_create";
   rhea_domain_options_t *domain_options = opt->domain_options;
   int                 n_read;
   int                 create_coordinates;
@@ -270,7 +269,7 @@ rhea_topography_data_create (rhea_topography_options_t *opt,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Into %s\n", __func__);
 
   /* check input */
   RHEA_ASSERT (0 < opt->n_points);
@@ -302,7 +301,7 @@ rhea_topography_data_create (rhea_topography_options_t *opt,
       RHEA_ABORT_NOT_REACHED ();
     }
 
-    RHEA_GLOBAL_INFOF ("%s: Number of topography points: %i\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("%s: Number of topography points: %i\n", __func__,
                        opt->n_points);
   }
 
@@ -383,7 +382,7 @@ rhea_topography_data_create (rhea_topography_options_t *opt,
     RHEA_FREE (labels);
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 void

@@ -248,7 +248,6 @@ rhea_weakzone_is_valid (ymir_vec_t *vec)
 void
 rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
 {
-  const char         *this_fn_name = "rhea_weakzone_data_create";
   rhea_domain_options_t *domain_options = opt->domain_options;
   int                 n_read;
   int                 create_coordinates;
@@ -310,7 +309,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s (type %i)\n", this_fn_name, opt->type);
+  RHEA_GLOBAL_INFOF ("Into %s (type %i)\n", __func__, opt->type);
 
   /* check input */
   RHEA_ASSERT (0 < opt->n_points);
@@ -343,7 +342,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
       RHEA_ABORT_NOT_REACHED ();
     }
 
-    RHEA_GLOBAL_INFOF ("%s: Number of weak zone points: %i\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("%s: Number of weak zone points: %i\n", __func__,
                        opt->n_points);
 
     /* write to file */
@@ -442,7 +441,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     RHEA_FREE (factors);
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s (type %i)\n", this_fn_name, opt->type);
+  RHEA_GLOBAL_INFOF ("Done %s (type %i)\n", __func__, opt->type);
 }
 
 void
