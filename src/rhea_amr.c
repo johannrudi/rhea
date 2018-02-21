@@ -525,10 +525,12 @@ rhea_amr (p4est_t *p4est,
   }
 
   /* print statistics */
-  RHEA_GLOBAL_INFOF ("%s: #Cycles %i, #elements changed from %lli to %lli\n",
-                     __func__, iter,
-                     (long long int) n_elements_begin,
-                     (long long int) n_elements_curr);
+  RHEA_GLOBAL_INFOF (
+      "%s: #Cycles %i, #elements changed from %lli to %lli (%+.1f%%)\n",
+      __func__, iter,
+      (long long int) n_elements_begin, (long long int) n_elements_curr,
+      (double) (n_elements_curr - n_elements_begin) /
+      (double) n_elements_curr * 100.0);
   if (0 < iter && rhea_amr_log_level_max) {
     RHEA_GLOBAL_INFOF ("%s: Max level of mesh refinement %i\n", __func__,
                        rhea_amr_get_global_max_level (p4est));
