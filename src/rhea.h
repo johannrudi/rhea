@@ -118,6 +118,9 @@ void                rhea_performance_monitor_print (const char *title,
 void                rhea_performance_monitor_start (const int monitor_index);
 void                rhea_performance_monitor_stop_add (const int monitor_index);
 
+/**
+ * Starts/stops a single performance monitor with MPI barrier.
+ */
 void                rhea_performance_monitor_start_barrier (
                                                       const int monitor_index);
 void                rhea_performance_monitor_stop_add_barrier (
