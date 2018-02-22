@@ -513,9 +513,7 @@ newton_polynomial_setup_mesh (p4est_t **p4est,
                               rhea_domain_options_t *domain_options,
                               rhea_discretization_options_t *discr_options)
 {
-  const char         *this_fn_name = "newton_polynomial_setup_mesh";
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* create p4est */
   *p4est = rhea_discretization_p4est_new (mpicomm, discr_options,
@@ -528,7 +526,7 @@ newton_polynomial_setup_mesh (p4est_t **p4est,
   rhea_discretization_ymir_mesh_new_from_p4est (ymir_mesh, NULL, *p4est,
                                                 discr_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
 }
 
 /**
@@ -555,11 +553,10 @@ static void
 newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
                                 ymir_mesh_t *ymir_mesh)
 {
-  const char         *this_fn_name = "newton_polynomial_setup_newton";
   ymir_vec_t         *tmp_vec = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
   newton_polynomial_problem_t *poly_problem;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* initialize data for Newton problem */
   poly_problem = RHEA_ALLOC (newton_polynomial_problem_t, 1);
@@ -582,7 +579,7 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
     poly_problem->coeff[2] = coeff[2];
 
     RHEA_GLOBAL_INFOF ("%s: coefficient of polynomial (%g, %g, %g)\n",
-                       this_fn_name, coeff[0], coeff[1], coeff[2]);
+                       __func__, coeff[0], coeff[1], coeff[2]);
 
     RHEA_FREE (coeff);
   }
@@ -628,7 +625,7 @@ newton_polynomial_setup_newton (rhea_newton_problem_t **nl_problem,
   /* destroy */
   ymir_vec_destroy (tmp_vec);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
 }
 
 /**
@@ -640,10 +637,9 @@ newton_polynomial_setup_clear_all (rhea_newton_problem_t *nl_problem,
                                    ymir_mesh_t *ymir_mesh,
                                    rhea_discretization_options_t *discr_options)
 {
-  const char         *this_fn_name = "newton_polynomial_setup_clear_all";
   newton_polynomial_problem_t *poly_problem;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* destroy data of Newton problem */
   poly_problem =
@@ -665,7 +661,7 @@ newton_polynomial_setup_clear_all (rhea_newton_problem_t *nl_problem,
   /* destroy boundary data */
   rhea_discretization_boundary_clear (discr_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
 }
 
 /**
@@ -674,19 +670,17 @@ newton_polynomial_setup_clear_all (rhea_newton_problem_t *nl_problem,
 int
 main (int argc, char **argv)
 {
-  const char         *this_fn_name = "newton_polynomial:main";
+  static const char   func_name[] = "newton_polynomial:main";
   /* MPI */
-  MPI_Comm            mpicomm = MPI_COMM_WORLD;
+  MPI_Comm            mpicomm = sc_MPI_COMM_WORLD;
   int                 mpisize, mpirank, ompsize;
-  int                 mpiret;
   /* options */
   ymir_options_t     *opt;
   rhea_domain_options_t         domain_options;
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
   /* options local to this function */
-  int                 production_run;
-  char               *vtk_write_solution_path;
+  char               *vtk_solution_path;
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -695,47 +689,24 @@ main (int argc, char **argv)
   ymir_vec_t         *solution;
 
   /*
-   * Initialize Libraries
+   * Initialize Program
    */
 
-  /* initialize rhea and sub-packages */
-  rhea_initialize (argc, argv, mpicomm);
+  /* begin program initialization */
+  rhea_init_begin (&mpisize, &mpirank, &ompsize, argc, argv, mpicomm);
 
-  /* get parallel environment */
-  mpiret = MPI_Comm_size (mpicomm, &mpisize); YMIR_CHECK_MPI (mpiret);
-  mpiret = MPI_Comm_rank (mpicomm, &mpirank); YMIR_CHECK_MPI (mpiret);
-
-#ifdef RHEA_ENABLE_OPENMP
-  ompsize = omp_get_max_threads ();
-#else
-  ompsize = 1;
-#endif
-
-  /*
-   * Define & Parse Options
-   */
-
+  /* create options */
   opt = ymir_options_global_new (argv[0] /* program path */);
+  rhea_add_options_base (opt);
 
+  /* add options of this program */
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
 
-  /* basic options */
-  YMIR_OPTIONS_CALLBACK, "help", 'h', 0 /* no callback fn args */,
-    ymir_options_print_usage_and_exit_fn, NULL /* no arg usage */,
-    "Print usage and exit",
-  YMIR_OPTIONS_INIFILE, "options-file", 'f',
-    ".ini file with option values",
-
-  /* performance & monitoring options */
-  YMIR_OPTIONS_B, "production-run", '\0',
-    &(production_run), 0,
-    "Execute as a production run (to reduce some overhead and checks)",
-
   /* vtk output options */
   YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
-    &(vtk_write_solution_path), NULL,
-    "File path for vtk files for the solution of the Stokes problem",
+    &(vtk_solution_path), NULL,
+    "VTK file path for the solution of the Newton solver",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -743,27 +714,17 @@ main (int argc, char **argv)
   /* add sub-options */
   rhea_add_options_newton (opt);
 
-  /* parse options */
-  {
-    int                 optret;
-
-    optret = ymir_options_parse (SC_LP_INFO, opt, argc, argv);
-    if (optret < 0) { /* if parsing was not successful */
-      ymir_options_print_usage (SC_LP_INFO, opt, NULL /* args usage */);
-      RHEA_GLOBAL_INFO ("Option parsing failed\n");
-      exit (0);
-    }
-  }
+  /* end program initialization */
+  rhea_init_end (opt);
 
   /*
-   * Initialize Main Program
+   * Print Environment and Options
    */
 
   RHEA_GLOBAL_PRODUCTIONF (
-      "Into %s (production %i)\n", this_fn_name, production_run);
+      "Into %s (production %i)\n", func_name, rhea_production_run_get ());
   RHEA_GLOBAL_PRODUCTIONF (
       "Parallel environment: MPI size %i, OpenMP size %i\n", mpisize, ompsize);
-  ymir_set_up (argc, argv, mpicomm, production_run);
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
@@ -802,7 +763,7 @@ main (int argc, char **argv)
    * Output of Solution
    */
 
-  if (vtk_write_solution_path != NULL) {
+  if (vtk_solution_path != NULL) {
     newton_polynomial_problem_t *poly_problem =
       (newton_polynomial_problem_t *) rhea_newton_problem_get_data (nl_problem);
     ymir_vec_t         *dist = ymir_vec_template (solution);
@@ -811,7 +772,7 @@ main (int argc, char **argv)
     newton_polynomial_compute_distance (dist, solution, poly_problem);
 
     /* write vtk file */
-    ymir_vtk_write (ymir_mesh, vtk_write_solution_path,
+    ymir_vtk_write (ymir_mesh, vtk_solution_path,
                     poly_problem->data_a, "data_a",
                     poly_problem->data_b, "data_b",
                     solution, "solution",
@@ -822,7 +783,7 @@ main (int argc, char **argv)
   }
 
   /*
-   * Finalize
+   * Clear Newton Problem & Mesh
    */
 
   /* destroy */
@@ -832,11 +793,15 @@ main (int argc, char **argv)
   newton_polynomial_setup_clear_all (nl_problem, p4est, ymir_mesh,
                                      &discr_options);
 
+  /*
+   * Finalize
+   */
+
   /* destroy options */
   ymir_options_global_destroy ();
 
   /* print that this function is ending */
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", func_name);
 
   /* finalize rhea */
   rhea_finalize ();

@@ -10,76 +10,33 @@
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
-#include <ymir_perf_counter.h>
-#include <ymir_monitor.h>
 
 /******************************************************************************
  * Monitoring
  *****************************************************************************/
 
-/* perfomance counters */
+/* perfomance monitor tags and names */
 typedef enum
 {
-  EARTH_PERF_COUNTER_SETUP_MESH,
-  EARTH_PERF_COUNTER_SETUP_STOKES,
-  EARTH_PERF_COUNTER_SETUP_SOLVER,
-  EARTH_PERF_COUNTER_SOLVE,
-//EARTH_PERF_COUNTER_MATVECS,
-  EARTH_PERF_COUNTER_TOTAL,
-  EARTH_PERF_COUNTER_N
+  RHEA_MAIN_PERFMON_SETUP_MESH,
+  RHEA_MAIN_PERFMON_SETUP_STOKES,
+  RHEA_MAIN_PERFMON_SETUP_SOLVER,
+  RHEA_MAIN_PERFMON_SOLVE,
+//RHEA_MAIN_PERFMON_MATVECS, //TODO
+  RHEA_MAIN_PERFMON_TOTAL,
+  RHEA_MAIN_PERFMON_N
 }
-earth_perf_counter_idx_t;
-ymir_perf_counter_t earth_perf_counter[EARTH_PERF_COUNTER_N];
-const char         *earth_perf_counter_name[EARTH_PERF_COUNTER_N] =
+rhea_main_performance_monitor_idx_t;
+
+static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 {
   "Setup Mesh",
   "Setup Stokes",
   "Setup Solver",
   "Solve",
-//"All matvecs (setup + solve)",
+//"All matvecs (setup + solve)", //TODO
   "Total"
 };
-sc_statinfo_t       earth_perf_stats[
-                      EARTH_PERF_COUNTER_N * YMIR_PERF_COUNTER_N_STATS];
-char                earth_perf_stats_name[
-                      EARTH_PERF_COUNTER_N * YMIR_PERF_COUNTER_N_STATS][
-                      YMIR_PERF_COUNTER_NAME_SIZE];
-int                 earth_perf_n_stats;
-
-/**
- * Initializes performance counters.
- */
-static void
-earth_perf_counter_init (const int active)
-{
-  ymir_perf_counter_init_all (earth_perf_counter, earth_perf_counter_name,
-                              EARTH_PERF_COUNTER_N, active);
-}
-
-/**
- * Gathers statistics of performance counters.
- */
-static void
-earth_perf_counter_gather (MPI_Comm mpicomm,
-                           const int print_wtime,
-                           const int print_n_calls,
-                           const int print_flops)
-{
-  earth_perf_n_stats = ymir_perf_counter_gather_stats (
-      earth_perf_counter, EARTH_PERF_COUNTER_N,
-      earth_perf_stats, earth_perf_stats_name,
-      mpicomm, print_wtime, print_n_calls, print_flops);
-}
-
-/**
- * Prints statistics of performance counters.
- */
-static void
-earth_perf_counter_print ()
-{
-  ymir_perf_counter_print_stats (earth_perf_stats, earth_perf_n_stats,
-                                 "Earth Simulation");
-}
 
 /******************************************************************************
  * Main Program
@@ -93,7 +50,7 @@ main (int argc, char **argv)
 {
   static const char   func_name[] = "earth:main";
   /* parallel environment */
-  MPI_Comm            mpicomm = MPI_COMM_WORLD;
+  MPI_Comm            mpicomm = sc_MPI_COMM_WORLD;
   int                 mpisize, mpirank, ompsize;
   /* options */
   ymir_options_t               *opt;
@@ -162,19 +119,19 @@ main (int argc, char **argv)
   /* end program initialization */
   rhea_init_end (opt);
 
-  /* initialize performance counters */
-  earth_perf_counter_init (rhea_get_monitor_performance ());
+  /* initialize performance monitors */
+  rhea_performance_monitor_init (rhea_main_performance_monitor_name,
+                                 RHEA_MAIN_PERFMON_N);
 
-  /* start performance counters */
-  ymir_perf_counter_start_barrier (
-      &earth_perf_counter[EARTH_PERF_COUNTER_TOTAL], mpicomm);
+  /* start performance monitors */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_TOTAL);
 
   /*
    * Print Environment and Options
    */
 
   RHEA_GLOBAL_PRODUCTIONF (
-      "Into %s (production %i)\n", func_name, rhea_get_production_run ());
+      "Into %s (production %i)\n", func_name, rhea_production_run_get ());
   RHEA_GLOBAL_PRODUCTIONF (
       "Parallel environment: MPI size %i, OpenMP size %i\n", mpisize, ompsize);
 
@@ -188,25 +145,21 @@ main (int argc, char **argv)
    * Setup Mesh
    */
 
-  ymir_perf_counter_start_barrier (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SETUP_MESH], mpicomm);
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_MESH);
   example_share_mesh_new (&p4est, &ymir_mesh, &press_elem, mpicomm,
                           &domain_options, &topo_options, &discr_options);
-  ymir_perf_counter_stop_add (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SETUP_MESH]);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_MESH);
 
   /*
    * Setup Stokes Problem
    */
 
-  ymir_perf_counter_start_barrier (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SETUP_STOKES], mpicomm);
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_STOKES);
   example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &weak_options, &visc_options,
                             &newton_options, p4est, &discr_options,
                             vtk_solver_path);
-  ymir_perf_counter_stop_add (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SETUP_STOKES]);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_STOKES);
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
@@ -217,22 +170,18 @@ main (int argc, char **argv)
    */
 
   /* setup solver */
-  ymir_perf_counter_start_barrier (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SETUP_SOLVER], mpicomm);
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_SOLVER);
   rhea_stokes_problem_setup_solver (stokes_problem);
-  ymir_perf_counter_stop_add (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SETUP_SOLVER]);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_SOLVER);
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
 
   /* run solver */
-  ymir_perf_counter_start_barrier (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SOLVE], mpicomm);
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE);
   rhea_stokes_problem_solve (&sol_vel_press, solver_iter_max, solver_rel_tol,
                              stokes_problem);
-  ymir_perf_counter_stop_add (
-      &earth_perf_counter[EARTH_PERF_COUNTER_SOLVE]);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SOLVE);
 
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
@@ -259,31 +208,16 @@ main (int argc, char **argv)
    * Finalize
    */
 
-  /* stop performance counters */
-  ymir_perf_counter_stop_add_barrier (
-      &earth_perf_counter[EARTH_PERF_COUNTER_TOTAL], mpicomm);
+  /* stop performance monitors */
+  rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_TOTAL);
 
   /* print performance statistics */
-  if (rhea_get_monitor_performance ()) {
-    /* print ymir performance statistics */
-  //ymir_gmg_hierarchy_mesh_perf_counter_print ();   /* GMG mesh */
-  //ymir_stress_op_perf_counter_print ();            /* Stress Op */
-  //ymir_stress_pc_perf_counter_print ();            /* Stress PC */
-  //ymir_gmg_hierarchy_stress_perf_counter_print (); /* GMG stress */
-  //ymir_stiff_op_perf_counter_print ();             /* Stiffness Op */
-  //ymir_stiff_pc_perf_counter_print ();             /* Stiffness PC */
-  //ymir_gmg_hierarchy_stiff_perf_counter_print ();  /* GMG stiffness */
-  //ymir_pressure_vec_perf_counter_print ();         /* B^T or B */
-  //ymir_bbt_perf_counter_print ();                  /* BB^T */
-  //ymir_bfbt_perf_counter_print ();                 /* BFBT */
-  //ymir_stokes_op_perf_counter_print ();            /* Stokes Op */
-  //ymir_stokes_pc_perf_counter_print ();            /* Stokes PC */
-
-    /* gather & print main performance statistics */
-    earth_perf_counter_gather (mpicomm, 1 /* wtime */, 0 /* #calls */,
-                               0 /* flops */);
-    earth_perf_counter_print ();
-  }
+  rhea_performance_monitor_print (func_name,
+                                  1 /* print wtime */,
+                                  0 /* print #calls */,
+                                  0 /* print flops */,
+                                  0 /* print ymir */); //TODO turn on ymir
+  rhea_performance_monitor_finalize ();
 
   /* destroy options */
   ymir_options_global_destroy ();

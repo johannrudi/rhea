@@ -21,9 +21,9 @@
 int
 main (int argc, char **argv)
 {
-  const char         *this_fn_name = "yielding:main";
+  static const char   func_name[] = "yielding:main";
   /* parallel environment */
-  MPI_Comm            mpicomm = MPI_COMM_WORLD;
+  MPI_Comm            mpicomm = sc_MPI_COMM_WORLD;
   int                 mpisize, mpirank, ompsize;
   /* options */
   ymir_options_t               *opt;
@@ -37,8 +37,8 @@ main (int argc, char **argv)
   /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
-  char               *vtk_write_input_path;
-  char               *vtk_write_solution_path;
+  char               *vtk_input_path;
+  char               *vtk_solution_path;
   char               *vtk_solver_path;
 #ifdef RHEA_USE_CATALYST
   char               *vis_catalyst_script;
@@ -76,11 +76,11 @@ main (int argc, char **argv)
 
   /* vtk output options */
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
-    &(vtk_write_input_path), NULL,
-    "File path for vtk files for the input of the Stokes problem",
+    &(vtk_input_path), NULL,
+    "VTK file path for the input of the Stokes problem",
   YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
-    &(vtk_write_solution_path), NULL,
-    "File path for vtk files for the solution of the Stokes problem",
+    &(vtk_solution_path), NULL,
+    "VTK file path for the solution of the Stokes problem",
   YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
@@ -107,7 +107,7 @@ main (int argc, char **argv)
    */
 
   RHEA_GLOBAL_PRODUCTIONF (
-      "Into %s (production %i)\n", this_fn_name, rhea_get_production_run ());
+      "Into %s (production %i)\n", func_name, rhea_production_run_get ());
   RHEA_GLOBAL_PRODUCTIONF (
       "Parallel environment: MPI size %i, OpenMP size %i\n", mpisize, ompsize);
 
@@ -134,7 +134,7 @@ main (int argc, char **argv)
                             vtk_solver_path);
 
   /* write vtk of input data */
-  example_share_vtk_write_input_data (vtk_write_input_path, stokes_problem,
+  example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
                                       &temp_options, &visc_options);
 
   /*
@@ -152,7 +152,7 @@ main (int argc, char **argv)
                              stokes_problem);
 
   /* write vtk of solution */
-  example_share_vtk_write_solution (vtk_write_solution_path, sol_vel_press,
+  example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
                                     stokes_problem);
 
 #ifdef RHEA_USE_CATALYST
@@ -178,12 +178,12 @@ main (int argc, char **argv)
   }
 #endif
 
-  /* destroy */
-  rhea_velocity_pressure_destroy (sol_vel_press);
-
   /*
-   * Finalize
+   * Clear Stokes Problem & Mesh
    */
+
+  /* destroy solution */
+  rhea_velocity_pressure_destroy (sol_vel_press);
 
   /* destroy Stokes problem */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
@@ -195,11 +195,15 @@ main (int argc, char **argv)
   example_share_mesh_destroy (ymir_mesh, press_elem, p4est, &topo_options,
                               &discr_options);
 
+  /*
+   * Finalize
+   */
+
   /* destroy options */
   ymir_options_global_destroy ();
 
   /* print that this function is ending */
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", func_name);
 
   /* finalize rhea */
   rhea_finalize ();

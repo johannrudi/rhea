@@ -22,9 +22,9 @@
 int
 main (int argc, char **argv)
 {
-  const char         *this_fn_name = "io:main";
+  static const char   func_name[] = "io:main";
   /* parallel environment */
-  MPI_Comm            mpicomm = MPI_COMM_WORLD;
+  MPI_Comm            mpicomm = sc_MPI_COMM_WORLD;
   int                 mpisize, mpirank, ompsize;
   /* options */
   ymir_options_t               *opt;
@@ -38,7 +38,7 @@ main (int argc, char **argv)
   /* options local to this program */
   char               *write_vol_coord_file_path_txt;
   char               *write_surf_coord_file_path_txt;
-  char               *vtk_write_input_path;
+  char               *vtk_input_path;
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -71,8 +71,8 @@ main (int argc, char **argv)
 
   /* vtk output */
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
-    &(vtk_write_input_path), NULL,
-    "File path for vtk files for the input of the Stokes problem",
+    &(vtk_input_path), NULL,
+    "VTK file path for the input of the Stokes problem",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -89,7 +89,7 @@ main (int argc, char **argv)
    */
 
   RHEA_GLOBAL_PRODUCTIONF (
-      "Into %s (production %i)\n", this_fn_name, rhea_get_production_run ());
+      "Into %s (production %i)\n", func_name, rhea_production_run_get ());
   RHEA_GLOBAL_PRODUCTIONF (
       "Parallel environment: MPI size %i, OpenMP size %i\n", mpisize, ompsize);
 
@@ -127,7 +127,7 @@ main (int argc, char **argv)
                             &newton_options, NULL, NULL, NULL);
 
   /* write vtk of input data */
-  example_share_vtk_write_input_data (vtk_write_input_path, stokes_problem,
+  example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
                                       &temp_options, &visc_options);
 
   /* write vtk of weak zone data */
@@ -138,7 +138,7 @@ main (int argc, char **argv)
     distance = rhea_weakzone_new (ymir_mesh);
     rhea_weakzone_compute_distance (distance, &weak_options);
 
-    snprintf (path, BUFSIZ, "%s_weakzone", vtk_write_input_path);
+    snprintf (path, BUFSIZ, "%s_weakzone", vtk_input_path);
     ymir_vtk_write (ymir_mesh, path, distance, "distance", NULL);
 
     rhea_weakzone_destroy (distance);
@@ -154,7 +154,7 @@ main (int argc, char **argv)
     rhea_topography_displacement_vec (displacement, &topo_options);
     rhea_topography_displacement_vec (displacement_surf, &topo_options);
 
-    snprintf (path, BUFSIZ, "%s_topography", vtk_write_input_path);
+    snprintf (path, BUFSIZ, "%s_topography", vtk_input_path);
     ymir_vtk_write (ymir_mesh, path,
                     displacement, "displacement",
                     displacement_surf, "displacement_surf", NULL);
@@ -164,7 +164,7 @@ main (int argc, char **argv)
   }
 
   /*
-   * Finalize
+   * Clear Stokes Problem & Mesh
    */
 
   /* destroy Stokes problem */
@@ -177,11 +177,15 @@ main (int argc, char **argv)
   example_share_mesh_destroy (ymir_mesh, press_elem, p4est, &topo_options,
                               &discr_options);
 
+  /*
+   * Finalize
+   */
+
   /* destroy options */
   ymir_options_global_destroy ();
 
   /* print that this function is ending */
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", func_name);
 
   /* finalize rhea */
   rhea_finalize ();
