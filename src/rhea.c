@@ -185,37 +185,40 @@ rhea_process_options_newton (rhea_domain_options_t *domain_options,
  *****************************************************************************/
 
 int
-rhea_performance_monitor_get ()
+rhea_performance_monitor_active ()
 {
   return rhea_opt_monitor_performance;
 }
 
-void
-rhea_performance_monitor_set (const int monitor_active)
-{
-  if (monitor_active) {
-    rhea_opt_monitor_performance = 1;
-  }
-  else {
-    rhea_opt_monitor_performance = 0;
-  }
-}
-
-/* perfomance counters */
-ymir_perf_counter_t  *rhea_performance_counter;
-int                   rhea_performance_counter_n;
+/* perfomance monitors */
+ymir_perf_counter_t  *rhea_performance_monitor = NULL;
+int                   rhea_performance_monitor_n = 0;
 
 void
 rhea_performance_monitor_init (const char **monitor_name,
                                const int n_monitors)
 {
-  const int           active = rhea_performance_monitor_get ();
+  const int           active = rhea_performance_monitor_active ();
 
-  rhea_performance_counter = RHEA_ALLOC (ymir_perf_counter_t, n_monitors);
-  rhea_performance_counter_n = n_monitors;
+  RHEA_ASSERT (rhea_performance_monitor == NULL);
+  RHEA_ASSERT (rhea_performance_monitor_n == 0);
 
-  ymir_perf_counter_init_all (rhea_performance_counter, monitor_name,
-                              rhea_performance_counter_n, active);
+  rhea_performance_monitor = RHEA_ALLOC (ymir_perf_counter_t, n_monitors);
+  rhea_performance_monitor_n = n_monitors;
+
+  ymir_perf_counter_init_all (rhea_performance_monitor, monitor_name,
+                              rhea_performance_monitor_n, active);
+}
+
+void
+rhea_performance_monitor_finalize ()
+{
+  RHEA_ASSERT (rhea_performance_monitor != NULL);
+  RHEA_ASSERT (0 < rhea_performance_monitor_n);
+
+  RHEA_FREE (rhea_performance_monitor);
+  rhea_performance_monitor = NULL;
+  rhea_performance_monitor_n = 0;
 }
 
 void
@@ -225,8 +228,8 @@ rhea_performance_monitor_print (const char *title,
                                 const int print_flops,
                                 const int print_ymir)
 {
-  const int           active = rhea_performance_monitor_get ();
-  int                 n_stats = rhea_performance_counter_n *
+  const int           active = rhea_performance_monitor_active ();
+  int                 n_stats = rhea_performance_monitor_n *
                                 YMIR_PERF_COUNTER_N_STATS;
   sc_statinfo_t       stats[n_stats];
   char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
@@ -235,6 +238,9 @@ rhea_performance_monitor_print (const char *title,
   if (!active) {
     return;
   }
+
+  RHEA_ASSERT (rhea_performance_monitor != NULL);
+  RHEA_ASSERT (0 < rhea_performance_monitor_n);
 
   /* print ymir performance statistics */
   if (print_ymir) {
@@ -254,7 +260,7 @@ rhea_performance_monitor_print (const char *title,
 
   /* gather main performance statistics */
   n_stats = ymir_perf_counter_gather_stats (
-      rhea_performance_counter, rhea_performance_counter_n,
+      rhea_performance_monitor, rhea_performance_monitor_n,
       stats, stats_name, rhea_mpicomm,
       print_wtime, print_n_calls, print_flops);
 
@@ -263,33 +269,39 @@ rhea_performance_monitor_print (const char *title,
 }
 
 void
-rhea_performance_monitor_finalize ()
-{
-  RHEA_FREE (rhea_performance_counter);
-}
-
-void
 rhea_performance_monitor_start (const int monitor_index)
 {
-  ymir_perf_counter_start (&rhea_performance_counter[monitor_index]);
+  RHEA_ASSERT (rhea_performance_monitor != NULL);
+  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+
+  ymir_perf_counter_start (&rhea_performance_monitor[monitor_index]);
 }
 
 void
 rhea_performance_monitor_stop_add (const int monitor_index)
 {
-  ymir_perf_counter_stop_add (&rhea_performance_counter[monitor_index]);
+  RHEA_ASSERT (rhea_performance_monitor != NULL);
+  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+
+  ymir_perf_counter_stop_add (&rhea_performance_monitor[monitor_index]);
 }
 
 void
 rhea_performance_monitor_start_barrier (const int monitor_index)
 {
-  ymir_perf_counter_start_barrier (&rhea_performance_counter[monitor_index],
+  RHEA_ASSERT (rhea_performance_monitor != NULL);
+  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+
+  ymir_perf_counter_start_barrier (&rhea_performance_monitor[monitor_index],
                                    rhea_mpicomm);
 }
 
 void
 rhea_performance_monitor_stop_add_barrier (const int monitor_index)
 {
-  ymir_perf_counter_stop_add_barrier (&rhea_performance_counter[monitor_index],
+  RHEA_ASSERT (rhea_performance_monitor != NULL);
+  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+
+  ymir_perf_counter_stop_add_barrier (&rhea_performance_monitor[monitor_index],
                                       rhea_mpicomm);
 }

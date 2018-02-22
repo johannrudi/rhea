@@ -88,21 +88,20 @@ void                rhea_process_options_newton (
  *****************************************************************************/
 
 /**
- * Get whether performance monitoring of the program execution is active.
+ * Get whether performance monitoring is active.
  */
-int                 rhea_performance_monitor_get ();
-
-/**
- * Set performance monitoring of the program execution to active/inactive.
- */
-void                rhea_performance_monitor_set (const int monitor_active);
+int                 rhea_performance_monitor_active ();
 
 /**
  * Initializes performance monitors.
  */
-void                rhea_performance_monitor_init (
-                                                    const char **monitor_name,
-                                                    const int n_monitors);
+void                rhea_performance_monitor_init (const char **monitor_name,
+                                                   const int n_monitors);
+
+/**
+ * Finalizes performance monitors.
+ */
+void                rhea_performance_monitor_finalize ();
 
 /**
  * Prints statistics collected by performance monitors.
@@ -112,11 +111,6 @@ void                rhea_performance_monitor_print (const char *title,
                                                     const int print_n_calls,
                                                     const int print_flops,
                                                     const int print_ymir);
-
-/**
- * Finalizes performance monitors.
- */
-void                rhea_performance_monitor_finalize ();
 
 /**
  * Starts/stops a single performance monitor.
