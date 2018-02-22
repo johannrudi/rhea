@@ -41,14 +41,24 @@ void                rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
 void                rhea_init_end (ymir_options_t *opt);
 
 /**
- * Get whether current program execution is flagged as a production run.
+ * Get whether the program execution is flagged as a production run.
  */
 int                 rhea_get_production_run ();
 
 /**
- * Set current program execution as a production run.
+ * Set the program execution as a production run.
  */
 void                rhea_set_production_run (const int is_production_run);
+
+/**
+ * Get whether performance monitoring of the program execution is active.
+ */
+int                 rhea_get_monitor_performance ();
+
+/**
+ * Set performance monitoring of the program execution to active/inactive.
+ */
+void                rhea_set_monitor_performance (const int monitor_active);
 
 /******************************************************************************
  * Options

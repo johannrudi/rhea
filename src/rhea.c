@@ -6,12 +6,14 @@
 
 /* default options */
 #define RHEA_DEFAULT_PRODUCTION_RUN (0)
+#define RHEA_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* initialization parameters */
 int                 rhea_argc = 0;
 char              **rhea_argv = NULL;
 sc_MPI_Comm         rhea_mpicomm = sc_MPI_COMM_NULL;
 int                 rhea_production_run = RHEA_DEFAULT_PRODUCTION_RUN;
+int                 rhea_monitor_performance = RHEA_DEFAULT_MONITOR_PERFORMANCE;
 
 void
 rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
@@ -78,8 +80,30 @@ rhea_get_production_run ()
 void
 rhea_set_production_run (const int is_production_run)
 {
-  rhea_production_run = is_production_run;
-  ymir_set_production_run (is_production_run);;
+  if (is_production_run) {
+    rhea_production_run = 1;
+  }
+  else {
+    rhea_production_run = 0;
+  }
+  ymir_set_production_run (rhea_production_run);
+}
+
+int
+rhea_get_monitor_performance ()
+{
+  return rhea_monitor_performance;
+}
+
+void
+rhea_set_monitor_performance (const int monitor_active)
+{
+  if (monitor_active) {
+    rhea_monitor_performance = 1;
+  }
+  else {
+    rhea_monitor_performance = 0;
+  }
 }
 
 /******************************************************************************
@@ -103,11 +127,13 @@ rhea_add_options_base (ymir_options_t *opt)
 
   /* performance */
   YMIR_OPTIONS_B, "production-run", 'p',
-    &(rhea_production_run), 0,
+    &(rhea_production_run), RHEA_DEFAULT_PRODUCTION_RUN,
     "Execute as a production run (to reduce some overhead and checks)",
 
   /* monitoring */
-  //TODO
+  YMIR_OPTIONS_B, "monitor-performance", 'm',
+    &(rhea_monitor_performance), RHEA_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
