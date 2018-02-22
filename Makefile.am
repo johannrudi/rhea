@@ -70,18 +70,8 @@ DISTCLEANFILES += \
 
 # non-recursive build
 include src/Makefile.am
-##include test/Makefile.am
-##if RHEA_ENABLE_EXAMPLES
-include example/share/Makefile.am
-include example/amr/Makefile.am
-include example/basic/Makefile.am
-include example/collide/Makefile.am
-include example/earth/Makefile.am
-include example/io/Makefile.am
-include example/newton_polynomial/Makefile.am
-include example/slabweakzone/Makefile.am
-include example/yielding/Makefile.am
-##endif
+#include test/Makefile.am
+include example/Makefile.am
 
 # lint static syntax checker
 ALL_LINT_FLAGS = $(LINT_FLAGS) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
