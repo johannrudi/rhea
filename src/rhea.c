@@ -3,17 +3,23 @@
 
 #include <rhea.h>
 #include <ymir.h>
+#include <ymir_perf_counter.h>
+#include <ymir_stress_pc.h>
+#include <ymir_stokes_pc.h>
+#include <ymir_bbt.h>
+#include <ymir_bfbt.h>
 
 /* default options */
-#define RHEA_DEFAULT_PRODUCTION_RUN (0)
-#define RHEA_DEFAULT_MONITOR_PERFORMANCE (0)
+#define RHEA_OPTDEF_PRODUCTION_RUN (0)
+#define RHEA_OPTDEF_MONITOR_PERFORMANCE (0)
 
 /* initialization parameters */
 int                 rhea_argc = 0;
 char              **rhea_argv = NULL;
 sc_MPI_Comm         rhea_mpicomm = sc_MPI_COMM_NULL;
-int                 rhea_production_run = RHEA_DEFAULT_PRODUCTION_RUN;
-int                 rhea_monitor_performance = RHEA_DEFAULT_MONITOR_PERFORMANCE;
+int                 rhea_opt_production_run = RHEA_OPTDEF_PRODUCTION_RUN;
+int                 rhea_opt_monitor_performance =
+                      RHEA_OPTDEF_MONITOR_PERFORMANCE;
 
 void
 rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
@@ -67,43 +73,26 @@ rhea_init_end (ymir_options_t *opt)
   }
 
   /* set up ymir */
-  ymir_set_up (rhea_argc, rhea_argv, rhea_mpicomm, rhea_production_run);
+  ymir_set_up (rhea_argc, rhea_argv, rhea_mpicomm, rhea_opt_production_run);
 }
 
 int
-rhea_get_production_run ()
+rhea_production_run_get ()
 {
-  RHEA_ASSERT (rhea_production_run == ymir_get_production_run ());
-  return rhea_production_run;
+  RHEA_ASSERT (rhea_opt_production_run == ymir_get_production_run ());
+  return rhea_opt_production_run;
 }
 
 void
-rhea_set_production_run (const int is_production_run)
+rhea_production_run_set (const int is_production_run)
 {
   if (is_production_run) {
-    rhea_production_run = 1;
+    rhea_opt_production_run = 1;
   }
   else {
-    rhea_production_run = 0;
+    rhea_opt_production_run = 0;
   }
-  ymir_set_production_run (rhea_production_run);
-}
-
-int
-rhea_get_monitor_performance ()
-{
-  return rhea_monitor_performance;
-}
-
-void
-rhea_set_monitor_performance (const int monitor_active)
-{
-  if (monitor_active) {
-    rhea_monitor_performance = 1;
-  }
-  else {
-    rhea_monitor_performance = 0;
-  }
+  ymir_set_production_run (rhea_opt_production_run);
 }
 
 /******************************************************************************
@@ -127,12 +116,12 @@ rhea_add_options_base (ymir_options_t *opt)
 
   /* performance */
   YMIR_OPTIONS_B, "production-run", 'p',
-    &(rhea_production_run), RHEA_DEFAULT_PRODUCTION_RUN,
+    &(rhea_opt_production_run), RHEA_OPTDEF_PRODUCTION_RUN,
     "Execute as a production run (to reduce some overhead and checks)",
 
   /* monitoring */
   YMIR_OPTIONS_B, "monitor-performance", 'm',
-    &(rhea_monitor_performance), RHEA_DEFAULT_MONITOR_PERFORMANCE,
+    &(rhea_opt_monitor_performance), RHEA_OPTDEF_MONITOR_PERFORMANCE,
     "Measure and print performance statistics (e.g., runtime or flops)",
 
   YMIR_OPTIONS_END_OF_LIST);
@@ -189,4 +178,118 @@ rhea_process_options_newton (rhea_domain_options_t *domain_options,
   rhea_domain_process_options (domain_options);
   rhea_discretization_process_options (discr_options, domain_options, NULL);
   rhea_newton_process_options (newton_options);
+}
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+int
+rhea_performance_monitor_get ()
+{
+  return rhea_opt_monitor_performance;
+}
+
+void
+rhea_performance_monitor_set (const int monitor_active)
+{
+  if (monitor_active) {
+    rhea_opt_monitor_performance = 1;
+  }
+  else {
+    rhea_opt_monitor_performance = 0;
+  }
+}
+
+/* perfomance counters */
+ymir_perf_counter_t  *rhea_performance_counter;
+int                   rhea_performance_counter_n;
+
+void
+rhea_performance_monitor_init (const char **monitor_name,
+                               const int n_monitors)
+{
+  const int           active = rhea_performance_monitor_get ();
+
+  rhea_performance_counter = RHEA_ALLOC (ymir_perf_counter_t, n_monitors);
+  rhea_performance_counter_n = n_monitors;
+
+  ymir_perf_counter_init_all (rhea_performance_counter, monitor_name,
+                              rhea_performance_counter_n, active);
+}
+
+void
+rhea_performance_monitor_print (const char *title,
+                                const int print_wtime,
+                                const int print_n_calls,
+                                const int print_flops,
+                                const int print_ymir)
+{
+  const int           active = rhea_performance_monitor_get ();
+  int                 n_stats = rhea_performance_counter_n *
+                                YMIR_PERF_COUNTER_N_STATS;
+  sc_statinfo_t       stats[n_stats];
+  char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+
+  /* exit if nothing to do */
+  if (!active) {
+    return;
+  }
+
+  /* print ymir performance statistics */
+  if (print_ymir) {
+    ymir_gmg_hierarchy_mesh_perf_counter_print ();   /* GMG mesh */
+    ymir_stress_op_perf_counter_print ();            /* Stress Op */
+    ymir_stress_pc_perf_counter_print ();            /* Stress PC */
+    ymir_gmg_hierarchy_stress_perf_counter_print (); /* GMG stress */
+    ymir_stiff_op_perf_counter_print ();             /* Stiffness Op */
+    ymir_stiff_pc_perf_counter_print ();             /* Stiffness PC */
+    ymir_gmg_hierarchy_stiff_perf_counter_print ();  /* GMG stiffness */
+    ymir_pressure_vec_perf_counter_print ();         /* B^T or B */
+    ymir_bbt_perf_counter_print ();                  /* BB^T */
+    ymir_bfbt_perf_counter_print ();                 /* BFBT */
+    ymir_stokes_op_perf_counter_print ();            /* Stokes Op */
+    ymir_stokes_pc_perf_counter_print ();            /* Stokes PC */
+  }
+
+  /* gather main performance statistics */
+  n_stats = ymir_perf_counter_gather_stats (
+      rhea_performance_counter, rhea_performance_counter_n,
+      stats, stats_name, rhea_mpicomm,
+      print_wtime, print_n_calls, print_flops);
+
+  /* print main performance statistics */
+  ymir_perf_counter_print_stats (stats, n_stats, title);
+}
+
+void
+rhea_performance_monitor_finalize ()
+{
+  RHEA_FREE (rhea_performance_counter);
+}
+
+void
+rhea_performance_monitor_start (const int monitor_index)
+{
+  ymir_perf_counter_start (&rhea_performance_counter[monitor_index]);
+}
+
+void
+rhea_performance_monitor_stop_add (const int monitor_index)
+{
+  ymir_perf_counter_stop_add (&rhea_performance_counter[monitor_index]);
+}
+
+void
+rhea_performance_monitor_start_barrier (const int monitor_index)
+{
+  ymir_perf_counter_start_barrier (&rhea_performance_counter[monitor_index],
+                                   rhea_mpicomm);
+}
+
+void
+rhea_performance_monitor_stop_add_barrier (const int monitor_index)
+{
+  ymir_perf_counter_stop_add_barrier (&rhea_performance_counter[monitor_index],
+                                      rhea_mpicomm);
 }

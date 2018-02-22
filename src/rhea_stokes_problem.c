@@ -733,7 +733,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
   const int           nonzero_initial_guess = 0;
   const double        abs_tol = 1.0e-100;
   const int           krylov_gmres_n_vecs = 100;
-  const int           out_residual = !rhea_get_production_run ();
+  const int           out_residual = !rhea_production_run_get ();
   ymir_vec_t         *rhs_vel_press = stokes_problem_lin->rhs_vel_press;
 
   int                 stop_reason, itn;

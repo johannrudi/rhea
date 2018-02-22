@@ -43,22 +43,12 @@ void                rhea_init_end (ymir_options_t *opt);
 /**
  * Get whether the program execution is flagged as a production run.
  */
-int                 rhea_get_production_run ();
+int                 rhea_production_run_get ();
 
 /**
  * Set the program execution as a production run.
  */
-void                rhea_set_production_run (const int is_production_run);
-
-/**
- * Get whether performance monitoring of the program execution is active.
- */
-int                 rhea_get_monitor_performance ();
-
-/**
- * Set performance monitoring of the program execution to active/inactive.
- */
-void                rhea_set_monitor_performance (const int monitor_active);
+void                rhea_production_run_set (const int is_production_run);
 
 /******************************************************************************
  * Options
@@ -92,5 +82,51 @@ void                rhea_process_options_newton (
                               rhea_domain_options_t *domain_options,
                               rhea_discretization_options_t *discr_options,
                               rhea_newton_options_t *newton_options);
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/**
+ * Get whether performance monitoring of the program execution is active.
+ */
+int                 rhea_performance_monitor_get ();
+
+/**
+ * Set performance monitoring of the program execution to active/inactive.
+ */
+void                rhea_performance_monitor_set (const int monitor_active);
+
+/**
+ * Initializes performance monitors.
+ */
+void                rhea_performance_monitor_init (
+                                                    const char **monitor_name,
+                                                    const int n_monitors);
+
+/**
+ * Prints statistics collected by performance monitors.
+ */
+void                rhea_performance_monitor_print (const char *title,
+                                                    const int print_wtime,
+                                                    const int print_n_calls,
+                                                    const int print_flops,
+                                                    const int print_ymir);
+
+/**
+ * Finalizes performance monitors.
+ */
+void                rhea_performance_monitor_finalize ();
+
+/**
+ * Starts/stops a single performance monitor.
+ */
+void                rhea_performance_monitor_start (const int monitor_index);
+void                rhea_performance_monitor_stop_add (const int monitor_index);
+
+void                rhea_performance_monitor_start_barrier (
+                                                      const int monitor_index);
+void                rhea_performance_monitor_stop_add_barrier (
+                                                      const int monitor_index);
 
 #endif /* RHEA_H */
