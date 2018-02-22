@@ -11,6 +11,70 @@
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
+#include <ymir_perf_counter.h>
+#include <ymir_monitor.h>
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance counters */
+typedef enum
+{
+  AMR_PERF_COUNTER_SETUP_MESH,
+  AMR_PERF_COUNTER_POST_AMR,
+  AMR_PERF_COUNTER_TOTAL,
+  AMR_PERF_COUNTER_N
+}
+amr_perf_counter_idx_t;
+ymir_perf_counter_t amr_perf_counter[AMR_PERF_COUNTER_N];
+const char         *amr_perf_counter_name[AMR_PERF_COUNTER_N] =
+{
+  "Setup Mesh",
+  "Post AMR",
+  "Total"
+};
+sc_statinfo_t       amr_perf_stats[
+                      AMR_PERF_COUNTER_N * YMIR_PERF_COUNTER_N_STATS];
+char                amr_perf_stats_name[
+                      AMR_PERF_COUNTER_N * YMIR_PERF_COUNTER_N_STATS][
+                      YMIR_PERF_COUNTER_NAME_SIZE];
+int                 amr_perf_n_stats;
+
+/**
+ * Initializes performance counters.
+ */
+static void
+amr_perf_counter_init (const int active)
+{
+  ymir_perf_counter_init_all (amr_perf_counter, amr_perf_counter_name,
+                              AMR_PERF_COUNTER_N, active);
+}
+
+/**
+ * Gathers statistics of performance counters.
+ */
+static void
+amr_perf_counter_gather (MPI_Comm mpicomm,
+                           const int print_wtime,
+                           const int print_n_calls,
+                           const int print_flops)
+{
+  amr_perf_n_stats = ymir_perf_counter_gather_stats (
+      amr_perf_counter, AMR_PERF_COUNTER_N,
+      amr_perf_stats, amr_perf_stats_name,
+      mpicomm, print_wtime, print_n_calls, print_flops);
+}
+
+/**
+ * Prints statistics of performance counters.
+ */
+static void
+amr_perf_counter_print ()
+{
+  ymir_perf_counter_print_stats (amr_perf_stats, amr_perf_n_stats,
+                                 "AMR Example");
+}
 
 /******************************************************************************
  * Main Program
@@ -22,7 +86,7 @@
 int
 main (int argc, char **argv)
 {
-  const char         *this_fn_name = "amr:main";
+  static const char   func_name[] = "amr:main";
   /* parallel environment */
   MPI_Comm            mpicomm = MPI_COMM_WORLD;
   int                 mpisize, mpirank, ompsize;
@@ -93,12 +157,19 @@ main (int argc, char **argv)
   /* end program initialization */
   rhea_init_end (opt);
 
+  /* initialize performance counters */
+  amr_perf_counter_init (rhea_get_monitor_performance ());
+
+  /* start performance counters */
+  ymir_perf_counter_start_barrier (
+      &amr_perf_counter[AMR_PERF_COUNTER_TOTAL], mpicomm);
+
   /*
    * Print Environment and Options
    */
 
   RHEA_GLOBAL_PRODUCTIONF (
-      "Into %s (production %i)\n", this_fn_name, rhea_get_production_run ());
+      "Into %s (production %i)\n", func_name, rhea_get_production_run ());
   RHEA_GLOBAL_PRODUCTIONF (
       "Parallel environment: MPI size %i, OpenMP size %i\n", mpisize, ompsize);
 
@@ -112,8 +183,12 @@ main (int argc, char **argv)
    * Setup Mesh
    */
 
+  ymir_perf_counter_start_barrier (
+      &amr_perf_counter[AMR_PERF_COUNTER_SETUP_MESH], mpicomm);
   example_share_mesh_new (&p4est, &ymir_mesh, &press_elem, mpicomm,
                           &domain_options, &topo_options, &discr_options);
+  ymir_perf_counter_stop_add (
+      &amr_perf_counter[AMR_PERF_COUNTER_SETUP_MESH]);
 
   /*
    * Setup Stokes Problem
@@ -153,10 +228,16 @@ main (int argc, char **argv)
     int                 amr_iter;
     char                path[BUFSIZ];
 
+    ymir_perf_counter_start_barrier (
+        &amr_perf_counter[AMR_PERF_COUNTER_POST_AMR], mpicomm);
+
     /* run AMR */
     rhea_stokes_problem_set_velocity_pressure (stokes_problem, sol_vel_press);
     amr_iter = rhea_stokes_problem_amr (stokes_problem, p4est, &discr_options);
     sol_vel_press = rhea_stokes_problem_get_velocity_pressure (stokes_problem);
+
+    ymir_perf_counter_stop_add (
+        &amr_perf_counter[AMR_PERF_COUNTER_POST_AMR]);
 
     /* write vtk of solution */
     if (0 < amr_iter) {
@@ -166,7 +247,7 @@ main (int argc, char **argv)
   }
 
   /*
-   * Finalize
+   * Clear Stokes Problem & Mesh
    */
 
   /* destroy solution */
@@ -182,11 +263,27 @@ main (int argc, char **argv)
   example_share_mesh_destroy (ymir_mesh, press_elem, p4est, &topo_options,
                               &discr_options);
 
+  /*
+   * Finalize
+   */
+
+  /* stop performance counters */
+  ymir_perf_counter_stop_add_barrier (
+      &amr_perf_counter[AMR_PERF_COUNTER_TOTAL], mpicomm);
+
+  /* print performance statistics */
+  if (rhea_get_monitor_performance ()) {
+    /* gather & print main performance statistics */
+    amr_perf_counter_gather (mpicomm, 1 /* wtime */, 0 /* #calls */,
+                             0 /* flops */);
+    amr_perf_counter_print ();
+  }
+
   /* destroy options */
   ymir_options_global_destroy ();
 
   /* print that this function is ending */
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", func_name);
 
   /* finalize rhea */
   rhea_finalize ();
