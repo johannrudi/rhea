@@ -216,7 +216,7 @@ main (int argc, char **argv)
                                   1 /* print wtime */,
                                   0 /* print #calls */,
                                   0 /* print flops */,
-                                  0 /* print ymir */); //TODO turn on ymir
+                                  1 /* print ymir */);
   rhea_performance_monitor_finalize ();
 
   /* destroy options */
