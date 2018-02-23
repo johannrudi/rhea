@@ -10,7 +10,7 @@
 #
 ###############################################################################
 
-declare -r THIS_ARCHITECTURE="ICES machine with Cent OS for GCC"
+declare -r THIS_ARCHITECTURE="ICES machine with Cent OS (GCC compiler)"
 declare -r THIS_BLAS_LIBS="-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lpthread -lm -ldl"
 declare -r THIS_LAPACK_LIBS="${MKLROOT}/lib/intel64/libmkl_intel_lp64.so"
 declare -r THIS_PETSC_DIR="/work/johann/build/app/petsc/petsc-64-opt-centos7-gcc5-mpich2"
@@ -21,7 +21,7 @@ declare -r THIS_PETSC_DIR="/work/johann/build/app/petsc/petsc-64-opt-centos7-gcc
 
 function print_usage()
 {
-  echo "Usage: configure_centos [-o -p <BUILD_PATH>]"
+  echo "Usage: ./configure_arch_centos [-o]"
 }
 
 ########################################
@@ -29,21 +29,18 @@ function print_usage()
 ########################################
 
 # initialize parameters
+is_opt=0
 code_dir="$(dirname ${BASH_SOURCE[0]})"
 build_dir="$(pwd)"
-is_opt=0
 
 # check option flags
-while getopts ":hop:" opt; do
+while getopts ":ho:" opt; do
   case $opt in
     h) # help
       print_usage; exit 1
       ;;
     o) # optimized build
       is_opt=1
-      ;;
-    p) # build path/directory
-      build_dir="$(dirname $OPTARG)"
       ;;
     \?) # invalid option
       echo "Invalid option: -$OPTARG" >&2; exit 1
