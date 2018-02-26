@@ -245,15 +245,19 @@ rhea_performance_monitor_print (const char *title,
   /* print ymir performance statistics */
   if (print_ymir) {
     ymir_gmg_hierarchy_mesh_perf_counter_print ();   /* GMG mesh */
-    ymir_stress_op_perf_counter_print ();            /* Stress Op */
-    ymir_stress_pc_perf_counter_print ();            /* Stress PC */
-    ymir_gmg_hierarchy_stress_perf_counter_print (); /* GMG stress */
+
     ymir_stiff_op_perf_counter_print ();             /* Stiffness Op */
     ymir_stiff_pc_perf_counter_print ();             /* Stiffness PC */
     ymir_gmg_hierarchy_stiff_perf_counter_print ();  /* GMG stiffness */
-    ymir_pressure_vec_perf_counter_print ();         /* B^T or B */
+
+    ymir_stress_op_perf_counter_print ();            /* Stress Op */
+    ymir_stress_pc_perf_counter_print ();            /* Stress PC */
+    ymir_gmg_hierarchy_stress_perf_counter_print (); /* GMG stress */
+
+    ymir_pressure_vec_perf_counter_print ();         /* B^T and B */
     ymir_bbt_perf_counter_print ();                  /* BB^T */
     ymir_bfbt_perf_counter_print ();                 /* BFBT */
+
     ymir_stokes_op_perf_counter_print ();            /* Stokes Op */
     ymir_stokes_pc_perf_counter_print ();            /* Stokes PC */
   }
