@@ -6,9 +6,7 @@
  *****************************************************************************/
 
 #include <example_share_stokes.h>
-#include <rhea_base.h>
-#include <rhea_velocity.h>
-#include <rhea_weakzone.h>
+#include <rhea.h>
 #include <rhea_stokes_problem_amr.h>
 
 void
@@ -21,15 +19,16 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
                           rhea_newton_options_t *newton_options,
                           p4est_t *p4est,
                           rhea_discretization_options_t *discr_options,
+                          const int performance_monitor_index_mesh,
+                          const int performance_monitor_index_stokes,
                           char *solver_vtk_path)
 {
-  const char         *this_fn_name = "example_share_stokes_new";
   rhea_domain_options_t *domain_options = visc_options->domain_options;
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (*ymir_mesh);
   ymir_vec_t         *temperature;
   void               *solver_options;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* set up data */
   rhea_weakzone_data_create (weak_options, mpicomm);
@@ -51,22 +50,26 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   }
 
   /* create Stokes problem */
+  rhea_performance_monitor_start_barrier (performance_monitor_index_stokes);
   *stokes_problem = rhea_stokes_problem_new (
       *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
       weak_options, visc_options, solver_options);
   rhea_stokes_problem_set_solver_amr (*stokes_problem, p4est, discr_options);
   rhea_stokes_problem_set_solver_vtk_output (*stokes_problem, solver_vtk_path);
+  rhea_performance_monitor_stop_add (performance_monitor_index_stokes);
 
   /* perform initial AMR */
   if (p4est != NULL && discr_options != NULL) {
+    rhea_performance_monitor_start_barrier (performance_monitor_index_mesh);
     rhea_stokes_problem_init_amr (*stokes_problem, p4est, discr_options);
+    rhea_performance_monitor_stop_add (performance_monitor_index_mesh);
 
     /* retrieve adapted mesh */
     *ymir_mesh = rhea_stokes_problem_get_ymir_mesh (*stokes_problem);
     *press_elem = rhea_stokes_problem_get_press_elem (*stokes_problem);
   }
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
 }
 
 void
@@ -75,10 +78,9 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
                               rhea_weakzone_options_t *weak_options,
                               rhea_viscosity_options_t *visc_options)
 {
-  const char         *this_fn_name = "example_share_stokes_destroy";
   ymir_vec_t         *temperature;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* get temperature */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
@@ -94,5 +96,5 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
   /* destroy data */
   rhea_weakzone_data_clear (weak_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
 }

@@ -28,6 +28,8 @@ void                example_share_stokes_new (
                                   rhea_newton_options_t *newton_options,
                                   p4est_t *p4est,
                                   rhea_discretization_options_t *discr_options,
+                                  const int performance_monitor_index_mesh,
+                                  const int performance_monitor_index_stokes,
                                   char *solver_vtk_path);
 
 /**

@@ -12,6 +12,31 @@
 #include <example_share_vtk.h>
 
 /******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_MAIN_PERFMON_SETUP_MESH,
+  RHEA_MAIN_PERFMON_SETUP_STOKES,
+  RHEA_MAIN_PERFMON_SETUP_SOLVER,
+  RHEA_MAIN_PERFMON_SOLVE,
+  RHEA_MAIN_PERFMON_TOTAL,
+  RHEA_MAIN_PERFMON_N
+}
+rhea_main_performance_monitor_idx_t;
+
+static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
+{
+  "Setup Mesh",
+  "Setup Stokes",
+  "Setup Solver",
+  "Solve",
+  "Total"
+};
+
+/******************************************************************************
  * Main Program
  *****************************************************************************/
 
@@ -102,6 +127,13 @@ main (int argc, char **argv)
   /* end program initialization */
   rhea_init_end (opt);
 
+  /* initialize performance monitors */
+  rhea_performance_monitor_init (rhea_main_performance_monitor_name,
+                                 RHEA_MAIN_PERFMON_N);
+
+  /* start performance monitors */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_TOTAL);
+
   /*
    * Print Environment and Options
    */
@@ -122,7 +154,8 @@ main (int argc, char **argv)
    */
 
   example_share_mesh_new (&p4est, &ymir_mesh, &press_elem, mpicomm,
-                          &domain_options, &topo_options, &discr_options);
+                          &domain_options, &topo_options, &discr_options,
+                          RHEA_MAIN_PERFMON_SETUP_MESH);
 
   /*
    * Setup Stokes Problem
@@ -131,6 +164,8 @@ main (int argc, char **argv)
   example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &weak_options, &visc_options,
                             &newton_options, p4est, &discr_options,
+                            RHEA_MAIN_PERFMON_SETUP_MESH,
+                            RHEA_MAIN_PERFMON_SETUP_STOKES,
                             vtk_solver_path);
 
   /* write vtk of input data */
@@ -142,14 +177,18 @@ main (int argc, char **argv)
    */
 
   /* setup solver */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_SOLVER);
   rhea_stokes_problem_setup_solver (stokes_problem);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_SOLVER);
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
 
   /* run solver */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE);
   rhea_stokes_problem_solve (&sol_vel_press, solver_iter_max, solver_rel_tol,
                              stokes_problem);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SOLVE);
 
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
@@ -198,6 +237,17 @@ main (int argc, char **argv)
   /*
    * Finalize
    */
+
+  /* stop performance monitors */
+  rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_TOTAL);
+
+  /* print performance statistics */
+  rhea_performance_monitor_print (func_name,
+                                  1 /* print wtime */,
+                                  0 /* print #calls */,
+                                  0 /* print flops */,
+                                  0 /* print ymir */);
+  rhea_performance_monitor_finalize ();
 
   /* destroy options */
   ymir_options_global_destroy ();

@@ -6,7 +6,7 @@
  *****************************************************************************/
 
 #include <example_share_mesh.h>
-#include <rhea_base.h>
+#include <rhea.h>
 
 void
 example_share_mesh_new (p4est_t **p4est,
@@ -15,11 +15,11 @@ example_share_mesh_new (p4est_t **p4est,
                         sc_MPI_Comm mpicomm,
                         rhea_domain_options_t *domain_options,
                         rhea_topography_options_t *topo_options,
-                        rhea_discretization_options_t *discr_options)
+                        rhea_discretization_options_t *discr_options,
+                        const int performance_monitor_index_mesh)
 {
-  const char         *this_fn_name = "example_share_mesh_new";
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  rhea_performance_monitor_start_barrier (performance_monitor_index_mesh);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* set up data */
   rhea_topography_data_create (topo_options, mpicomm);
@@ -35,7 +35,8 @@ example_share_mesh_new (p4est_t **p4est,
   rhea_discretization_ymir_mesh_new_from_p4est (ymir_mesh, press_elem, *p4est,
                                                 discr_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
+  rhea_performance_monitor_stop_add (performance_monitor_index_mesh);
 }
 
 void
@@ -45,9 +46,7 @@ example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
                             rhea_topography_options_t *topo_options,
                             rhea_discretization_options_t *discr_options)
 {
-  const char         *this_fn_name = "example_share_mesh_destroy";
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* destroy mesh */
   rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
@@ -59,5 +58,5 @@ example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
   /* destroy data */
   rhea_topography_data_clear (topo_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
 }

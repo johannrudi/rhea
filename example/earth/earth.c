@@ -145,21 +145,20 @@ main (int argc, char **argv)
    * Setup Mesh
    */
 
-  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_MESH);
   example_share_mesh_new (&p4est, &ymir_mesh, &press_elem, mpicomm,
-                          &domain_options, &topo_options, &discr_options);
-  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_MESH);
+                          &domain_options, &topo_options, &discr_options,
+                          RHEA_MAIN_PERFMON_SETUP_MESH);
 
   /*
    * Setup Stokes Problem
    */
 
-  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_STOKES);
   example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &weak_options, &visc_options,
                             &newton_options, p4est, &discr_options,
+                            RHEA_MAIN_PERFMON_SETUP_MESH,
+                            RHEA_MAIN_PERFMON_SETUP_STOKES,
                             vtk_solver_path);
-  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_STOKES);
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,

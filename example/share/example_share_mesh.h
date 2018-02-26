@@ -23,7 +23,8 @@ void                example_share_mesh_new (
                                 sc_MPI_Comm mpicomm,
                                 rhea_domain_options_t *domain_options,
                                 rhea_topography_options_t *topo_options,
-                                rhea_discretization_options_t *discr_options);
+                                rhea_discretization_options_t *discr_options,
+                                const int performance_monitor_index_mesh);
 
 /**
  * Destroys a mesh.
