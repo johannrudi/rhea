@@ -249,6 +249,12 @@ rhea_performance_monitor_print (const char *title,
   RHEA_ASSERT (rhea_performance_monitor != NULL);
   RHEA_ASSERT (0 < rhea_performance_monitor_n);
 
+  /* print setup performance statistics */
+  rhea_io_mpi_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
+                             print_flops);
+  rhea_amr_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
+                          print_flops);
+
   /* print ymir performance statistics */
   if (print_ymir) {
     ymir_gmg_hierarchy_mesh_perf_counter_print ();   /* GMG mesh */
@@ -268,12 +274,6 @@ rhea_performance_monitor_print (const char *title,
     ymir_stokes_op_perf_counter_print ();            /* Stokes Op */
     ymir_stokes_pc_perf_counter_print ();            /* Stokes PC */
   }
-
-  /* print rhea performance statistics */
-  rhea_io_mpi_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
-                             print_flops);
-  rhea_amr_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
-                          print_flops);
 
   /* gather main performance statistics */
   n_stats = ymir_perf_counter_gather_stats (
