@@ -4,6 +4,105 @@
 #include <rhea_io_mpi.h>
 #include <rhea_io_std.h>
 #include <rhea_base.h>
+#include <ymir_perf_counter.h>
+
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/* default options */
+#define RHEA_IO_MPI_DEFAULT_MONITOR_PERFORMANCE (0)
+
+int                 rhea_io_mpi_monitor_performance =
+                      RHEA_IO_MPI_DEFAULT_MONITOR_PERFORMANCE;
+
+void
+rhea_io_mpi_add_options (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "IO-MPI";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_B, "monitor-performance", '\0',
+    &(rhea_io_mpi_monitor_performance), RHEA_IO_MPI_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+
+  /* initialize (deactivated) performance counters */
+  rhea_io_mpi_perfmon_init (0, 0);
+}
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_IO_MPI_PERFMON_READ_BCAST,
+  RHEA_IO_MPI_PERFMON_READ_SCATTER,
+  RHEA_IO_MPI_PERFMON_GATHER_WRITE,
+  RHEA_IO_MPI_PERFMON_N
+}
+rhea_io_mpi_perfmon_idx_t;
+
+static const char  *rhea_io_mpi_perfmon_name[RHEA_IO_MPI_PERFMON_N] =
+{
+  "Read & Broadcast",
+  "Read & Scatter",
+  "Gather & Write"
+};
+ymir_perf_counter_t rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_N];
+
+void
+rhea_io_mpi_perfmon_init (const int activate, const int skip_if_active)
+{
+  const int           active = activate && rhea_io_mpi_monitor_performance;
+
+  ymir_perf_counter_init_all_ext (rhea_io_mpi_perfmon,
+                                  rhea_io_mpi_perfmon_name,
+                                  RHEA_IO_MPI_PERFMON_N,
+                                  active, skip_if_active);
+}
+
+void
+rhea_io_mpi_perfmon_print (sc_MPI_Comm mpicomm,
+                           const int print_wtime,
+                           const int print_n_calls,
+                           const int print_flops)
+{
+  const int           active = rhea_io_mpi_monitor_performance;
+  sc_statinfo_t       stats[RHEA_IO_MPI_PERFMON_N * YMIR_PERF_COUNTER_N_STATS];
+  char                stats_name[
+                        RHEA_IO_MPI_PERFMON_N * YMIR_PERF_COUNTER_N_STATS][
+                        YMIR_PERF_COUNTER_NAME_SIZE];
+  int                 n_stats;
+
+  /* exit if nothing to do */
+  if (!active) {
+    return;
+  }
+
+  /* gather performance statistics */
+  n_stats = ymir_perf_counter_gather_stats (
+      rhea_io_mpi_perfmon, RHEA_IO_MPI_PERFMON_N, stats, stats_name,
+      mpicomm, print_wtime, print_n_calls, print_flops);
+
+  /* print performance statistics */
+  ymir_perf_counter_print_stats (stats, n_stats, "I/O MPI");
+}
+
+/******************************************************************************
+ * Read
+ *****************************************************************************/
 
 int
 rhea_io_mpi_read_broadcast_double (double *values_all,
@@ -12,16 +111,19 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
                                    const char *file_path_txt,
                                    sc_MPI_Comm mpicomm)
 {
-  const char         *this_fn_name = "rhea_io_mpi_read_broadcast_double";
   int                 mpirank, mpiret;
   size_t              total_size = (size_t) n_entries;
 
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_BCAST]);
+
   if (file_path_txt == NULL) { /* if read from binary file */
-    RHEA_GLOBAL_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Into %s (%s, #entries %i)\n", __func__,
                        file_path_bin, n_entries);
   }
   else {
-    RHEA_GLOBAL_INFOF ("Into %s (bin: %s, txt: %s)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Into %s (bin: %s, txt: %s)\n", __func__,
                        file_path_bin, file_path_txt);
   }
 
@@ -54,12 +156,16 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
   SC_CHECK_MPI (mpiret);
 
   if (file_path_txt == NULL) { /* if read from binary file */
-    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, file_path_bin);
+    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, file_path_bin);
   }
   else {
-    RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", __func__,
                        file_path_bin, file_path_txt);
   }
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_BCAST]);
 
   /* return number of entries read */
   return n_entries;
@@ -72,16 +178,19 @@ rhea_io_mpi_read_broadcast_int (int *values_all,
                                 const char *file_path_txt,
                                 sc_MPI_Comm mpicomm)
 {
-  const char         *this_fn_name = "rhea_io_mpi_read_broadcast_int";
   int                 mpirank, mpiret;
   size_t              total_size = (size_t) n_entries;
 
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_BCAST]);
+
   if (file_path_txt == NULL) { /* if read from binary file */
-    RHEA_GLOBAL_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Into %s (%s, #entries %i)\n", __func__,
                        file_path_bin, n_entries);
   }
   else {
-    RHEA_GLOBAL_INFOF ("Into %s (bin: %s, txt: %s)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Into %s (bin: %s, txt: %s)\n", __func__,
                        file_path_bin, file_path_txt);
   }
 
@@ -114,12 +223,16 @@ rhea_io_mpi_read_broadcast_int (int *values_all,
   SC_CHECK_MPI (mpiret);
 
   if (file_path_txt == NULL) { /* if read from binary file */
-    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, file_path_bin);
+    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, file_path_bin);
   }
   else {
-    RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", __func__,
                        file_path_bin, file_path_txt);
   }
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_BCAST]);
 
   /* return number of entries read */
   return n_entries;
@@ -132,22 +245,25 @@ rhea_io_mpi_read_scatter_double (double *values_segment,
                                  const char *file_path_txt,
                                  sc_MPI_Comm mpicomm)
 {
-  const char         *this_fn_name = "rhea_io_mpi_read_scatter_double";
   int                 mpisize, mpirank, mpiret;
   double             *values_all;
   int                *segment_size;
   int                 r;
+
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_SCATTER]);
 
   /* get parallel environment */
   mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
   mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
 
   if (file_path_txt == NULL) { /* if read from binary file */
-    RHEA_GLOBAL_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Into %s (%s, #entries %i)\n", __func__,
                        file_path_bin, segment_offset[mpisize]);
   }
   else {
-    RHEA_GLOBAL_INFOF ("Into %s (bin: %s, txt: %s)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Into %s (bin: %s, txt: %s)\n", __func__,
                        file_path_bin, file_path_txt);
   }
 
@@ -195,13 +311,21 @@ rhea_io_mpi_read_scatter_double (double *values_segment,
   RHEA_FREE (segment_size);
 
   if (file_path_txt == NULL) { /* if read from binary file */
-    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, file_path_bin);
+    RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, file_path_bin);
   }
   else {
-    RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", this_fn_name,
+    RHEA_GLOBAL_INFOF ("Done %s (bin: %s, txt: %s)\n", __func__,
                        file_path_bin, file_path_txt);
   }
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_SCATTER]);
 }
+
+/******************************************************************************
+ * Write
+ *****************************************************************************/
 
 void
 rhea_io_mpi_gather_write_double_to_txt (const char *file_path_txt,
@@ -210,14 +334,17 @@ rhea_io_mpi_gather_write_double_to_txt (const char *file_path_txt,
                                         int n_entries_per_line,
                                         sc_MPI_Comm mpicomm)
 {
-  const char         *this_fn_name = "rhea_io_mpi_gather_write_double_to_txt";
   int                 mpisize, mpirank, mpiret;
   double             *values_all;
   size_t              total_size;
   int                *segment_size;
   int                 r;
 
-  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", this_fn_name, file_path_txt);
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_GATHER_WRITE]);
+
+  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, file_path_txt);
 
   /* get parallel environment */
   mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
@@ -258,5 +385,9 @@ rhea_io_mpi_gather_write_double_to_txt (const char *file_path_txt,
   }
   RHEA_FREE (segment_size);
 
-  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", this_fn_name, file_path_txt);
+  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, file_path_txt);
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_GATHER_WRITE]);
 }

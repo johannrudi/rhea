@@ -5,6 +5,34 @@
 #define RHEA_IO_MPI_H
 
 #include <sc.h>
+#include <ymir_options.h>
+
+/******************************************************************************
+ * Options & Monitoring
+ *****************************************************************************/
+
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_io_mpi_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Initializes performance counters.
+ */
+void                rhea_io_mpi_perfmon_init (const int activate,
+                                              const int skip_if_active);
+
+/**
+ * Prints statistics collected by performance monitors.
+ */
+void                rhea_io_mpi_perfmon_print (sc_MPI_Comm mpicomm,
+                                               const int print_wtime,
+                                               const int print_n_calls,
+                                               const int print_flops);
+
+/******************************************************************************
+ * Read
+ *****************************************************************************/
 
 /**
  * Reads double values from a binary or text file with one processor (i.e., MPI
@@ -36,6 +64,10 @@ void                rhea_io_mpi_read_scatter_double (double *values_segment,
                                                      const char *file_path_bin,
                                                      const char *file_path_txt,
                                                      sc_MPI_Comm mpicomm);
+
+/******************************************************************************
+ * Write
+ *****************************************************************************/
 
 /**
  * Gathers double values from all processors, then writes to a text file with
