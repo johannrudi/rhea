@@ -2,6 +2,8 @@
  */
 
 #include <rhea.h>
+#include <rhea_io_mpi.h>
+#include <rhea_amr.h>
 #include <ymir.h>
 #include <ymir_perf_counter.h>
 #include <ymir_stress_pc.h>
@@ -141,6 +143,7 @@ rhea_add_options_all (ymir_options_t *options)
   rhea_discretization_add_options (options);
   rhea_stokes_problem_add_options (options);
   rhea_newton_add_options (options);
+  rhea_io_mpi_add_options (options);
 }
 
 void
@@ -203,11 +206,15 @@ rhea_performance_monitor_init (const char **monitor_name,
   RHEA_ASSERT (rhea_performance_monitor == NULL);
   RHEA_ASSERT (rhea_performance_monitor_n == 0);
 
+  /* create and initialize main performance monitors */
   rhea_performance_monitor = RHEA_ALLOC (ymir_perf_counter_t, n_monitors);
   rhea_performance_monitor_n = n_monitors;
-
   ymir_perf_counter_init_all (rhea_performance_monitor, monitor_name,
                               rhea_performance_monitor_n, active);
+
+  /* initialize rhea performance monitors */
+  rhea_io_mpi_perfmon_init (active, 0);
+  rhea_amr_perfmon_init (active, 0);
 }
 
 void
@@ -261,6 +268,12 @@ rhea_performance_monitor_print (const char *title,
     ymir_stokes_op_perf_counter_print ();            /* Stokes Op */
     ymir_stokes_pc_perf_counter_print ();            /* Stokes PC */
   }
+
+  /* print rhea performance statistics */
+  rhea_io_mpi_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
+                             print_flops);
+  rhea_amr_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
+                          print_flops);
 
   /* gather main performance statistics */
   n_stats = ymir_perf_counter_gather_stats (
