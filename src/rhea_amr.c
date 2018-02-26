@@ -6,9 +6,14 @@
 #include <rhea_discretization.h>
 #include <p8est_bits.h>
 #include <p8est_extended.h>
+#include <ymir_perf_counter.h>
 
 #define RHEA_AMR_P4EST_REPLACE_FN NULL
 #define RHEA_AMR_P4EST_PARTITION_WEIGHT_FN NULL
+
+/******************************************************************************
+ * Options
+ *****************************************************************************/
 
 /* default options */
 #define RHEA_AMR_DEFAULT_N_ELEMENTS_MAX (NAN)
@@ -17,6 +22,7 @@
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN (-1)
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX (-1)
 #define RHEA_AMR_DEFAULT_LOG_LEVEL_MAX (1)
+#define RHEA_AMR_DEFAULT_MONITOR_PERFORMANCE (0)
 
 double              rhea_amr_n_elements_max = RHEA_AMR_DEFAULT_N_ELEMENTS_MAX;
 char               *rhea_amr_init_refine_name =
@@ -28,6 +34,8 @@ int                 rhea_amr_init_refine_level_min =
 int                 rhea_amr_init_refine_level_max =
   RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX;
 int                 rhea_amr_log_level_max = RHEA_AMR_DEFAULT_LOG_LEVEL_MAX;
+int                 rhea_amr_monitor_performance =
+                      RHEA_AMR_DEFAULT_MONITOR_PERFORMANCE;
 
 void
 rhea_amr_add_options (ymir_options_t * opt_sup)
@@ -60,12 +68,91 @@ rhea_amr_add_options (ymir_options_t * opt_sup)
     &(rhea_amr_log_level_max), RHEA_AMR_DEFAULT_LOG_LEVEL_MAX,
     "Print max refinement level of the mesh",
 
+  YMIR_OPTIONS_B, "monitor-performance", '\0',
+    &(rhea_amr_monitor_performance), RHEA_AMR_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
+
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
   ymir_options_destroy (opt);
+
+  /* initialize (deactivated) performance counters */
+  rhea_amr_perfmon_init (0, 0);
+}
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_AMR_PERFMON_AMR_FLAG,
+  RHEA_AMR_PERFMON_AMR_COARSEN,
+  RHEA_AMR_PERFMON_AMR_REFINE,
+  RHEA_AMR_PERFMON_AMR_BALANCE,
+  RHEA_AMR_PERFMON_AMR_PARTITION,
+  RHEA_AMR_PERFMON_AMR_DATA_INIT,
+  RHEA_AMR_PERFMON_AMR_DATA_PROJECT,
+  RHEA_AMR_PERFMON_AMR_DATA_PARTITION,
+  RHEA_AMR_PERFMON_AMR_DATA_FINALIZE,
+  RHEA_AMR_PERFMON_AMR_TOTAL,
+  RHEA_AMR_PERFMON_N
+}
+rhea_amr_perfmon_idx_t;
+
+static const char  *rhea_amr_perfmon_name[RHEA_AMR_PERFMON_N] =
+{
+  "AMR (flag)",
+  "AMR (coarsen)",
+  "AMR (refine)",
+  "AMR (balance)",
+  "AMR (partition)",
+  "AMR (data: initialize)",
+  "AMR (data: project)",
+  "AMR (data: partition)",
+  "AMR (data: finalize)",
+  "AMR (total)"
+};
+ymir_perf_counter_t rhea_amr_perfmon[RHEA_AMR_PERFMON_N];
+
+void
+rhea_amr_perfmon_init (const int activate, const int skip_if_active)
+{
+  const int           active = activate && rhea_amr_monitor_performance;
+
+  ymir_perf_counter_init_all_ext (rhea_amr_perfmon, rhea_amr_perfmon_name,
+                                  RHEA_AMR_PERFMON_N, active, skip_if_active);
+}
+
+void
+rhea_amr_perfmon_print (sc_MPI_Comm mpicomm,
+                        const int print_wtime,
+                        const int print_n_calls,
+                        const int print_flops)
+{
+  const int           active = rhea_amr_monitor_performance;
+  sc_statinfo_t       stats[RHEA_AMR_PERFMON_N * YMIR_PERF_COUNTER_N_STATS];
+  char                stats_name[
+                        RHEA_AMR_PERFMON_N * YMIR_PERF_COUNTER_N_STATS][
+                        YMIR_PERF_COUNTER_NAME_SIZE];
+  int                 n_stats;
+
+  /* exit if nothing to do */
+  if (!active) {
+    return;
+  }
+
+  /* gather performance statistics */
+  n_stats = ymir_perf_counter_gather_stats (
+      rhea_amr_perfmon, RHEA_AMR_PERFMON_N, stats, stats_name,
+      mpicomm, print_wtime, print_n_calls, print_flops);
+
+  /* print performance statistics */
+  ymir_perf_counter_print_stats (stats, n_stats, "AMR");
 }
 
 /******************************************************************************
@@ -379,6 +466,9 @@ rhea_amr (p4est_t *p4est,
   //TODO set flag `uniform` for if a uniform refinement function is detected;
   //     then avoid p4est calls to balance/partition
 
+  /* start performance monitors */
+  ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_TOTAL]);
+
   RHEA_GLOBAL_INFOF (
       "Into %s (#cycles %i, flagged elements threshold begin %g, "
       "threshold cycle %g)\n", __func__, n_cycles,
@@ -396,7 +486,9 @@ rhea_amr (p4est_t *p4est,
      */
 
     /* call function that flags elements for coarsening/refinement */
+    ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_FLAG]);
     flagged_rel = flag_elements_fn (p4est, flag_elements_data);
+    ymir_perf_counter_stop_add (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_FLAG]);
     RHEA_GLOBAL_INFOF ("%s -- iter %i: Relative #elements flagged %g\n",
                        __func__, iter, flagged_rel);
 
@@ -427,15 +519,22 @@ rhea_amr (p4est_t *p4est,
 
     /* initialize data at first iteration */
     if (0 == iter && data_initialize_fn != NULL) {
+      ymir_perf_counter_start (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_INIT]);
       data_initialize_fn (p4est, data);
       data_altered = 1;
+      ymir_perf_counter_stop_add (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_INIT]);
     }
 
     /* update previous element count */
     n_elements_prev = n_elements_curr;
 
     /* coarsen p4est */
+    ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_COARSEN]);
     p4est_coarsen (p4est, coarsen_recursively, coarsen_fn, init_fn);
+    ymir_perf_counter_stop_add (
+        &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_COARSEN]);
     n_elements_coar = rhea_amr_get_global_n_elems (p4est);
     RHEA_ASSERT (0 <= n_elements_prev - n_elements_coar);
     coarsened_rel = (double) (n_elements_prev - n_elements_coar) /
@@ -454,7 +553,10 @@ rhea_amr (p4est_t *p4est,
 
     /* refine p4est */
     if (!reached_n_elements_max) {
+      ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_REFINE]);
       p4est_refine (p4est, refine_recursively, refine_fn, init_fn);
+      ymir_perf_counter_stop_add (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_REFINE]);
     }
     n_elements_refn = rhea_amr_get_global_n_elems (p4est);
     RHEA_ASSERT (0 <= n_elements_refn - n_elements_coar);
@@ -462,13 +564,20 @@ rhea_amr (p4est_t *p4est,
                   (double) n_elements_coar;
 
     /* balance p4est */
+    ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_BALANCE]);
     p4est_balance (p4est, P4EST_CONNECT_FULL, init_fn);
+    ymir_perf_counter_stop_add (
+        &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_BALANCE]);
     n_elements_curr = rhea_amr_get_global_n_elems (p4est);
     RHEA_ASSERT (0 <= n_elements_curr - n_elements_refn);
 
     /* project data onto adapted mesh */
     if (data_project_fn != NULL) {
+      ymir_perf_counter_start (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PROJECT]);
       data_project_fn (p4est, data);
+      ymir_perf_counter_stop_add (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PROJECT]);
     }
 
     /*
@@ -476,11 +585,18 @@ rhea_amr (p4est_t *p4est,
      */
 
     /* partition p4est */
+    ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_PARTITION]);
     p4est_partition_ext (p4est, partition_for_coarsening, partition_weight_fn);
+    ymir_perf_counter_stop_add (
+        &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_PARTITION]);
 
     /* partition data */
     if (data_partition_fn != NULL) {
+      ymir_perf_counter_start (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PARTITION]);
       data_partition_fn (p4est, data);
+      ymir_perf_counter_stop_add (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PARTITION]);
     }
 
     /*
@@ -521,7 +637,11 @@ rhea_amr (p4est_t *p4est,
 
   /* finalize data if AMR was performed */
   if (data_altered && data_finalize_fn != NULL) {
+    ymir_perf_counter_start (
+        &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_FINALIZE]);
     data_finalize_fn (p4est, data);
+    ymir_perf_counter_stop_add (
+        &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_FINALIZE]);
   }
 
   /* print statistics */
@@ -537,6 +657,9 @@ rhea_amr (p4est_t *p4est,
   }
 
   RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_TOTAL]);
 
   /* return number of performed AMR iterations */
   return iter;

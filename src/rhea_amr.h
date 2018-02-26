@@ -3,10 +3,28 @@
 
 #include <rhea_domain.h>
 
+/******************************************************************************
+ * Options & Monitoring
+ *****************************************************************************/
+
 /**
  * Defines options and adds them as sub-options.
  */
 void                rhea_amr_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Initializes performance counters.
+ */
+void                rhea_amr_perfmon_init (const int activate,
+                                           const int skip_if_active);
+
+/**
+ * Prints statistics collected by performance monitors.
+ */
+void                rhea_amr_perfmon_print (sc_MPI_Comm mpicomm,
+                                            const int print_wtime,
+                                            const int print_n_calls,
+                                            const int print_flops);
 
 /******************************************************************************
  * Initial AMR for p4est
