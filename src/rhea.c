@@ -14,14 +14,18 @@
 /* default options */
 #define RHEA_OPTDEF_PRODUCTION_RUN (0)
 #define RHEA_OPTDEF_MONITOR_PERFORMANCE (0)
+#define RHEA_OPTDEF_MONITOR_PERFORMANCE_MATVEC (0)
+
+int                 rhea_opt_production_run = RHEA_OPTDEF_PRODUCTION_RUN;
+int                 rhea_opt_monitor_performance =
+                      RHEA_OPTDEF_MONITOR_PERFORMANCE;
+int                 rhea_opt_monitor_performance_matvec =
+                      RHEA_OPTDEF_MONITOR_PERFORMANCE_MATVEC;
 
 /* initialization parameters */
 int                 rhea_argc = 0;
 char              **rhea_argv = NULL;
 sc_MPI_Comm         rhea_mpicomm = sc_MPI_COMM_NULL;
-int                 rhea_opt_production_run = RHEA_OPTDEF_PRODUCTION_RUN;
-int                 rhea_opt_monitor_performance =
-                      RHEA_OPTDEF_MONITOR_PERFORMANCE;
 
 void
 rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
@@ -125,6 +129,10 @@ rhea_add_options_base (ymir_options_t *opt)
   YMIR_OPTIONS_B, "monitor-performance", 'm',
     &(rhea_opt_monitor_performance), RHEA_OPTDEF_MONITOR_PERFORMANCE,
     "Measure and print performance statistics (e.g., runtime or flops)",
+  YMIR_OPTIONS_B, "monitor-performance-matvec", '\0',
+    &(rhea_opt_monitor_performance_matvec),
+    RHEA_OPTDEF_MONITOR_PERFORMANCE_MATVEC,
+    "Measure and print performance statistics of all Matvecs",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -187,15 +195,101 @@ rhea_process_options_newton (rhea_domain_options_t *domain_options,
  * Monitoring
  *****************************************************************************/
 
+/* main perfomance monitors */
+ymir_perf_counter_t  *rhea_perfmon_main = NULL;
+int                   rhea_perfmon_main_n = 0;
+
+/* matvec perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_PERFMON_MATVEC_POISSON,
+  RHEA_PERFMON_MATVEC_STRESS,
+  RHEA_PERFMON_MATVEC_STOKES_GRAD_DIV,
+  RHEA_PERFMON_MATVEC_POISSON_PRESS,
+  RHEA_PERFMON_MATVEC_STOKES,
+  RHEA_PERFMON_MATVEC_TOTAL,
+  RHEA_PERFMON_MATVEC_N
+}
+rhea_perfmon_matvec_idx_t;
+
+static const char  *rhea_perfmon_matvec_name[RHEA_PERFMON_MATVEC_N] =
+{
+  "Matvec: Poisson",
+  "Matvec: Viscous Stress",
+  "Matvec: B and B^T",
+  "Matvec: BB^T",
+  "Matvec: Stokes",
+  "Matvec (total)"
+};
+ymir_perf_counter_t rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_N];
+
+static void
+rhea_perfmon_matvec_init (const int activate, const int skip_if_active)
+{
+  const int           active = activate && rhea_opt_monitor_performance_matvec;
+
+  ymir_perf_counter_init_all_ext (rhea_perfmon_matvec, rhea_perfmon_matvec_name,
+                                  RHEA_PERFMON_MATVEC_N, active,
+                                  skip_if_active);
+}
+
+static void
+rhea_perfmon_matvec_print (sc_MPI_Comm mpicomm,
+                           const int print_wtime,
+                           const int print_n_calls,
+                           const int print_flops)
+{
+  const int           active = rhea_opt_monitor_performance_matvec;
+  const int           print = (print_wtime || print_n_calls || print_flops);
+  int                 n_stats = RHEA_PERFMON_MATVEC_N *
+                                YMIR_PERF_COUNTER_N_STATS;
+  sc_statinfo_t       stats[n_stats];
+  char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+
+  /* exit if nothing to do */
+  if (!active || !print) {
+    return;
+  }
+
+  /* get each matvec */
+  ymir_stiff_op_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_POISSON]);
+  ymir_stress_op_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_STRESS]);
+  ymir_pressure_vec_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_STOKES_GRAD_DIV]);
+  ymir_bbt_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_POISSON_PRESS]);
+  ymir_stokes_op_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_STOKES]);
+
+  /* accumulate total from all matvecs */
+  ymir_stiff_op_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_TOTAL]);
+  ymir_stress_op_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_TOTAL]);
+  ymir_pressure_vec_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_TOTAL]);
+  ymir_bbt_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_TOTAL]);
+  ymir_stokes_op_perf_counter_add_matvecs (
+      &rhea_perfmon_matvec[RHEA_PERFMON_MATVEC_TOTAL]);
+
+  /* gather performance statistics */
+  n_stats = ymir_perf_counter_gather_stats (
+      rhea_perfmon_matvec, RHEA_PERFMON_MATVEC_N,
+      stats, stats_name, rhea_mpicomm,
+      print_wtime, print_n_calls, print_flops);
+
+  /* print performance statistics */
+  ymir_perf_counter_print_stats (stats, n_stats, "Matvecs");
+}
+
 int
 rhea_performance_monitor_active ()
 {
   return rhea_opt_monitor_performance;
 }
-
-/* perfomance monitors */
-ymir_perf_counter_t  *rhea_performance_monitor = NULL;
-int                   rhea_performance_monitor_n = 0;
 
 void
 rhea_performance_monitor_init (const char **monitor_name,
@@ -203,16 +297,17 @@ rhea_performance_monitor_init (const char **monitor_name,
 {
   const int           active = rhea_performance_monitor_active ();
 
-  RHEA_ASSERT (rhea_performance_monitor == NULL);
-  RHEA_ASSERT (rhea_performance_monitor_n == 0);
+  RHEA_ASSERT (rhea_perfmon_main == NULL);
+  RHEA_ASSERT (rhea_perfmon_main_n == 0);
 
   /* create and initialize main performance monitors */
-  rhea_performance_monitor = RHEA_ALLOC (ymir_perf_counter_t, n_monitors);
-  rhea_performance_monitor_n = n_monitors;
-  ymir_perf_counter_init_all (rhea_performance_monitor, monitor_name,
-                              rhea_performance_monitor_n, active);
+  rhea_perfmon_main = RHEA_ALLOC (ymir_perf_counter_t, n_monitors);
+  rhea_perfmon_main_n = n_monitors;
+  ymir_perf_counter_init_all (rhea_perfmon_main, monitor_name,
+                              rhea_perfmon_main_n, active);
 
-  /* initialize rhea performance monitors */
+  /* initialize rhea's internal performance monitors */
+  rhea_perfmon_matvec_init (active, 0);
   rhea_io_mpi_perfmon_init (active, 0);
   rhea_amr_perfmon_init (active, 0);
 }
@@ -220,12 +315,12 @@ rhea_performance_monitor_init (const char **monitor_name,
 void
 rhea_performance_monitor_finalize ()
 {
-  RHEA_ASSERT (rhea_performance_monitor != NULL);
-  RHEA_ASSERT (0 < rhea_performance_monitor_n);
+  RHEA_ASSERT (rhea_perfmon_main != NULL);
+  RHEA_ASSERT (0 < rhea_perfmon_main_n);
 
-  RHEA_FREE (rhea_performance_monitor);
-  rhea_performance_monitor = NULL;
-  rhea_performance_monitor_n = 0;
+  RHEA_FREE (rhea_perfmon_main);
+  rhea_perfmon_main = NULL;
+  rhea_perfmon_main_n = 0;
 }
 
 void
@@ -236,20 +331,21 @@ rhea_performance_monitor_print (const char *title,
                                 const int print_ymir)
 {
   const int           active = rhea_performance_monitor_active ();
-  int                 n_stats = rhea_performance_monitor_n *
+  const int           print = (print_wtime || print_n_calls || print_flops);
+  int                 n_stats = rhea_perfmon_main_n *
                                 YMIR_PERF_COUNTER_N_STATS;
   sc_statinfo_t       stats[n_stats];
   char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
 
   /* exit if nothing to do */
-  if (!active) {
+  if (!active || !(print || print_ymir)) {
     return;
   }
 
-  RHEA_ASSERT (rhea_performance_monitor != NULL);
-  RHEA_ASSERT (0 < rhea_performance_monitor_n);
+  RHEA_ASSERT (rhea_perfmon_main != NULL);
+  RHEA_ASSERT (0 < rhea_perfmon_main_n);
 
-  /* print setup performance statistics */
+  /* print rhea's setup performance statistics */
   rhea_io_mpi_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
                              print_flops);
   rhea_amr_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
@@ -273,11 +369,16 @@ rhea_performance_monitor_print (const char *title,
 
     ymir_stokes_op_perf_counter_print ();            /* Stokes Op */
     ymir_stokes_pc_perf_counter_print ();            /* Stokes PC */
+
   }
+
+  /* print matvec performance statistics */
+  rhea_perfmon_matvec_print (rhea_mpicomm, print_wtime, 1 /* #calls */,
+                             print_flops);
 
   /* gather main performance statistics */
   n_stats = ymir_perf_counter_gather_stats (
-      rhea_performance_monitor, rhea_performance_monitor_n,
+      rhea_perfmon_main, rhea_perfmon_main_n,
       stats, stats_name, rhea_mpicomm,
       print_wtime, print_n_calls, print_flops);
 
@@ -288,37 +389,37 @@ rhea_performance_monitor_print (const char *title,
 void
 rhea_performance_monitor_start (const int monitor_index)
 {
-  RHEA_ASSERT (rhea_performance_monitor != NULL);
-  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+  RHEA_ASSERT (rhea_perfmon_main != NULL);
+  RHEA_ASSERT (monitor_index < rhea_perfmon_main_n);
 
-  ymir_perf_counter_start (&rhea_performance_monitor[monitor_index]);
+  ymir_perf_counter_start (&rhea_perfmon_main[monitor_index]);
 }
 
 void
 rhea_performance_monitor_stop_add (const int monitor_index)
 {
-  RHEA_ASSERT (rhea_performance_monitor != NULL);
-  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+  RHEA_ASSERT (rhea_perfmon_main != NULL);
+  RHEA_ASSERT (monitor_index < rhea_perfmon_main_n);
 
-  ymir_perf_counter_stop_add (&rhea_performance_monitor[monitor_index]);
+  ymir_perf_counter_stop_add (&rhea_perfmon_main[monitor_index]);
 }
 
 void
 rhea_performance_monitor_start_barrier (const int monitor_index)
 {
-  RHEA_ASSERT (rhea_performance_monitor != NULL);
-  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+  RHEA_ASSERT (rhea_perfmon_main != NULL);
+  RHEA_ASSERT (monitor_index < rhea_perfmon_main_n);
 
-  ymir_perf_counter_start_barrier (&rhea_performance_monitor[monitor_index],
+  ymir_perf_counter_start_barrier (&rhea_perfmon_main[monitor_index],
                                    rhea_mpicomm);
 }
 
 void
 rhea_performance_monitor_stop_add_barrier (const int monitor_index)
 {
-  RHEA_ASSERT (rhea_performance_monitor != NULL);
-  RHEA_ASSERT (monitor_index < rhea_performance_monitor_n);
+  RHEA_ASSERT (rhea_perfmon_main != NULL);
+  RHEA_ASSERT (monitor_index < rhea_perfmon_main_n);
 
-  ymir_perf_counter_stop_add_barrier (&rhea_performance_monitor[monitor_index],
+  ymir_perf_counter_stop_add_barrier (&rhea_perfmon_main[monitor_index],
                                       rhea_mpicomm);
 }
