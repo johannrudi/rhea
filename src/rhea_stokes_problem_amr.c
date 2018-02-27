@@ -322,7 +322,7 @@ rhea_stokes_problem_amr_check_flag (rhea_p4est_quadrant_data_t *qd)
 
   if (rhea_amr_flag_is_valid (qd->amr_flag)) { /* if flagged previously */
     switch (qd->amr_flag) {
-    case RHEA_AMR_FLAG_COARSEN: /* assume: 1:2-balancing cancelled coarsening */
+    case RHEA_AMR_FLAG_COARSEN: /* assume: 1:2-balancing prevented coarsening */
       qd->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
       check_success = 1;
       break;
@@ -593,7 +593,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
       const mangll_locidx_t elid = (mangll_locidx_t) (tqoffset + tqi);
 
       /* check if quadrant was flagged previously */
-      if (rhea_stokes_problem_amr_check_flag (qd)) {
+      if (!d->first_amr && rhea_stokes_problem_amr_check_flag (qd)) {
         continue;
       }
 
@@ -805,7 +805,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
       const mangll_locidx_t elid = (mangll_locidx_t) (tqoffset + tqi);
 
       /* check if quadrant was flagged previously */
-      if (rhea_stokes_problem_amr_check_flag (qd)) {
+      if (!d->first_amr && rhea_stokes_problem_amr_check_flag (qd)) {
         continue;
       }
 
