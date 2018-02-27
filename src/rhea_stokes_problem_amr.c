@@ -286,11 +286,13 @@ rhea_stokes_problem_amr_data_destroy (rhea_stokes_problem_amr_data_t *amr_data)
 
 static double
 rhea_stokes_problem_amr_norm_L2_elem (sc_dmatrix_t *ind_mat,
+                                      sc_dmatrix_t *ind_mass_mat,
                                       sc_dmatrix_t *tmp_mat,
                                       const mangll_locidx_t elid,
                                       mangll_t *mangll)
 {
   double             *_sc_restrict ind_data = ind_mat->e[0];
+  double             *_sc_restrict ind_mass_data = ind_mass_mat->e[0];
   const size_t        total_size = ind_mat->m * ind_mat->n;
   size_t              i;
   double              sum;
@@ -298,16 +300,15 @@ rhea_stokes_problem_amr_norm_L2_elem (sc_dmatrix_t *ind_mat,
   /* check input */
   RHEA_ASSERT (sc_dmatrix_is_valid (ind_mat));
 
-  /* take to the 2nd power */
-  sc_dmatrix_dotmultiply (ind_mat, ind_mat);
-
   /* apply mass */
-  ymir_mass_apply_gll_elem (ind_mat, tmp_mat, elid, mangll);
+  sc_dmatrix_copy (ind_mat, ind_mass_mat);
+  ymir_mass_apply_gll_elem (ind_mass_mat, tmp_mat, elid, mangll);
+  RHEA_ASSERT (sc_dmatrix_is_valid (ind_mass_mat));
 
-  /* sum values */
+  /* sum elementwise products */
   sum = 0.0;
   for (i = 0; i < total_size; i++) {
-    sum += ind_data[i];
+    sum += ind_data[i] * ind_mass_data[i];
   }
 
   /* return L2-norm */
@@ -534,7 +535,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   p4est_topidx_t      ti;
   size_t              tqi;
 
-  sc_dmatrix_t       *ind_mat, *tmp_mat;
+  sc_dmatrix_t       *ind_mat, *ind_mass_mat, *tmp_mat;
   double             *ind_data;
   double              ind, elem_vol;
   const double        tol_min = d->tol_min;
@@ -576,6 +577,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   tmp_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   ind_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   ind_data = ind_mat->e[0];
+  ind_mass_mat = sc_dmatrix_new (n_nodes_per_el, 1);
 
   /* flag quadrants */
   n_flagged_coarsen = 0;
@@ -597,8 +599,8 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
 
       /* compute element size */
       sc_dmatrix_set_value (ind_mat, 1.0);
-      elem_vol = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, tmp_mat,
-                                                       elid, mangll);
+      elem_vol = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, ind_mass_mat,
+                                                       tmp_mat, elid, mangll);
 
       /* compute indicator field for this element */
       {
@@ -627,8 +629,8 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
       }
 
       /* set indicator to be the L2-norm of the quotient |grad fn|/fn */
-      ind = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, tmp_mat,
-                                                  elid, mangll);
+      ind = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, ind_mass_mat,
+                                                  tmp_mat, elid, mangll);
 
       /* multiply indicator by relative element size */
       ind *= elem_vol / domain_size;
@@ -657,6 +659,7 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   /* destroy work variables */
   sc_dmatrix_destroy (tmp_mat);
   sc_dmatrix_destroy (ind_mat);
+  sc_dmatrix_destroy (ind_mass_mat);
 
   /* VTK output of AMR indicator */
 #if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
@@ -696,7 +699,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   p4est_topidx_t      ti;
   size_t              tqi;
 
-  sc_dmatrix_t       *ind_mat, *tmp_mat;
+  sc_dmatrix_t       *ind_mat, *ind_mass_mat, *tmp_mat;
   double              ind, elem_vol;
   const double        tol_min = d->tol_min;
   const double        tol_max = d->tol_max;
@@ -755,6 +758,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   n_nodes_per_el = mangll->Np;
   tmp_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   ind_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+  ind_mass_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   /* *INDENT-OFF* */
   if (has_visc) {
     viscosity = ymir_dvec_new (d->ymir_mesh, 1, YMIR_GAUSS_NODE);
@@ -807,8 +811,8 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
 
       /* compute element size */
       sc_dmatrix_set_value (ind_mat, 1.0);
-      elem_vol = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, tmp_mat,
-                                                       elid, mangll);
+      elem_vol = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, ind_mass_mat,
+                                                       tmp_mat, elid, mangll);
 
       /* get/compute viscosity */
       if (has_visc) {
@@ -864,8 +868,8 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
 
       /* set indicator to be the L2-norm of the quotient |grad fn|/fn */
       sc_dmatrix_dotdivide (visc_el_mat, ind_mat);
-      ind = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, tmp_mat,
-                                                  elid, mangll);
+      ind = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, ind_mass_mat,
+                                                  tmp_mat, elid, mangll);
 
       /* multiply indicator by relative element size */
       ind *= elem_vol / domain_size;
@@ -894,6 +898,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   /* destroy work variables */
   sc_dmatrix_destroy (tmp_mat);
   sc_dmatrix_destroy (ind_mat);
+  sc_dmatrix_destroy (ind_mass_mat);
   if (has_visc) {
     ymir_vec_destroy (viscosity);
   }
