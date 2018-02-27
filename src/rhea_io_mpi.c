@@ -80,14 +80,14 @@ rhea_io_mpi_perfmon_print (sc_MPI_Comm mpicomm,
                            const int print_flops)
 {
   const int           active = rhea_io_mpi_monitor_performance;
-  sc_statinfo_t       stats[RHEA_IO_MPI_PERFMON_N * YMIR_PERF_COUNTER_N_STATS];
-  char                stats_name[
-                        RHEA_IO_MPI_PERFMON_N * YMIR_PERF_COUNTER_N_STATS][
-                        YMIR_PERF_COUNTER_NAME_SIZE];
-  int                 n_stats;
+  const int           print = (print_wtime || print_n_calls || print_flops);
+  int                 n_stats = RHEA_IO_MPI_PERFMON_N *
+                                YMIR_PERF_COUNTER_N_STATS;
+  sc_statinfo_t       stats[n_stats];
+  char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
 
   /* exit if nothing to do */
-  if (!active) {
+  if (!active || !print) {
     return;
   }
 

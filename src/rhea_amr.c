@@ -106,15 +106,15 @@ rhea_amr_perfmon_idx_t;
 
 static const char  *rhea_amr_perfmon_name[RHEA_AMR_PERFMON_N] =
 {
-  "AMR (flag)",
-  "AMR (coarsen)",
-  "AMR (refine)",
-  "AMR (balance)",
-  "AMR (partition)",
-  "AMR (data: initialize)",
-  "AMR (data: project)",
-  "AMR (data: partition)",
-  "AMR (data: finalize)",
+  "AMR: Flag",
+  "AMR: Coarsen",
+  "AMR: Refine",
+  "AMR: Balance",
+  "AMR: Partition",
+  "AMR: Data initialize",
+  "AMR: Data project",
+  "AMR: Data partition",
+  "AMR: Data finalize",
   "AMR (total)"
 };
 ymir_perf_counter_t rhea_amr_perfmon[RHEA_AMR_PERFMON_N];
@@ -135,14 +135,13 @@ rhea_amr_perfmon_print (sc_MPI_Comm mpicomm,
                         const int print_flops)
 {
   const int           active = rhea_amr_monitor_performance;
-  sc_statinfo_t       stats[RHEA_AMR_PERFMON_N * YMIR_PERF_COUNTER_N_STATS];
-  char                stats_name[
-                        RHEA_AMR_PERFMON_N * YMIR_PERF_COUNTER_N_STATS][
-                        YMIR_PERF_COUNTER_NAME_SIZE];
-  int                 n_stats;
+  const int           print = (print_wtime || print_n_calls || print_flops);
+  int                 n_stats = RHEA_AMR_PERFMON_N * YMIR_PERF_COUNTER_N_STATS;
+  sc_statinfo_t       stats[n_stats];
+  char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
 
   /* exit if nothing to do */
-  if (!active) {
+  if (!active || !print) {
     return;
   }
 
