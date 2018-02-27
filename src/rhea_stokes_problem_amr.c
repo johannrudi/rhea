@@ -314,6 +314,36 @@ rhea_stokes_problem_amr_norm_L2_elem (sc_dmatrix_t *ind_mat,
   return sqrt (sum);
 }
 
+static int
+rhea_stokes_problem_amr_check_flag (rhea_p4est_quadrant_data_t *qd)
+{
+  int               check_success;
+
+  if (rhea_amr_flag_is_valid (qd->amr_flag)) { /* if flagged previously */
+    switch (qd->amr_flag) {
+    case RHEA_AMR_FLAG_COARSEN: /* assume: 1:2-balancing cancelled coarsening */
+      qd->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
+      check_success = 1;
+      break;
+    case RHEA_AMR_FLAG_NO_CHANGE:
+      check_success = 1;
+      break;
+    case RHEA_AMR_FLAG_REFINE: /* error: quadrant should have been refined */
+      RHEA_ABORT_NOT_REACHED ();
+      check_success = 0;
+      break;
+    default: /* unknown flag */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+  else {
+    /* return that the flag for this quadrant needs to be computed */
+    check_success = 0;
+  }
+
+  return check_success;
+}
+
 static rhea_amr_flag_t
 rhea_stokes_problem_amr_get_flag (const double ind,
                                   const double tol_min,
@@ -560,6 +590,11 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
       rhea_p4est_quadrant_data_t *qd = q->p.user_data;
       const mangll_locidx_t elid = (mangll_locidx_t) (tqoffset + tqi);
 
+      /* check if quadrant was flagged previously */
+      if (rhea_stokes_problem_amr_check_flag (qd)) {
+        continue;
+      }
+
       /* compute element size */
       sc_dmatrix_set_value (ind_mat, 1.0);
       elem_vol = rhea_stokes_problem_amr_norm_L2_elem (ind_mat, tmp_mat,
@@ -764,6 +799,11 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
       p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
       rhea_p4est_quadrant_data_t *qd = q->p.user_data;
       const mangll_locidx_t elid = (mangll_locidx_t) (tqoffset + tqi);
+
+      /* check if quadrant was flagged previously */
+      if (rhea_stokes_problem_amr_check_flag (qd)) {
+        continue;
+      }
 
       /* compute element size */
       sc_dmatrix_set_value (ind_mat, 1.0);
