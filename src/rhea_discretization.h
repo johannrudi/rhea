@@ -76,6 +76,8 @@ typedef struct
 }
 rhea_p4est_quadrant_data_t;
 
+#define RHEA_P4EST_AMR_FLAG_INIT 101
+
 /**
  * Callback function for initializing new p4est quadrants.
  */

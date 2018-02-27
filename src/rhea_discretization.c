@@ -577,7 +577,7 @@ rhea_p4est_init_fn (p4est_t *p4est, p4est_topidx_t tree,
 {
   rhea_p4est_quadrant_data_t *d = quadrant->p.user_data;
 
-  d->amr_flag = 0; /* neutral value (no coarsening/refinement) */
+  d->amr_flag = RHEA_P4EST_AMR_FLAG_INIT;
 }
 
 p4est_t *
