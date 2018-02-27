@@ -22,7 +22,6 @@ typedef enum
   RHEA_MAIN_PERFMON_SETUP_STOKES,
   RHEA_MAIN_PERFMON_SETUP_SOLVER,
   RHEA_MAIN_PERFMON_SOLVE,
-//RHEA_MAIN_PERFMON_MATVECS, //TODO
   RHEA_MAIN_PERFMON_TOTAL,
   RHEA_MAIN_PERFMON_N
 }
@@ -34,7 +33,6 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
   "Setup Stokes",
   "Setup Solver",
   "Solve",
-//"All matvecs (setup + solve)", //TODO
   "Total"
 };
 
