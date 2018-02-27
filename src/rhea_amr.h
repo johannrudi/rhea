@@ -48,9 +48,18 @@ typedef enum
 {
   RHEA_AMR_FLAG_COARSEN   = -1,
   RHEA_AMR_FLAG_NO_CHANGE =  0,
-  RHEA_AMR_FLAG_REFINE    =  1
+  RHEA_AMR_FLAG_REFINE    = +1,
+
+  RHEA_AMR_FLAG_INIT      = 101 /* invalid AMR flag of a new element
+                                 * (= RHEA_P4EST_AMR_FLAG_INIT) */
 }
 rhea_amr_flag_t;
+
+/**
+ * Checks whether an element has a valid AMR flag, i.e., one of
+ *   coarsening/refinement/no change.
+ */
+int                 rhea_amr_flag_is_valid (const rhea_amr_flag_t amr_flag);
 
 /**
  * Flags elements of a p4est mesh for coarsening/refinement.

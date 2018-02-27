@@ -366,6 +366,21 @@ rhea_amr_init_refine (p4est_t *p4est,
  * AMR for ymir
  *****************************************************************************/
 
+int
+rhea_amr_flag_is_valid (const rhea_amr_flag_t amr_flag)
+{
+  switch (amr_flag) {
+  case RHEA_AMR_FLAG_INIT:
+    return 0;
+  case RHEA_AMR_FLAG_COARSEN:
+  case RHEA_AMR_FLAG_NO_CHANGE:
+  case RHEA_AMR_FLAG_REFINE:
+    return 1;
+  default: /* unknown flag */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
 static int
 rhea_amr_coarsen_via_flag_fn (p4est_t *p4est, p4est_topidx_t tree,
                               p4est_quadrant_t *quadrants[])
