@@ -76,6 +76,9 @@ typedef struct rhea_viscosity_options
   rhea_viscosity_nonlinear_init_t  type_nonlinear_init;
   rhea_viscosity_model_t           model;
 
+  /* viscosity constants */
+  double              representative_Pas;
+
   /* lower and upper bounds for the viscosity */
   double              min;
   double              max;
@@ -127,6 +130,14 @@ ymir_vec_t         *rhea_viscosity_new (ymir_mesh_t *ymir_mesh);
  * Destroys a viscosity vector.
  */
 void                rhea_viscosity_destroy (ymir_vec_t *viscosity);
+
+/**
+ * Converts entries of a nondimensional viscosity vector into dimensional
+ * values: [Pa*s]
+ */
+void                rhea_viscosity_convert_to_dimensional (
+                                                ymir_vec_t * viscosity,
+                                                rhea_viscosity_options_t *opt);
 
 /**
  * Checks whether a vector is of the right type.

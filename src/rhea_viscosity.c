@@ -31,6 +31,7 @@
 #define RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR_INIT \
   (RHEA_VISCOSITY_NONLINEAR_INIT_DEFAULT)
 #define RHEA_VISCOSITY_DEFAULT_MODEL_NAME "UWYL_LADD_USHIFT"
+#define RHEA_VISCOSITY_DEFAULT_REPRESENTATIVE_PAS (1.0e20)  /* [Pa*s] */
 #define RHEA_VISCOSITY_DEFAULT_MIN (1.0e-2)
 #define RHEA_VISCOSITY_DEFAULT_MAX (1.0e+4)
 #define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING (4.0e+3)
@@ -51,6 +52,8 @@ int                 rhea_viscosity_type_nonlinear_init =
   RHEA_VISCOSITY_DEFAULT_TYPE_NONLINEAR_INIT;
 char               *rhea_viscosity_model_name =
   RHEA_VISCOSITY_DEFAULT_MODEL_NAME;
+double              rhea_viscosity_representative_Pas =
+  RHEA_VISCOSITY_DEFAULT_REPRESENTATIVE_PAS;
 double              rhea_viscosity_min = RHEA_VISCOSITY_DEFAULT_MIN;
 double              rhea_viscosity_max = RHEA_VISCOSITY_DEFAULT_MAX;
 double              rhea_viscosity_upper_mantle_scaling =
@@ -94,6 +97,11 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_S, "model", '\0',
     &(rhea_viscosity_model_name), RHEA_VISCOSITY_DEFAULT_MODEL_NAME,
     "Viscosity model name, e.g., 'UWYL'",
+
+  YMIR_OPTIONS_D, "representative-viscosity", '\0',
+    &(rhea_viscosity_representative_Pas),
+    RHEA_VISCOSITY_DEFAULT_REPRESENTATIVE_PAS,
+    "Representative viscosity [Pa*s]",
 
   YMIR_OPTIONS_D, "min", '\0',
     &(rhea_viscosity_min), RHEA_VISCOSITY_DEFAULT_MIN,
@@ -166,6 +174,9 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
     RHEA_ABORT ("Unknown viscosity model name");
   }
 
+  /* set viscosity constants */
+  opt->representative_Pas = rhea_viscosity_representative_Pas;
+
   /* set viscosity bounds */
   opt->min = rhea_viscosity_min;
   opt->max = rhea_viscosity_max;
@@ -214,6 +225,15 @@ void
 rhea_viscosity_destroy (ymir_vec_t *viscosity)
 {
   ymir_vec_destroy (viscosity);
+}
+
+void
+rhea_viscosity_convert_to_dimensional (ymir_vec_t * viscosity,
+                                       rhea_viscosity_options_t *opt)
+{
+  const double        dim_scal = opt->representative_Pas;
+
+  ymir_vec_scale (dim_scal, viscosity);
 }
 
 int
