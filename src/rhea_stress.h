@@ -4,7 +4,9 @@
 #ifndef RHEA_STRESS_H
 #define RHEA_STRESS_H
 
-#include <ymir_vec_ops.h>
+#include <rhea_domain.h>
+#include <rhea_temperature.h>
+#include <rhea_viscosity.h>
 
 /**
  * Creates a new (second invariant of) stress tensor.
@@ -19,6 +21,16 @@ ymir_vec_t         *rhea_stress_2inv_new (ymir_mesh_t *ymir_mesh);
 void                rhea_stress_destroy (ymir_vec_t *stress);
 
 void                rhea_stress_2inv_destroy (ymir_vec_t *stress_2inv);
+
+/**
+ * Converts entries of a nondimensional stress vector into dimensional
+ * values: [Pa]
+ */
+void                rhea_stress_convert_to_dimensional (
+                                      ymir_vec_t * stress,
+                                      rhea_domain_options_t *domain_options,
+                                      rhea_temperature_options_t *temp_options,
+                                      rhea_viscosity_options_t *visc_options);
 
 /**
  * Checks whether a vector is of the right type.

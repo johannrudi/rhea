@@ -4,7 +4,6 @@
 #include <rhea_stress.h>
 #include <rhea_base.h>
 #include <rhea_strainrate.h>
-#include <rhea_viscosity.h>
 #include <ymir_mass_vec.h>
 
 ymir_vec_t *
@@ -17,6 +16,20 @@ void
 rhea_stress_destroy (ymir_vec_t *stress)
 {
   ymir_vec_destroy (stress);
+}
+
+void
+rhea_stress_convert_to_dimensional (ymir_vec_t * stress,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options,
+                                    rhea_viscosity_options_t *visc_options)
+{
+  const double        dim_scal = visc_options->representative_Pas *
+                                 temp_options->thermal_diffusivity_m2_s /
+                                 domain_options->radius_max_m /
+                                 domain_options->radius_max_m;
+
+  ymir_vec_scale (dim_scal, stress);
 }
 
 int
