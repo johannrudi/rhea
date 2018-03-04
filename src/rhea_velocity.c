@@ -3,7 +3,6 @@
 
 #include <rhea_velocity.h>
 #include <rhea_base.h>
-#include <rhea_temperature.h>
 #include <ymir_vec_getset.h>
 #include <ymir_velocity_elem.h>
 
@@ -21,6 +20,17 @@ void
 rhea_velocity_destroy (ymir_vec_t *velocity)
 {
   ymir_vec_destroy (velocity);
+}
+
+void
+rhea_velocity_convert_to_dimensional (ymir_vec_t * velocity,
+                                      rhea_domain_options_t *domain_options,
+                                      rhea_temperature_options_t *temp_options)
+{
+  const double        dim_scal = temp_options->thermal_diffusivity_m2_s /
+                                 domain_options->radius_max_m;
+
+  ymir_vec_scale (dim_scal, velocity);
 }
 
 int

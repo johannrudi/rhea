@@ -4,7 +4,8 @@
 #ifndef RHEA_VELOCITY_H
 #define RHEA_VELOCITY_H
 
-#include <ymir_vec_ops.h>
+#include <rhea_domain.h>
+#include <rhea_temperature.h>
 
 /******************************************************************************
  * Velocity Vector
@@ -19,6 +20,15 @@ ymir_vec_t         *rhea_velocity_new (ymir_mesh_t *ymir_mesh);
  * Destroys a velocity vector.
  */
 void                rhea_velocity_destroy (ymir_vec_t *velocity);
+
+/**
+ * Converts entries of a nondimensional velocity vector into dimensional
+ * values: [m/s]
+ */
+void                rhea_velocity_convert_to_dimensional (
+                                    ymir_vec_t * velocity,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
 
 /**
  * Checks whether a vector is of the right type.
