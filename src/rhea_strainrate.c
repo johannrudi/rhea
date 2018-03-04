@@ -19,6 +19,19 @@ rhea_strainrate_destroy (ymir_vec_t *strainrate)
   ymir_vec_destroy (strainrate);
 }
 
+void
+rhea_strainrate_convert_to_dimensional (
+                                    ymir_vec_t * strainrate,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options)
+{
+  const double        dim_scal = temp_options->thermal_diffusivity_m2_s /
+                                 domain_options->radius_max_m /
+                                 domain_options->radius_max_m;
+
+  ymir_vec_scale (dim_scal, strainrate);
+}
+
 int
 rhea_strainrate_check_vec_type (ymir_vec_t *vec)
 {

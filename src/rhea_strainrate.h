@@ -4,7 +4,8 @@
 #ifndef RHEA_STRAINRATE_H
 #define RHEA_STRAINRATE_H
 
-#include <ymir_vec_ops.h>
+#include <rhea_domain.h>
+#include <rhea_temperature.h>
 
 /* constant: neutral/default value for the sqrt of the 2nd invariant of the
  * strain rate */
@@ -23,6 +24,15 @@ ymir_vec_t         *rhea_strainrate_2inv_new (ymir_mesh_t *ymir_mesh);
 void                rhea_strainrate_destroy (ymir_vec_t *strainrate);
 
 void                rhea_strainrate_2inv_destroy (ymir_vec_t *strainrate_2inv);
+
+/**
+ * Converts entries of a nondimensional strain rate vector into dimensional
+ * values: [1/s]
+ */
+void                rhea_strainrate_convert_to_dimensional (
+                                    ymir_vec_t * strainrate,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
 
 /**
  * Checks whether a vector is of the right type.
