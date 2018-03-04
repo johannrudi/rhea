@@ -43,6 +43,7 @@ typedef struct rhea_temperature_options
 
   /* thermal constants */
   double              thermal_diffusivity_m2_s;
+  double              temperature_difference_K;
 
   /* sinker */
   int                 sinker_active;
@@ -111,6 +112,14 @@ ymir_vec_t         *rhea_temperature_new (ymir_mesh_t *ymir_mesh);
  * Destroys a temperature vector.
  */
 void                rhea_temperature_destroy (ymir_vec_t *temperature);
+
+/**
+ * Converts entries of a nondimensional temperature vector into dimensional
+ * values: [K]
+ */
+void                rhea_temperature_convert_to_dimensional (
+                                              ymir_vec_t * temperature,
+                                              rhea_temperature_options_t *opt);
 
 /**
  * Checks whether a vector is of the right type.
