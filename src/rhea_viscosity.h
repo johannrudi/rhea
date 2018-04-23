@@ -381,6 +381,13 @@ void                rhea_viscosity_marker_set_elem_gauss (
  *****************************************************************************/
 
 /**
+ * Sets a filter that is active at high (i.e., lithospheric) viscosity values.
+ */
+void                rhea_viscosity_stats_filter_lithosphere (
+                                                        ymir_vec_t *filter,
+                                                        ymir_vec_t *viscosity);
+
+/**
  * Computes the volume where bounds are active.
  */
 void                rhea_viscosity_stats_get_bounds_volume (

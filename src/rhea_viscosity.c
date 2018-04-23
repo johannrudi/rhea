@@ -2010,6 +2010,23 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
  * Statistics
  *****************************************************************************/
 
+void
+rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
+                                         ymir_vec_t *viscosity)
+{
+  const double        threshold = 0.9;
+  double              max;
+
+  /* copy/interpolate viscosity onto filter */
+  ymir_interp_vec (viscosity, filter);
+  max = ymir_vec_max_global (filter);
+
+  /* modify: ceil(max(0.0, visc/visc_max - threshold)) */
+  ymir_vec_scale_shift (1.0/max, -threshold, filter);
+  ymir_vec_bound_min (filter, 0.0);
+  ymir_vec_ceil (filter);
+}
+
 /**
  * Computes the volume of a filter.  A filter is understood as a vector with
  * ones where the filter is active and zeros otherwise.
