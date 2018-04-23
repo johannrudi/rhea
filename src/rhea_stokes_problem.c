@@ -2077,7 +2077,9 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   ymir_vec_t         *velocity, *pressure, *viscosity;
   const double        domain_vol = stokes_problem_nl->domain_options->volume;
   double              vel_magn_min, vel_magn_max, vel_magn_mean;
+  double              vel_lith_magn_max, vel_lith_magn_mean;
   double              vel_surf_magn_min, vel_surf_magn_max, vel_surf_magn_mean;
+  double              vel_surf_lith_magn_max, vel_surf_lith_magn_mean;
   double              bounds_vol_min, bounds_vol_max;
   double              yielding_vol;
 
@@ -2098,8 +2100,14 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   rhea_velocity_stats_get_global (
       &vel_magn_min, &vel_magn_max, &vel_magn_mean, velocity,
       stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
+  rhea_velocity_stats_get_global_lithosphere (
+      &vel_lith_magn_max, &vel_lith_magn_mean, velocity, viscosity,
+      stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
   rhea_velocity_stats_get_global_surface (
       &vel_surf_magn_min, &vel_surf_magn_max, &vel_surf_magn_mean, velocity,
+      stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
+  rhea_velocity_stats_get_global_surface_lithosphere (
+      &vel_surf_lith_magn_max, &vel_surf_lith_magn_mean, velocity, viscosity,
       stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
   rhea_viscosity_stats_get_bounds_volume (
       &bounds_vol_min, &bounds_vol_max, stokes_problem_nl->bounds_marker);
@@ -2108,11 +2116,17 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 
   /* print primary statistics */
   RHEA_GLOBAL_INFOF (
-      "%s: Velocity magn. [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
+      "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
       __func__, vel_magn_min, vel_magn_max, vel_magn_mean);
   RHEA_GLOBAL_INFOF (
-      "%s: ... at surface [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
+      "%s: Velocity magn [cm/yr]: lithosphere max %.3e, mean %.3e\n",
+      __func__, vel_lith_magn_max, vel_lith_magn_mean);
+  RHEA_GLOBAL_INFOF (
+      "%s: ~ at surface [cm/yr]:  global min %.3e, max %.3e, mean %.3e\n",
       __func__, vel_surf_magn_min, vel_surf_magn_max, vel_surf_magn_mean);
+  RHEA_GLOBAL_INFOF (
+      "%s: ~ at surface [cm/yr]:  lithosphere max %.3e, mean %.3e\n",
+      __func__, vel_surf_lith_magn_max, vel_surf_lith_magn_mean);
 
   /* print secondary statistics */
   RHEA_GLOBAL_INFOF (
