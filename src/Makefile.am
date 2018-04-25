@@ -13,6 +13,7 @@ librhea_installed_headers = \
         src/rhea_pointcloud_adaptor.h \
         src/rhea_temperature.h \
         src/rhea_weakzone.h \
+        src/rhea_weakzone_label.h \
         src/rhea_viscosity.h \
         src/rhea_velocity.h \
         src/rhea_pressure.h \
