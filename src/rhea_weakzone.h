@@ -31,10 +31,17 @@ typedef struct rhea_weakzone_options
   /* type of weak zone */
   rhea_weakzone_t     type;
 
-  /* parameters for smoothed weak zones */
+  /* parameters for weak zone geometry */
   double              thickness;
   double              thickness_const;
+
+  /* parameters for max weakening in the interior of weak zones;
+   * factors correspond to labels in `rhea_weakzone_label.h` */
   double              weak_factor_interior;
+  double              weak_factor_interior_generic_slab;
+  double              weak_factor_interior_generic_ridge;
+  double              weak_factor_interior_generic_fracture;
+  double             *weak_factor_interior_earth;
 
   /* binary/text files with coordinates, labels, factors of weak zone points */
   char               *points_file_path_bin;

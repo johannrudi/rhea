@@ -2,6 +2,7 @@
  */
 
 #include <rhea_weakzone.h>
+#include <rhea_weakzone_label.h>
 #include <rhea_base.h>
 #include <rhea_io_mpi.h>
 #include <rhea_io_std.h>
@@ -16,13 +17,17 @@
 #define RHEA_WEAKZONE_DEFAULT_THICKNESS_M (20.0e3)
 #define RHEA_WEAKZONE_DEFAULT_THICKNESS_CONST_M (5.0e3)
 #define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR (1.0e-5)
+#define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_SLAB (NAN)
+#define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE (NAN)
+#define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE (NAN)
+#define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_BIN NULL
 #define RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_LABELS_FILE_PATH_BIN NULL
 #define RHEA_WEAKZONE_DEFAULT_LABELS_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_FACTORS_FILE_PATH_BIN NULL
 #define RHEA_WEAKZONE_DEFAULT_FACTORS_FILE_PATH_TXT NULL
-#define RHEA_WEAKZONE_DEFAULT_N_POINTS (5000000)
+#define RHEA_WEAKZONE_DEFAULT_N_POINTS (100000000)
 #define RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_BIN NULL
 #define RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_WRITE_LABELS_FILE_PATH_BIN NULL
@@ -36,6 +41,14 @@ double              rhea_weakzone_thickness_const_m =
   RHEA_WEAKZONE_DEFAULT_THICKNESS_CONST_M;
 double              rhea_weakzone_weak_factor_interior =
   RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR;
+double              rhea_weakzone_weak_factor_interior_generic_slab =
+  RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_SLAB;
+double              rhea_weakzone_weak_factor_interior_generic_ridge =
+  RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE;
+double              rhea_weakzone_weak_factor_interior_generic_fracture =
+  RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE;
+char               *rhea_weakzone_weak_factor_interior_earth_file_path_txt =
+  RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT;
 char               *rhea_weakzone_points_file_path_bin =
   RHEA_WEAKZONE_DEFAULT_POINTS_FILE_PATH_BIN;
 char               *rhea_weakzone_points_file_path_txt =
@@ -79,10 +92,29 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "thickness-const", '\0',
     &(rhea_weakzone_thickness_const_m), RHEA_WEAKZONE_DEFAULT_THICKNESS_CONST_M,
     "Width of smoothing of edges of weak zone [m]",
+
   YMIR_OPTIONS_D, "weak-factor-interior", '\0',
     &(rhea_weakzone_weak_factor_interior),
     RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR,
     "Min weak zone factor, which is assumed in the weak zone's interior",
+  YMIR_OPTIONS_D, "weak-factor-interior-generic-slab", '\0',
+    &(rhea_weakzone_weak_factor_interior_generic_slab),
+    RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_SLAB,
+    "Min weak zone factor for slabs",
+  YMIR_OPTIONS_D, "weak-factor-interior-generic-ridge", '\0',
+    &(rhea_weakzone_weak_factor_interior_generic_ridge),
+    RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE,
+    "Min weak zone factor for ridges",
+  YMIR_OPTIONS_D, "weak-factor-interior-generic-fracture", '\0',
+    &(rhea_weakzone_weak_factor_interior_generic_fracture),
+    RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE,
+    "Min weak zone factor for fractures",
+
+  YMIR_OPTIONS_S, "weak-factor-interior-earth-file-path-txt", '\0',
+    &(rhea_weakzone_weak_factor_interior_earth_file_path_txt),
+    RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT,
+    "Path to a text file with min weak zone factors for earth "
+    "(needs to have 120 lines)",
 
   YMIR_OPTIONS_S, "points-file-path-bin", '\0',
     &(rhea_weakzone_points_file_path_bin),
@@ -160,11 +192,39 @@ rhea_weakzone_process_options (rhea_weakzone_options_t *opt,
     RHEA_ABORT ("Unknown weak zone type name");
   }
 
-  /* set (nondimensional) parameters for smoothed weak zones */
+  /* set (nondimensional) parameters for weak zone geometry */
   opt->thickness = rhea_weakzone_thickness_m / domain_options->radius_max_m;
   opt->thickness_const = rhea_weakzone_thickness_const_m /
                          domain_options->radius_max_m;
+
+  /* set weak zone factors from options */
+  RHEA_ASSERT (isfinite (rhea_weakzone_weak_factor_interior));
   opt->weak_factor_interior = rhea_weakzone_weak_factor_interior;
+  if (isfinite (rhea_weakzone_weak_factor_interior_generic_slab)) {
+    opt->weak_factor_interior_generic_slab =
+      rhea_weakzone_weak_factor_interior_generic_slab;
+  }
+  else {
+    opt->weak_factor_interior_generic_slab =
+      rhea_weakzone_weak_factor_interior;
+  }
+  if (isfinite (rhea_weakzone_weak_factor_interior_generic_ridge)) {
+    opt->weak_factor_interior_generic_ridge =
+      rhea_weakzone_weak_factor_interior_generic_ridge;
+  }
+  else {
+    opt->weak_factor_interior_generic_ridge =
+      rhea_weakzone_weak_factor_interior;
+  }
+  if (isfinite (rhea_weakzone_weak_factor_interior_generic_fracture)) {
+    opt->weak_factor_interior_generic_fracture =
+      rhea_weakzone_weak_factor_interior_generic_fracture;
+  }
+  else {
+    opt->weak_factor_interior_generic_fracture =
+      rhea_weakzone_weak_factor_interior;
+  }
+  opt->weak_factor_interior_earth = NULL;
 
   /* set paths to binary & text files */
   opt->points_file_path_bin = rhea_weakzone_points_file_path_bin;
@@ -391,6 +451,8 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     else { /* otherwise no reading possible */
       RHEA_ABORT_NOT_REACHED ();
     }
+
+    RHEA_GLOBAL_INFOF ("%s: Number of labels: %i\n", __func__, n_read);
   }
 
   /* create, read, and write factors */
@@ -417,6 +479,8 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     else { /* otherwise no reading possible */
       RHEA_ABORT_NOT_REACHED ();
     }
+
+    RHEA_GLOBAL_INFOF ("%s: Number of factors: %i\n", __func__, n_read);
   }
 
   /* create point cloud */
@@ -441,6 +505,26 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     RHEA_FREE (factors);
   }
 
+  /* read weak zone factors for each label */
+  if (create_labels &&
+      rhea_weakzone_weak_factor_interior_earth_file_path_txt != NULL) {
+    const char         *file_path_txt =
+      rhea_weakzone_weak_factor_interior_earth_file_path_txt;
+    const int           n_entries = RHEA_WEAKZONE_LABEL_EARTH_N;
+    int                 n_read;
+
+    RHEA_ASSERT (opt->weak_factor_interior_earth == NULL);
+    opt->weak_factor_interior_earth = RHEA_ALLOC (double, n_entries);
+
+    n_read = rhea_io_mpi_read_broadcast_double (
+        opt->weak_factor_interior_earth, n_entries, NULL /* path bin */,
+        file_path_txt, mpicomm);
+    RHEA_ASSERT (n_read == n_entries);
+
+    RHEA_GLOBAL_INFOF ("%s: Number of distinct labels: %i\n", __func__,
+                       n_read);
+  }
+
   RHEA_GLOBAL_INFOF ("Done %s (type %i)\n", __func__, opt->type);
 }
 
@@ -450,11 +534,62 @@ rhea_weakzone_data_clear (rhea_weakzone_options_t *opt)
   if (opt->pointcloud != NULL) {
     rhea_pointcloud_weakzone_destroy (opt->pointcloud);
   }
+  if (opt->weak_factor_interior_earth != NULL) {
+    RHEA_FREE (opt->weak_factor_interior_earth);
+  }
 }
 
 /******************************************************************************
  * Weak Zone Computation
  *****************************************************************************/
+
+/**
+ * Looks up the weak zone factor corresponding to a label and options.
+ */
+static double
+rhea_weakzone_lookup_factor_interior (const int label,
+                                      rhea_weakzone_options_t *opt)
+{
+  switch (opt->type) {
+  case RHEA_WEAKZONE_DATA_POINTS: /* singe factor for all weak zones */
+    return opt->weak_factor_interior;
+
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS: /* different label dependent factors */
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
+    /* get factor depending on label (from `rhea_weakzone_label.h`) */
+    RHEA_ASSERT (RHEA_WEAKZONE_LABEL_NONE <= label);
+    switch (label) {
+    case RHEA_WEAKZONE_LABEL_NONE:
+      return opt->weak_factor_interior;
+    case RHEA_WEAKZONE_LABEL_GENERIC_SLAB:
+      return opt->weak_factor_interior_generic_slab;
+    case RHEA_WEAKZONE_LABEL_GENERIC_RIDGE:
+      return opt->weak_factor_interior_generic_ridge;
+    case RHEA_WEAKZONE_LABEL_GENERIC_FRACTURE:
+      return opt->weak_factor_interior_generic_fracture;
+    default:
+      if (rhea_weakzone_label_assigned_to_earth (label)) {
+        if (opt->weak_factor_interior_earth != NULL) {
+          const int           idx = rhea_weakzone_label_earth_get_idx (label);
+
+          RHEA_ASSERT (0 <= idx && idx < RHEA_WEAKZONE_LABEL_EARTH_N);
+          return opt->weak_factor_interior_earth[idx];
+        }
+        else {
+          return opt->weak_factor_interior;
+        }
+      }
+      else { /* otherwise label is unknown */
+        RHEA_ABORT_NOT_REACHED ();
+        return NAN;
+      }
+    }
+
+  default: /* unknown weak zone type */
+    RHEA_ABORT_NOT_REACHED ();
+    return NAN;
+  }
+}
 
 /**
  * Computes the distance to the weak zone surface (e.g., shortest distance to
@@ -576,22 +711,37 @@ rhea_weakzone_node (const double x, const double y, const double z,
   const double        thickness = opt->thickness;
   const double        thickness_const = opt->thickness_const;
   double              distance;
-  int                 label; //TODO unused yet
+  int                 label;
   double              factor_interior;
 
+  /* compute distance to a surface/manifold describing the weak zone */
   switch (opt->type) {
   case RHEA_WEAKZONE_DATA_POINTS:
+    label = RHEA_WEAKZONE_LABEL_NONE;
+    distance = rhea_weakzone_dist_node (NULL, NULL, x, y, z, opt);
+    factor_interior = rhea_weakzone_lookup_factor_interior (label, opt);
+    break;
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
+    label = -1;
     distance = rhea_weakzone_dist_node (&label, NULL, x, y, z, opt);
-    factor_interior = opt->weak_factor_interior;
+    RHEA_ASSERT (0 <= label);
+    factor_interior = rhea_weakzone_lookup_factor_interior (label, opt);
     break;
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
+    label = -1;
     distance = rhea_weakzone_dist_node (&label, &factor_interior, x, y, z, opt);
+    if (!isfinite (factor_interior)) { /* if factor is invalid */
+      RHEA_ASSERT (0 <= label);
+      factor_interior = rhea_weakzone_lookup_factor_interior (label, opt);
+    }
     break;
   default: /* unknown weak zone type */
     RHEA_ABORT_NOT_REACHED ();
   }
+  RHEA_ASSERT (isfinite (distance));
+  RHEA_ASSERT (isfinite (factor_interior));
 
+  /* compute weak zone value */
   return rhea_weakzone_factor_node (distance, thickness, thickness_const,
                                     factor_interior);
 }
