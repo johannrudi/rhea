@@ -2014,7 +2014,7 @@ void
 rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
                                          ymir_vec_t *viscosity)
 {
-  const double        threshold = 0.9;
+  const double        threshold = 0.9; /* need: 0 < threshold <= 1 */
   double              max;
 
   /* copy/interpolate viscosity onto filter */
