@@ -10,7 +10,7 @@
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
-#include <ymir_vtk.h> //###DEV###
+#include <ymir_vtk.h>
 
 /******************************************************************************
  * Monitoring
