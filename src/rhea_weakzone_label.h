@@ -14,11 +14,11 @@ typedef enum
   RHEA_WEAKZONE_LABEL_GENERIC_SLAB      = 1,
 
   /* ridges and fractures are described by lines on the domain's top surface
-   * that are extended to a max depth */
+   * that are extended radially to a max depth */
   RHEA_WEAKZONE_LABEL_GENERIC_RIDGE     = 2,
   RHEA_WEAKZONE_LABEL_GENERIC_FRACTURE  = 3,
 
-  /* slabs of earth's domain */
+  /* slabs of earth */
   RHEA_WEAKZONE_LABEL_EARTH_SL_ALU = 1001,
   RHEA_WEAKZONE_LABEL_EARTH_SL_CAL = 1002,
   RHEA_WEAKZONE_LABEL_EARTH_SL_CAM = 1003,
@@ -47,7 +47,7 @@ typedef enum
   RHEA_WEAKZONE_LABEL_EARTH_SL_SUM = 1026,
   RHEA_WEAKZONE_LABEL_EARTH_SL_VAN = 1027,
 
-  /* ridges of earth's domain */
+  /* ridges of earth */
   RHEA_WEAKZONE_LABEL_EARTH_RI_KE_AU   = 2001,
   RHEA_WEAKZONE_LABEL_EARTH_RI_TO_NI_1 = 2002,
   RHEA_WEAKZONE_LABEL_EARTH_RI_TO_NI_2 = 2003,
@@ -107,7 +107,7 @@ typedef enum
   RHEA_WEAKZONE_LABEL_EARTH_RI_AF_AR   = 2057,
   RHEA_WEAKZONE_LABEL_EARTH_RI_AR_AF   = 2058,
 
-  /* fractures of earth's domain */
+  /* fractures of earth */
   RHEA_WEAKZONE_LABEL_EARTH_FZ_SB_WL   = 3001,
   RHEA_WEAKZONE_LABEL_EARTH_FZ_PS_MA_1 = 3002,
   RHEA_WEAKZONE_LABEL_EARTH_FZ_PS_MA_2 = 3003,
@@ -146,6 +146,7 @@ typedef enum
 }
 rhea_weakzone_label_t;
 
+/* label counts for earth */
 #define RHEA_WEAKZONE_LABEL_EARTH_N_SL 27
 #define RHEA_WEAKZONE_LABEL_EARTH_N_RI 58
 #define RHEA_WEAKZONE_LABEL_EARTH_N_FZ 35
@@ -154,11 +155,66 @@ rhea_weakzone_label_t;
                                      RHEA_WEAKZONE_LABEL_EARTH_N_FZ)
 
 static int
+rhea_weakzone_label_is_slab (const rhea_weakzone_label_t label)
+{
+  int                 is_slab = 0;
+
+  if (RHEA_WEAKZONE_LABEL_GENERIC_SLAB == label) {
+    is_slab = 1;
+  }
+
+  if (1000 < label && label < 2000) {
+    is_slab = 1;
+  }
+
+  return is_slab;
+}
+
+static int
+rhea_weakzone_label_is_ridge (const rhea_weakzone_label_t label)
+{
+  int                 is_ridge = 0;
+
+  if (RHEA_WEAKZONE_LABEL_GENERIC_RIDGE == label) {
+    is_ridge = 1;
+  }
+
+  if (2000 < label && label < 3000) {
+    is_ridge = 1;
+  }
+
+  return is_ridge;
+}
+
+static int
+rhea_weakzone_label_is_fracture (const rhea_weakzone_label_t label)
+{
+  int                 is_fracture = 0;
+
+  if (RHEA_WEAKZONE_LABEL_GENERIC_FRACTURE == label) {
+    is_fracture = 1;
+  }
+
+  if (3000 < label && label < 4000) {
+    is_fracture = 1;
+  }
+
+  return is_fracture;
+}
+
+/**
+ * Checks whether a label correspond to a weak zone of earth.
+ */
+static int
 rhea_weakzone_label_assigned_to_earth (const rhea_weakzone_label_t label)
 {
   return (1000 < label && label < 4000);
 }
 
+/**
+ * Gets the array index in (0:RHEA_WEAKZONE_LABEL_EARTH_N) corresponding to a
+ * label for earth.
+ */
 static int
 rhea_weakzone_label_earth_get_idx (const rhea_weakzone_label_t label)
 {
