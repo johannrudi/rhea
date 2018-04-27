@@ -33,7 +33,13 @@ typedef struct rhea_weakzone_options
 
   /* parameters for weak zone geometry */
   double              thickness;
+  double              thickness_generic_slab;
+  double              thickness_generic_ridge;
+  double              thickness_generic_fracture;
   double              thickness_const;
+  double              thickness_const_generic_slab;
+  double              thickness_const_generic_ridge;
+  double              thickness_const_generic_fracture;
 
   /* parameters for max weakening in the interior of weak zones;
    * factors correspond to labels in `rhea_weakzone_label.h` */
