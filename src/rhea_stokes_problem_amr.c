@@ -320,7 +320,8 @@ rhea_stokes_problem_amr_check_flag (rhea_p4est_quadrant_data_t *qd)
 {
   int               check_success;
 
-  if (rhea_amr_flag_is_valid (qd->amr_flag)) { /* if flagged previously */
+  if (rhea_amr_flag_is_valid ((rhea_amr_flag_t) qd->amr_flag)) { /* if flagged
+                                                                  * before */
     switch (qd->amr_flag) {
     case RHEA_AMR_FLAG_COARSEN: /* assume: 1:2-balancing prevented coarsening */
       qd->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
