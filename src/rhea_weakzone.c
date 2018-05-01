@@ -792,22 +792,24 @@ rhea_weakzone_data_clear (rhea_weakzone_options_t *opt)
 static double
 rhea_weakzone_lookup_thickness (const int label, rhea_weakzone_options_t *opt)
 {
+  const rhea_weakzone_label_t label_enum = (rhea_weakzone_label_t) label;
+
   /* check input */
-  RHEA_ASSERT (RHEA_WEAKZONE_LABEL_NONE <= label);
+  RHEA_ASSERT (RHEA_WEAKZONE_LABEL_NONE <= label_enum);
 
   /* return single thickness for all weak zones */
-  if (RHEA_WEAKZONE_LABEL_NONE == label) {
+  if (RHEA_WEAKZONE_LABEL_NONE == label_enum) {
     return opt->thickness;
   }
 
   /* return thickness depending on label (from `rhea_weakzone_label.h`) */
-  if (rhea_weakzone_label_is_slab (label)) {
+  if (rhea_weakzone_label_is_slab (label_enum)) {
     return opt->thickness_generic_slab;
   }
-  if (rhea_weakzone_label_is_ridge (label)) {
+  if (rhea_weakzone_label_is_ridge (label_enum)) {
     return opt->thickness_generic_ridge;
   }
-  if (rhea_weakzone_label_is_fracture (label)) {
+  if (rhea_weakzone_label_is_fracture (label_enum)) {
     return opt->thickness_generic_fracture;
   }
 
@@ -824,22 +826,24 @@ static double
 rhea_weakzone_lookup_thickness_const (const int label,
                                       rhea_weakzone_options_t *opt)
 {
+  const rhea_weakzone_label_t label_enum = (rhea_weakzone_label_t) label;
+
   /* check input */
-  RHEA_ASSERT (RHEA_WEAKZONE_LABEL_NONE <= label);
+  RHEA_ASSERT (RHEA_WEAKZONE_LABEL_NONE <= label_enum);
 
   /* return single thickness for all weak zones */
-  if (RHEA_WEAKZONE_LABEL_NONE == label) {
+  if (RHEA_WEAKZONE_LABEL_NONE == label_enum) {
     return opt->thickness_const;
   }
 
   /* return thickness depending on label (from `rhea_weakzone_label.h`) */
-  if (rhea_weakzone_label_is_slab (label)) {
+  if (rhea_weakzone_label_is_slab (label_enum)) {
     return opt->thickness_const_generic_slab;
   }
-  if (rhea_weakzone_label_is_ridge (label)) {
+  if (rhea_weakzone_label_is_ridge (label_enum)) {
     return opt->thickness_const_generic_ridge;
   }
-  if (rhea_weakzone_label_is_fracture (label)) {
+  if (rhea_weakzone_label_is_fracture (label_enum)) {
     return opt->thickness_const_generic_fracture;
   }
 
@@ -855,6 +859,8 @@ static double
 rhea_weakzone_lookup_factor_interior (const int label,
                                       rhea_weakzone_options_t *opt)
 {
+  const rhea_weakzone_label_t label_enum = (rhea_weakzone_label_t) label;
+
   switch (opt->type) {
   case RHEA_WEAKZONE_DATA_POINTS: /* single factor for all weak zones */
     return opt->weak_factor_interior;
@@ -862,8 +868,8 @@ rhea_weakzone_lookup_factor_interior (const int label,
   case RHEA_WEAKZONE_DATA_POINTS_LABELS: /* different label dependent factors */
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
     /* get factor depending on label (from `rhea_weakzone_label.h`) */
-    RHEA_ASSERT (RHEA_WEAKZONE_LABEL_NONE <= label);
-    switch (label) {
+    RHEA_ASSERT (RHEA_WEAKZONE_LABEL_NONE <= label_enum);
+    switch (label_enum) {
     case RHEA_WEAKZONE_LABEL_NONE:
       return opt->weak_factor_interior;
     case RHEA_WEAKZONE_LABEL_GENERIC_SLAB:
@@ -873,9 +879,9 @@ rhea_weakzone_lookup_factor_interior (const int label,
     case RHEA_WEAKZONE_LABEL_GENERIC_FRACTURE:
       return opt->weak_factor_interior_generic_fracture;
     default:
-      if (rhea_weakzone_label_assigned_to_earth (label)) {
+      if (rhea_weakzone_label_assigned_to_earth (label_enum)) {
         if (opt->weak_factor_interior_earth != NULL) {
-          const int           idx = rhea_weakzone_label_earth_get_idx (label);
+          const int idx = rhea_weakzone_label_earth_get_idx (label_enum);
 
           RHEA_ASSERT (0 <= idx && idx < RHEA_WEAKZONE_LABEL_EARTH_N);
           return opt->weak_factor_interior_earth[idx];
