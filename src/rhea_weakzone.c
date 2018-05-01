@@ -329,6 +329,31 @@ rhea_weakzone_process_options (rhea_weakzone_options_t *opt,
   /* init data */
   opt->pointcloud = NULL;
 
+  /* init statistics */
+  opt->stats_radius_min = NAN;
+
+  opt->stats_thickness_max = opt->thickness + opt->thickness_const;
+  opt->stats_thickness_max = SC_MAX (
+      opt->stats_thickness_max,
+      opt->thickness_generic_slab + opt->thickness_const_generic_slab);
+  opt->stats_thickness_max = SC_MAX (
+      opt->stats_thickness_max,
+      opt->thickness_generic_ridge + opt->thickness_const_generic_ridge);
+  opt->stats_thickness_max = SC_MAX (
+      opt->stats_thickness_max,
+      opt->thickness_generic_fracture + opt->thickness_const_generic_fracture);
+
+  opt->stats_factor_interior_min = opt->weak_factor_interior;
+  opt->stats_factor_interior_min = SC_MIN (
+      opt->stats_factor_interior_min,
+      opt->weak_factor_interior_generic_slab);
+  opt->stats_factor_interior_min = SC_MIN (
+      opt->stats_factor_interior_min,
+      opt->weak_factor_interior_generic_ridge);
+  opt->stats_factor_interior_min = SC_MIN (
+      opt->stats_factor_interior_min,
+      opt->weak_factor_interior_generic_fracture);
+
   /* set dependent options */
   opt->domain_options = domain_options;
 }
@@ -528,6 +553,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     const char         *file_path_txt = opt->points_file_path_txt;
     const char         *write_file_path_bin = opt->write_points_file_path_bin;
     const char         *write_file_path_txt = opt->write_points_file_path_txt;
+    int                 idx;
 
     /* start performance monitors */
     ymir_perf_counter_start (
@@ -577,6 +603,17 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
       }
     }
 
+    /* find min radius */
+    opt->stats_radius_min = opt->domain_options->radius_max;
+    for (idx = 0; idx < 3*opt->n_points; idx += 3) {
+      const double        r = rhea_domain_compute_radius (coordinates[idx    ],
+                                                          coordinates[idx + 1],
+                                                          coordinates[idx + 2],
+                                                          opt->domain_options);
+
+      opt->stats_radius_min = SC_MIN (r, opt->stats_radius_min);
+    }
+
     /* stop performance monitors */
     ymir_perf_counter_stop_add (
         &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_COORDINATES]);
@@ -624,6 +661,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     const char         *file_path_bin = opt->factors_file_path_bin;
     const char         *file_path_txt = opt->factors_file_path_txt;
     const char         *write_file_path_bin = opt->write_factors_file_path_bin;
+    int                 idx;
 
     /* start performance monitors */
     ymir_perf_counter_start (
@@ -648,6 +686,12 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     }
 
     RHEA_GLOBAL_INFOF ("%s: Number of factors: %i\n", __func__, n_read);
+
+    /* find min factor */
+    for (idx = 0; idx < n_entries; idx++) {
+      opt->stats_factor_interior_min = SC_MIN (opt->stats_factor_interior_min,
+                                               factors[idx]);
+    }
 
     /* stop performance monitors */
     ymir_perf_counter_stop_add (
@@ -687,6 +731,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
       rhea_weakzone_weak_factor_interior_earth_file_path_txt;
     const int           n_entries = RHEA_WEAKZONE_LABEL_EARTH_N;
     int                 n_read;
+    int                 idx;
 
     /* start performance monitors */
     ymir_perf_counter_start (
@@ -703,10 +748,25 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     RHEA_GLOBAL_INFOF ("%s: Number of distinct labels: %i\n", __func__,
                        n_read);
 
+    /* find min factor */
+    for (idx = 0; idx < n_entries; idx++) {
+      opt->stats_factor_interior_min = SC_MIN (
+          opt->stats_factor_interior_min,
+          opt->weak_factor_interior_earth[idx]);
+    }
+
     /* stop performance monitors */
     ymir_perf_counter_stop_add (
         &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_LABELS]);
   }
+
+  /* print statistics */
+  RHEA_GLOBAL_INFOF ("%s: Weak zone statistics: Min radius %g\n",
+                     __func__, opt->stats_radius_min);
+  RHEA_GLOBAL_INFOF ("%s: Weak zone statistics: Max thickness %g\n",
+                     __func__, opt->stats_thickness_max);
+  RHEA_GLOBAL_INFOF ("%s: Weak zone statistics: Min factor interior %g\n",
+                     __func__, opt->stats_factor_interior_min);
 
   RHEA_GLOBAL_INFOF ("Done %s (type %i)\n", __func__, opt->type);
 }
@@ -837,6 +897,44 @@ rhea_weakzone_lookup_factor_interior (const int label,
 }
 
 /**
+ * Checks whether coordinates can expected to be far from weak zones s.t.
+ *
+ *   (1 - factor_interior) * exp ( - dist^2 / (2 * (0.5*thickness)^2) ) < eps
+ */
+static int
+rhea_weakzone_dist_node_is_large (const double x, const double y,
+                                  const double z, rhea_weakzone_options_t *opt)
+{
+  const double        eps = 1.0e-6;
+  double              d, std_dev, factor_interior, thresh;
+
+  /* exit if statistics not available */
+  if (!isfinite (opt->stats_radius_min) ||
+      !isfinite (opt->stats_thickness_max) ||
+      !isfinite (opt->stats_factor_interior_min)) {
+    return 0;
+  }
+
+  /* compute distance^2 */
+  d = opt->stats_radius_min -
+      rhea_domain_compute_radius (x, y, z, opt->domain_options);
+  if (d <= 0.0) { /* if radius_min <= r(x,y,z) */
+    return 0;
+  }
+
+  /* set square of max width */
+  std_dev = 0.5 * opt->stats_thickness_max;
+
+  /* set min factor */
+  factor_interior = opt->stats_factor_interior_min;
+
+  /* calculate threshold for distance^2 and return */
+  thresh = - (2.0*std_dev*std_dev) * log (eps / (1.0 - factor_interior));
+  RHEA_ASSERT (0.0 <= thresh);
+  return (thresh < d*d);
+}
+
+/**
  * Computes the distance to the weak zone surface (e.g., shortest distance to
  * point cloud).
  */
@@ -852,6 +950,18 @@ rhea_weakzone_dist_node (int *nearest_label, double *nearest_factor,
   ymir_perf_counter_start (
       &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_DIST_NODE]);
 
+  /* exit if distance is expected to be large */
+  if (rhea_weakzone_dist_node_is_large (x, y, z, opt)) {
+    if (nearest_label != NULL) {
+      *nearest_label= RHEA_WEAKZONE_LABEL_NONE;
+    }
+    if (nearest_factor != NULL) {
+      *nearest_factor = RHEA_WEAKZONE_NEUTRAL_VALUE;
+    }
+    return opt->domain_options->depth;
+  }
+
+  /* compute distance */
   switch (opt->type) {
   case RHEA_WEAKZONE_DATA_POINTS:
     RHEA_ASSERT (opt->pointcloud != NULL);
