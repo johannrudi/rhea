@@ -92,6 +92,24 @@ void                rhea_weakzone_process_options (
 int                 rhea_weakzone_exists (rhea_weakzone_options_t *opt);
 
 /******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/**
+ * Initializes performance counters.
+ */
+void                rhea_weakzone_perfmon_init (const int activate,
+                                                const int skip_if_active);
+
+/**
+ * Prints statistics collected by performance monitors.
+ */
+void                rhea_weakzone_perfmon_print (sc_MPI_Comm mpicomm,
+                                                 const int print_wtime,
+                                                 const int print_n_calls,
+                                                 const int print_flops);
+
+/******************************************************************************
  * Weak Zone Vector
  *****************************************************************************/
 

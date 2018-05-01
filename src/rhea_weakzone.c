@@ -7,6 +7,7 @@
 #include <rhea_io_mpi.h>
 #include <rhea_io_std.h>
 #include <ymir_vec_getset.h>
+#include <ymir_perf_counter.h>
 
 /******************************************************************************
  * Options
@@ -38,6 +39,7 @@
 #define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE (NAN)
 #define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE (NAN)
 #define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT NULL
+#define RHEA_WEAKZONE_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* initialize options */
 char               *rhea_weakzone_type_name = RHEA_WEAKZONE_DEFAULT_TYPE_NAME;
@@ -89,6 +91,8 @@ double              rhea_weakzone_weak_factor_interior_generic_fracture =
   RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE;
 char               *rhea_weakzone_weak_factor_interior_earth_file_path_txt =
   RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT;
+int                 rhea_weakzone_monitor_performance =
+                      RHEA_WEAKZONE_DEFAULT_MONITOR_PERFORMANCE;
 
 void
 rhea_weakzone_add_options (ymir_options_t * opt_sup)
@@ -205,12 +209,20 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
     "Path to a text file with min weak zone factors for earth "
     "(needs to have 120 lines)",
 
+  YMIR_OPTIONS_B, "monitor-performance", '\0',
+    &(rhea_weakzone_monitor_performance),
+    RHEA_WEAKZONE_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
+
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
   ymir_options_destroy (opt);
+
+  /* initialize (deactivated) performance counters */
+  rhea_weakzone_perfmon_init (0, 0);
 }
 
 void
@@ -338,6 +350,70 @@ rhea_weakzone_exists (rhea_weakzone_options_t *opt)
 }
 
 /******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_WEAKZONE_PERFMON_CREATE_COORDINATES,
+  RHEA_WEAKZONE_PERFMON_CREATE_LABELS,
+  RHEA_WEAKZONE_PERFMON_CREATE_FACTORS,
+  RHEA_WEAKZONE_PERFMON_CREATE_POINTCLOUD,
+  RHEA_WEAKZONE_PERFMON_DIST_NODE,
+  RHEA_WEAKZONE_PERFMON_N
+}
+rhea_weakzone_perfmon_idx_t;
+
+static const char  *rhea_weakzone_perfmon_name[RHEA_WEAKZONE_PERFMON_N] =
+{
+  "Create coordinates",
+  "Create labels",
+  "Create factors",
+  "Create point cloud",
+  "Compute distance"
+};
+ymir_perf_counter_t rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_N];
+
+void
+rhea_weakzone_perfmon_init (const int activate, const int skip_if_active)
+{
+  const int           active = activate && rhea_weakzone_monitor_performance;
+
+  ymir_perf_counter_init_all_ext (rhea_weakzone_perfmon,
+                                  rhea_weakzone_perfmon_name,
+                                  RHEA_WEAKZONE_PERFMON_N,
+                                  active, skip_if_active);
+}
+
+void
+rhea_weakzone_perfmon_print (sc_MPI_Comm mpicomm,
+                        const int print_wtime,
+                        const int print_n_calls,
+                        const int print_flops)
+{
+  const int           active = rhea_weakzone_monitor_performance;
+  const int           print = (print_wtime || print_n_calls || print_flops);
+  int                 n_stats = RHEA_WEAKZONE_PERFMON_N *
+                                YMIR_PERF_COUNTER_N_STATS;
+  sc_statinfo_t       stats[n_stats];
+  char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+
+  /* exit if nothing to do */
+  if (!active || !print) {
+    return;
+  }
+
+  /* gather performance statistics */
+  n_stats = ymir_perf_counter_gather_stats (
+      rhea_weakzone_perfmon, RHEA_WEAKZONE_PERFMON_N, stats, stats_name,
+      mpicomm, print_wtime, print_n_calls, print_flops);
+
+  /* print performance statistics */
+  ymir_perf_counter_print_stats (stats, n_stats, "Weak Zone");
+}
+
+/******************************************************************************
  * Weak Zone Vector
  *****************************************************************************/
 
@@ -453,6 +529,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     const char         *write_file_path_bin = opt->write_points_file_path_bin;
     const char         *write_file_path_txt = opt->write_points_file_path_txt;
 
+    /* start performance monitors */
+    ymir_perf_counter_start (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_COORDINATES]);
+
     coordinates = RHEA_ALLOC (double, n_entries);
 
     /* read from file */
@@ -496,6 +576,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
                                          3 /* entries per line */);
       }
     }
+
+    /* stop performance monitors */
+    ymir_perf_counter_stop_add (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_COORDINATES]);
   }
 
   /* create, read, and write labels */
@@ -504,6 +588,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     const char         *file_path_bin = opt->labels_file_path_bin;
     const char         *file_path_txt = opt->labels_file_path_txt;
     const char         *write_file_path_bin = opt->write_labels_file_path_bin;
+
+    /* start performance monitors */
+    ymir_perf_counter_start (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_LABELS]);
 
     labels = RHEA_ALLOC (int, n_entries);
 
@@ -524,6 +612,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     }
 
     RHEA_GLOBAL_INFOF ("%s: Number of labels: %i\n", __func__, n_read);
+
+    /* stop performance monitors */
+    ymir_perf_counter_stop_add (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_LABELS]);
   }
 
   /* create, read, and write factors */
@@ -532,6 +624,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     const char         *file_path_bin = opt->factors_file_path_bin;
     const char         *file_path_txt = opt->factors_file_path_txt;
     const char         *write_file_path_bin = opt->write_factors_file_path_bin;
+
+    /* start performance monitors */
+    ymir_perf_counter_start (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_FACTORS]);
 
     factors = RHEA_ALLOC (double, n_entries);
 
@@ -552,9 +648,15 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     }
 
     RHEA_GLOBAL_INFOF ("%s: Number of factors: %i\n", __func__, n_read);
+
+    /* stop performance monitors */
+    ymir_perf_counter_stop_add (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_FACTORS]);
   }
 
   /* create point cloud */
+  ymir_perf_counter_start (
+      &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_POINTCLOUD]);
   opt->pointcloud = rhea_pointcloud_weakzone_new (
       domain_options->x_min, domain_options->x_max,
       domain_options->y_min, domain_options->y_max,
@@ -566,6 +668,8 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
   if (create_factors) {
     rhea_pointcloud_weakzone_set_factors (opt->pointcloud, factors);
   }
+  ymir_perf_counter_stop_add (
+      &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_POINTCLOUD]);
 
   /* destroy */
   RHEA_FREE (coordinates);
@@ -584,6 +688,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     const int           n_entries = RHEA_WEAKZONE_LABEL_EARTH_N;
     int                 n_read;
 
+    /* start performance monitors */
+    ymir_perf_counter_start (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_LABELS]);
+
     RHEA_ASSERT (opt->weak_factor_interior_earth == NULL);
     opt->weak_factor_interior_earth = RHEA_ALLOC (double, n_entries);
 
@@ -594,6 +702,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
 
     RHEA_GLOBAL_INFOF ("%s: Number of distinct labels: %i\n", __func__,
                        n_read);
+
+    /* stop performance monitors */
+    ymir_perf_counter_stop_add (
+        &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_LABELS]);
   }
 
   RHEA_GLOBAL_INFOF ("Done %s (type %i)\n", __func__, opt->type);
@@ -736,6 +848,10 @@ rhea_weakzone_dist_node (int *nearest_label, double *nearest_factor,
   const double        pt[3] = {x, y, z};
   double              dist;
 
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_DIST_NODE]);
+
   switch (opt->type) {
   case RHEA_WEAKZONE_DATA_POINTS:
     RHEA_ASSERT (opt->pointcloud != NULL);
@@ -763,6 +879,10 @@ rhea_weakzone_dist_node (int *nearest_label, double *nearest_factor,
   }
   RHEA_ASSERT (isfinite (dist));
   RHEA_ASSERT (0.0 <= dist);
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_DIST_NODE]);
 
   return dist;
 }
