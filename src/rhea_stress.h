@@ -24,9 +24,11 @@ void                rhea_stress_2inv_destroy (ymir_vec_t *stress_2inv);
 
 /**
  * Converts entries of a nondimensional stress vector into dimensional
- * values: [Pa]
+ * values:
+ *
+ *   [Pa]
  */
-void                rhea_stress_convert_to_dimensional (
+void                rhea_stress_convert_to_dimensional_Pa (
                                       ymir_vec_t * stress,
                                       rhea_domain_options_t *domain_options,
                                       rhea_temperature_options_t *temp_options,

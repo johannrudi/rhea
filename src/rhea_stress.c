@@ -19,10 +19,10 @@ rhea_stress_destroy (ymir_vec_t *stress)
 }
 
 void
-rhea_stress_convert_to_dimensional (ymir_vec_t * stress,
-                                    rhea_domain_options_t *domain_options,
-                                    rhea_temperature_options_t *temp_options,
-                                    rhea_viscosity_options_t *visc_options)
+rhea_stress_convert_to_dimensional_Pa (ymir_vec_t * stress,
+                                       rhea_domain_options_t *domain_options,
+                                       rhea_temperature_options_t *temp_options,
+                                       rhea_viscosity_options_t *visc_options)
 {
   const double        dim_scal = visc_options->representative_Pas *
                                  temp_options->thermal_diffusivity_m2_s /
