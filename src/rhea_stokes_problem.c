@@ -2076,12 +2076,6 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
   ymir_vec_t         *velocity, *pressure, *viscosity;
   const double        domain_vol = stokes_problem_nl->domain_options->volume;
-  double              vel_magn_min, vel_magn_max, vel_magn_mean;
-  double              vel_lith_magn_max, vel_lith_magn_mean;
-  double              vel_surf_magn_min, vel_surf_magn_max, vel_surf_magn_mean;
-  double              vel_surf_lith_magn_max, vel_surf_lith_magn_mean;
-  double              bounds_vol_min, bounds_vol_max;
-  double              yielding_vol;
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
 
@@ -2096,46 +2090,108 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   viscosity = rhea_viscosity_new (ymir_mesh);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_nl);
 
-  /* compute statistics */
-  rhea_velocity_stats_get_global (
-      &vel_magn_min, &vel_magn_max, &vel_magn_mean, velocity,
-      stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
-  rhea_velocity_stats_get_global_lithosphere (
-      &vel_lith_magn_max, &vel_lith_magn_mean, velocity, viscosity,
-      stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
-  rhea_velocity_stats_get_global_surface (
-      &vel_surf_magn_min, &vel_surf_magn_max, &vel_surf_magn_mean, velocity,
-      stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
-  rhea_velocity_stats_get_global_surface_lithosphere (
-      &vel_surf_lith_magn_max, &vel_surf_lith_magn_mean, velocity, viscosity,
-      stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
-  rhea_viscosity_stats_get_bounds_volume (
-      &bounds_vol_min, &bounds_vol_max, stokes_problem_nl->bounds_marker);
-  yielding_vol = rhea_viscosity_stats_get_yielding_volume (
-      stokes_problem_nl->yielding_marker);
+  /* print velocity statistics */
+  {
+    double              magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr;
+    double              lith_magn_max_cm_yr, lith_magn_mean_cm_yr;
+    double              surf_magn_min_cm_yr, surf_magn_max_cm_yr,
+                        surf_magn_mean_cm_yr;
+    double              surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr;
 
-  /* print primary statistics */
-  RHEA_GLOBAL_INFOF (
-      "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
-      __func__, vel_magn_min, vel_magn_max, vel_magn_mean);
-  RHEA_GLOBAL_INFOF (
-      "%s: Velocity magn [cm/yr]: lithosphere max %.3e, mean %.3e\n",
-      __func__, vel_lith_magn_max, vel_lith_magn_mean);
-  RHEA_GLOBAL_INFOF (
-      "%s: ~ at surface [cm/yr]:  global min %.3e, max %.3e, mean %.3e\n",
-      __func__, vel_surf_magn_min, vel_surf_magn_max, vel_surf_magn_mean);
-  RHEA_GLOBAL_INFOF (
-      "%s: ~ at surface [cm/yr]:  lithosphere max %.3e, mean %.3e\n",
-      __func__, vel_surf_lith_magn_max, vel_surf_lith_magn_mean);
+    rhea_velocity_stats_get_global (
+        &magn_min_cm_yr, &magn_max_cm_yr, &magn_mean_cm_yr, velocity,
+        stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
+    rhea_velocity_stats_get_global_lithosphere (
+        &lith_magn_max_cm_yr, &lith_magn_mean_cm_yr, velocity, viscosity,
+        stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
+    rhea_velocity_stats_get_global_surface (
+        &surf_magn_min_cm_yr, &surf_magn_max_cm_yr, &surf_magn_mean_cm_yr,
+        velocity, stokes_problem_nl->domain_options,
+        stokes_problem_nl->temp_options);
+    rhea_velocity_stats_get_global_surface_lithosphere (
+        &surf_lith_magn_max_cm_yr, &surf_lith_magn_mean_cm_yr,
+        velocity, viscosity, stokes_problem_nl->domain_options,
+        stokes_problem_nl->temp_options);
+    //TODO mean rotation
 
-  /* print secondary statistics */
-  RHEA_GLOBAL_INFOF (
-      "%s: Bounds volume: abs. min %.8e, max %.8e ; rel. min %.3f, max %.3f\n",
-      __func__, bounds_vol_min, bounds_vol_max,
-      bounds_vol_min/domain_vol, bounds_vol_max/domain_vol);
-  RHEA_GLOBAL_INFOF (
-      "%s: Yielding volume: abs. %.8e ; rel. %.3f\n",
-      __func__, yielding_vol, yielding_vol/domain_vol);
+    RHEA_GLOBAL_INFOF (
+        "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
+        __func__, magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr);
+    RHEA_GLOBAL_INFOF (
+        "%s: Velocity magn [cm/yr]: lithosphere max %.3e, mean %.3e\n",
+        __func__, lith_magn_max_cm_yr, lith_magn_mean_cm_yr);
+    RHEA_GLOBAL_INFOF (
+        "%s:  ~ at surface [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
+        __func__, surf_magn_min_cm_yr, surf_magn_max_cm_yr,
+        surf_magn_mean_cm_yr);
+    RHEA_GLOBAL_INFOF (
+        "%s:  ~ at surface [cm/yr]: lithosphere max %.3e, mean %.3e\n",
+        __func__, surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr);
+  }
+
+  /* print pressure statistics */
+  //TODO |min| |max| mean
+
+  /* print strain rate statistics */
+  //TODO min max mean
+
+  /* print viscous stress statistics */
+  //TODO min max mean
+  //TODO normal
+
+  /* print viscosity statistics */
+  {
+    double              min_Pas, max_Pas, mean_Pas;
+    double              upper_mantle_mean_Pas, lower_mantle_mean_Pas;
+    double              lith_mean_Pas, asth_mean_Pas;
+    double              bounds_vol_min, bounds_vol_max;
+    double              yielding_vol;
+    double              lith_vol, asth_vol;
+
+    rhea_viscosity_stats_get_global (&min_Pas, &max_Pas, &mean_Pas, viscosity,
+                                     stokes_problem_nl->visc_options);
+    rhea_viscosity_stats_get_regional (&upper_mantle_mean_Pas,
+                                       &lower_mantle_mean_Pas,
+                                       &lith_mean_Pas,
+                                       &asth_mean_Pas, viscosity,
+                                       stokes_problem_nl->visc_options);
+
+    rhea_viscosity_stats_get_bounds_volume (
+        &bounds_vol_min, &bounds_vol_max, stokes_problem_nl->bounds_marker);
+    yielding_vol = rhea_viscosity_stats_get_yielding_volume (
+        stokes_problem_nl->yielding_marker);
+    lith_vol = rhea_viscosity_stats_get_lithosphere_volume (
+        viscosity, stokes_problem_nl->visc_options);
+    asth_vol = rhea_viscosity_stats_get_asthenosphere_volume (
+        viscosity, stokes_problem_nl->visc_options);
+
+    RHEA_GLOBAL_INFOF (
+        "%s: Viscosity [Pa*s]: global min %.3e, max %.3e, max/min %.3e, "
+        "mean %.3e\n",
+        __func__, min_Pas, max_Pas, max_Pas/min_Pas, mean_Pas);
+    RHEA_GLOBAL_INFOF (
+        "%s: Viscosity [Pa*s]: UM mean %.3e, LM mean %.3e\n",
+        __func__, upper_mantle_mean_Pas, lower_mantle_mean_Pas);
+    RHEA_GLOBAL_INFOF (
+        "%s: Viscosity [Pa*s]: lith. mean %.3e, asth. mean %.3e\n",
+        __func__, lith_mean_Pas, asth_mean_Pas);
+
+    RHEA_GLOBAL_INFOF (
+        "%s: Visc min bounds volume: abs %.8e, rel %.6f\n",
+        __func__, bounds_vol_min, bounds_vol_min/domain_vol);
+    RHEA_GLOBAL_INFOF (
+        "%s: Visc max bounds volume: abs %.8e, rel %.6f\n",
+        __func__, bounds_vol_max, bounds_vol_max/domain_vol);
+    RHEA_GLOBAL_INFOF (
+        "%s: Yielding volume:        abs %.8e, rel %.6f\n",
+        __func__, yielding_vol, yielding_vol/domain_vol);
+    RHEA_GLOBAL_INFOF (
+        "%s: Lithoshpere volume:     abs %.8e, rel %.6f\n",
+        __func__, lith_vol, lith_vol/domain_vol);
+    RHEA_GLOBAL_INFOF (
+        "%s: Asthenoshpere volume:   abs %.8e, rel %.6f\n",
+        __func__, asth_vol, asth_vol/domain_vol);
+  }
 
   /* create visualization */
   if (vtk_path != NULL) {
