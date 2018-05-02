@@ -2015,6 +2015,91 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
  * Statistics
  *****************************************************************************/
 
+static void
+rhea_viscosity_stats_filter_separate (ymir_vec_t *filter,
+                                      const double threshold)
+{
+  /* separate filter values in case of cvec */
+  if (ymir_vec_has_cvec (filter)) {
+    ymir_face_mesh_t   *fmesh = &filter->mesh->fmeshes[filter->meshnum];
+    const ymir_locidx_t n_nodes = fmesh->Ncn;
+    const int           n_fields = filter->ncfields;
+    ymir_locidx_t       nodeid;
+    int                 fieldid;
+
+    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+      for (fieldid = 0; fieldid < n_fields; fieldid++) {
+        double *val = ymir_cvec_index (filter, nodeid, fieldid);
+
+        if (threshold < *val) { /* if filter is including this node */
+          *val = 1.0;
+        }
+        else { /* if filter is excluding this node */
+          *val = 0.0;
+        }
+      }
+    }
+  }
+
+  /* separate filter values in case of dvec */
+  if (ymir_vec_has_dvec (filter)) {
+    const ymir_locidx_t n_elements = filter->K;
+    const int           n_nodes_per_el = filter->Np;
+    const int           n_fields = filter->ndfields;
+    ymir_locidx_t       elid;
+    int                 nodeid, fieldid;
+
+    for (elid = 0; elid < n_elements; elid++) {
+      for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+        for (fieldid = 0; fieldid < n_fields; fieldid++) {
+          double *val = ymir_dvec_index (filter, elid, nodeid, fieldid);
+
+          if (threshold < *val) { /* if filter is including this node */
+            *val = 1.0;
+          }
+          else { /* if filter is excluding this node */
+            *val = 0.0;
+          }
+        }
+      }
+    }
+  }
+
+  /* separate filter values in case of evec */
+  if (ymir_vec_has_evec (filter)) {
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/**
+ * Computes the volume of a filter.  A filter is understood as a vector with
+ * ones where the filter is active and zeros otherwise.
+ */
+static double
+rhea_viscosity_stats_filter_compute_volume (ymir_vec_t *filter)
+{
+  ymir_vec_t         *unit = ymir_vec_template (filter);
+  ymir_vec_t         *filter_mass = ymir_vec_template (filter);
+  double              vol;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (filter) && filter->ndfields == 1);
+
+  /* set unit vector */
+  ymir_vec_set_value (unit, 1.0);
+
+  /* integrate to get volume */
+  ymir_mass_apply (filter, filter_mass);
+  vol = ymir_vec_innerprod (filter_mass, unit);
+
+  /* destroy */
+  ymir_vec_destroy (unit);
+  ymir_vec_destroy (filter_mass);
+
+  /* return volume of filter */
+  return vol;
+}
+
 static double
 rhea_viscosity_stats_compute_mean (ymir_vec_t *viscosity, ymir_vec_t *filter,
                                    rhea_domain_options_t *domain_options)
@@ -2071,57 +2156,26 @@ rhea_viscosity_stats_get_global (double *min_Pas, double *max_Pas,
   }
 }
 
-/**
- * Computes the volume of a filter.  A filter is understood as a vector with
- * ones where the filter is active and zeros otherwise.
- */
-static double
-rhea_viscosity_stats_filter_compute_volume (ymir_vec_t *filter)
-{
-  ymir_vec_t         *unit = ymir_vec_template (filter);
-  ymir_vec_t         *filter_mass = ymir_vec_template (filter);
-  double              vol;
-
-  /* check input */
-  RHEA_ASSERT (ymir_vec_is_dvec (filter) && filter->ndfields == 1);
-
-  /* set unit vector */
-  ymir_vec_set_value (unit, 1.0);
-
-  /* integrate to get volume */
-  ymir_mass_apply (filter, filter_mass);
-  vol = ymir_vec_innerprod (filter_mass, unit);
-
-  /* destroy */
-  ymir_vec_destroy (unit);
-  ymir_vec_destroy (filter_mass);
-
-  /* return volume of filter */
-  return vol;
-}
-
 void
 rhea_viscosity_stats_get_bounds_volume (double *vol_min, double *vol_max,
                                         ymir_vec_t *bounds_marker)
 {
+  const double        threshold = 1.0 - SC_1000_EPS;
   ymir_vec_t         *bounds = ymir_vec_template (bounds_marker);
 
   /* compute volume of active min bounds */
   if (vol_min != NULL) {
     ymir_vec_copy (bounds_marker, bounds);
-    ymir_vec_bound_max (bounds, RHEA_VISCOSITY_BOUNDS_OFF);
     ymir_vec_scale (1.0/RHEA_VISCOSITY_BOUNDS_MIN, bounds);
+    rhea_viscosity_stats_filter_separate (bounds, threshold);
     *vol_min = rhea_viscosity_stats_filter_compute_volume (bounds);
   }
 
   /* compute volume of active max bounds */
   if (vol_max != NULL) {
     ymir_vec_copy (bounds_marker, bounds);
-    ymir_vec_shift (-1.0/RHEA_VISCOSITY_BOUNDS_MAX_WEAK, bounds);
-    ymir_vec_bound_min (bounds, RHEA_VISCOSITY_BOUNDS_OFF);
-    ymir_vec_scale (
-        1.0/(RHEA_VISCOSITY_BOUNDS_MAX - RHEA_VISCOSITY_BOUNDS_MAX_WEAK),
-        bounds);
+    ymir_vec_scale (1.0/RHEA_VISCOSITY_BOUNDS_MAX, bounds);
+    rhea_viscosity_stats_filter_separate (bounds, threshold);
     *vol_max = rhea_viscosity_stats_filter_compute_volume (bounds);
   }
 
@@ -2140,15 +2194,23 @@ void
 rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
                                          ymir_vec_t *viscosity)
 {
-  const double        threshold = 0.9; /* need: 0 < threshold <= 1 */
+  const double        threshold = 0.1;
   double              max;
 
-  /* copy/interpolate viscosity onto filter */
-  ymir_interp_vec (viscosity, filter);
-  max = ymir_vec_max_global (filter);
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (viscosity) && viscosity->ndfields == 1);
 
-  /* modify: ceil(max(0.0, visc/visc_max - threshold)) */
-  ymir_vec_scale_shift (1.0/max, -threshold, filter);
-  ymir_vec_bound_min (filter, 0.0);
-  ymir_vec_ceil (filter);
+  /* copy/interpolate viscosity onto filter */
+  if (ymir_vec_is_dvec (filter) && filter->ndfields == 1 &&
+      filter->node_type == viscosity->node_type &&
+      filter->meshnum == viscosity->meshnum) {
+    ymir_vec_copy (viscosity, filter);
+  }
+  else {
+    ymir_interp_vec (viscosity, filter);
+  }
+
+  /* set filter from viscosity and threshold */
+  max = ymir_vec_max_global (filter);
+  rhea_viscosity_stats_filter_separate (filter, max * threshold);
 }
