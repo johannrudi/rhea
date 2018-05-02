@@ -23,9 +23,17 @@ void                rhea_velocity_destroy (ymir_vec_t *velocity);
 
 /**
  * Converts entries of a nondimensional velocity vector into dimensional
- * values: [m/s]
+ * values:
+ *
+ *   [m/s]
+ *   [cm/yr]
  */
-void                rhea_velocity_convert_to_dimensional (
+void                rhea_velocity_convert_to_dimensional_m_s (
+                                    ymir_vec_t * velocity,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
+
+void                rhea_velocity_convert_to_dimensional_cm_yr (
                                     ymir_vec_t * velocity,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options);
