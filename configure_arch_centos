@@ -69,7 +69,7 @@ if [ 1 -le "$is_opt" ]; then
    FC=mpifort \
    CC=mpicc \
   CXX=mpicxx \
-    CFLAGS="-g -O2 -fopenmp -Wall -DYMIR_PETSC_CUSTOM" \
+    CFLAGS="-g -O2 -fopenmp -Wall -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
   CXXFLAGS="-g -O2 -fopenmp -Wall" \
   --enable-mpi \
   --enable-openmp="-fopenmp" \

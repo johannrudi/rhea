@@ -66,7 +66,7 @@ if [ 1 -le "$is_opt" ]; then
   # configure optimized build
   $code_dir/configure \
     FFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512" \
-    CFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512 -fimf-precision=high -prec-div -prec-sqrt -Wall -w2 -DYMIR_PETSC_CUSTOM" \
+    CFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512 -fimf-precision=high -prec-div -prec-sqrt -Wall -w2 -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
   CXXFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512 -fimf-precision=high -prec-div -prec-sqrt -Wall -w2" \
   CPPFLAGS="-I${TACC_VALGRIND_INC}" \
   LDFLAGS="-xCORE-AVX2 -axMIC-AVX512" \
