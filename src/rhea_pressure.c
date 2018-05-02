@@ -18,7 +18,8 @@ rhea_pressure_destroy (ymir_vec_t *pressure)
 }
 
 void
-rhea_pressure_convert_to_dimensional (ymir_vec_t * pressure,
+rhea_pressure_convert_to_dimensional_Pa (
+                                      ymir_vec_t * pressure,
                                       rhea_domain_options_t *domain_options,
                                       rhea_temperature_options_t *temp_options,
                                       rhea_viscosity_options_t *visc_options)

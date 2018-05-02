@@ -22,9 +22,11 @@ void                rhea_pressure_destroy (ymir_vec_t *pressure);
 
 /**
  * Converts entries of a nondimensional pressure vector into dimensional
- * values: [Pa]
+ * values:
+ *
+ *   [Pa]
  */
-void                rhea_pressure_convert_to_dimensional (
+void                rhea_pressure_convert_to_dimensional_Pa (
                                       ymir_vec_t * pressure,
                                       rhea_domain_options_t *domain_options,
                                       rhea_temperature_options_t *temp_options,
