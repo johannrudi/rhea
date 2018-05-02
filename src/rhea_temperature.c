@@ -7,9 +7,6 @@
 #include <ymir_vec_getset.h>
 #include <ymir_comm.h>
 
-/* constant: seconds in a year (= 365.25*24*3600) */
-#define RHEA_TEMPERATURE_SECONDS_PER_YEAR (31557600.0)
-
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -446,8 +443,8 @@ rhea_temperature_destroy (ymir_vec_t *temperature)
 }
 
 void
-rhea_temperature_convert_to_dimensional (ymir_vec_t * temperature,
-                                         rhea_temperature_options_t *opt)
+rhea_temperature_convert_to_dimensional_K (ymir_vec_t * temperature,
+                                           rhea_temperature_options_t *opt)
 {
   const double        dim_scal = opt->temperature_difference_K;
 

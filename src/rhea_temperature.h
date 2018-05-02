@@ -7,6 +7,9 @@
 #include <rhea_domain.h>
 #include <ymir_vec_ops.h>
 
+/* constant: seconds in a year (= 365.25*24*3600) */
+#define RHEA_TEMPERATURE_SECONDS_PER_YEAR (31557600.0)
+
 /* constant: neutral/default value for temperature (gives const viscosity due
  * to implementation of function `rhea_viscosity_linear_arrhenius`) */
 #define RHEA_TEMPERATURE_NEUTRAL_VALUE (0.5)
@@ -115,9 +118,11 @@ void                rhea_temperature_destroy (ymir_vec_t *temperature);
 
 /**
  * Converts entries of a nondimensional temperature vector into dimensional
- * values: [K]
+ * values:
+ *
+ *   [K]
  */
-void                rhea_temperature_convert_to_dimensional (
+void                rhea_temperature_convert_to_dimensional_K (
                                               ymir_vec_t * temperature,
                                               rhea_temperature_options_t *opt);
 
