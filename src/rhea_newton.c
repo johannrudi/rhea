@@ -935,6 +935,7 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
 /**
  * Returns initial value that determines convergence.
  */
+#if 0 //TODO unused yet
 static double
 rhea_newton_status_get_conv_value_init (rhea_newton_status_t *status)
 {
@@ -955,6 +956,7 @@ rhea_newton_status_get_conv_value_init (rhea_newton_status_t *status)
 
   return val;
 }
+#endif
 
 /**
  * Returns previous value that determines convergence.
@@ -1544,9 +1546,9 @@ rhea_newton_search_step_length_check_descend (
                                           rhea_newton_options_t *opt,
                                           const double lin_res_norm_reduction,
                                           const int iter,
-                                          const int print_condition)
+                                          const int print_condition,
+                                          const char *func_name)
 {
-  static const char   func_name[] = "rhea_newton_search_step_length";
   const double        relax = opt->step_descend_condition_relaxation;
   double              reduction, descend_reduction;
 
@@ -1624,7 +1626,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
     /* check descend condition */
     search_success = rhea_newton_search_step_length_check_descend (
         status, opt, step->lin_res_norm_reduction, iter,
-        (search_iter_start == k) /* print only once */);
+        (search_iter_start == k) /* print only once */, __func__);
 
     RHEA_GLOBAL_INFOF ("Newton iter %i -- %s: #%2i, step length %.3e, "
                        "convergence criterion %i, "
