@@ -9,7 +9,7 @@
  */
 static FILE *
 rhea_io_std_file_open (const char *file_path, const char *access_type,
-                       const char *this_fn_name)
+                       const char *func_name)
 {
   FILE               *file_ptr;
 
@@ -18,9 +18,8 @@ rhea_io_std_file_open (const char *file_path, const char *access_type,
 
   /* check status */
   if (!file_ptr) {
-    if (this_fn_name != NULL) {
-      RHEA_LERRORF ("%s: Could not open file \"%s\"\n",
-                    this_fn_name, file_path);
+    if (func_name != NULL) {
+      RHEA_LERRORF ("%s: Could not open file \"%s\"\n", func_name, file_path);
     }
     else {
       RHEA_LERRORF ("Could not open file \"%s\"\n", file_path);
@@ -36,7 +35,7 @@ rhea_io_std_file_open (const char *file_path, const char *access_type,
  */
 static void
 rhea_io_std_file_close (FILE *file_ptr, const char *file_path,
-                        const char *this_fn_name)
+                        const char *func_name)
 {
   int                 status;
 
@@ -45,9 +44,8 @@ rhea_io_std_file_close (FILE *file_ptr, const char *file_path,
 
   /* check status */
   if (0 != status) {
-    if (this_fn_name != NULL && file_path != NULL) {
-      RHEA_LERRORF ("%s: Could not close file \"%s\"\n",
-                    this_fn_name, file_path);
+    if (func_name != NULL && file_path != NULL) {
+      RHEA_LERRORF ("%s: Could not close file \"%s\"\n", func_name, file_path);
     }
     else if (file_path != NULL) {
       RHEA_LERRORF ("Could not close file \"%s\"\n", file_path);
@@ -66,11 +64,10 @@ size_t
 rhea_io_std_read_double (double *values, const size_t n_entries,
                          const char *file_path)
 {
-  const char         *this_fn_name = "rhea_io_std_read_double";
   FILE               *file_ptr;
   size_t              n_read;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
               (int) n_entries);
 
   /* exit if nothing to do */
@@ -79,7 +76,7 @@ rhea_io_std_read_double (double *values, const size_t n_entries,
   }
 
   /* open binary file */
-  file_ptr = rhea_io_std_file_open (file_path, "rb", this_fn_name);
+  file_ptr = rhea_io_std_file_open (file_path, "rb", __func__);
   if (!file_ptr) {
     return 0;
   }
@@ -92,14 +89,14 @@ rhea_io_std_read_double (double *values, const size_t n_entries,
     RHEA_LERRORF (
         "%s: Mismatch of #entries read: "
         "Requested #entries %lli, actually read %lli, file path %s\n",
-        this_fn_name, (long long int) n_entries, (long long int) n_read,
+        __func__, (long long int) n_entries, (long long int) n_read,
         file_path);
   }
 
   /* close file */
-  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+  rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
 
   /* return number of read entries */
   return n_read;
@@ -109,11 +106,10 @@ size_t
 rhea_io_std_write_double (const char *file_path, const double *values,
                           const size_t n_entries)
 {
-  const char         *this_fn_name = "rhea_io_std_write_double";
   FILE               *file_ptr;
   size_t              n_written;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
               (int) n_entries);
 
   /* exit if nothing to do */
@@ -122,7 +118,7 @@ rhea_io_std_write_double (const char *file_path, const double *values,
   }
 
   /* open binary file */
-  file_ptr = rhea_io_std_file_open (file_path, "wb", this_fn_name);
+  file_ptr = rhea_io_std_file_open (file_path, "wb", __func__);
   if (!file_ptr) {
     return 0;
   }
@@ -135,14 +131,14 @@ rhea_io_std_write_double (const char *file_path, const double *values,
     RHEA_LERRORF (
         "%s: Mismatch of #entries written: "
         "Requested #entries %lli, actually written %lli, file path %s\n",
-        this_fn_name, (long long int) n_entries, (long long int) n_written,
+        __func__, (long long int) n_entries, (long long int) n_written,
         file_path);
   }
 
   /* close file */
-  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+  rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
 
   /* return number of written entries */
   return n_written;
@@ -152,11 +148,10 @@ size_t
 rhea_io_std_read_int (int *values, const size_t n_entries,
                       const char *file_path)
 {
-  const char         *this_fn_name = "rhea_io_std_read_int";
   FILE               *file_ptr;
   size_t              n_read;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
               (int) n_entries);
 
   /* exit if nothing to do */
@@ -165,7 +160,7 @@ rhea_io_std_read_int (int *values, const size_t n_entries,
   }
 
   /* open binary file */
-  file_ptr = rhea_io_std_file_open (file_path, "rb", this_fn_name);
+  file_ptr = rhea_io_std_file_open (file_path, "rb", __func__);
   if (!file_ptr) {
     return 0;
   }
@@ -178,14 +173,14 @@ rhea_io_std_read_int (int *values, const size_t n_entries,
     RHEA_LERRORF (
         "%s: Mismatch of #entries read: "
         "Requested #entries %lli, actually read %lli, file path %s\n",
-        this_fn_name, (long long int) n_entries, (long long int) n_read,
+        __func__, (long long int) n_entries, (long long int) n_read,
         file_path);
   }
 
   /* close file */
-  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+  rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
 
   /* return number of read entries */
   return n_read;
@@ -195,11 +190,10 @@ size_t
 rhea_io_std_write_int (const char *file_path, const int *values,
                        const size_t n_entries)
 {
-  const char         *this_fn_name = "rhea_io_std_write_int";
   FILE               *file_ptr;
   size_t              n_written;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", this_fn_name, file_path,
+  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
               (int) n_entries);
 
   /* exit if nothing to do */
@@ -208,7 +202,7 @@ rhea_io_std_write_int (const char *file_path, const int *values,
   }
 
   /* open binary file */
-  file_ptr = rhea_io_std_file_open (file_path, "wb", this_fn_name);
+  file_ptr = rhea_io_std_file_open (file_path, "wb", __func__);
   if (!file_ptr) {
     return 0;
   }
@@ -221,14 +215,14 @@ rhea_io_std_write_int (const char *file_path, const int *values,
     RHEA_LERRORF (
         "%s: Mismatch of #entries written: "
         "Requested #entries %lli, actually written %lli, file path %s\n",
-        this_fn_name, (long long int) n_entries, (long long int) n_written,
+        __func__, (long long int) n_entries, (long long int) n_written,
         file_path);
   }
 
   /* close file */
-  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+  rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
 
   /* return number of written entries */
   return n_written;
@@ -242,15 +236,14 @@ size_t
 rhea_io_std_read_txt (void *data, rhea_io_std_fscanf_fn_t fscanf_fn,
                       void *fscanf_params, const char *file_path)
 {
-  const char         *this_fn_name = "rhea_io_std_read_txt";
   FILE               *file_ptr;
   size_t              n_read;
   int                 status;
 
-  RHEA_INFOF ("Into %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Into %s (%s)\n", __func__, file_path);
 
   /* open text file */
-  file_ptr = rhea_io_std_file_open (file_path, "r", this_fn_name);
+  file_ptr = rhea_io_std_file_open (file_path, "r", __func__);
   if (!file_ptr) {
     return 0;
   }
@@ -265,9 +258,9 @@ rhea_io_std_read_txt (void *data, rhea_io_std_fscanf_fn_t fscanf_fn,
   }
 
   /* close file */
-  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+  rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
 
   /* return number of read items */
   return n_read;
@@ -278,15 +271,14 @@ rhea_io_std_write_txt (const char *file_path, const void *data,
                        rhea_io_std_fprintf_fn_t fprintf_fn,
                        void *fprintf_params)
 {
-  const char         *this_fn_name = "rhea_io_std_write_txt";
   FILE               *file_ptr;
   size_t              n_written;
   int                 status;
 
-  RHEA_INFOF ("Into %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Into %s (%s)\n", __func__, file_path);
 
   /* open binary file */
-  file_ptr = rhea_io_std_file_open (file_path, "w", this_fn_name);
+  file_ptr = rhea_io_std_file_open (file_path, "w", __func__);
   if (!file_ptr) {
     return 0;
   }
@@ -302,9 +294,9 @@ rhea_io_std_write_txt (const char *file_path, const void *data,
   }
 
   /* close file */
-  rhea_io_std_file_close (file_ptr, file_path, this_fn_name);
+  rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", this_fn_name, file_path);
+  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
 
   /* return number of written items */
   return n_written;
@@ -334,7 +326,6 @@ rhea_io_std_read_double_from_txt (double *values,
                                   size_t n_entries,
                                   const char *file_path)
 {
-  const char         *this_fn_name = "rhea_io_std_read_double_from_txt";
   size_t              n_read;
 
   /* read double values */
@@ -346,7 +337,7 @@ rhea_io_std_read_double_from_txt (double *values,
     RHEA_INFOF (
         "%s: Mismatch of #entries read: "
         "Requested #entries %lli, actually read %lli, file path %s\n",
-        this_fn_name, (long long int) n_entries, (long long int) n_read,
+        __func__, (long long int) n_entries, (long long int) n_read,
         file_path);
     RHEA_ASSERT (n_read < n_entries);
   }
@@ -385,7 +376,6 @@ rhea_io_std_write_double_to_txt (const char *file_path,
                                  size_t n_entries,
                                  int n_entries_per_line)
 {
-  const char         *this_fn_name = "rhea_io_std_write_double_to_txt";
   int                 params[2] = {(int) n_entries, n_entries_per_line};
   size_t              n_written;
 
@@ -401,7 +391,7 @@ rhea_io_std_write_double_to_txt (const char *file_path,
     RHEA_LERRORF (
         "%s: Mismatch of #entries written: "
         "Requested #entries %lli, actually written %lli, file path %s\n",
-        this_fn_name, (long long int) n_entries, (long long int) n_written,
+        __func__, (long long int) n_entries, (long long int) n_written,
         file_path);
   }
 
@@ -433,7 +423,6 @@ rhea_io_std_read_int_from_txt (int *values,
                                size_t n_entries,
                                const char *file_path)
 {
-  const char         *this_fn_name = "rhea_io_std_read_int_from_txt";
   size_t              n_read;
 
   /* read values */
@@ -445,7 +434,7 @@ rhea_io_std_read_int_from_txt (int *values,
     RHEA_INFOF (
         "%s: Mismatch of #entries read: "
         "Requested #entries %lli, actually read %lli, file path %s\n",
-        this_fn_name, (long long int) n_entries, (long long int) n_read,
+        __func__, (long long int) n_entries, (long long int) n_read,
         file_path);
     RHEA_ASSERT (n_read < n_entries);
   }
