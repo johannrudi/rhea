@@ -383,11 +383,14 @@ void                rhea_viscosity_marker_set_elem_gauss (
  *****************************************************************************/
 
 /**
- * Sets a filter that is active at high (i.e., lithospheric) viscosity values.
+ * Computes global viscosity statistics.
  */
-void                rhea_viscosity_stats_filter_lithosphere (
-                                                        ymir_vec_t *filter,
-                                                        ymir_vec_t *viscosity);
+void                rhea_viscosity_stats_get_global (
+                                                double *min_Pas,
+                                                double *max_Pas,
+                                                double *mean_Pas,
+                                                ymir_vec_t *viscosity,
+                                                rhea_viscosity_options_t *opt);
 
 /**
  * Computes the volume where bounds are active.
@@ -402,5 +405,12 @@ void                rhea_viscosity_stats_get_bounds_volume (
  */
 double              rhea_viscosity_stats_get_yielding_volume (
                                                   ymir_vec_t *yielding_marker);
+
+/**
+ * Sets a filter that is active at high (i.e., lithospheric) viscosity values.
+ */
+void                rhea_viscosity_stats_filter_lithosphere (
+                                                        ymir_vec_t *filter,
+                                                        ymir_vec_t *viscosity);
 
 #endif /* RHEA_VISCOSITY_H */

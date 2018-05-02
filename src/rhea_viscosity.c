@@ -227,13 +227,17 @@ rhea_viscosity_destroy (ymir_vec_t *viscosity)
   ymir_vec_destroy (viscosity);
 }
 
+static double
+rhea_viscosity_get_dim_scal (rhea_viscosity_options_t *opt)
+{
+  return opt->representative_Pas;
+}
+
 void
 rhea_viscosity_convert_to_dimensional_Pas (ymir_vec_t * viscosity,
                                            rhea_viscosity_options_t *opt)
 {
-  const double        dim_scal = opt->representative_Pas;
-
-  ymir_vec_scale (dim_scal, viscosity);
+  ymir_vec_scale (rhea_viscosity_get_dim_scal (opt), viscosity);
 }
 
 int
@@ -2011,21 +2015,60 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
  * Statistics
  *****************************************************************************/
 
-void
-rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
-                                         ymir_vec_t *viscosity)
+static double
+rhea_viscosity_stats_compute_mean (ymir_vec_t *viscosity, ymir_vec_t *filter,
+                                   rhea_domain_options_t *domain_options)
 {
-  const double        threshold = 0.9; /* need: 0 < threshold <= 1 */
-  double              max;
+  ymir_vec_t         *viscosity_mass = ymir_vec_template (viscosity);
+  ymir_vec_t         *unit = ymir_vec_template (viscosity);
+  double              volume, mean;
 
-  /* copy/interpolate viscosity onto filter */
-  ymir_interp_vec (viscosity, filter);
-  max = ymir_vec_max_global (filter);
+  /* check input */
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (viscosity));
 
-  /* modify: ceil(max(0.0, visc/visc_max - threshold)) */
-  ymir_vec_scale_shift (1.0/max, -threshold, filter);
-  ymir_vec_bound_min (filter, 0.0);
-  ymir_vec_ceil (filter);
+  /* set unit vector; possibly apply filter */
+  ymir_dvec_set_value (unit, 1.0);
+  if (filter == NULL) {
+    volume = domain_options->volume;
+  }
+  else {
+    RHEA_ASSERT (ymir_vec_is_dvec (filter));
+    RHEA_ASSERT (filter->ndfields == 1);
+    ymir_vec_multiply_in1 (filter, unit);
+    ymir_mass_apply (unit, viscosity_mass);
+    volume = ymir_dvec_innerprod (viscosity_mass, unit);
+  }
+
+  /* compute mean */
+  ymir_mass_apply (viscosity, viscosity_mass);
+  mean = ymir_dvec_innerprod (viscosity_mass, unit) / volume;
+
+  /* destroy */
+  ymir_vec_destroy (viscosity_mass);
+  ymir_vec_destroy (unit);
+
+  return mean;
+}
+
+void
+rhea_viscosity_stats_get_global (double *min_Pas, double *max_Pas,
+                                 double *mean_Pas, ymir_vec_t *viscosity,
+                                 rhea_viscosity_options_t *opt)
+{
+  const double        dim_scal = rhea_viscosity_get_dim_scal (opt);
+
+  /* find global values */
+  if (min_Pas != NULL) {
+    *min_Pas = dim_scal * ymir_vec_min_global (viscosity);
+  }
+  if (max_Pas != NULL) {
+    *max_Pas = dim_scal * ymir_vec_max_global (viscosity);
+  }
+  if (mean_Pas != NULL) {
+    *mean_Pas = rhea_viscosity_stats_compute_mean (viscosity, NULL,
+                                                   opt->domain_options);
+    *mean_Pas *= dim_scal;
+  }
 }
 
 /**
@@ -2091,4 +2134,21 @@ rhea_viscosity_stats_get_yielding_volume (ymir_vec_t *yielding_marker)
 {
   RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
   return rhea_viscosity_stats_filter_compute_volume (yielding_marker);
+}
+
+void
+rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
+                                         ymir_vec_t *viscosity)
+{
+  const double        threshold = 0.9; /* need: 0 < threshold <= 1 */
+  double              max;
+
+  /* copy/interpolate viscosity onto filter */
+  ymir_interp_vec (viscosity, filter);
+  max = ymir_vec_max_global (filter);
+
+  /* modify: ceil(max(0.0, visc/visc_max - threshold)) */
+  ymir_vec_scale_shift (1.0/max, -threshold, filter);
+  ymir_vec_bound_min (filter, 0.0);
+  ymir_vec_ceil (filter);
 }
