@@ -2012,7 +2012,7 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
 }
 
 /******************************************************************************
- * Statistics
+ * Filter
  *****************************************************************************/
 
 static void
@@ -2071,6 +2071,13 @@ rhea_viscosity_stats_filter_separate (ymir_vec_t *filter,
   }
 }
 
+static void
+rhea_viscosity_stats_filter_invert (ymir_vec_t *filter)
+{
+  /* compute element-wise: filter = 1 - filter */
+  ymir_vec_scale_shift (-1.0, 1.0, filter);
+}
+
 /**
  * Computes the volume of a filter.  A filter is understood as a vector with
  * ones where the filter is active and zeros otherwise.
@@ -2100,6 +2107,150 @@ rhea_viscosity_stats_filter_compute_volume (ymir_vec_t *filter)
   return vol;
 }
 
+void
+rhea_viscosity_stats_filter_upper_mantle (ymir_vec_t *filter,
+                                          rhea_domain_options_t *domain_options)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (filter);
+  const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
+  const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (mesh);
+  const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
+  double             *x, *y, *z, *tmp_el;
+  ymir_locidx_t       elid;
+  int                 is_in_upper_mantle;
+  sc_dmatrix_t       *unit_el_mat;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (filter));
+
+  /* create work variables */
+  x = RHEA_ALLOC (double, n_nodes_per_el);
+  y = RHEA_ALLOC (double, n_nodes_per_el);
+  z = RHEA_ALLOC (double, n_nodes_per_el);
+  tmp_el = RHEA_ALLOC (double, n_nodes_per_el);
+  unit_el_mat = sc_dmatrix_new (n_nodes_per_el, filter->ndfields);
+  sc_dmatrix_set_value (unit_el_mat, 1.0);
+
+  ymir_vec_set_zero (filter);
+  for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
+    /* get coordinates at Gauss nodes */
+    ymir_mesh_get_elem_coord_gauss (x, y, z, elid, mesh, tmp_el);
+
+    /* set flag if location is in lower or upper mantle */
+    is_in_upper_mantle = rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask,
+                                                              domain_options);
+
+    if (is_in_upper_mantle) {
+      ymir_dvec_set_elem (filter, unit_el_mat, YMIR_STRIDE_NODE, elid,
+                          YMIR_SET);
+    }
+  }
+
+  /* destroy */
+  RHEA_FREE (x);
+  RHEA_FREE (y);
+  RHEA_FREE (z);
+  RHEA_FREE (tmp_el);
+  sc_dmatrix_destroy (unit_el_mat);
+}
+
+void
+rhea_viscosity_stats_filter_lower_mantle (ymir_vec_t *filter,
+                                          rhea_domain_options_t *domain_options)
+{
+  rhea_viscosity_stats_filter_upper_mantle (filter, domain_options);
+  rhea_viscosity_stats_filter_invert (filter);
+}
+
+void
+rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
+                                         ymir_vec_t *viscosity,
+                                         rhea_viscosity_options_t *opt,
+                                         double threshold)
+{
+  double              max;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (viscosity) && viscosity->ndfields == 1);
+
+  /* copy/interpolate viscosity onto filter */
+  if (ymir_vec_is_dvec (filter) && filter->ndfields == 1 &&
+      filter->node_type == viscosity->node_type &&
+      filter->meshnum == viscosity->meshnum) {
+    ymir_vec_copy (viscosity, filter);
+  }
+  else {
+    ymir_interp_vec (viscosity, filter);
+  }
+
+  /* find max viscosity */
+  if (opt != NULL && 0.0 < opt->max) {
+    max = opt->max;
+  }
+  else {
+    max = ymir_vec_max_global (filter);
+  }
+
+  /* set default value for threshold */
+  if (!isfinite (threshold) || threshold < 0.0) {
+    threshold = 0.1;
+  }
+
+  /* set filter from viscosity and threshold */
+  rhea_viscosity_stats_filter_separate (filter, max * threshold);
+}
+
+void
+rhea_viscosity_stats_filter_lithosphere_surf (ymir_vec_t *filter_surf,
+                                              ymir_vec_t *viscosity_vol,
+                                              rhea_viscosity_options_t *opt,
+                                              double threshold)
+{
+  ymir_vec_t         *filter_vol = ymir_vec_template (viscosity_vol);
+
+  /* compute volume filter */
+  rhea_viscosity_stats_filter_lithosphere (filter_vol, viscosity_vol, opt,
+                                           threshold);
+
+  /* map filter to surface */
+  ymir_interp_vec (filter_vol, filter_surf);
+  RHEA_ASSERT (rhea_velocity_is_valid (filter_surf));
+  ymir_vec_destroy (filter_vol);
+
+  /* set default value for threshold */
+  if (!isfinite (threshold) || threshold < 0.0) {
+    threshold = 0.5;
+  }
+
+  /* enforce filter to be either `0` or `1` */
+  rhea_viscosity_stats_filter_separate (filter_surf, threshold);
+}
+
+void
+rhea_viscosity_stats_filter_asthenosphere (ymir_vec_t *filter,
+                                           ymir_vec_t *viscosity,
+                                           rhea_viscosity_options_t *opt,
+                                           double threshold)
+{
+  ymir_vec_t         *filter_um = ymir_vec_template (filter);
+
+  /* check input */
+  RHEA_ASSERT (opt != NULL);
+
+  /* invert lithosphere filter */
+  rhea_viscosity_stats_filter_lithosphere (filter, viscosity, opt, threshold);
+  rhea_viscosity_stats_filter_invert (filter);
+
+  /* activate upper mantle only */
+  rhea_viscosity_stats_filter_upper_mantle (filter_um, opt->domain_options);
+  ymir_vec_multiply_in (filter_um, filter);
+  ymir_vec_destroy (filter_um);
+}
+
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
 static double
 rhea_viscosity_stats_compute_mean (ymir_vec_t *viscosity, ymir_vec_t *filter,
                                    rhea_domain_options_t *domain_options)
@@ -2110,22 +2261,26 @@ rhea_viscosity_stats_compute_mean (ymir_vec_t *viscosity, ymir_vec_t *filter,
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (viscosity));
+  RHEA_ASSERT (filter == NULL || ymir_vec_is_dvec (filter));
+  RHEA_ASSERT (filter == NULL || filter->ndfields == 1);
+  RHEA_ASSERT (filter != NULL || domain_options != NULL);
 
-  /* set unit vector; possibly apply filter */
+  /* set unit vector; set/calculate volume */
   ymir_dvec_set_value (unit, 1.0);
-  if (filter == NULL) {
-    volume = domain_options->volume;
+  if (filter != NULL) {
+    ymir_mass_apply (unit, viscosity_mass);
+    ymir_dvec_multiply_in (filter, viscosity_mass);
+    volume = ymir_dvec_innerprod (viscosity_mass, unit);
   }
   else {
-    RHEA_ASSERT (ymir_vec_is_dvec (filter));
-    RHEA_ASSERT (filter->ndfields == 1);
-    ymir_vec_multiply_in1 (filter, unit);
-    ymir_mass_apply (unit, viscosity_mass);
-    volume = ymir_dvec_innerprod (viscosity_mass, unit);
+    volume = domain_options->volume;
   }
 
   /* compute mean */
   ymir_mass_apply (viscosity, viscosity_mass);
+  if (filter != NULL) {
+    ymir_dvec_multiply_in (filter, viscosity_mass);
+  }
   mean = ymir_dvec_innerprod (viscosity_mass, unit) / volume;
 
   /* destroy */
@@ -2154,6 +2309,53 @@ rhea_viscosity_stats_get_global (double *min_Pas, double *max_Pas,
                                                    opt->domain_options);
     *mean_Pas *= dim_scal;
   }
+}
+
+void
+rhea_viscosity_stats_get_regional (double *upper_mantle_mean_Pas,
+                                   double *lower_mantle_mean_Pas,
+                                   double *lith_mean_Pas,
+                                   double *asth_mean_Pas,
+                                   ymir_vec_t *viscosity,
+                                   rhea_viscosity_options_t *opt)
+{
+  const double        dim_scal = rhea_viscosity_get_dim_scal (opt);
+  ymir_vec_t         *filter = ymir_vec_template (viscosity);
+
+  /* compute mean value in upper mantle */
+  if (upper_mantle_mean_Pas != NULL) {
+    rhea_viscosity_stats_filter_upper_mantle (filter, opt->domain_options);
+    *upper_mantle_mean_Pas = rhea_viscosity_stats_compute_mean (
+        viscosity, filter, opt->domain_options);
+    *upper_mantle_mean_Pas *= dim_scal;
+  }
+
+  /* compute mean value in lower mantle */
+  if (lower_mantle_mean_Pas != NULL) {
+    rhea_viscosity_stats_filter_lower_mantle (filter, opt->domain_options);
+    *lower_mantle_mean_Pas = rhea_viscosity_stats_compute_mean (
+        viscosity, filter, opt->domain_options);
+    *lower_mantle_mean_Pas *= dim_scal;
+  }
+
+  /* compute mean value in lithosphere */
+  if (lith_mean_Pas != NULL) {
+    rhea_viscosity_stats_filter_lithosphere (filter, viscosity, opt, NAN);
+    *lith_mean_Pas = rhea_viscosity_stats_compute_mean (viscosity, filter,
+                                                        opt->domain_options);
+    *lith_mean_Pas *= dim_scal;
+  }
+
+  /* compute mean value in asthenosphere */
+  if (asth_mean_Pas != NULL) {
+    rhea_viscosity_stats_filter_asthenosphere (filter, viscosity, opt, NAN);
+    *asth_mean_Pas = rhea_viscosity_stats_compute_mean (viscosity, filter,
+                                                        opt->domain_options);
+    *asth_mean_Pas *= dim_scal;
+  }
+
+  /* destroy */
+  ymir_vec_destroy (filter);
 }
 
 void
@@ -2190,27 +2392,38 @@ rhea_viscosity_stats_get_yielding_volume (ymir_vec_t *yielding_marker)
   return rhea_viscosity_stats_filter_compute_volume (yielding_marker);
 }
 
-void
-rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
-                                         ymir_vec_t *viscosity)
+double
+rhea_viscosity_stats_get_lithosphere_volume (ymir_vec_t *viscosity,
+                                             rhea_viscosity_options_t *opt)
 {
-  const double        threshold = 0.1;
-  double              max;
+  ymir_vec_t         *filter = ymir_vec_template (viscosity);
+  double              vol;
 
   /* check input */
-  RHEA_ASSERT (ymir_vec_is_dvec (viscosity) && viscosity->ndfields == 1);
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (viscosity));
 
-  /* copy/interpolate viscosity onto filter */
-  if (ymir_vec_is_dvec (filter) && filter->ndfields == 1 &&
-      filter->node_type == viscosity->node_type &&
-      filter->meshnum == viscosity->meshnum) {
-    ymir_vec_copy (viscosity, filter);
-  }
-  else {
-    ymir_interp_vec (viscosity, filter);
-  }
+  /* compute volume of lithosphere via filter */
+  rhea_viscosity_stats_filter_lithosphere (filter, viscosity, opt, NAN);
+  vol = rhea_viscosity_stats_filter_compute_volume (filter);
+  ymir_vec_destroy (filter);
 
-  /* set filter from viscosity and threshold */
-  max = ymir_vec_max_global (filter);
-  rhea_viscosity_stats_filter_separate (filter, max * threshold);
+  return vol;
+}
+
+double
+rhea_viscosity_stats_get_asthenosphere_volume (ymir_vec_t *viscosity,
+                                               rhea_viscosity_options_t *opt)
+{
+  ymir_vec_t         *filter = ymir_vec_template (viscosity);
+  double              vol;
+
+  /* check input */
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (viscosity));
+
+  /* compute volume of lithosphere via filter */
+  rhea_viscosity_stats_filter_asthenosphere (filter, viscosity, opt, NAN);
+  vol = rhea_viscosity_stats_filter_compute_volume (filter);
+  ymir_vec_destroy (filter);
+
+  return vol;
 }

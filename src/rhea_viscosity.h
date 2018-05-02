@@ -379,6 +379,45 @@ void                rhea_viscosity_marker_set_elem_gauss (
                                                   const ymir_locidx_t elid);
 
 /******************************************************************************
+ * Filter
+ *****************************************************************************/
+
+/**
+ * Sets a filter for the upper/lower mantle.
+ */
+void                rhea_viscosity_stats_filter_upper_mantle (
+                                        ymir_vec_t *filter,
+                                        rhea_domain_options_t *domain_options);
+
+void                rhea_viscosity_stats_filter_lower_mantle (
+                                        ymir_vec_t *filter,
+                                        rhea_domain_options_t *domain_options);
+
+/**
+ * Sets a filter that is active at high (i.e., lithospheric) viscosity values.
+ */
+void                rhea_viscosity_stats_filter_lithosphere (
+                                                ymir_vec_t *filter,
+                                                ymir_vec_t *viscosity,
+                                                rhea_viscosity_options_t *opt,
+                                                double threshold);
+
+void                rhea_viscosity_stats_filter_lithosphere_surf (
+                                                ymir_vec_t *filter_surf,
+                                                ymir_vec_t *viscosity_vol,
+                                                rhea_viscosity_options_t *opt,
+                                                double threshold);
+
+/**
+ * Sets a filter in the upper mantle that is active away from the lithospere.
+ */
+void                rhea_viscosity_stats_filter_asthenosphere (
+                                                ymir_vec_t *filter,
+                                                ymir_vec_t *viscosity,
+                                                rhea_viscosity_options_t *opt,
+                                                double threshold);
+
+/******************************************************************************
  * Statistics
  *****************************************************************************/
 
@@ -389,6 +428,14 @@ void                rhea_viscosity_stats_get_global (
                                                 double *min_Pas,
                                                 double *max_Pas,
                                                 double *mean_Pas,
+                                                ymir_vec_t *viscosity,
+                                                rhea_viscosity_options_t *opt);
+
+void                rhea_viscosity_stats_get_regional (
+                                                double *upper_mantle_mean_Pas,
+                                                double *lower_mantle_mean_Pas,
+                                                double *lith_mean_Pas,
+                                                double *asth_mean_Pas,
                                                 ymir_vec_t *viscosity,
                                                 rhea_viscosity_options_t *opt);
 
@@ -407,10 +454,17 @@ double              rhea_viscosity_stats_get_yielding_volume (
                                                   ymir_vec_t *yielding_marker);
 
 /**
- * Sets a filter that is active at high (i.e., lithospheric) viscosity values.
+ * Computes the (approx.) volume of the lithosphere.
  */
-void                rhea_viscosity_stats_filter_lithosphere (
-                                                        ymir_vec_t *filter,
-                                                        ymir_vec_t *viscosity);
+double              rhea_viscosity_stats_get_lithosphere_volume (
+                                                ymir_vec_t *viscosity,
+                                                rhea_viscosity_options_t *opt);
+
+/**
+ * Computes the (approx.) volume of the asthenosphere.
+ */
+double              rhea_viscosity_stats_get_asthenosphere_volume (
+                                                ymir_vec_t *viscosity,
+                                                rhea_viscosity_options_t *opt);
 
 #endif /* RHEA_VISCOSITY_H */
