@@ -34,7 +34,7 @@ code_dir="$(dirname ${BASH_SOURCE[0]})"
 build_dir="$(pwd)"
 
 # check option flags
-while getopts ":ho:" opt; do
+while getopts ":ho" opt; do
   case $opt in
     h) # help
       print_usage; exit 1
