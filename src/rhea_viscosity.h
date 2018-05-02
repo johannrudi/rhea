@@ -133,9 +133,11 @@ void                rhea_viscosity_destroy (ymir_vec_t *viscosity);
 
 /**
  * Converts entries of a nondimensional viscosity vector into dimensional
- * values: [Pa*s]
+ * values:
+ *
+ *   [Pa*s]
  */
-void                rhea_viscosity_convert_to_dimensional (
+void                rhea_viscosity_convert_to_dimensional_Pas (
                                                 ymir_vec_t * viscosity,
                                                 rhea_viscosity_options_t *opt);
 

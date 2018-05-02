@@ -228,8 +228,8 @@ rhea_viscosity_destroy (ymir_vec_t *viscosity)
 }
 
 void
-rhea_viscosity_convert_to_dimensional (ymir_vec_t * viscosity,
-                                       rhea_viscosity_options_t *opt)
+rhea_viscosity_convert_to_dimensional_Pas (ymir_vec_t * viscosity,
+                                           rhea_viscosity_options_t *opt)
 {
   const double        dim_scal = opt->representative_Pas;
 
@@ -1061,6 +1061,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
         else {
           strainrate_shift = 0.0;
         }
+        //###DEV### not guaranteed: strainrate_shift <= strainrate_sqrt_2inv
 
         /* compute strain rate weakening viscosity */
         rhea_viscosity_nonlinear_strain_rate_weakening_shift (
