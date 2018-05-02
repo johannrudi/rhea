@@ -20,7 +20,7 @@ rhea_strainrate_destroy (ymir_vec_t *strainrate)
 }
 
 void
-rhea_strainrate_convert_to_dimensional (
+rhea_strainrate_convert_to_dimensional_1_s (
                                     ymir_vec_t * strainrate,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options)
