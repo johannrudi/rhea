@@ -111,29 +111,35 @@ void                rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel,
  * Statistics
  *****************************************************************************/
 
+/**
+ * Computes global velocity statistics.
+ */
 void                rhea_velocity_stats_get_global (
-                                double *magn_cm_yr_min, double *magn_cm_yr_max,
-                                double *magn_cm_yr_mean, ymir_vec_t *velocity,
+                                double *magn_min_cm_yr, double *magn_max_cm_yr,
+                                double *magn_mean_cm_yr, ymir_vec_t *velocity,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options);
 
 void                rhea_velocity_stats_get_global_lithosphere (
-                                    double *magn_cm_yr_max,
-                                    double *magn_cm_yr_mean,
+                                    double *magn_max_cm_yr,
+                                    double *magn_mean_cm_yr,
                                     ymir_vec_t *velocity,
                                     ymir_vec_t *viscosity,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options);
 
+/**
+ * Computes global velocity statistics at the surface.
+ */
 void                rhea_velocity_stats_get_global_surface (
-                                double *magn_cm_yr_min, double *magn_cm_yr_max,
-                                double *magn_cm_yr_mean, ymir_vec_t *vel_vol,
+                                double *magn_min_cm_yr, double *magn_max_cm_yr,
+                                double *magn_mean_cm_yr, ymir_vec_t *vel_vol,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options);
 
 void                rhea_velocity_stats_get_global_surface_lithosphere (
-                                    double *magn_cm_yr_max,
-                                    double *magn_cm_yr_mean,
+                                    double *magn_max_cm_yr,
+                                    double *magn_mean_cm_yr,
                                     ymir_vec_t *vel_vol,
                                     ymir_vec_t *visc_vol,
                                     rhea_domain_options_t *domain_options,
