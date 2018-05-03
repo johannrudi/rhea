@@ -8,6 +8,10 @@
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
 
+/******************************************************************************
+ * Viscous Stress Vector
+ *****************************************************************************/
+
 /**
  * Creates a new (second invariant of) stress tensor.
  */
@@ -61,5 +65,19 @@ void                rhea_stress_compute_viscstress_sqrt_of_2inv (
  * Computes the norm of a stress tensor.
  */
 double              rhea_stress_compute_norm (ymir_vec_t *stress);
+
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
+/**
+ * Computes global strain rate statistics.
+ */
+void                rhea_stress_stats_get_global (
+                              double *min_Pa, double *max_Pa, double *mean_Pa,
+                              ymir_vec_t *velocity, ymir_vec_t *viscosity,
+                              rhea_domain_options_t *domain_options,
+                              rhea_temperature_options_t *temp_options,
+                              rhea_viscosity_options_t *visc_options);
 
 #endif /* RHEA_STRESS_H */
