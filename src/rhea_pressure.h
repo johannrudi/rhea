@@ -9,6 +9,10 @@
 #include <rhea_viscosity.h>
 #include <ymir_pressure_elem.h>
 
+/******************************************************************************
+ * Pressure Vector
+ *****************************************************************************/
+
 /**
  * Creates a new pressure vector.
  */
@@ -43,6 +47,28 @@ int                 rhea_pressure_check_vec_type (
  * Checks entries of a vector.
  */
 int                 rhea_pressure_is_valid (ymir_vec_t *vec);
+
+/**
+ * Computes global mean value.
+ */
+double              rhea_pressure_compute_mean (
+                                            ymir_vec_t *pressure,
+                                            ymir_pressure_elem_t *press_elem);
+
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
+/**
+ * Computes global pressure statistics.
+ */
+void                rhea_pressure_stats_get_global (
+                                double *abs_min_Pa, double *abs_max_Pa,
+                                double *mean_Pa, ymir_vec_t *pressure,
+                                ymir_pressure_elem_t *press_elem,
+                                rhea_domain_options_t *domain_options,
+                                rhea_temperature_options_t *temp_options,
+                                rhea_viscosity_options_t *visc_options);
 
 #endif /* RHEA_PRESSURE_H */
 

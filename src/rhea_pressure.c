@@ -4,6 +4,11 @@
 #include <rhea_pressure.h>
 #include <rhea_base.h>
 #include <ymir_pressure_vec.h>
+#include <ymir_interp_vec.h>
+
+/******************************************************************************
+ * Pressure Vector
+ *****************************************************************************/
 
 ymir_vec_t *
 rhea_pressure_new (ymir_mesh_t *ymir_mesh, ymir_pressure_elem_t *press_elem)
@@ -17,6 +22,16 @@ rhea_pressure_destroy (ymir_vec_t *pressure)
   ymir_vec_destroy (pressure);
 }
 
+static double
+rhea_pressure_get_dim_scal (rhea_domain_options_t *domain_options,
+                            rhea_temperature_options_t *temp_options,
+                            rhea_viscosity_options_t *visc_options)
+{
+  return visc_options->representative_Pas *
+         temp_options->thermal_diffusivity_m2_s /
+         (domain_options->radius_max_m * domain_options->radius_max_m);
+}
+
 void
 rhea_pressure_convert_to_dimensional_Pa (
                                       ymir_vec_t * pressure,
@@ -24,12 +39,9 @@ rhea_pressure_convert_to_dimensional_Pa (
                                       rhea_temperature_options_t *temp_options,
                                       rhea_viscosity_options_t *visc_options)
 {
-  const double        dim_scal = visc_options->representative_Pas *
-                                 temp_options->thermal_diffusivity_m2_s /
-                                 domain_options->radius_max_m /
-                                 domain_options->radius_max_m;
-
-  ymir_vec_scale (dim_scal, pressure);
+  ymir_vec_scale (rhea_pressure_get_dim_scal (domain_options, temp_options,
+                                              visc_options),
+                  pressure);
 }
 
 int
@@ -47,4 +59,56 @@ int
 rhea_pressure_is_valid (ymir_vec_t *vec)
 {
   return sc_dmatrix_is_valid (vec->dataown);
+}
+
+double
+rhea_pressure_compute_mean (ymir_vec_t *pressure,
+                            ymir_pressure_elem_t *press_elem)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_pressure_check_vec_type (pressure, press_elem));
+  RHEA_ASSERT (rhea_pressure_is_valid (pressure));
+
+  return ymir_pressure_vec_mean (pressure, press_elem, 0);
+}
+
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
+void
+rhea_pressure_stats_get_global (double *abs_min_Pa, double *abs_max_Pa,
+                                double *mean_Pa, ymir_vec_t *pressure,
+                                ymir_pressure_elem_t *press_elem,
+                                rhea_domain_options_t *domain_options,
+                                rhea_temperature_options_t *temp_options,
+                                rhea_viscosity_options_t *visc_options)
+{
+  const double        dim_scal = rhea_pressure_get_dim_scal (
+                          domain_options, temp_options, visc_options);
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (pressure);
+  ymir_vec_t         *press_abs = ymir_dvec_new (ymir_mesh, 1,
+                                                 YMIR_GAUSS_NODE);
+
+  /* check input */
+  RHEA_ASSERT (rhea_pressure_check_vec_type (pressure, press_elem));
+  RHEA_ASSERT (rhea_pressure_is_valid (pressure));
+
+  /* set abs values of pressure */
+  ymir_interp_vec (pressure, press_abs);
+  ymir_vec_fabs (press_abs, press_abs);
+
+  /* find global values */
+  if (abs_min_Pa != NULL) {
+    *abs_min_Pa = dim_scal * ymir_vec_min_global (press_abs);
+  }
+  if (abs_max_Pa != NULL) {
+    *abs_max_Pa = dim_scal * ymir_vec_max_global (press_abs);
+  }
+  if (mean_Pa != NULL) {
+    *mean_Pa = dim_scal * rhea_pressure_compute_mean (pressure, press_elem);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (press_abs);
 }
