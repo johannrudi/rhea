@@ -2567,7 +2567,7 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
     rhea_newton_problem_set_data_fn (
         stokes_problem_nl,
         rhea_stokes_problem_nonlinear_create_solver_data_fn,
-        rhea_stokes_problem_nonlinear_clear_solver_data_fn, newton_problem);
+        NULL /* keep solver data for postprocessing */, newton_problem);
     rhea_newton_problem_set_conv_criterion_fn (
         RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM,
         NULL /* objective functional is not provided */,
@@ -2604,6 +2604,11 @@ rhea_stokes_problem_nonlinear_destroy (
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (stokes_problem_nl->newton_problem != NULL);
+
+  /* destroy solver data */
+  if (rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem_nl)) {
+    rhea_stokes_problem_nonlinear_clear_solver_data_fn (stokes_problem_nl);
+  }
 
   /* destroy mesh data */
   rhea_stokes_problem_nonlinear_clear_mesh_data (stokes_problem_nl);
