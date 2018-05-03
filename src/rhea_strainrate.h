@@ -11,6 +11,10 @@
  * strain rate */
 #define RHEA_STRAINRATE_2INV_NEUTRAL_VALUE (1.0)
 
+/******************************************************************************
+ * Strain Rate Vector
+ *****************************************************************************/
+
 /**
  * Creates a new (second invariant of) strain rate tensor.
  */
@@ -57,6 +61,10 @@ void                rhea_strainrate_compute_sqrt_of_2inv (
                                               ymir_vec_t *strainrate_sqrt_2inv,
                                               ymir_vec_t *velocity);
 
+/******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
+
 /**
  * Computes the square root of the second invariant of the strain rate at Gauss
  * nodes, given the velocity at GLL nodes.
@@ -69,5 +77,18 @@ void                rhea_strainrate_compute_sqrt_of_2inv_elem (
                                         sc_dmatrix_t *tmp_grad_vel,
                                         sc_dmatrix_t *tmp_dvel,
                                         sc_dmatrix_t *tmp_vel);
+
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
+/**
+ * Computes global strain rate statistics.
+ */
+void                rhea_strainrate_stats_get_global (
+                                    double *min_1_s, double *max_1_s,
+                                    double *mean_1_s, ymir_vec_t *velocity,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
 
 #endif /* RHEA_STRAINRATE_H */

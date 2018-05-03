@@ -6,6 +6,11 @@
 #include <rhea_velocity.h>
 #include <ymir_velocity_elem.h>
 #include <ymir_velocity_vec.h>
+#include <ymir_mass_vec.h>
+
+/******************************************************************************
+ * Strain Rate Vector
+ *****************************************************************************/
 
 ymir_vec_t *
 rhea_strainrate_new (ymir_mesh_t *ymir_mesh)
@@ -19,17 +24,22 @@ rhea_strainrate_destroy (ymir_vec_t *strainrate)
   ymir_vec_destroy (strainrate);
 }
 
+static double
+rhea_strainrate_get_dim_scal (rhea_domain_options_t *domain_options,
+                              rhea_temperature_options_t *temp_options)
+{
+  return temp_options->thermal_diffusivity_m2_s /
+         (domain_options->radius_max_m * domain_options->radius_max_m);
+}
+
 void
 rhea_strainrate_convert_to_dimensional_1_s (
                                     ymir_vec_t * strainrate,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options)
 {
-  const double        dim_scal = temp_options->thermal_diffusivity_m2_s /
-                                 domain_options->radius_max_m /
-                                 domain_options->radius_max_m;
-
-  ymir_vec_scale (dim_scal, strainrate);
+  ymir_vec_scale (rhea_strainrate_get_dim_scal (domain_options, temp_options),
+                  strainrate);
 }
 
 int
@@ -101,6 +111,10 @@ rhea_strainrate_compute_sqrt_of_2inv (ymir_vec_t *strainrate_sqrt_2inv,
   ymir_velocity_elem_destroy (vel_elem);
 }
 
+/******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
+
 void
 rhea_strainrate_compute_sqrt_of_2inv_elem (
                                         sc_dmatrix_t *strainrate_2inv_el_mat,
@@ -120,4 +134,85 @@ rhea_strainrate_compute_sqrt_of_2inv_elem (
   ymir_velocity_elem_compute_strain_rate_2inv (
       strainrate_2inv_el_mat, vel_el_mat, mesh, elid,
       tmp_grad_vel, tmp_dvel, tmp_vel);
+}
+
+/******************************************************************************
+ * Statistics
+ *****************************************************************************/
+
+static double
+rhea_strainrate_stats_compute_mean (ymir_vec_t *vec, ymir_vec_t *filter,
+                                    rhea_domain_options_t *domain_options)
+{
+  ymir_vec_t         *vec_mass = ymir_vec_template (vec);
+  ymir_vec_t         *unit = ymir_vec_template (vec);
+  double              volume, mean;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (vec));
+  RHEA_ASSERT (filter == NULL || ymir_vec_is_dvec (filter));
+  RHEA_ASSERT (filter == NULL || filter->ndfields == 1);
+  RHEA_ASSERT (filter == NULL || filter->node_type == vec->node_type);
+
+  /* set unit vector; set/calculate volume */
+  ymir_dvec_set_value (unit, 1.0);
+  if (filter != NULL) {
+    ymir_mass_apply (unit, vec_mass);
+    ymir_dvec_multiply_in1 (filter, vec_mass);
+    volume = ymir_dvec_innerprod (vec_mass, unit);
+  }
+  else if (domain_options == NULL) {
+    ymir_mass_apply (unit, vec_mass);
+    volume = ymir_dvec_innerprod (vec_mass, unit);
+  }
+  else {
+    volume = domain_options->volume;
+  }
+
+  /* compute mean */
+  ymir_mass_apply (vec, vec_mass);
+  if (filter != NULL) {
+    ymir_dvec_multiply_in1 (filter, vec_mass);
+  }
+  mean = ymir_dvec_innerprod (vec_mass, unit) / volume;
+
+  /* destroy */
+  ymir_vec_destroy (vec_mass);
+  ymir_vec_destroy (unit);
+
+  return mean;
+}
+
+void
+rhea_strainrate_stats_get_global (double *min_1_s, double *max_1_s,
+                                  double *mean_1_s, ymir_vec_t *velocity,
+                                  rhea_domain_options_t *domain_options,
+                                  rhea_temperature_options_t *temp_options)
+{
+  const double        dim_scal = rhea_strainrate_get_dim_scal (domain_options,
+                                                               temp_options);
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
+  ymir_vec_t         *sr_sqrt_2inv = rhea_strainrate_2inv_new (ymir_mesh);
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
+  RHEA_ASSERT (rhea_velocity_is_valid (velocity));
+
+  /* compute sqrt of the 2nd invariant */
+  rhea_strainrate_compute_sqrt_of_2inv (sr_sqrt_2inv, velocity);
+
+  /* find global values */
+  if (min_1_s != NULL) {
+    *min_1_s = dim_scal * ymir_vec_min_global (sr_sqrt_2inv);
+  }
+  if (max_1_s != NULL) {
+    *max_1_s = dim_scal * ymir_vec_max_global (sr_sqrt_2inv);
+  }
+  if (mean_1_s != NULL) {
+    *mean_1_s = dim_scal * rhea_strainrate_stats_compute_mean (
+        sr_sqrt_2inv, NULL, domain_options);
+  }
+
+  /* destroy */
+  rhea_strainrate_2inv_destroy (sr_sqrt_2inv);
 }
