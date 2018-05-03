@@ -200,6 +200,7 @@ rhea_strainrate_stats_get_global (double *min_1_s, double *max_1_s,
 
   /* compute sqrt of the 2nd invariant */
   rhea_strainrate_compute_sqrt_of_2inv (sr_sqrt_2inv, velocity);
+  RHEA_ASSERT (rhea_strainrate_2inv_is_valid (sr_sqrt_2inv));
 
   /* find global values */
   if (min_1_s != NULL) {
