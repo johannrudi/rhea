@@ -13,15 +13,19 @@
 
 /* constants: field names for vtk files */
 #define RHEA_VTK_NAME_TEMPERATURE "temperature"
+#define RHEA_VTK_NAME_VELOCITY "velocity"
+#define RHEA_VTK_NAME_PRESSURE "pressure"
+
 #define RHEA_VTK_NAME_BACKGROUND_TEMPERATURE "background_temp"
+#define RHEA_VTK_NAME_VELOCITY_RHS "rhs_vel"
+#define RHEA_VTK_NAME_STRAINRATE_SQRT_2INV "strainrate_sqrt_2inv"
+#define RHEA_VTK_NAME_VISCSTRESS_SQRT_2INV "viscstress_sqrt_2inv"
+#define RHEA_VTK_NAME_STRESS_NORM "stress_norm"
+
 #define RHEA_VTK_NAME_WEAKZONE "weakzone"
 #define RHEA_VTK_NAME_VISCOSITY "viscosity"
 #define RHEA_VTK_NAME_BOUNDS_MARKER "bounds_marker"
 #define RHEA_VTK_NAME_YIELDING_MARKER "yielding_marker"
-#define RHEA_VTK_NAME_VELOCITY "velocity"
-#define RHEA_VTK_NAME_PRESSURE "pressure"
-#define RHEA_VTK_NAME_VELOCITY_RHS "rhs_vel"
-#define RHEA_VTK_NAME_STRAINRATE_SQRT_2INV "strain_rate_sqrt_2inv"
 
 void
 rhea_vtk_write_input_data (const char *filepath,
@@ -221,6 +225,31 @@ rhea_vtk_write_solution (const char *filepath,
 }
 
 void
+rhea_vtk_write_solution_surf (const char *filepath,
+                              ymir_vec_t *velocity_surf,
+                              ymir_vec_t *stress_norm_surf,
+                              ymir_vec_t *viscosity_surf)
+{
+  ymir_mesh_t        *ymir_mesh;
+
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n", __func__, filepath);
+
+  /* check input */
+  RHEA_ASSERT (velocity_surf != NULL);
+  RHEA_ASSERT (stress_norm_surf != NULL);
+  RHEA_ASSERT (viscosity_surf != NULL);
+
+  /* write vtk file */
+  ymir_mesh = ymir_vec_get_mesh (viscosity_surf);
+  ymir_vtk_write (ymir_mesh, filepath,
+                  velocity_surf, RHEA_VTK_NAME_VELOCITY,
+                  stress_norm_surf, RHEA_VTK_NAME_STRESS_NORM,
+                  viscosity_surf, RHEA_VTK_NAME_VISCOSITY, NULL);
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+}
+
+void
 rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
                                            ymir_vec_t *velocity,
                                            ymir_vec_t *pressure,
@@ -258,6 +287,33 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
 
   /* destroy */
   rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);
+
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+}
+
+void
+rhea_vtk_write_nonlinear_stokes_iteration_surf (const char *filepath,
+                                                ymir_vec_t *velocity_surf,
+                                                ymir_vec_t *stress_norm_surf,
+                                                ymir_vec_t *viscosity_surf)
+{
+  ymir_mesh_t        *ymir_mesh;
+
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n", __func__, filepath);
+
+  /* check input */
+  RHEA_ASSERT (velocity_surf != NULL);
+  RHEA_ASSERT (stress_norm_surf != NULL);
+  RHEA_ASSERT (viscosity_surf != NULL);
+
+  /* create work variables */
+  ymir_mesh = ymir_vec_get_mesh (viscosity_surf);
+
+  /* write vtk file */
+  ymir_vtk_write (ymir_mesh, filepath,
+                  velocity_surf, RHEA_VTK_NAME_VELOCITY,
+                  stress_norm_surf, RHEA_VTK_NAME_STRESS_NORM,
+                  viscosity_surf, RHEA_VTK_NAME_VISCOSITY, NULL);
 
   RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
