@@ -48,6 +48,10 @@ int                 rhea_velocity_check_vec_type (ymir_vec_t *vec);
  */
 int                 rhea_velocity_is_valid (ymir_vec_t *vec);
 
+/******************************************************************************
+ * Velocity Surface Vector
+ *****************************************************************************/
+
 /**
  * Creates a new velocity vector at surface.
  */

@@ -69,6 +69,10 @@ rhea_velocity_is_valid (ymir_vec_t *vec)
   return sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff);
 }
 
+/******************************************************************************
+ * Velocity Surface Vector
+ *****************************************************************************/
+
 ymir_vec_t *
 rhea_velocity_surface_new (ymir_mesh_t *ymir_mesh)
 {
