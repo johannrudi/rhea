@@ -10,6 +10,7 @@
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
+#include <rhea_stress.h>
 #include <rhea_vtk.h>
 
 void
@@ -84,35 +85,74 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
                                   ymir_vec_t *sol_vel_press,
                                   rhea_stokes_problem_t *stokes_problem)
 {
-  ymir_mesh_t        *ymir_mesh;
+  rhea_domain_options_t      *domain_options;
+  rhea_temperature_options_t *temp_options;
+  rhea_viscosity_options_t   *visc_options;
+  ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
   ymir_vec_t         *velocity, *pressure, *viscosity;
+  ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf;
 
   /* exit if nothing to do */
   if (vtk_write_solution_path == NULL) {
     return;
   }
 
+  /* get options */
+  domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
+  temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
+  visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
+
   /* get mesh */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
-  /* create work variables */
+  /* create volume variables */
   velocity = rhea_velocity_new (ymir_mesh);
   pressure = rhea_pressure_new (ymir_mesh, press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
 
-  /* get fields */
+  /* get volume fields */
   rhea_velocity_pressure_copy_components (velocity, pressure, sol_vel_press,
                                           press_elem);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
+  /* create surface variables */
+  velocity_surf = rhea_velocity_surface_new (ymir_mesh);
+  stress_norm_surf = rhea_stress_surface_new (ymir_mesh);
+  viscosity_surf = rhea_viscosity_surface_new (ymir_mesh);
+
+  /* get surface fields */
+  rhea_velocity_surface_interpolate (velocity_surf, velocity);
+  rhea_stokes_problem_stress_compute_normal_at_surface (stress_norm_surf,
+                                                        sol_vel_press,
+                                                        stokes_problem);
+  rhea_viscosity_surface_interpolate (viscosity_surf, viscosity,
+                                      visc_options->min, visc_options->max);
+
+  /* convert to physical dimensions */
+  rhea_velocity_convert_to_dimensional_cm_yr (velocity, domain_options,
+                                              temp_options);
+  rhea_velocity_convert_to_dimensional_cm_yr (velocity_surf, domain_options,
+                                              temp_options);
+  rhea_pressure_convert_to_dimensional_Pa (pressure, domain_options,
+                                           temp_options, visc_options);
+  rhea_stress_convert_to_dimensional_Pa (stress_norm_surf, domain_options,
+                                         temp_options, visc_options);
+  rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
+  rhea_viscosity_convert_to_dimensional_Pas (viscosity_surf, visc_options);
+
   /* write vtk */
   rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
                            viscosity);
+  rhea_vtk_write_solution_surf (vtk_write_solution_path, velocity_surf,
+                                stress_norm_surf, viscosity_surf);
 
   /* destroy */
   rhea_velocity_destroy (velocity);
   rhea_pressure_destroy (pressure);
   rhea_viscosity_destroy (viscosity);
+  rhea_velocity_surface_destroy (velocity_surf);
+  rhea_stress_surface_destroy (stress_norm_surf);
+  rhea_viscosity_surface_destroy (viscosity_surf);
 }
