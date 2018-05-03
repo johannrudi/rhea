@@ -163,7 +163,15 @@ ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
  * Sets velocity components on the boundary, which are constrained by Dirichlet
  * boundary conditions, to zero.
  */
-void                rhea_stokes_problem_velocity_boundary_set_zero (
+int                 rhea_stokes_problem_velocity_boundary_set_zero (
+                                    ymir_vec_t *velocity,
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Computes mean rotation of the velocity.
+ */
+int                 rhea_stokes_problem_velocity_compute_mean_rotation (
+                                    double mean_rot_axis[3],
                                     ymir_vec_t *velocity,
                                     rhea_stokes_problem_t *stokes_problem);
 

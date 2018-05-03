@@ -2097,6 +2097,8 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
     double              surf_magn_min_cm_yr, surf_magn_max_cm_yr,
                         surf_magn_mean_cm_yr;
     double              surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr;
+    double              mean_rot_axis[3];
+    int                 has_mean_rot = 0;
 
     rhea_velocity_stats_get_global (
         &magn_min_cm_yr, &magn_max_cm_yr, &magn_mean_cm_yr, velocity,
@@ -2112,21 +2114,28 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         &surf_lith_magn_max_cm_yr, &surf_lith_magn_mean_cm_yr,
         velocity, viscosity, stokes_problem_nl->domain_options,
         stokes_problem_nl->temp_options);
-    //TODO mean rotation
 
-    RHEA_GLOBAL_INFOF (
+    has_mean_rot = rhea_stokes_problem_velocity_compute_mean_rotation (
+        mean_rot_axis, velocity, stokes_problem_nl);
+
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Velocity magn [cm/yr]: lithosphere max %.3e, mean %.3e\n",
         __func__, lith_magn_max_cm_yr, lith_magn_mean_cm_yr);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s:  ~ at surface [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, surf_magn_min_cm_yr, surf_magn_max_cm_yr,
         surf_magn_mean_cm_yr);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s:  ~ at surface [cm/yr]: lithosphere max %.3e, mean %.3e\n",
         __func__, surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr);
+    if (has_mean_rot) {
+      RHEA_GLOBAL_STATISTICSF (
+        "%s: Velocity mean rot axis: x,y,z = %+.3e , %+.3e , %+.3e\n",
+        __func__, mean_rot_axis[0], mean_rot_axis[1], mean_rot_axis[2]);
+    }
   }
 
   /* print pressure statistics */
@@ -2165,30 +2174,30 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
     asth_vol = rhea_viscosity_stats_get_asthenosphere_volume (
         viscosity, stokes_problem_nl->visc_options);
 
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Viscosity [Pa*s]: global min %.3e, max %.3e, max/min %.3e, "
         "mean %.3e\n",
         __func__, min_Pas, max_Pas, max_Pas/min_Pas, mean_Pas);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Viscosity [Pa*s]: UM mean %.3e, LM mean %.3e\n",
         __func__, upper_mantle_mean_Pas, lower_mantle_mean_Pas);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Viscosity [Pa*s]: lith. mean %.3e, asth. mean %.3e\n",
         __func__, lith_mean_Pas, asth_mean_Pas);
 
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Visc min bounds volume: abs %.8e, rel %.6f\n",
         __func__, bounds_vol_min, bounds_vol_min/domain_vol);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Visc max bounds volume: abs %.8e, rel %.6f\n",
         __func__, bounds_vol_max, bounds_vol_max/domain_vol);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Yielding volume:        abs %.8e, rel %.6f\n",
         __func__, yielding_vol, yielding_vol/domain_vol);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Lithoshpere volume:     abs %.8e, rel %.6f\n",
         __func__, lith_vol, lith_vol/domain_vol);
-    RHEA_GLOBAL_INFOF (
+    RHEA_GLOBAL_STATISTICSF (
         "%s: Asthenoshpere volume:   abs %.8e, rel %.6f\n",
         __func__, asth_vol, asth_vol/domain_vol);
   }
@@ -2975,7 +2984,7 @@ rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)
   return stokes_problem->stokes_op;
 }
 
-void
+int
 rhea_stokes_problem_velocity_boundary_set_zero (
                                         ymir_vec_t *velocity,
                                         rhea_stokes_problem_t *stokes_problem)
@@ -2986,5 +2995,36 @@ rhea_stokes_problem_velocity_boundary_set_zero (
   /* set Dirichlet components to zero if Dirichlet BC's exist */
   if (stokes_problem->vel_dir != NULL) {
     ymir_vel_dir_separate (velocity, NULL, NULL, NULL, stokes_problem->vel_dir);
+    return 1;
+  }
+  else {
+    return 0;
+  }
+}
+
+int
+rhea_stokes_problem_velocity_compute_mean_rotation (
+                                        double mean_rot_axis[3],
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_stress_op_t   *stress_op;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
+
+  /* compute mean rotation */
+  switch (stokes_problem->domain_options->shape) {
+  case RHEA_DOMAIN_SHELL:
+    RHEA_ASSERT (stokes_problem->stokes_op != NULL);
+    stress_op = stokes_problem->stokes_op->stress_op;
+    ymir_stress_op_compute_mean_rotation (mean_rot_axis, velocity,
+                                          stress_op, 0);
+    return 1;
+  default: /* no mean rotation */
+    mean_rot_axis[0] = NAN;
+    mean_rot_axis[1] = NAN;
+    mean_rot_axis[2] = NAN;
+    return 0;
   }
 }
