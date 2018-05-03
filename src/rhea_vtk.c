@@ -32,15 +32,13 @@ rhea_vtk_write_input_data (const char *filepath,
                            ymir_vec_t *bounds_marker,
                            ymir_vec_t *rhs_vel)
 {
-  const char         *this_fn_name = "rhea_vtk_write_input_data";
   const int           in_temp = (temperature != NULL);
   const int           in_back = (background_temp != NULL);
   const int           in_weak = (weakzone != NULL);
   const int           in_bounds = (bounds_marker != NULL);
   ymir_mesh_t        *ymir_mesh;
 
-  RHEA_GLOBAL_INFOF ("Into %s: Write VTK file \"%s\"\n",
-                     this_fn_name, filepath);
+  RHEA_GLOBAL_INFOF ("Into %s: Write VTK file \"%s\"\n", __func__, filepath);
 
   /* check input */
   RHEA_ASSERT (viscosity != NULL);
@@ -120,7 +118,7 @@ rhea_vtk_write_input_data (const char *filepath,
     rhea_viscosity_destroy (bounds_marker);
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 static void
@@ -128,13 +126,11 @@ rhea_vtk_write_primary (const char *filepath,
                         ymir_vec_t *velocity,
                         ymir_vec_t *pressure)
 {
-  const char         *this_fn_name = "rhea_vtk_write_primary";
   const int           in_vel = (velocity != NULL);
   const int           in_press = (pressure != NULL);
   ymir_mesh_t        *ymir_mesh;
 
-  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
-                     this_fn_name, filepath);
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n", __func__, filepath);
 
   /* check input */
   RHEA_ASSERT (in_vel || in_press);
@@ -160,7 +156,7 @@ rhea_vtk_write_primary (const char *filepath,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 static void
@@ -168,13 +164,11 @@ rhea_vtk_write_secondary (const char *filepath,
                           ymir_vec_t *viscosity,
                           ymir_vec_t *velocity)
 {
-  const char         *this_fn_name = "rhea_vtk_write_secondary";
   const int           in_vel = (velocity != NULL);
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *strainrate_sqrt_2inv;
 
-  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
-                     this_fn_name, filepath);
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n", __func__, filepath);
 
   /* check input */
   RHEA_ASSERT (viscosity != NULL);
@@ -204,7 +198,7 @@ rhea_vtk_write_secondary (const char *filepath,
     rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 void
@@ -213,11 +207,9 @@ rhea_vtk_write_solution (const char *filepath,
                          ymir_vec_t *pressure,
                          ymir_vec_t *viscosity)
 {
-  const char         *this_fn_name = "rhea_vtk_write_solution";
   char                path[BUFSIZ];
 
-  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
-                     this_fn_name, filepath);
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n", __func__, filepath);
 
   snprintf (path, BUFSIZ, "%s_primary", filepath);
   rhea_vtk_write_primary (path, velocity, pressure);
@@ -225,7 +217,7 @@ rhea_vtk_write_solution (const char *filepath,
   snprintf (path, BUFSIZ, "%s_secondary", filepath);
   rhea_vtk_write_secondary (path, viscosity, velocity);
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
 
 void
@@ -236,13 +228,10 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
                                            ymir_vec_t *bounds_marker,
                                            ymir_vec_t *yielding_marker)
 {
-  const char         *this_fn_name =
-                        "rhea_vtk_write_nonlinear_stokes_iteration";
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *strainrate_sqrt_2inv;
 
-  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n",
-                     this_fn_name, filepath);
+  RHEA_GLOBAL_INFOF ("Into %s (file path \"%s\")\n", __func__, filepath);
 
   /* check input */
   RHEA_ASSERT (velocity != NULL);
@@ -270,5 +259,5 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
   /* destroy */
   rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
 }
