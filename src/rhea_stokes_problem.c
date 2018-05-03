@@ -2072,10 +2072,11 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
   const char         *vtk_path = stokes_problem_nl->solver_vtk_path;
-  ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
-  ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
-  ymir_vec_t         *velocity, *pressure, *viscosity, *stress_norm_surf;
   const double        domain_vol = stokes_problem_nl->domain_options->volume;
+  ymir_mesh_t          *ymir_mesh = stokes_problem_nl->ymir_mesh;
+  ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
+  ymir_vec_t         *velocity, *pressure, *viscosity;
+  ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf;
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
 
@@ -2084,17 +2085,23 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   RHEA_ASSERT (stokes_problem_nl->bounds_marker != NULL);
   RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
 
-  /* get fields */
+  /* get volume fields */
   rhea_velocity_pressure_create_components (&velocity, &pressure, solution,
                                             press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_nl);
 
-  /* compute the normal stress at the surface */
+  /* get surface fields */
+  velocity_surf = rhea_velocity_surface_new (ymir_mesh);
+  rhea_velocity_surface_interpolate (velocity_surf, velocity);
   stress_norm_surf = rhea_stress_surface_new (ymir_mesh);
   rhea_stokes_problem_stress_compute_normal_at_surface (stress_norm_surf,
                                                         solution,
                                                         stokes_problem_nl);
+  viscosity_surf = rhea_viscosity_surface_new (ymir_mesh);
+  rhea_viscosity_surface_interpolate (viscosity_surf, viscosity,
+                                      stokes_problem_nl->visc_options->min,
+                                      stokes_problem_nl->visc_options->max);
 
   /* print velocity statistics */
   {
@@ -2260,6 +2267,8 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
     rhea_vtk_write_nonlinear_stokes_iteration (
         path, velocity, pressure, viscosity,
         stokes_problem_nl->bounds_marker, stokes_problem_nl->yielding_marker);
+    rhea_vtk_write_nonlinear_stokes_iteration_surf (
+        path, velocity_surf, stress_norm_surf, viscosity_surf);
 
     /* set VTK path for debugging within ymir */
     ymir_vtk_set_debug_path (path);
@@ -2269,7 +2278,9 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   rhea_velocity_destroy (velocity);
   rhea_pressure_destroy (pressure);
   rhea_viscosity_destroy (viscosity);
+  rhea_velocity_surface_destroy (velocity_surf);
   rhea_stress_surface_destroy (stress_norm_surf);
+  rhea_viscosity_surface_destroy (viscosity_surf);
 
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
 }
