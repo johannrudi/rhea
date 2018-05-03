@@ -2114,7 +2114,6 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         &surf_lith_magn_max_cm_yr, &surf_lith_magn_mean_cm_yr,
         velocity, viscosity, stokes_problem_nl->domain_options,
         stokes_problem_nl->temp_options);
-
     has_mean_rot = rhea_stokes_problem_velocity_compute_mean_rotation (
         mean_rot_axis, velocity, stokes_problem_nl);
 
@@ -2122,14 +2121,14 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity magn [cm/yr]: lithosphere max %.3e, mean %.3e\n",
+        "%s: Velocity magn [cm/yr]: lithosphere      max %.3e, mean %.3e\n",
         __func__, lith_magn_max_cm_yr, lith_magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
         "%s:  ~ at surface [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, surf_magn_min_cm_yr, surf_magn_max_cm_yr,
         surf_magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s:  ~ at surface [cm/yr]: lithosphere max %.3e, mean %.3e\n",
+        "%s:  ~ at surface [cm/yr]: lithosphere      max %.3e, mean %.3e\n",
         __func__, surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr);
     if (has_mean_rot) {
       RHEA_GLOBAL_STATISTICSF (
@@ -2139,13 +2138,47 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   }
 
   /* print pressure statistics */
-  //TODO |min| |max| mean
+  {
+    double              abs_min_Pa, abs_max_Pa, mean_Pa;
+
+    rhea_pressure_stats_get_global (
+        &abs_min_Pa, &abs_max_Pa, &mean_Pa, pressure,
+        stokes_problem_nl->press_elem, stokes_problem_nl->domain_options,
+        stokes_problem_nl->temp_options, stokes_problem_nl->visc_options);
+
+    RHEA_GLOBAL_STATISTICSF (
+        "%s: Pressure [Pa]: global abs min %.3e, abs max %.3e, mean %.3e\n",
+        __func__, abs_min_Pa, abs_max_Pa, mean_Pa);
+  }
 
   /* print strain rate statistics */
-  //TODO min max mean
+  {
+    double              min_1_s, max_1_s, mean_1_s;
+
+    rhea_strainrate_stats_get_global (
+        &min_1_s, &max_1_s, &mean_1_s, velocity,
+        stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
+
+    RHEA_GLOBAL_STATISTICSF (
+        "%s: Strain rate (sqrt 2nd inv) [1/s]: global min %.3e, max %.3e, "
+        "max/min %.3e, mean %.3e\n",
+        __func__, min_1_s, max_1_s, max_1_s/min_1_s, mean_1_s);
+  }
 
   /* print viscous stress statistics */
-  //TODO min max mean
+  {
+    double              min_Pa, max_Pa, mean_Pa;
+
+    rhea_stress_stats_get_global (
+        &min_Pa, &max_Pa, &mean_Pa, velocity, viscosity,
+        stokes_problem_nl->domain_options, stokes_problem_nl->temp_options,
+        stokes_problem_nl->visc_options);
+
+    RHEA_GLOBAL_STATISTICSF (
+        "%s: Visc stress (sqrt 2nd inv) [Pa]:  global min %.3e, max %.3e, "
+        "max/min %.3e, mean %.3e\n",
+        __func__, min_Pa, max_Pa, max_Pa/min_Pa, mean_Pa);
+  }
   //TODO normal
 
   /* print viscosity statistics */
