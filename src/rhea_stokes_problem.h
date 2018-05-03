@@ -175,4 +175,12 @@ int                 rhea_stokes_problem_velocity_compute_mean_rotation (
                                     ymir_vec_t *velocity,
                                     rhea_stokes_problem_t *stokes_problem);
 
+/**
+ * Computes normal stress at the surface of the domain.
+ */
+int                 rhea_stokes_problem_stress_compute_normal_at_surface (
+                                    ymir_vec_t *stress_norm_surf,
+                                    ymir_vec_t *vel_press,
+                                    rhea_stokes_problem_t *stokes_problem);
+
 #endif /* RHEA_STOKES_PROBLEM_H */

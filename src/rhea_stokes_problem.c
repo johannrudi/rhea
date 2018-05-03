@@ -2074,7 +2074,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   const char         *vtk_path = stokes_problem_nl->solver_vtk_path;
   ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
   ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
-  ymir_vec_t         *velocity, *pressure, *viscosity;
+  ymir_vec_t         *velocity, *pressure, *viscosity, *stress_norm_surf;
   const double        domain_vol = stokes_problem_nl->domain_options->volume;
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
@@ -2089,6 +2089,12 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
                                             press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_nl);
+
+  /* compute the normal stress at the surface */
+  stress_norm_surf = rhea_stress_surface_new (ymir_mesh);
+  rhea_stokes_problem_stress_compute_normal_at_surface (stress_norm_surf,
+                                                        solution,
+                                                        stokes_problem_nl);
 
   /* print velocity statistics */
   {
@@ -2121,14 +2127,14 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity magn [cm/yr]: lithosphere      max %.3e, mean %.3e\n",
+        "%s: Velocity magn [cm/yr]: lithosphere max %.3e, mean %.3e\n",
         __func__, lith_magn_max_cm_yr, lith_magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
         "%s:  ~ at surface [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, surf_magn_min_cm_yr, surf_magn_max_cm_yr,
         surf_magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s:  ~ at surface [cm/yr]: lithosphere      max %.3e, mean %.3e\n",
+        "%s:  ~ at surface [cm/yr]: lithosphere max %.3e, mean %.3e\n",
         __func__, surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr);
     if (has_mean_rot) {
       RHEA_GLOBAL_STATISTICSF (
@@ -2165,12 +2171,17 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         __func__, min_1_s, max_1_s, max_1_s/min_1_s, mean_1_s);
   }
 
-  /* print viscous stress statistics */
+  /* print stress statistics */
   {
     double              min_Pa, max_Pa, mean_Pa;
+    double              surf_min_Pa, surf_max_Pa, surf_mean_Pa;
 
     rhea_stress_stats_get_global (
         &min_Pa, &max_Pa, &mean_Pa, velocity, viscosity,
+        stokes_problem_nl->domain_options, stokes_problem_nl->temp_options,
+        stokes_problem_nl->visc_options);
+    rhea_stress_surface_stats_get_global (
+        &surf_min_Pa, &surf_max_Pa, &surf_mean_Pa, stress_norm_surf,
         stokes_problem_nl->domain_options, stokes_problem_nl->temp_options,
         stokes_problem_nl->visc_options);
 
@@ -2178,8 +2189,11 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         "%s: Visc stress (sqrt 2nd inv) [Pa]:  global min %.3e, max %.3e, "
         "max/min %.3e, mean %.3e\n",
         __func__, min_Pa, max_Pa, max_Pa/min_Pa, mean_Pa);
+    RHEA_GLOBAL_STATISTICSF (
+        "%s: Stress normal at surface [Pa]: global min %+.3e, max %+.3e, "
+        "mean %+.3e\n",
+        __func__, surf_min_Pa, surf_max_Pa, surf_mean_Pa);
   }
-  //TODO normal
 
   /* print viscosity statistics */
   {
@@ -2255,6 +2269,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   rhea_velocity_destroy (velocity);
   rhea_pressure_destroy (pressure);
   rhea_viscosity_destroy (viscosity);
+  rhea_stress_surface_destroy (stress_norm_surf);
 
   RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
 }
@@ -3060,4 +3075,79 @@ rhea_stokes_problem_velocity_compute_mean_rotation (
     mean_rot_axis[2] = NAN;
     return 0;
   }
+}
+
+int
+rhea_stokes_problem_stress_compute_normal_at_surface (
+                                    ymir_vec_t *stress_norm_surf,
+                                    ymir_vec_t *vel_press,
+                                    rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_mesh_t          *ymir_mesh = rhea_stokes_problem_get_ymir_mesh (
+                            stokes_problem);
+  ymir_pressure_elem_t *press_elem = rhea_stokes_problem_get_press_elem (
+                            stokes_problem);
+
+  int                 data_exists_lin, data_exists_nl;
+  ymir_stokes_op_t   *stokes_op;
+  ymir_vec_t         *rhs_vel = stokes_problem->rhs_vel;
+  ymir_vec_t         *rhs_vel_nonzero_dirichlet =
+                        stokes_problem->rhs_vel_nonzero_dirichlet;
+  ymir_vec_t         *rhs_vel_press;
+  ymir_vec_t         *residual_vel_press, *residual_vel;
+
+  /* check input */
+  RHEA_ASSERT (rhea_stress_surface_check_vec_type (stress_norm_surf));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (vel_press));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (vel_press));
+
+  /* get Stokes operator */
+  data_exists_lin = (
+      stokes_problem->type == RHEA_STOKES_PROBLEM_LINEAR &&
+      rhea_stokes_problem_linear_solver_data_exists (stokes_problem));
+  data_exists_nl = (
+      stokes_problem->type == RHEA_STOKES_PROBLEM_NONLINEAR &&
+      rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem));
+  if (data_exists_lin || data_exists_nl) {
+    stokes_op = stokes_problem->stokes_op;
+  }
+  else {
+    return 0;
+  }
+
+  /* construct right-hand side for Stokes system */
+  rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  ymir_stokes_pc_construct_rhs (
+      rhs_vel_press,              /* output: right-hand side */
+      rhs_vel,                    /* input: volume forcing */
+      NULL,                       /* input: Neumann forcing */
+      rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
+      stokes_problem->incompressible, stokes_op, 0 /* !linearized */);
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
+
+  /* compute residual without constraining Dirichlet BC's
+   *   r_mom  = A * u + B^T * p - f
+   *   r_mass = B * u
+   */
+  residual_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  ymir_stokes_pc_apply_skip_dir_stokes_op (vel_press, residual_vel_press,
+                                           stokes_op, 0 /* !linearized */,
+                                           1 /* dirty */);
+  ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (residual_vel_press));
+  rhea_velocity_pressure_destroy (rhs_vel_press);
+
+  /* get the velocity component of the residual */
+  residual_vel = rhea_velocity_new (ymir_mesh);
+  rhea_velocity_pressure_copy_components (residual_vel, NULL,
+                                          residual_vel_press, press_elem);
+  RHEA_ASSERT (rhea_velocity_is_valid (residual_vel));
+  rhea_velocity_pressure_destroy (residual_vel_press);
+
+  /* extract the normal component of the residual at the surface */
+  rhea_stress_surface_extract_from_residual (stress_norm_surf, residual_vel);
+  RHEA_ASSERT (rhea_velocity_surface_is_valid (stress_norm_surf));
+  rhea_velocity_destroy (residual_vel);
+
+  return 1;
 }
