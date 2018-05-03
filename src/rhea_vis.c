@@ -13,32 +13,26 @@ void
 rhea_vis_initialize (const char *catalyst_scripts[],
                      const int n_catalyst_scripts)
 {
-  const char         *this_fn_name = "rhea_vis_initialize";
-
 #ifdef RHEA_USE_CATALYST
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
   rhea_vis_adaptor_initialize (catalyst_scripts, n_catalyst_scripts);
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
 #endif
 }
 
 void
 rhea_vis_finalize ()
 {
-  const char         *this_fn_name = "rhea_vis_finalize";
-
 #ifdef RHEA_USE_CATALYST
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
   rhea_vis_adaptor_finalize ();
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
 #endif
 }
 
 void
 rhea_vis_process_primary (ymir_vec_t *velocity, ymir_vec_t *pressure)
 {
-  const char         *this_fn_name = "rhea_vis_process_primary";
-
 #ifdef RHEA_USE_CATALYST
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
   const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (ymir_mesh);
@@ -61,7 +55,7 @@ rhea_vis_process_primary (ymir_vec_t *velocity, ymir_vec_t *pressure)
   ymir_locidx_t       elid;
   int                 i;
 
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
 
   /* check input */
   RHEA_ASSERT (order == 2);
@@ -139,6 +133,6 @@ rhea_vis_process_primary (ymir_vec_t *velocity, ymir_vec_t *pressure)
   RHEA_FREE (velocity_data);
   RHEA_FREE (pressure_data);
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", this_fn_name);
+  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
 #endif
 }
