@@ -9,7 +9,7 @@
 #include <rhea_viscosity.h>
 
 /******************************************************************************
- * Viscous Stress Vector
+ * Stress Vector
  *****************************************************************************/
 
 /**
@@ -67,6 +67,38 @@ void                rhea_stress_compute_viscstress_sqrt_of_2inv (
 double              rhea_stress_compute_norm (ymir_vec_t *stress);
 
 /******************************************************************************
+ * Stress Surface Vector
+ *****************************************************************************/
+
+/**
+ * Creates a new stress vector at surface.
+ */
+ymir_vec_t         *rhea_stress_surface_new (ymir_mesh_t *ymir_mesh);
+
+/**
+ * Destroys a stress vector at surface.
+ */
+void                rhea_stress_surface_destroy (ymir_vec_t *vel_surf);
+
+/**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_stress_surface_check_vec_type (ymir_vec_t *vec);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_stress_surface_is_valid (ymir_vec_t *vec);
+
+/**
+ * Extracts the normal component of the stress at the surface from the residual
+ * of the Stokes momentum equation.
+ */
+void                rhea_stress_surface_extract_from_residual (
+                                                ymir_vec_t *stress_norm_surf,
+                                                ymir_vec_t *residual_mom);
+
+/******************************************************************************
  * Statistics
  *****************************************************************************/
 
@@ -76,6 +108,13 @@ double              rhea_stress_compute_norm (ymir_vec_t *stress);
 void                rhea_stress_stats_get_global (
                               double *min_Pa, double *max_Pa, double *mean_Pa,
                               ymir_vec_t *velocity, ymir_vec_t *viscosity,
+                              rhea_domain_options_t *domain_options,
+                              rhea_temperature_options_t *temp_options,
+                              rhea_viscosity_options_t *visc_options);
+
+void                rhea_stress_surface_stats_get_global (
+                              double *min_Pa, double *max_Pa, double *mean_Pa,
+                              ymir_vec_t *stress_norm_surf,
                               rhea_domain_options_t *domain_options,
                               rhea_temperature_options_t *temp_options,
                               rhea_viscosity_options_t *visc_options);

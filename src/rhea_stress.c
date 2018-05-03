@@ -8,7 +8,7 @@
 #include <ymir_mass_vec.h>
 
 /******************************************************************************
- * Viscous Stress Vector
+ * Stress Vector
  *****************************************************************************/
 
 ymir_vec_t *
@@ -122,6 +122,86 @@ rhea_stress_compute_norm (ymir_vec_t *stress)
 }
 
 /******************************************************************************
+ * Stress Surface Vector
+ *****************************************************************************/
+
+ymir_vec_t *
+rhea_stress_surface_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_face_cvec_new (ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+}
+
+void
+rhea_stress_surface_destroy (ymir_vec_t *stress)
+{
+  ymir_vec_destroy (stress);
+}
+
+int
+rhea_stress_surface_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_cvec (vec) &&
+      vec->ncfields == 1 &&
+      vec->node_type == YMIR_GLL_NODE &&
+      vec->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP
+  );
+}
+
+int
+rhea_stress_surface_is_valid (ymir_vec_t *vec)
+{
+  return sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff);
+}
+
+static void
+rhea_stress_surface_extract_normal_fn (double *stress_norm,
+                                       double X, double Y, double Z,
+                                       double nx, double ny, double nz,
+                                       ymir_topidx_t face,
+                                       ymir_locidx_t node_id, void *data)
+{
+  ymir_vec_t         *vec_surf = (ymir_vec_t *) data;
+  double             *v = ymir_cvec_index (vec_surf, node_id, 0);
+
+  YMIR_ASSERT (vec_surf->ncfields == 3);
+
+  /* compute inner product with the boundary's outer normal vector */
+  *stress_norm = nx * v[0] + ny * v[1] + nz * v[2];
+}
+
+void
+rhea_stress_surface_extract_from_residual (ymir_vec_t *stress_norm_surf,
+                                           ymir_vec_t *residual_mom)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (stress_norm_surf);
+  ymir_vec_t         *residual_mom_surf;
+  ymir_vec_t         *mass_lump_surf;
+
+  /* check input */
+  RHEA_ASSERT (rhea_stress_surface_check_vec_type (stress_norm_surf));
+  RHEA_ASSERT (rhea_velocity_check_vec_type (residual_mom));
+  RHEA_ASSERT (rhea_velocity_is_valid (residual_mom));
+
+  /* interpolate (velocity component of the) residual onto surface */
+  residual_mom_surf = rhea_velocity_surface_new_from_vol (residual_mom);
+  RHEA_ASSERT (rhea_velocity_surface_is_valid (residual_mom_surf));
+
+  /* extract the normal component of the residual at the surface */
+  RHEA_ASSERT (residual_mom_surf->meshnum == stress_norm_surf->meshnum);
+  ymir_face_cvec_set_function (
+      stress_norm_surf, rhea_stress_surface_extract_normal_fn,
+      residual_mom_surf);
+  rhea_velocity_surface_destroy (residual_mom_surf);
+
+  /* remove the surface mass from residual (i.e., invert mass matrix) */
+  mass_lump_surf = rhea_stress_surface_new (ymir_mesh);
+  ymir_mass_lump (mass_lump_surf);
+  ymir_vec_divide_in (mass_lump_surf, stress_norm_surf);
+  rhea_stress_surface_destroy (mass_lump_surf);
+}
+
+/******************************************************************************
  * Statistics
  *****************************************************************************/
 
@@ -210,4 +290,71 @@ rhea_stress_stats_get_global (double *min_Pa, double *max_Pa, double *mean_Pa,
   /* destroy */
   rhea_strainrate_2inv_destroy (sr_sqrt_2inv);
   rhea_stress_2inv_destroy (vs_sqrt_2inv);
+}
+
+static double
+rhea_stress_surface_stats_compute_mean (ymir_vec_t *vec, ymir_vec_t *filter)
+{
+  ymir_vec_t         *vec_mass = ymir_vec_template (vec);
+  ymir_vec_t         *unit = ymir_vec_template (vec);
+  double              volume, mean;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_cvec (vec));
+  RHEA_ASSERT (filter == NULL || ymir_vec_is_cvec (filter));
+  RHEA_ASSERT (filter == NULL || filter->ncfields == 1);
+
+  /* set unit vector; set/calculate volume */
+  ymir_cvec_set_value (unit, 1.0);
+  if (filter != NULL) {
+    ymir_mass_apply (unit, vec_mass);
+    ymir_cvec_multiply_in1 (filter, vec_mass);
+    volume = ymir_cvec_innerprod (vec_mass, unit);
+  }
+  else {
+    ymir_mass_apply (unit, vec_mass);
+    volume = ymir_cvec_innerprod (vec_mass, unit);
+  }
+
+  /* compute mean */
+  ymir_mass_apply (vec, vec_mass);
+  if (filter != NULL) {
+    ymir_cvec_multiply_in1 (filter, vec_mass);
+  }
+  mean = ymir_cvec_innerprod (vec_mass, unit) / volume;
+
+  /* destroy */
+  ymir_vec_destroy (vec_mass);
+  ymir_vec_destroy (unit);
+
+  return mean;
+}
+
+void
+rhea_stress_surface_stats_get_global (double *min_Pa, double *max_Pa,
+                                      double *mean_Pa,
+                                      ymir_vec_t *stress_norm_surf,
+                                      rhea_domain_options_t *domain_options,
+                                      rhea_temperature_options_t *temp_options,
+                                      rhea_viscosity_options_t *visc_options)
+{
+  const double        dim_scal = rhea_stress_get_dim_scal (domain_options,
+                                                           temp_options,
+                                                           visc_options);
+
+  /* check input */
+  RHEA_ASSERT (rhea_stress_surface_check_vec_type (stress_norm_surf));
+  RHEA_ASSERT (rhea_stress_surface_is_valid (stress_norm_surf));
+
+  /* find global values */
+  if (min_Pa != NULL) {
+    *min_Pa = dim_scal * ymir_vec_min_global (stress_norm_surf);
+  }
+  if (max_Pa != NULL) {
+    *max_Pa = dim_scal * ymir_vec_max_global (stress_norm_surf);
+  }
+  if (mean_Pa != NULL) {
+    *mean_Pa = dim_scal * rhea_stress_surface_stats_compute_mean (
+        stress_norm_surf, NULL);
+  }
 }
