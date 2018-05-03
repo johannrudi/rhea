@@ -152,6 +152,45 @@ int                 rhea_viscosity_check_vec_type (ymir_vec_t *vec);
 int                 rhea_viscosity_is_valid (ymir_vec_t *vec);
 
 /******************************************************************************
+ * Viscosity Surface Vector
+ *****************************************************************************/
+
+/**
+ * Creates a new viscosity vector at surface.
+ */
+ymir_vec_t         *rhea_viscosity_surface_new (ymir_mesh_t *ymir_mesh);
+
+/**
+ * Destroys a viscosity vector at surface.
+ */
+void                rhea_viscosity_surface_destroy (ymir_vec_t *visc_surf);
+
+/**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_viscosity_surface_check_vec_type (ymir_vec_t *vec);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_viscosity_surface_is_valid (ymir_vec_t *vec);
+
+/**
+ * Creates a new viscosity vector at surface with values interpolated from a
+ * viscosity volume vector.
+ */
+ymir_vec_t         *rhea_viscosity_surface_new_from_vol (ymir_vec_t *visc_vol);
+
+/**
+ * Interpolates viscosity from volume to surface.
+ */
+void                rhea_viscosity_surface_interpolate (
+                                                  ymir_vec_t *visc_surf,
+                                                  ymir_vec_t *visc_vol,
+                                                  const double visc_surf_min,
+                                                  const double visc_surf_max);
+
+/******************************************************************************
  * Viscosity Computation
  *****************************************************************************/
 

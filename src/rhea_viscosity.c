@@ -260,6 +260,83 @@ rhea_viscosity_is_valid (ymir_vec_t *vec)
 }
 
 /******************************************************************************
+ * Viscosity Surface Vector
+ *****************************************************************************/
+
+ymir_vec_t *
+rhea_viscosity_surface_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_face_dvec_new (ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1,
+                             YMIR_GAUSS_NODE);
+}
+
+void
+rhea_viscosity_surface_destroy (ymir_vec_t *viscosity)
+{
+  ymir_vec_destroy (viscosity);
+}
+
+int
+rhea_viscosity_surface_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      rhea_viscosity_check_vec_type (vec) &&
+      vec->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP
+  );
+}
+
+int
+rhea_viscosity_surface_is_valid (ymir_vec_t *vec)
+{
+  return rhea_viscosity_is_valid (vec);
+}
+
+ymir_vec_t *
+rhea_viscosity_surface_new_from_vol (ymir_vec_t *visc_vol)
+{
+  const double        visc_surf_min = ymir_vec_min_global (visc_vol);
+  const double        visc_surf_max = ymir_vec_max_global (visc_vol);
+  ymir_mesh_t        *ymir_mesh;
+  ymir_vec_t         *visc_surf;
+
+  /* check input */
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (visc_vol));
+
+  /* create surface vector */
+  ymir_mesh = ymir_vec_get_mesh (visc_vol);
+  visc_surf = rhea_viscosity_surface_new (ymir_mesh);
+
+  /* interpolate viscosity from volume to surface */
+  rhea_viscosity_surface_interpolate (visc_surf, visc_vol,
+                                      visc_surf_min, visc_surf_max);
+  return visc_surf;
+}
+
+void
+rhea_viscosity_surface_interpolate (ymir_vec_t *visc_surf,
+                                    ymir_vec_t *visc_vol,
+                                    const double visc_surf_min,
+                                    const double visc_surf_max)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_viscosity_surface_check_vec_type (visc_surf));
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (visc_vol));
+  RHEA_ASSERT (rhea_viscosity_is_valid (visc_vol));
+
+  /* interpolate */
+  ymir_interp_vec (visc_vol, visc_surf);
+  RHEA_ASSERT (rhea_viscosity_is_valid (visc_surf));
+
+  /* restrict surface values to valid range */
+  if (isfinite (visc_surf_min) && 0.0 < visc_surf_min) {
+    ymir_vec_bound_min (visc_surf, visc_surf_min);
+  }
+  if (isfinite (visc_surf_max) && 0.0 < visc_surf_max) {
+    ymir_vec_bound_max (visc_surf, visc_surf_max);
+  }
+}
+
+/******************************************************************************
  * Linear Viscosity Components and Model
  *****************************************************************************/
 
