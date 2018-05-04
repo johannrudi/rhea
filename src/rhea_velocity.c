@@ -63,6 +63,67 @@ rhea_velocity_check_vec_type (ymir_vec_t *vec)
   );
 }
 
+MPI_Offset *
+rhea_velocity_segment_offset_create (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  const int           n_fields = vec->ncfields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpisize, mpiret;
+  MPI_Offset         *segment_offset;
+  int                 r;
+
+  /* get parallel environment */
+  mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
+
+  /* create segment offsets */
+  segment_offset = RHEA_ALLOC (MPI_Offset, mpisize + 1);
+  segment_offset[0] = 0;
+  for (r = 0; r < mpisize; r++) {
+    segment_offset[r+1] = segment_offset[r] +
+                          (MPI_Offset) (n_fields * n_nodes[r]);
+  }
+
+  return segment_offset;
+}
+
+MPI_Offset
+rhea_velocity_segment_offset_get (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  const int           n_fields = vec->ncfields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpirank, mpiret;
+  MPI_Offset          segment_offset;
+  int                 r;
+
+  /* get parallel environment */
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+
+  /* add up segment offsets */
+  segment_offset = 0;
+  for (r = 0; r < mpirank; r++) {
+    segment_offset += (MPI_Offset) (n_fields * n_nodes[r]);
+  }
+
+  return segment_offset;
+}
+
+int
+rhea_velocity_segment_size_get (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  const int           n_fields = vec->ncfields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpirank, mpiret;
+
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+  return (int) (n_fields * n_nodes[mpirank]);
+}
+
 int
 rhea_velocity_is_valid (ymir_vec_t *vec)
 {
