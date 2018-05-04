@@ -470,29 +470,65 @@ rhea_temperature_is_valid (ymir_vec_t *vec)
   );
 }
 
-int *
+MPI_Offset *
 rhea_temperature_segment_offset_create (ymir_vec_t *vec)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
   const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
-  const int           n_fields = 1;
+  const int           n_fields = vec->ncfields;
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
   int                 mpisize, mpiret;
-  int                *segment_offset;
+  MPI_Offset         *segment_offset;
   int                 r;
 
   /* get parallel environment */
   mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
 
   /* create segment offsets */
-  segment_offset = RHEA_ALLOC (int, mpisize + 1);
+  segment_offset = RHEA_ALLOC (MPI_Offset, mpisize + 1);
   segment_offset[0] = 0;
   for (r = 0; r < mpisize; r++) {
-    RHEA_ASSERT ((segment_offset[r] + n_nodes[r]) <= INT_MAX);
-    segment_offset[r+1] = segment_offset[r] + n_fields * (int) n_nodes[r];
+    segment_offset[r+1] = segment_offset[r] +
+                          (MPI_Offset) (n_fields * n_nodes[r]);
   }
 
   return segment_offset;
+}
+
+MPI_Offset
+rhea_temperature_segment_offset_get (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  const int           n_fields = vec->ncfields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpirank, mpiret;
+  MPI_Offset          segment_offset;
+  int                 r;
+
+  /* get parallel environment */
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+
+  /* add up segment offsets */
+  segment_offset = 0;
+  for (r = 0; r < mpirank; r++) {
+    segment_offset += (MPI_Offset) (n_fields * n_nodes[r]);
+  }
+
+  return segment_offset;
+}
+
+int
+rhea_temperature_segment_size_get (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  const int           n_fields = vec->ncfields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpirank, mpiret;
+
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+  return (int) (n_fields * n_nodes[mpirank]);
 }
 
 void
@@ -1046,10 +1082,9 @@ static void
 rhea_temperature_read (ymir_vec_t *temperature)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (temperature);
-  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
   int                 mpisize, mpirank, mpiret;
-  int                *segment_offset;
+  MPI_Offset         *segment_offset;
   char               *file_path_bin;
   char               *file_path_txt;
   double             *temp_data = ymir_cvec_index (temperature, 0, 0);
@@ -1075,12 +1110,19 @@ rhea_temperature_read (ymir_vec_t *temperature)
   segment_offset = rhea_temperature_segment_offset_create (temperature);
 
   /* read temperature */
-  if (file_path_txt != NULL || segment_offset[mpisize] < 10000000) {
-    rhea_io_mpi_read_scatter_double (temp_data, segment_offset,
+  if (file_path_txt != NULL || segment_offset[mpisize] < INT_MAX) {
+    int                *segment_offset_int = RHEA_ALLOC (int, mpisize + 1);
+    int                 r;
+
+    for (r = 0; r <= mpisize; r++) {
+      segment_offset_int[r] = (int) segment_offset[r];
+    }
+    rhea_io_mpi_read_scatter_double (temp_data, segment_offset_int,
                                      file_path_bin, file_path_txt, mpicomm);
+    RHEA_FREE (segment_offset_int);
   }
   else {
-    const int           segment_size = (int) n_nodes[mpirank];
+    const int           segment_size = (int) ymir_mesh->cnodes->Ngo[mpirank];
     int                 n_read;
 
     n_read = rhea_io_mpi_read_segment_double (

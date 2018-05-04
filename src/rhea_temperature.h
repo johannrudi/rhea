@@ -137,9 +137,12 @@ int                 rhea_temperature_check_vec_type (ymir_vec_t *vec);
 int                 rhea_temperature_is_valid (ymir_vec_t *vec);
 
 /**
- * Creates array of MPI-size with offsets for each MPI-rank.
+ * Gets rank-global offsets or rank-local sizes of a distributed vector for
+ * each MPI-rank.
  */
-int                *rhea_temperature_segment_offset_create (ymir_vec_t *vec);
+MPI_Offset         *rhea_temperature_segment_offset_create (ymir_vec_t *vec);
+MPI_Offset          rhea_temperature_segment_offset_get (ymir_vec_t *vec);
+int                 rhea_temperature_segment_size_get (ymir_vec_t *vec);
 
 /**
  * Bounds temperature vector to valid interval.
