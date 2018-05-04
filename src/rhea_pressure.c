@@ -61,6 +61,56 @@ rhea_pressure_is_valid (ymir_vec_t *vec)
   return sc_dmatrix_is_valid (vec->dataown);
 }
 
+MPI_Offset *
+rhea_pressure_segment_offset_create (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_gloidx_t *n_elem_offset = ymir_mesh->ma->mesh->RtoGEO;
+  const int           n_fields = vec->nefields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpisize, mpiret;
+  MPI_Offset         *segment_offset;
+  int                 r;
+
+  /* get parallel environment */
+  mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
+
+  /* create segment offsets */
+  segment_offset = RHEA_ALLOC (MPI_Offset, mpisize + 1);
+  segment_offset[0] = 0;
+  for (r = 0; r <= mpisize; r++) {
+    segment_offset[r] = (MPI_Offset) (n_fields * n_elem_offset[r]);
+  }
+
+  return segment_offset;
+}
+
+MPI_Offset
+rhea_pressure_segment_offset_get (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_gloidx_t *n_elem_offset = ymir_mesh->ma->mesh->RtoGEO;
+  const int           n_fields = vec->nefields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpirank, mpiret;
+
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+  return (MPI_Offset) (n_fields * n_elem_offset[mpirank]);
+}
+
+int
+rhea_pressure_segment_size_get (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_gloidx_t *n_elem_offset = ymir_mesh->ma->mesh->RtoGEO;
+  const int           n_fields = vec->nefields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpirank, mpiret;
+
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+  return (int) (n_fields * (n_elem_offset[mpirank+1] - n_elem_offset[mpirank]));
+}
+
 double
 rhea_pressure_compute_mean (ymir_vec_t *pressure,
                             ymir_pressure_elem_t *press_elem)

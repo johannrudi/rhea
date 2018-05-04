@@ -49,6 +49,14 @@ int                 rhea_pressure_check_vec_type (
 int                 rhea_pressure_is_valid (ymir_vec_t *vec);
 
 /**
+ * Gets rank-global offsets or rank-local sizes of a distributed vector for
+ * each MPI-rank.
+ */
+MPI_Offset         *rhea_pressure_segment_offset_create (ymir_vec_t *vec);
+MPI_Offset          rhea_pressure_segment_offset_get (ymir_vec_t *vec);
+int                 rhea_pressure_segment_size_get (ymir_vec_t *vec);
+
+/**
  * Computes global mean value.
  */
 double              rhea_pressure_compute_mean (
