@@ -329,8 +329,8 @@ rhea_io_mpi_read_scatter_double (double *values_segment,
 
 int
 rhea_io_mpi_read_segment_double (double *values_segment,
-                                 const int segment_offset,
-                                 const int segment_size,
+                                 MPI_Offset segment_offset,
+                                 int segment_size,
                                  char *file_path_bin,
                                  sc_MPI_Comm mpicomm)
 {
@@ -441,8 +441,8 @@ rhea_io_mpi_gather_write_double_to_txt (const char *file_path_txt,
 int
 rhea_io_mpi_write_segment_double (char *file_path_bin,
                                   double *values_segment,
-                                  const int segment_offset,
-                                  const int segment_size,
+                                  MPI_Offset segment_offset,
+                                  int segment_size,
                                   sc_MPI_Comm mpicomm)
 {
   MPI_File            fh;
