@@ -457,7 +457,8 @@ rhea_io_mpi_write_segment_double (char *file_path_bin,
   RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, file_path_bin);
 
   /* open file */
-  mpiret = MPI_File_open (mpicomm, file_path_bin, MPI_MODE_WRONLY,
+  mpiret = MPI_File_open (mpicomm, file_path_bin,
+                          MPI_MODE_WRONLY | MPI_MODE_CREATE,
                           MPI_INFO_NULL, &fh); SC_CHECK_MPI (mpiret);
 
   /* write segments collectively */
