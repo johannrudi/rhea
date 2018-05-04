@@ -8,14 +8,23 @@
 #include <rhea_stokes_norm.h>
 #include <rhea_newton.h>
 #include <rhea_stokes_problem_amr.h>
+#include <rhea_io_mpi.h>
 #include <rhea.h>
 #include <ymir_mass_vec.h>
 #include <ymir_stress_op_optimized.h>
 #include <ymir_stokes_pc.h>
 #include <ymir_vtk.h>
+#include <p8est_extended.h>
 #ifdef RHEA_ENABLE_DEBUG
 # include <ymir_comm.h>
 #endif
+
+/* I/O labels that are attached at the end of file names */
+#define RHEA_STOKES_PROBLEM_IO_LABEL_P4EST ".p4est"
+#define RHEA_STOKES_PROBLEM_IO_LABEL_TEMPERATURE "_temp"
+#define RHEA_STOKES_PROBLEM_IO_LABEL_VELOCITY "_vel"
+#define RHEA_STOKES_PROBLEM_IO_LABEL_PRESSURE "_press"
+#define RHEA_STOKES_PROBLEM_IO_LABEL_NL_ITER "_itn"
 
 /******************************************************************************
  * Options
@@ -171,8 +180,9 @@ struct rhea_stokes_problem
   p4est_t            *p4est;
   rhea_discretization_options_t *discr_options;
 
-  /* solver VTK output path */
-  char               *solver_vtk_path;
+  /* solver output paths */
+  char               *solver_bin_path_base;
+  char               *solver_vtk_path_base;
 };
 
 /**
@@ -233,7 +243,8 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
 
   stokes_problem->recreate_solver_data = 0;
 
-  stokes_problem->solver_vtk_path = NULL;
+  stokes_problem->solver_bin_path_base = NULL;
+  stokes_problem->solver_vtk_path_base = NULL;
 
   /* set default callback functions */
   if (rhea_weakzone_exists (weak_options)) {
@@ -543,7 +554,7 @@ static void
 rhea_stokes_problem_linear_create_solver_data (
                                     rhea_stokes_problem_t *stokes_problem_lin)
 {
-  const char         *vtk_path = stokes_problem_lin->solver_vtk_path;
+  const char         *vtk_path = stokes_problem_lin->solver_vtk_path_base;
   rhea_domain_options_t *domain_options = stokes_problem_lin->domain_options;
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
@@ -1518,7 +1529,7 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
                                                      void *data)
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
-  const char         *vtk_path = stokes_problem_nl->solver_vtk_path;
+  const char         *vtk_path = stokes_problem_nl->solver_vtk_path_base;
   const int           nonzero_init_guess = (solution != NULL);
 
   RHEA_GLOBAL_VERBOSEF ("Into %s (nonzero init guess %i)\n",
@@ -1536,7 +1547,8 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
   if (vtk_path != NULL) {
     char                path[BUFSIZ];
 
-    snprintf (path, BUFSIZ, "%s_itn%02i", vtk_path, 0);
+    snprintf (path, BUFSIZ, "%s%s%02i", vtk_path,
+              RHEA_STOKES_PROBLEM_IO_LABEL_NL_ITER, 0 /* iteration */);
     ymir_vtk_set_debug_path (path);
   }
 
@@ -2071,7 +2083,8 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
                                                  const int iter, void *data)
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
-  const char         *vtk_path = stokes_problem_nl->solver_vtk_path;
+  const char         *bin_path = stokes_problem_nl->solver_bin_path_base;
+  const char         *vtk_path = stokes_problem_nl->solver_vtk_path_base;
   const double        domain_vol = stokes_problem_nl->domain_options->volume;
   ymir_mesh_t          *ymir_mesh = stokes_problem_nl->ymir_mesh;
   ymir_pressure_elem_t *press_elem = stokes_problem_nl->press_elem;
@@ -2257,12 +2270,22 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         __func__, asth_vol, asth_vol/domain_vol);
   }
 
+  /* write binary files */
+  if (bin_path != NULL) {
+    char                path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s%s%02i", bin_path,
+              RHEA_STOKES_PROBLEM_IO_LABEL_NL_ITER, iter);
+    rhea_stokes_problem_write (path, stokes_problem_nl);
+  }
+
   /* create visualization */
   if (vtk_path != NULL) {
     char                path[BUFSIZ];
 
     /* set path */
-    snprintf (path, BUFSIZ, "%s_itn%02i", vtk_path, iter);
+    snprintf (path, BUFSIZ, "%s%s%02i", vtk_path,
+              RHEA_STOKES_PROBLEM_IO_LABEL_NL_ITER, iter);
 
     /* write VTK */
     rhea_vtk_write_nonlinear_stokes_iteration (
@@ -2667,7 +2690,7 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
 }
 
 /******************************************************************************
- * General Stokes Problem
+ * Stokes Problem
  *****************************************************************************/
 
 rhea_stokes_problem_t *
@@ -2827,15 +2850,23 @@ rhea_stokes_problem_set_solver_amr (
 }
 
 void
+rhea_stokes_problem_set_solver_bin_output (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    char *bin_path_base)
+{
+  stokes_problem->solver_bin_path_base = bin_path_base;
+}
+
+void
 rhea_stokes_problem_set_solver_vtk_output (
                                     rhea_stokes_problem_t *stokes_problem,
-                                    char *vtk_path)
+                                    char *vtk_path_base)
 {
-  stokes_problem->solver_vtk_path = vtk_path;
+  stokes_problem->solver_vtk_path_base = vtk_path_base;
 }
 
 /******************************************************************************
- * Access Data of a Stokes Problem
+ * Data Access
  *****************************************************************************/
 
 ymir_mesh_t *
@@ -3048,6 +3079,134 @@ rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)
 {
   return stokes_problem->stokes_op;
 }
+
+/******************************************************************************
+ * I/O
+ *****************************************************************************/
+
+int
+rhea_stokes_problem_write (char *bin_path_base,
+                           rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_mesh_t          *ymir_mesh = rhea_stokes_problem_get_ymir_mesh (
+                            stokes_problem);
+  ymir_pressure_elem_t *press_elem = rhea_stokes_problem_get_press_elem (
+                            stokes_problem);
+  ymir_vec_t         *temperature = rhea_stokes_problem_get_temperature (
+                          stokes_problem);
+  ymir_vec_t         *vel_press = rhea_stokes_problem_get_velocity_pressure (
+                          stokes_problem);
+  ymir_vec_t         *velocity = NULL, *pressure = NULL;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  MPI_Offset          segment_offset;
+  int                 segment_size;
+  char                path[BUFSIZ];
+  int                 success = 0;
+
+  /* write p4est */
+  if (stokes_problem->p4est != NULL) {
+    snprintf (path, BUFSIZ, "%s%s", bin_path_base,
+              RHEA_STOKES_PROBLEM_IO_LABEL_P4EST);
+    p4est_save_ext (path, stokes_problem->p4est, 0 /* don't save data */,
+                    1 /* save partition dependent */);
+    success++;
+  }
+
+  /* write temperature */
+  if (temperature != NULL) {
+    double             *data = ymir_cvec_index (temperature, 0, 0);
+    int                 n_written;
+
+    snprintf (path, BUFSIZ, "%s%s.bin", bin_path_base,
+              RHEA_STOKES_PROBLEM_IO_LABEL_TEMPERATURE);
+    segment_offset = rhea_temperature_segment_offset_get (temperature);
+    segment_size = rhea_temperature_segment_size_get (temperature);
+
+    n_written = rhea_io_mpi_write_segment_double (
+          path, data, segment_offset, segment_size, mpicomm);
+    RHEA_ASSERT (n_written == segment_size);
+
+    success += (n_written == segment_size);
+  }
+
+  /* get velocity & pressure */
+  if (vel_press != NULL) {
+    rhea_velocity_pressure_create_components (&velocity, &pressure, vel_press,
+                                              press_elem);
+  }
+
+  /* write velocity */
+  if (velocity != NULL) {
+    double             *data = ymir_cvec_index (velocity, 0, 0);
+    int                 n_written;
+
+    snprintf (path, BUFSIZ, "%s%s.bin", bin_path_base,
+              RHEA_STOKES_PROBLEM_IO_LABEL_VELOCITY);
+    segment_offset = rhea_velocity_segment_offset_get (velocity);
+    segment_size = rhea_velocity_segment_size_get (velocity);
+
+    n_written = rhea_io_mpi_write_segment_double (
+          path, data, segment_offset, segment_size, mpicomm);
+    RHEA_ASSERT (n_written == segment_size);
+
+    success += (n_written == segment_size);
+  }
+
+  /* write pressure */
+  if (pressure != NULL) {
+    double             *data = ymir_evec_index (pressure, 0, 0);
+    int                 n_written;
+
+    snprintf (path, BUFSIZ, "%s%s.bin", bin_path_base,
+              RHEA_STOKES_PROBLEM_IO_LABEL_PRESSURE);
+    segment_offset = rhea_pressure_segment_offset_get (pressure);
+    segment_size = rhea_pressure_segment_size_get (pressure);
+
+    n_written = rhea_io_mpi_write_segment_double (
+          path, data, segment_offset, segment_size, mpicomm);
+    RHEA_ASSERT (n_written == segment_size);
+
+    success += (n_written == segment_size);
+  }
+
+  /* destroy */
+  if (vel_press != NULL) {
+    rhea_velocity_destroy (velocity);
+    rhea_pressure_destroy (pressure);
+  }
+
+  return success;
+}
+
+int
+rhea_stokes_problem_read (rhea_stokes_problem_t **stokes_problem,
+                          char *bin_path_base)
+{
+  int                 success = 0;
+
+  /* read p4est */
+  //TODO
+//p4est_t *p4est_load_ext (const char *filename, sc_MPI_Comm mpicomm,
+//                         size_t data_size, int load_data,
+//                         int autopartition, int broadcasthead,
+//                         void *user_pointer,
+//                         p4est_connectivity_t ** connectivity);
+
+  /* read temperature */
+  //TODO
+
+  /* read velocity */
+  //TODO
+
+  /* read pressure */
+  //TODO
+
+  return success;
+}
+
+/******************************************************************************
+ * Vector Operations
+ *****************************************************************************/
 
 int
 rhea_stokes_problem_velocity_boundary_set_zero (

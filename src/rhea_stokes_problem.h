@@ -1,4 +1,6 @@
-/*
+/** RHEA_STOKES_PROBLEM
+ *
+ * Provides the Stokes solver.
  */
 
 #ifndef RHEA_STOKES_PROBLEM_H
@@ -26,10 +28,18 @@ typedef enum
 }
 rhea_stokes_problem_nonlinear_linearization_t;
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /**
  * Defines options and adds them as sub-options.
  */
 void                rhea_stokes_problem_add_options (ymir_options_t * opt_sup);
+
+/******************************************************************************
+ * Stokes Problem
+ *****************************************************************************/
 
 /* Stokes problem (opaque) */
 typedef struct rhea_stokes_problem rhea_stokes_problem_t;
@@ -61,6 +71,10 @@ void                rhea_stokes_problem_create_mesh_dependencies (
 void                rhea_stokes_problem_clear_mesh_dependencies (
                                     rhea_stokes_problem_t *stokes_problem);
 
+/******************************************************************************
+ * Stokes Solver
+ *****************************************************************************/
+
 /**
  * Sets up the solver for a Stokes problem.
  */
@@ -85,18 +99,28 @@ void                rhea_stokes_problem_set_solver_amr (
                                 rhea_discretization_options_t *discr_options);
 
 /**
+ * Sets output path for binary output the iterations of a nonlinear solve.
+ */
+void                rhea_stokes_problem_set_solver_bin_output (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    char *bin_path_base);
+
+/**
  * Sets output path for vtk output the iterations of a nonlinear solve.
  */
 void                rhea_stokes_problem_set_solver_vtk_output (
                                     rhea_stokes_problem_t *stokes_problem,
-                                    char *vtk_path);
+                                    char *vtk_path_base);
+
+/******************************************************************************
+ * Data Access
+ *****************************************************************************/
 
 /**
  * Accesses data of a Stokes problem.
  */
 ymir_mesh_t        *rhea_stokes_problem_get_ymir_mesh (
                                     rhea_stokes_problem_t *stokes_problem);
-
 ymir_pressure_elem_t *rhea_stokes_problem_get_press_elem (
                                     rhea_stokes_problem_t *stokes_problem);
 
@@ -158,6 +182,28 @@ void                rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
 
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
                                     rhea_stokes_problem_t *stokes_problem);
+
+/******************************************************************************
+ * I/O
+ *****************************************************************************/
+
+/**
+ * Writes a Stokes problem to disk.
+ */
+int                 rhea_stokes_problem_write (
+                                    char *bin_path_base,
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Reads a Stokes problem from disk.
+ */
+int                 rhea_stokes_problem_read (
+                                    rhea_stokes_problem_t **stokes_problem,
+                                    char *bin_path_base);
+
+/******************************************************************************
+ * Vector Operations
+ *****************************************************************************/
 
 /**
  * Sets velocity components on the boundary, which are constrained by Dirichlet
