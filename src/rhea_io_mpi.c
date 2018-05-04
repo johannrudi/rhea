@@ -49,7 +49,9 @@ typedef enum
 {
   RHEA_IO_MPI_PERFMON_READ_BCAST,
   RHEA_IO_MPI_PERFMON_READ_SCATTER,
+  RHEA_IO_MPI_PERFMON_READ_SEGMENTS,
   RHEA_IO_MPI_PERFMON_GATHER_WRITE,
+  RHEA_IO_MPI_PERFMON_WRITE_SEGMENTS,
   RHEA_IO_MPI_PERFMON_N
 }
 rhea_io_mpi_perfmon_idx_t;
@@ -57,8 +59,10 @@ rhea_io_mpi_perfmon_idx_t;
 static const char  *rhea_io_mpi_perfmon_name[RHEA_IO_MPI_PERFMON_N] =
 {
   "Read & Broadcast",
-  "Read & Scatter",
-  "Gather & Write"
+  "Read & Scatter Segments",
+  "Read Segments Collectively",
+  "Gather & Write",
+  "Write Segments Collectively"
 };
 ymir_perf_counter_t rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_N];
 
@@ -323,6 +327,48 @@ rhea_io_mpi_read_scatter_double (double *values_segment,
       &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_SCATTER]);
 }
 
+int
+rhea_io_mpi_read_segment_double (double *values_segment,
+                                 const int segment_offset,
+                                 const int segment_size,
+                                 char *file_path_bin,
+                                 sc_MPI_Comm mpicomm)
+{
+  MPI_File            fh;
+  MPI_Status          status;
+  int                 mpiret;
+  int                 n_read;
+
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_SEGMENTS]);
+
+  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, file_path_bin);
+
+  /* open file */
+  mpiret = MPI_File_open (mpicomm, file_path_bin, MPI_MODE_RDONLY,
+                          MPI_INFO_NULL, &fh); SC_CHECK_MPI (mpiret);
+
+  /* read segments collectively */
+  mpiret = MPI_File_read_at_all (fh, segment_offset * sizeof (double),
+                                 values_segment, segment_size, MPI_DOUBLE,
+                                 &status); SC_CHECK_MPI (mpiret);
+
+  /* check number of read entries */
+  mpiret = MPI_Get_count (&status, MPI_DOUBLE, &n_read); SC_CHECK_MPI (mpiret);
+
+  /* close file */
+  mpiret = MPI_File_close (&fh); SC_CHECK_MPI (mpiret);
+
+  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, file_path_bin);
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_READ_SEGMENTS]);
+
+  return n_read;
+}
+
 /******************************************************************************
  * Write
  *****************************************************************************/
@@ -390,4 +436,47 @@ rhea_io_mpi_gather_write_double_to_txt (const char *file_path_txt,
   /* stop performance monitors */
   ymir_perf_counter_stop_add (
       &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_GATHER_WRITE]);
+}
+
+int
+rhea_io_mpi_write_segment_double (char *file_path_bin,
+                                  double *values_segment,
+                                  const int segment_offset,
+                                  const int segment_size,
+                                  sc_MPI_Comm mpicomm)
+{
+  MPI_File            fh;
+  MPI_Status          status;
+  int                 mpiret;
+  int                 n_written;
+
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_WRITE_SEGMENTS]);
+
+  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, file_path_bin);
+
+  /* open file */
+  mpiret = MPI_File_open (mpicomm, file_path_bin, MPI_MODE_WRONLY,
+                          MPI_INFO_NULL, &fh); SC_CHECK_MPI (mpiret);
+
+  /* write segments collectively */
+  mpiret = MPI_File_write_at_all (fh, segment_offset * sizeof (double),
+                                  values_segment, segment_size, MPI_DOUBLE,
+                                  &status); SC_CHECK_MPI (mpiret);
+
+  /* check number of written entries */
+  mpiret = MPI_Get_count (&status, MPI_DOUBLE, &n_written);
+  SC_CHECK_MPI (mpiret);
+
+  /* close file */
+  mpiret = MPI_File_close (&fh); SC_CHECK_MPI (mpiret);
+
+  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, file_path_bin);
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_io_mpi_perfmon[RHEA_IO_MPI_PERFMON_WRITE_SEGMENTS]);
+
+  return n_written;
 }
