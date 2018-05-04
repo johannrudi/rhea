@@ -470,6 +470,31 @@ rhea_temperature_is_valid (ymir_vec_t *vec)
   );
 }
 
+int *
+rhea_temperature_segment_offset_create (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  const int           n_fields = 1;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpisize, mpiret;
+  int                *segment_offset;
+  int                 r;
+
+  /* get parallel environment */
+  mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
+
+  /* create segment offsets */
+  segment_offset = RHEA_ALLOC (int, mpisize + 1);
+  segment_offset[0] = 0;
+  for (r = 0; r < mpisize; r++) {
+    RHEA_ASSERT ((segment_offset[r] + n_nodes[r]) <= INT_MAX);
+    segment_offset[r+1] = segment_offset[r] + n_fields * (int) n_nodes[r];
+  }
+
+  return segment_offset;
+}
+
 void
 rhea_temperature_bound (ymir_vec_t *temperature)
 {
@@ -477,29 +502,9 @@ rhea_temperature_bound (ymir_vec_t *temperature)
   ymir_vec_bound_max (temperature, 1.0);
 }
 
-void
-rhea_temperature_bound_mat (sc_dmatrix_t *temperature_mat)
-{
-  double             *data = temperature_mat->e[0];
-  const size_t        totalsize = temperature_mat->m * temperature_mat->n;
-  size_t              i;
-
-  for (i = 0; i < totalsize; i++) {
-    data[i] = SC_MAX (data[i], 0.0);
-    data[i] = SC_MIN (data[i], 1.0);
-  }
-}
-
-/******************************************************************************
- * Get & Set Values
- *****************************************************************************/
-
-/**
- * Restrict temperature to its valid range [0,1].
- */
 static void
-rhea_temperature_bound_range_data (double *_sc_restrict temp_data,
-                                   const sc_bint_t size)
+rhea_temperature_bound_data (double *_sc_restrict temp_data,
+                             const sc_bint_t size)
 {
   sc_bint_t           i;
 
@@ -508,6 +513,17 @@ rhea_temperature_bound_range_data (double *_sc_restrict temp_data,
     temp_data[i] = SC_MAX (0.0, SC_MIN (temp_data[i], 1.0));
   }
 }
+
+void
+rhea_temperature_bound_mat (sc_dmatrix_t *temperature_mat)
+{
+  rhea_temperature_bound_data (temperature_mat->e[0],
+                               temperature_mat->m * temperature_mat->n);
+}
+
+/******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
 
 double *
 rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
@@ -527,7 +543,7 @@ rhea_temperature_get_elem_gauss (sc_dmatrix_t *temp_el_mat,
                              YMIR_GAUSS_NODE, YMIR_READ);
 
   /* restrict temperature to valid range to account for interpolation erros */
-  rhea_temperature_bound_range_data (temp_el_mat->e[0], n_nodes_per_el);
+  rhea_temperature_bound_data (temp_el_mat->e[0], n_nodes_per_el);
 
   return temp_el_mat->e[0];
 }
@@ -1032,13 +1048,11 @@ rhea_temperature_read (ymir_vec_t *temperature)
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (temperature);
   const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
-  int                 mpisize, mpiret;
-
+  int                 mpisize, mpirank, mpiret;
+  int                *segment_offset;
   char               *file_path_bin;
   char               *file_path_txt;
   double             *temp_data = ymir_cvec_index (temperature, 0, 0);
-  int                *segment_offset;
-  int                 r;
 
   /* set file paths */
   if (rhea_temperature_data_file_path_bin != NULL) {
@@ -1055,18 +1069,27 @@ rhea_temperature_read (ymir_vec_t *temperature)
 
   /* get parallel environment */
   mpiret = sc_MPI_Comm_size (mpicomm, &mpisize); SC_CHECK_MPI (mpiret);
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
 
   /* create segment offsets */
-  segment_offset = RHEA_ALLOC (int, mpisize + 1);
-  segment_offset[0] = 0;
-  for (r = 0; r < mpisize; r++) {
-    RHEA_ASSERT ((segment_offset[r] + n_nodes[r]) <= INT_MAX);
-    segment_offset[r+1] = segment_offset[r] + (int) n_nodes[r];
-  }
+  segment_offset = rhea_temperature_segment_offset_create (temperature);
 
   /* read temperature */
-  rhea_io_mpi_read_scatter_double (temp_data, segment_offset,
-                                   file_path_bin, file_path_txt, mpicomm);
+  if (file_path_txt != NULL || segment_offset[mpisize] < 10000000) {
+    rhea_io_mpi_read_scatter_double (temp_data, segment_offset,
+                                     file_path_bin, file_path_txt, mpicomm);
+  }
+  else {
+    const int           segment_size = (int) n_nodes[mpirank];
+    int                 n_read;
+
+    n_read = rhea_io_mpi_read_segment_double (
+        temp_data, segment_offset[mpirank], segment_size,
+        file_path_bin, mpicomm);
+    RHEA_ASSERT (n_read == segment_size);
+  }
+
+  /* destroy */
   RHEA_FREE (segment_offset);
 
   /* communicate shared node values */
