@@ -30,6 +30,7 @@ void                example_share_stokes_new (
                                   rhea_discretization_options_t *discr_options,
                                   const int performance_monitor_index_mesh,
                                   const int performance_monitor_index_stokes,
+                                  char *solver_bin_path,
                                   char *solver_vtk_path);
 
 /**

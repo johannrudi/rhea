@@ -61,9 +61,10 @@ main (int argc, char **argv)
   /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
+  char               *bin_solver_path = NULL;
   char               *vtk_input_path;
   char               *vtk_solution_path;
-  char               *vtk_solver_path;
+  char               *vtk_solver_path = NULL;
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -102,9 +103,6 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solution-path", '\0',
     &(vtk_solution_path), NULL,
     "VTK file path for the solution of the Stokes problem",
-  YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
-    &(vtk_solver_path), NULL,
-    "VTK file path for solver internals (e.g., iterations of Newton's method)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -155,7 +153,7 @@ main (int argc, char **argv)
                             &newton_options, p4est, &discr_options,
                             RHEA_MAIN_PERFMON_SETUP_MESH,
                             RHEA_MAIN_PERFMON_SETUP_STOKES,
-                            vtk_solver_path);
+                            bin_solver_path, vtk_solver_path);
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,

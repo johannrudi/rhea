@@ -21,6 +21,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
                           rhea_discretization_options_t *discr_options,
                           const int performance_monitor_index_mesh,
                           const int performance_monitor_index_stokes,
+                          char *solver_bin_path,
                           char *solver_vtk_path)
 {
   rhea_domain_options_t *domain_options = visc_options->domain_options;
@@ -55,6 +56,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
       *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
       weak_options, visc_options, solver_options);
   rhea_stokes_problem_set_solver_amr (*stokes_problem, p4est, discr_options);
+  rhea_stokes_problem_set_solver_bin_output (*stokes_problem, solver_bin_path);
   rhea_stokes_problem_set_solver_vtk_output (*stokes_problem, solver_vtk_path);
   rhea_performance_monitor_stop_add (performance_monitor_index_stokes);
 

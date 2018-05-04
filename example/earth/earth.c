@@ -62,6 +62,7 @@ main (int argc, char **argv)
   /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
+  char               *bin_solver_path;
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
@@ -96,7 +97,12 @@ main (int argc, char **argv)
     &solver_rel_tol, 1.0e-6,
     "Relative tolerance for Stokes solver",
 
-  /* vtk output options */
+  /* binary file output */
+  YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
+    &(bin_solver_path), NULL,
+    "Bin file path for solver internals (e.g., iterations of Newton's method)",
+
+  /* vtk file output */
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
     &(vtk_input_path), NULL,
     "VTK file path for the input of the Stokes problem",
@@ -156,7 +162,7 @@ main (int argc, char **argv)
                             &newton_options, p4est, &discr_options,
                             RHEA_MAIN_PERFMON_SETUP_MESH,
                             RHEA_MAIN_PERFMON_SETUP_STOKES,
-                            vtk_solver_path);
+                            bin_solver_path, vtk_solver_path);
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
