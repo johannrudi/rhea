@@ -2134,15 +2134,16 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity magn [cm/yr]: lithosphere max %.3e, mean %.3e\n",
-        __func__, lith_magn_max_cm_yr, lith_magn_mean_cm_yr);
+        "%s: Velocity magn [cm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
+        __func__, /*space*/ 9, "", lith_magn_max_cm_yr, lith_magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
         "%s:  ~ at surface [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
         __func__, surf_magn_min_cm_yr, surf_magn_max_cm_yr,
         surf_magn_mean_cm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s:  ~ at surface [cm/yr]: lithosphere max %.3e, mean %.3e\n",
-        __func__, surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr);
+        "%s:  ~ at surface [cm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
+        __func__, /*space*/ 9, "", surf_lith_magn_max_cm_yr,
+        surf_lith_magn_mean_cm_yr);
     if (has_mean_rot) {
       RHEA_GLOBAL_STATISTICSF (
         "%s: Velocity mean rot axis: x,y,z = %+.3e , %+.3e , %+.3e\n",
@@ -2197,7 +2198,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         "max/min %.3e, mean %.3e\n",
         __func__, min_Pa, max_Pa, max_Pa/min_Pa, mean_Pa);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Stress normal at surface [Pa]: global min %+.3e, max %+.3e, "
+        "%s: Stress normal at surface [Pa]:    global min %+.3e, max %+.3e, "
         "mean %+.3e\n",
         __func__, surf_min_Pa, surf_max_Pa, surf_mean_Pa);
   }
@@ -2233,11 +2234,11 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         "mean %.3e\n",
         __func__, min_Pas, max_Pas, max_Pas/min_Pas, mean_Pas);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Viscosity [Pa*s]: UM mean %.3e, LM mean %.3e\n",
+        "%s: Viscosity [Pa*s]: upp-m mean %.3e, low-m mean %.3e\n",
         __func__, upper_mantle_mean_Pas, lower_mantle_mean_Pas);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Viscosity [Pa*s]: lith. mean %.3e, asth. mean %.3e\n",
-        __func__, lith_mean_Pas, asth_mean_Pas);
+        "%s: Viscosity [Pa*s]: asth. mean %.3e, lith. mean %.3e\n",
+        __func__, asth_mean_Pas, lith_mean_Pas);
 
     RHEA_GLOBAL_STATISTICSF (
         "%s: Visc min bounds volume: abs %.8e, rel %.6f\n",
