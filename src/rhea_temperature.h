@@ -145,6 +145,13 @@ MPI_Offset          rhea_temperature_segment_offset_get (ymir_vec_t *vec);
 int                 rhea_temperature_segment_size_get (ymir_vec_t *vec);
 
 /**
+ * Writes temperature to binary file.
+ */
+int                 rhea_temperature_write (char *file_path_bin,
+                                            ymir_vec_t *temperature,
+                                            sc_MPI_Comm mpicomm);
+
+/**
  * Bounds temperature vector to valid interval.
  */
 void                rhea_temperature_bound (ymir_vec_t *temperature);
