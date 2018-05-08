@@ -1831,7 +1831,8 @@ collide_run_solver (ymir_vec_t *sol_vel_press,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* run solver */
-  rhea_stokes_problem_solve (&sol_vel_press, iter_max, rel_tol, stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, 0, iter_max, rel_tol,
+                             stokes_problem);
 
   /* add nonzero dirichlet values of the velocity to the solution */
   rhs_vel_nonzero_dirichlet =
