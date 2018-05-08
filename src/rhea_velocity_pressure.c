@@ -3,8 +3,12 @@
 
 #include <rhea_velocity_pressure.h>
 #include <rhea_base.h>
+#include <rhea_velocity.h>
+#include <rhea_pressure.h>
+#include <rhea_io_mpi.h>
 #include <ymir_pressure_vec.h>
 #include <ymir_stokes_vec.h>
+#include <ymir_comm.h>
 
 ymir_vec_t *
 rhea_velocity_pressure_new (ymir_mesh_t *ymir_mesh,
@@ -106,4 +110,136 @@ rhea_velocity_pressure_set_components (ymir_vec_t *vel_press,
   else if (press != NULL) {
     ymir_stokes_vec_set_pressure (press, vel_press, press_elem);
   }
+}
+
+int
+rhea_velocity_pressure_read (ymir_vec_t *vel_press,
+                             char *vel_file_path_bin,
+                             char *press_file_path_bin,
+                             ymir_pressure_elem_t *press_elem,
+                             sc_MPI_Comm mpicomm)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_press);
+  ymir_vec_t         *velocity, *pressure;
+  MPI_Offset          segment_offset;
+  int                 segment_size;
+  int                 n_read;
+  double             *data;
+  int                 success = 0;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (vel_press));
+
+  /* create velocity & pressure */
+  velocity = rhea_velocity_new (ymir_mesh);
+  pressure = rhea_pressure_new (ymir_mesh, press_elem);
+
+  /* read velocity */
+  {
+    data = ymir_cvec_index (velocity, 0, 0);
+    segment_offset = rhea_velocity_segment_offset_get (velocity);
+    segment_size = rhea_velocity_segment_size_get (velocity);
+
+    n_read = rhea_io_mpi_read_segment_double (
+          data, segment_offset, segment_size, vel_file_path_bin, mpicomm);
+    RHEA_ASSERT (n_read == segment_size);
+    success += (n_read == segment_size);
+  }
+
+  /* read pressure */
+  {
+    if (press_elem->space == YMIR_PRESSURE_SPACE_STAB) {
+      RHEA_ABORT_NOT_REACHED ();
+      //TODO
+    }
+    else {
+      RHEA_ASSERT (press_elem->space == YMIR_PRESSURE_SPACE_POLY ||
+                   press_elem->space == YMIR_PRESSURE_SPACE_TENS);
+      data = ymir_evec_index (pressure, 0, 0);
+      segment_offset = rhea_pressure_segment_offset_get (pressure);
+      segment_size = rhea_pressure_segment_size_get (pressure);
+    }
+
+    n_read = rhea_io_mpi_read_segment_double (
+          data, segment_offset, segment_size, vel_file_path_bin, mpicomm);
+    RHEA_ASSERT (n_read == segment_size);
+    success += (n_read == segment_size);
+  }
+
+  /* set velocity & pressure */
+  rhea_velocity_pressure_set_components (vel_press, velocity, pressure,
+                                         press_elem);
+
+  /* destroy */
+  rhea_velocity_destroy (velocity);
+  rhea_pressure_destroy (pressure);
+
+  /* communicate shared node values */
+  ymir_vec_share_owned (vel_press);
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (vel_press));
+
+  return success;
+}
+
+int
+rhea_velocity_pressure_write (char *vel_file_path_bin,
+                              char *press_file_path_bin,
+                              ymir_vec_t *vel_press,
+                              ymir_pressure_elem_t *press_elem,
+                              sc_MPI_Comm mpicomm)
+{
+  ymir_vec_t         *velocity, *pressure;
+  MPI_Offset          segment_offset;
+  int                 segment_size;
+  int                 n_written;
+  double             *data;
+  int                 success = 0;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (vel_press));
+  RHEA_ASSERT (sc_dmatrix_is_valid (vel_press->dataown));
+
+  /* get velocity & pressure */
+  rhea_velocity_pressure_create_components (&velocity, &pressure, vel_press,
+                                            press_elem);
+
+  /* write velocity */
+  {
+    data = ymir_cvec_index (velocity, 0, 0);
+    segment_offset = rhea_velocity_segment_offset_get (velocity);
+    segment_size = rhea_velocity_segment_size_get (velocity);
+
+    n_written = rhea_io_mpi_write_segment_double (
+          vel_file_path_bin, data, segment_offset, segment_size, mpicomm);
+    RHEA_ASSERT (n_written == segment_size);
+
+    success += (n_written == segment_size);
+  }
+
+  /* write pressure */
+  {
+    if (press_elem->space == YMIR_PRESSURE_SPACE_STAB) {
+      RHEA_ABORT_NOT_REACHED ();
+      //TODO
+    }
+    else {
+      RHEA_ASSERT (press_elem->space == YMIR_PRESSURE_SPACE_POLY ||
+                   press_elem->space == YMIR_PRESSURE_SPACE_TENS);
+      data = ymir_evec_index (pressure, 0, 0);
+      segment_offset = rhea_pressure_segment_offset_get (pressure);
+      segment_size = rhea_pressure_segment_size_get (pressure);
+    }
+
+    n_written = rhea_io_mpi_write_segment_double (
+          press_file_path_bin, data, segment_offset, segment_size, mpicomm);
+    RHEA_ASSERT (n_written == segment_size);
+
+    success += (n_written == segment_size);
+  }
+
+  /* destroy */
+  rhea_velocity_destroy (velocity);
+  rhea_pressure_destroy (pressure);
+
+  return success;
 }

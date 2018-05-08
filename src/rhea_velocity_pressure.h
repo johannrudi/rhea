@@ -58,4 +58,24 @@ void                rhea_velocity_pressure_set_components (
                                             ymir_vec_t *vel, ymir_vec_t *press,
                                             ymir_pressure_elem_t *press_elem);
 
+/**
+ * Reads velocity and pressure from binary files.
+ */
+int                 rhea_velocity_pressure_read (
+                                            ymir_vec_t *vel_press,
+                                            char *vel_file_path_bin,
+                                            char *press_file_path_bin,
+                                            ymir_pressure_elem_t *press_elem,
+                                            sc_MPI_Comm mpicomm);
+
+/**
+ * Writes velocity and pressure to binary files.
+ */
+int                 rhea_velocity_pressure_write (
+                                            char *vel_file_path_bin,
+                                            char *press_file_path_bin,
+                                            ymir_vec_t *vel_press,
+                                            ymir_pressure_elem_t *press_elem,
+                                            sc_MPI_Comm mpicomm);
+
 #endif /* RHEA_VELOCITY_PRESSURE_H */
