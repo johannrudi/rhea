@@ -62,6 +62,8 @@ main (int argc, char **argv)
   /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
+  char               *velocity_file_path_bin;
+  char               *pressure_file_path_bin;
   char               *bin_solver_path;
   char               *vtk_input_path;
   char               *vtk_solution_path;
@@ -100,6 +102,14 @@ main (int argc, char **argv)
   YMIR_OPTIONS_D, "solver-rel-tol", '\0',
     &solver_rel_tol, 1.0e-6,
     "Relative tolerance for Stokes solver",
+
+  /* velocity & pressure (initial guess) intput */
+  YMIR_OPTIONS_S, "velocity-file-path", '\0',
+    &(velocity_file_path_bin), NULL,
+    "Path to a binary file that contains a temperature field",
+  YMIR_OPTIONS_S, "pressure-file-path", '\0',
+    &(pressure_file_path_bin), NULL,
+    "Path to a binary file that contains a pressure field",
 
   /* binary file output */
   YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
@@ -190,7 +200,17 @@ main (int argc, char **argv)
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  nonzero_inital_guess = 0;
+  if (velocity_file_path_bin != NULL && pressure_file_path_bin != NULL) {
+    int                 read_success;
+
+    read_success = rhea_velocity_pressure_read (
+        sol_vel_press, velocity_file_path_bin, pressure_file_path_bin,
+        press_elem, mpicomm);
+    nonzero_inital_guess = (read_success != 0);
+  }
+  else {
+    nonzero_inital_guess = 0;
+  }
 
   /* run solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE);
