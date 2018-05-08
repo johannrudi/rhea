@@ -744,8 +744,9 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
     rhea_stokes_problem_linear_setup_solver (stokes_problem_lin);
   }
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s (max iter %i, rel tol %.3e)\n",
-                           __func__, iter_max, rel_tol);
+  RHEA_GLOBAL_PRODUCTIONF (
+      "Into %s (max iter %i, rel tol %.1e, nonzero init guess %i)\n",
+      __func__, iter_max, rel_tol, nonzero_initial_guess);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
@@ -3285,6 +3286,7 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
   ymir_vec_t         *rhs_vel_nonzero_dirichlet =
                         stokes_problem->rhs_vel_nonzero_dirichlet;
   ymir_vec_t         *rhs_vel_press;
+  ymir_vec_t         *vel_press_nspfree;
   ymir_vec_t         *residual_vel_press, *residual_vel;
 
   /* check input */
@@ -3317,26 +3319,23 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
   /* project out null spaces */
-//TODO remove
-//ymir_vec_t         *vel_press_nspfree;
-//vel_press_nspfree = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-//ymir_vec_copy (vel_press, vel_press_nspfree);
-//rhea_stokes_problem_project_out_nullspace (vel_press_nspfree,
-//                                           stokes_problem);
-//...
-//rhea_velocity_pressure_destroy (vel_press_nspfree);
+  vel_press_nspfree = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  ymir_vec_copy (vel_press, vel_press_nspfree);
+  rhea_stokes_problem_project_out_nullspace (vel_press_nspfree,
+                                             stokes_problem);
 
   /* compute residual without constraining Dirichlet BC's
    *   r_mom  = A * u + B^T * p - f
    *   r_mass = B * u
    */
   residual_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  ymir_stokes_pc_apply_skip_dir_stokes_op (vel_press, residual_vel_press,
-                                           stokes_op, 0 /* !linearized */,
-                                           1 /* dirty */);
+  ymir_stokes_pc_apply_skip_dir_stokes_op (vel_press_nspfree,
+                                           residual_vel_press, stokes_op,
+                                           0 /* !linearized */, 1 /* dirty */);
   ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (residual_vel_press));
   rhea_velocity_pressure_destroy (rhs_vel_press);
+  rhea_velocity_pressure_destroy (vel_press_nspfree);
 
   /* get the velocity component of the residual */
   residual_vel = rhea_velocity_new (ymir_mesh);
