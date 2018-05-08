@@ -86,6 +86,7 @@ void                rhea_stokes_problem_setup_solver (
  */
 void                rhea_stokes_problem_solve (
                                     ymir_vec_t **sol_vel_press,
+                                    const int nonzero_initial_guess,
                                     const int iter_max,
                                     const double rel_tol,
                                     rhea_stokes_problem_t *stokes_problem);
@@ -103,14 +104,14 @@ void                rhea_stokes_problem_set_solver_amr (
  */
 void                rhea_stokes_problem_set_solver_bin_output (
                                     rhea_stokes_problem_t *stokes_problem,
-                                    char *bin_path_base);
+                                    char *bin_path);
 
 /**
  * Sets output path for vtk output the iterations of a nonlinear solve.
  */
 void                rhea_stokes_problem_set_solver_vtk_output (
                                     rhea_stokes_problem_t *stokes_problem,
-                                    char *vtk_path_base);
+                                    char *vtk_path);
 
 /******************************************************************************
  * Data Access
@@ -191,15 +192,8 @@ ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
  * Writes a Stokes problem to disk.
  */
 int                 rhea_stokes_problem_write (
-                                    char *bin_path_base,
+                                    char *base_path_bin,
                                     rhea_stokes_problem_t *stokes_problem);
-
-/**
- * Reads a Stokes problem from disk.
- */
-int                 rhea_stokes_problem_read (
-                                    rhea_stokes_problem_t **stokes_problem,
-                                    char *bin_path_base);
 
 /******************************************************************************
  * Vector Operations
