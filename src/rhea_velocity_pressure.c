@@ -31,12 +31,13 @@ rhea_velocity_pressure_is_valid (ymir_vec_t *vec)
   return sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff);
 }
 
-void
+int
 rhea_velocity_pressure_create_components (ymir_vec_t **vel, ymir_vec_t **press,
                                           ymir_vec_t *vel_press,
                                           ymir_pressure_elem_t *press_elem)
 {
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (vel_press);
+  int                 is_view;
 
   /* check input */
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (vel_press));
@@ -55,6 +56,7 @@ rhea_velocity_pressure_create_components (ymir_vec_t **vel, ymir_vec_t **press,
       *press = ymir_pressure_vec_new (mesh, press_elem);
       ymir_stokes_vec_get_pressure (vel_press, *press, press_elem);
     }
+    is_view = 0;
   }
   else { /* otherwise create view onto data */
     RHEA_ASSERT (press_elem->space == YMIR_PRESSURE_SPACE_POLY ||
@@ -68,7 +70,10 @@ rhea_velocity_pressure_create_components (ymir_vec_t **vel, ymir_vec_t **press,
                                    vel_press->e_to_d_data,
                                    vel_press->evec);
     }
+    is_view = 1;
   }
+
+  return is_view;
 }
 
 void
