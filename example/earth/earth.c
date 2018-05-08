@@ -73,6 +73,7 @@ main (int argc, char **argv)
   /* Stokes */
   rhea_stokes_problem_t *stokes_problem;
   ymir_vec_t         *sol_vel_press;
+  int                 nonzero_inital_guess;
 
   /*
    * Initialize Program
@@ -179,11 +180,12 @@ main (int argc, char **argv)
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  nonzero_inital_guess = 0;
 
   /* run solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE);
-  rhea_stokes_problem_solve (&sol_vel_press, solver_iter_max, solver_rel_tol,
-                             stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, nonzero_inital_guess,
+                             solver_iter_max, solver_rel_tol, stokes_problem);
   rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SOLVE);
 
   /* write vtk of solution */

@@ -70,6 +70,7 @@ main (int argc, char **argv)
   /* Stokes */
   rhea_stokes_problem_t *stokes_problem;
   ymir_vec_t         *sol_vel_press;
+  int                 nonzero_inital_guess;
 
   /*
    * Initialize Program
@@ -174,10 +175,11 @@ main (int argc, char **argv)
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  nonzero_inital_guess = 0;
 
   /* run solver */
-  rhea_stokes_problem_solve (&sol_vel_press, solver_iter_max, solver_rel_tol,
-                             stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, nonzero_inital_guess,
+                             solver_iter_max, solver_rel_tol, stokes_problem);
 
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
