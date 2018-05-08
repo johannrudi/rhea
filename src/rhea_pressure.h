@@ -63,6 +63,13 @@ double              rhea_pressure_compute_mean (
                                             ymir_vec_t *pressure,
                                             ymir_pressure_elem_t *press_elem);
 
+/**
+ * Projects out global mean value.
+ */
+int                 rhea_pressure_project_out_mean (
+                                            ymir_vec_t *pressure,
+                                            ymir_pressure_elem_t *press_elem);
+
 /******************************************************************************
  * Statistics
  *****************************************************************************/

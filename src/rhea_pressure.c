@@ -122,6 +122,18 @@ rhea_pressure_compute_mean (ymir_vec_t *pressure,
   return ymir_pressure_vec_mean (pressure, press_elem, 0);
 }
 
+int
+rhea_pressure_project_out_mean (ymir_vec_t *pressure,
+                                ymir_pressure_elem_t *press_elem)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_pressure_check_vec_type (pressure, press_elem));
+  RHEA_ASSERT (rhea_pressure_is_valid (pressure));
+
+  ymir_pressure_vec_project_out_mean (pressure, press_elem, 0);
+  return 1;
+}
+
 /******************************************************************************
  * Statistics
  *****************************************************************************/
