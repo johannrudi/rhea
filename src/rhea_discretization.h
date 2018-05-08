@@ -12,6 +12,8 @@ typedef struct rhea_discretization_options
   int                 level_min;
   int                 level_max;
 
+  char               *p4est_file_path;
+
   /* boundary information */
   rhea_domain_boundary_t  *boundary;
 

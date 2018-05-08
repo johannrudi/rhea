@@ -14,6 +14,7 @@
 #define RHEA_DISCRETIZATION_DEFAULT_ORDER (2)
 #define RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN (1)
 #define RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX (18)
+#define RHEA_DISCRETIZATION_DEFAULT_P4EST_FILE_PATH NULL
 
 int                 rhea_discretization_order =
   RHEA_DISCRETIZATION_DEFAULT_ORDER;
@@ -21,6 +22,8 @@ int                 rhea_discretization_level_min =
   RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN;
 int                 rhea_discretization_level_max =
   RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX;
+char               *rhea_discretization_p4est_file_path =
+  RHEA_DISCRETIZATION_DEFAULT_P4EST_FILE_PATH;
 
 void
 rhea_discretization_add_options (ymir_options_t * opt_sup)
@@ -41,6 +44,11 @@ rhea_discretization_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "level-max", '\0',
     &(rhea_discretization_level_max), RHEA_DISCRETIZATION_DEFAULT_LEVEL_MAX,
     "Maximum level of mesh refinement",
+
+  YMIR_OPTIONS_S, "p4est-file-path", '\0',
+    &(rhea_discretization_p4est_file_path),
+    RHEA_DISCRETIZATION_DEFAULT_P4EST_FILE_PATH,
+    "Read p4est from disk at this file path",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -487,6 +495,9 @@ rhea_discretization_process_options (rhea_discretization_options_t *opt,
   opt->level_min = rhea_discretization_level_min;
   opt->level_max = rhea_discretization_level_max;
 
+  /* set p4est file path */
+  opt->p4est_file_path = rhea_discretization_p4est_file_path;
+
   /* set undefined boundary information */
   opt->boundary = NULL;
 
@@ -599,6 +610,29 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   p4est_t            *p4est;
 
   RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
+
+  /*
+   * Read p4est from file
+   */
+
+  if (opt->p4est_file_path != NULL) {
+    /* read p4est */
+    p4est = p4est_load_ext (opt->p4est_file_path, mpicomm,
+                            data_size, 0 /* do not read */,
+                            0 /* !partition, i.e., load partition dependent */,
+                            1 /* broadcast head */, user_pointer, &conn);
+
+    /* initialize user data */
+    p4est_reset_data (p4est, data_size, init_fn, user_pointer);
+
+    /* partition for multigrid coarsening */
+    p4est_partition_ext (p4est, 1 /* for coarsening */, NULL);
+
+    RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+
+    /* return p4est */
+    return p4est;
+  }
 
   /*
    * Create Connectivity
