@@ -161,7 +161,7 @@ rhea_velocity_pressure_read (ymir_vec_t *vel_press,
     }
 
     n_read = rhea_io_mpi_read_segment_double (
-          data, segment_offset, segment_size, vel_file_path_bin, mpicomm);
+          data, segment_offset, segment_size, press_file_path_bin, mpicomm);
     RHEA_ASSERT (n_read == segment_size);
     success += (n_read == segment_size);
   }
@@ -212,7 +212,6 @@ rhea_velocity_pressure_write (char *vel_file_path_bin,
     n_written = rhea_io_mpi_write_segment_double (
           vel_file_path_bin, data, segment_offset, segment_size, mpicomm);
     RHEA_ASSERT (n_written == segment_size);
-
     success += (n_written == segment_size);
   }
 
@@ -233,7 +232,6 @@ rhea_velocity_pressure_write (char *vel_file_path_bin,
     n_written = rhea_io_mpi_write_segment_double (
           press_file_path_bin, data, segment_offset, segment_size, mpicomm);
     RHEA_ASSERT (n_written == segment_size);
-
     success += (n_written == segment_size);
   }
 
