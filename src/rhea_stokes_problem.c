@@ -789,9 +789,8 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
   }
 
   /* project out nullspaces of solution */
-  //TODO
-//slabs_linear_stokes_problem_project_out_nullspace (
-//    state->vel_press_vec, lin_stokes->stokes_op, physics_options, 0);
+//TODO add option
+//rhea_stokes_problem_project_out_nullspace (*sol_vel_press, stokes_problem_nl);
 
   /* print output */
   if (out_residual) {
@@ -2067,6 +2066,10 @@ rhea_stokes_problem_nonlinear_amr_fn (ymir_vec_t **solution, const int iter,
   /* (possibly) recover new vector for solution */
   if (0 < amr_iter) { /* if mesh was adapted */
     *solution = rhea_stokes_problem_get_velocity_pressure (stokes_problem_nl);
+
+    /* project out null spaces in solution */
+    rhea_stokes_problem_project_out_nullspace (*solution, stokes_problem_nl);
+
     return 1;
   }
   else { /* if mesh stayed the same */
@@ -2170,7 +2173,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 
     rhea_pressure_stats_get_global (
         &abs_min_Pa, &abs_max_Pa, &mean_Pa, pressure,
-        stokes_problem_nl->press_elem, stokes_problem_nl->domain_options,
+        press_elem, stokes_problem_nl->domain_options,
         stokes_problem_nl->temp_options, stokes_problem_nl->visc_options);
 
     RHEA_GLOBAL_STATISTICSF (
@@ -2681,10 +2684,8 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
   newton_options->status_verbosity = status_verbosity;
   rhea_newton_solve (sol_vel_press, newton_problem, newton_options);
 
-  /* project out nullspaces of solution */
-  //TODO
-//slabs_linear_stokes_problem_project_out_nullspace (
-//    state->vel_press_vec, lin_stokes->stokes_op, physics_options, 0);
+  /* project out null spaces in solution */
+  rhea_stokes_problem_project_out_nullspace (*sol_vel_press, stokes_problem_nl);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
 }
@@ -3107,7 +3108,7 @@ rhea_stokes_problem_write (char *bin_path_base,
   if (stokes_problem->p4est != NULL) {
     snprintf (path, BUFSIZ, "%s%s", bin_path_base,
               RHEA_STOKES_PROBLEM_IO_LABEL_P4EST);
-    p4est_save_ext (path, stokes_problem->p4est, 0 /* don't save data */,
+    p4est_save_ext (path, stokes_problem->p4est, 0 /* do not save data */,
                     1 /* save partition dependent */);
     success++;
   }
@@ -3254,6 +3255,68 @@ rhea_stokes_problem_velocity_compute_mean_rotation (
 }
 
 int
+rhea_stokes_problem_velocity_project_out_mean_rotation (
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_stress_op_t   *stress_op;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
+
+  /* compute mean rotation */
+  switch (stokes_problem->domain_options->shape) {
+  case RHEA_DOMAIN_SHELL:
+    RHEA_ASSERT (stokes_problem->stokes_op != NULL);
+    stress_op = stokes_problem->stokes_op->stress_op;
+    ymir_stress_op_project_out_mean_rotation (velocity, stress_op, 0);
+    return 1;
+  default: /* no mean rotation */
+    return 0;
+  }
+}
+
+int
+rhea_stokes_problem_project_out_nullspace (
+                                        ymir_vec_t *vel_press,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_pressure_elem_t *press_elem = stokes_problem->press_elem;
+  ymir_vec_t         *velocity, *pressure;
+  int                 is_view;
+  int                 proj_vel_rot, proj_press_mean;
+
+  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (vel_press));
+
+  /* get fields */
+  is_view = rhea_velocity_pressure_create_components (&velocity, &pressure,
+                                                      vel_press, press_elem);
+
+  /* project out null spaces */
+  proj_vel_rot = rhea_stokes_problem_velocity_project_out_mean_rotation (
+      velocity, stokes_problem);
+  proj_press_mean = rhea_pressure_project_out_mean (pressure, press_elem);
+
+  /* set fields */
+  if (!is_view) { /* if vector was copied */
+    rhea_velocity_pressure_set_components (vel_press, velocity, pressure,
+                                           press_elem);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (velocity);
+  ymir_vec_destroy (pressure);
+
+  RHEA_GLOBAL_VERBOSEF ("Done %s (projected: vel rot %i, press mean %i)\n",
+                        __func__, proj_vel_rot, proj_press_mean);
+
+  return (proj_vel_rot + proj_press_mean);
+}
+
+int
 rhea_stokes_problem_stress_compute_normal_at_surface (
                                     ymir_vec_t *stress_norm_surf,
                                     ymir_vec_t *vel_press,
@@ -3300,6 +3363,16 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
       rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
       stokes_problem->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
+
+  /* project out null spaces */
+//TODO remove
+//ymir_vec_t         *vel_press_nspfree;
+//vel_press_nspfree = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+//ymir_vec_copy (vel_press, vel_press_nspfree);
+//rhea_stokes_problem_project_out_nullspace (vel_press_nspfree,
+//                                           stokes_problem);
+//...
+//rhea_velocity_pressure_destroy (vel_press_nspfree);
 
   /* compute residual without constraining Dirichlet BC's
    *   r_mom  = A * u + B^T * p - f

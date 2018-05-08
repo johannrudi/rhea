@@ -222,6 +222,20 @@ int                 rhea_stokes_problem_velocity_compute_mean_rotation (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
+ * Projects out mean rotation of the velocity.
+ */
+int                 rhea_stokes_problem_velocity_project_out_mean_rotation (
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Projects out null spaces.
+ */
+int                 rhea_stokes_problem_project_out_nullspace (
+                                        ymir_vec_t *vel_press,
+                                        rhea_stokes_problem_t *stokes_problem);
+
+/**
  * Computes normal stress at the surface of the domain.
  */
 int                 rhea_stokes_problem_stress_compute_normal_at_surface (
