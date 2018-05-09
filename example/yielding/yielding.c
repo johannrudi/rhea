@@ -72,11 +72,11 @@ main (int argc, char **argv)
   char               *vis_catalyst_script;
 #endif
   /* mesh */
-  p4est_t            *p4est;
-  ymir_mesh_t        *ymir_mesh;
-  ymir_pressure_elem_t  *press_elem;
+  p4est_t              *p4est;
+  ymir_mesh_t          *ymir_mesh;
+  ymir_pressure_elem_t *press_elem;
   /* Stokes */
-  rhea_stokes_problem_t *stokes_problem;
+  rhea_stokes_problem_t  *stokes_problem;
   ymir_vec_t         *sol_vel_press;
   int                 nonzero_inital_guess;
 
@@ -106,7 +106,7 @@ main (int argc, char **argv)
   /* velocity & pressure (initial guess) intput */
   YMIR_OPTIONS_S, "velocity-file-path", '\0',
     &(velocity_file_path_bin), NULL,
-    "Path to a binary file that contains a temperature field",
+    "Path to a binary file that contains a velocity field",
   YMIR_OPTIONS_S, "pressure-file-path", '\0',
     &(pressure_file_path_bin), NULL,
     "Path to a binary file that contains a pressure field",
