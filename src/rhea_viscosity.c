@@ -794,13 +794,13 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
   RHEA_ASSERT (isfinite (strainrate_shift));
   RHEA_ASSERT (isfinite (stress_exp));
   RHEA_ASSERT (0.0 <= visc_in);
-  RHEA_ASSERT (0.0 <= strainrate_sqrt_2inv);
+  RHEA_ASSERT (0.0 < strainrate_sqrt_2inv);
   RHEA_ASSERT (0.0 <= strainrate_shift);
   RHEA_ASSERT (1.0 <= stress_exp);
 
   /* calculate difference, which is the shifted strain rate */
   sr_diff = strainrate_sqrt_2inv - strainrate_shift;
-  RHEA_ASSERT (0.0 <= sr_diff);
+  RHEA_ASSERT (0.0 < sr_diff);
 
   /* calculate the strain rate weakening exponent */
   *srw_exp = 1.0 / stress_exp;
@@ -1142,12 +1142,16 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
         else {
           strainrate_shift = 0.0;
         }
-        //###DEV### not guaranteed: strainrate_shift <= strainrate_sqrt_2inv
 
         /* compute strain rate weakening viscosity */
-        rhea_viscosity_nonlinear_strain_rate_weakening_shift (
-            viscosity, proj_scal, &srw_exp,
-            visc_lin, strainrate_sqrt_2inv, strainrate_shift, stress_exp);
+        if (strainrate_min < strainrate_sqrt_2inv) { /* if SRW well-defined */
+          rhea_viscosity_nonlinear_strain_rate_weakening_shift (
+              viscosity, proj_scal, &srw_exp,
+              visc_lin, strainrate_sqrt_2inv, strainrate_shift, stress_exp);
+        }
+        else { /* otherwise enforce upper bound (applied below) */
+          *viscosity = INFINITY;
+        }
 
         /* (U) apply upper bound */
         rhea_viscosity_nonlinear_restrict_max (
