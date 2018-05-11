@@ -11,6 +11,7 @@ librhea_installed_headers = \
         src/rhea_amr.h \
         src/rhea_pointcloud.hpp \
         src/rhea_pointcloud_adaptor.h \
+        src/rhea_point_in_polygon.h \
         src/rhea_temperature.h \
         src/rhea_weakzone.h \
         src/rhea_weakzone_label.h \
@@ -40,6 +41,7 @@ librhea_compiled_sources = \
         src/rhea_amr.c \
         src/rhea_pointcloud.cpp \
         src/rhea_pointcloud_adaptor.cxx \
+        src/rhea_point_in_polygon.c \
         src/rhea_temperature.c \
         src/rhea_weakzone.c \
         src/rhea_viscosity.c \
