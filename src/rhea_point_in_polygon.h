@@ -1,3 +1,5 @@
+/* RHEA_POINT_IN_POLYGON  Tests wheter a 2D point is inside a polygon. */
+
 #ifndef RHEA_POINT_IN_POLYGON_H
 #define RHEA_POINT_IN_POLYGON_H
 

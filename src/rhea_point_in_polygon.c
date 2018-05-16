@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_point_in_polygon.h>
 
 int
