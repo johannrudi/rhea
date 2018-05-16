@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH -J earth_bfbt
-#SBATCH -o earth_bfbt.o%j
-#SBATCH -e earth_bfbt.e%j
+#SBATCH -J earth_weak100km
+#SBATCH -o earth_weak100km.o%j
+#SBATCH -e earth_weak100km.e%j
 #SBATCH -p normal
 #SBATCH -N 128            # Total number of nodes (now required)
 #SBATCH -n 4352           # Total number of mpi tasks
-#SBATCH -t 03:00:00
+#SBATCH -t 10:00:00
 #SBATCH -A TG-DPP130002
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=johann@ices.utexas.edu
@@ -22,8 +22,12 @@
 declare -r BUILD_DIR="$HOME/build/perf/rhea"
 declare -r EXEC_RELPATH="example/earth/rhea_earth"
 declare -r CODE_DIR="$HOME/code/rhea"
-declare -r JOB_DIR="$SCRATCH/runs/rhea/earth_bfbt_2018-02-21"
-declare -r OMPSIZE='2'
+
+declare -r JOB_DIR="$SCRATCH/runs/rhea/earth_weak100km_YYYY-MM-DD"
+declare -r BIN_DIR="$JOB_DIR/bin"
+declare -r VTK_DIR="$JOB_DIR/vtk"
+
+declare -r OMPSIZE=4
 
 ########################################
 # Functions
@@ -85,6 +89,17 @@ set -x
 # set number of OpenMP threads per MPI rank
 export OMP_NUM_THREADS=$OMPSIZE
 
+# enable OpenMP thread binding for Intel architectures
+export MV2_ENABLE_AFFINITY=0
+export KMP_AFFINITY='granularity=core,scatter'
+
+# enable MVAPICH2 optimizations for Intel Knights Landing (KNL)
+# URL: http://mvapich.cse.ohio-state.edu/static/media/mvapich/mvapich2-2.3b-userguide.html#x1-890006.19
+export MV2_CPU_BINDING_POLICY='hybrid'
+export MV2_HYBRID_BINDING_POLICY='spread'
+export MV2_THREADS_PER_PROCESS=$OMPSIZE
+export PSM2_KASSIST_MODE='none'  # KNL and Omni-Path/PSM2 architecture
+
 ########################################
 # Print Environment
 ########################################
@@ -101,17 +116,21 @@ echo "========================================"
 # Run executable
 ########################################
 
-echo "Launch main executable"
+# create output paths
+mkdir -p "$BIN_DIR"
+mkdir -p "$VTK_DIR"
 
 # set execution options
 options_path="$JOB_DIR/input/options.ini"
 exec_args="-f $options_path"
 exec_path="$BUILD_DIR/$EXEC_RELPATH"
 
+echo "Launch main executable"
+
 # launch executable
 out_base="${SLURM_JOB_NAME}_${SLURM_JOB_ID}"
 out_log="$JOB_DIR/${out_base}.out"
 err_log="$JOB_DIR/${out_base}.err"
-ibrun tacc_affinity $exec_path $exec_args 1>> $out_log 2>$err_log
+ibrun $exec_path $exec_args 1>> $out_log 2>$err_log
 
 echo "========================================"
