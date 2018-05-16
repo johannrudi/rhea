@@ -13,15 +13,16 @@ librhea_installed_headers = \
         src/rhea_pointcloud_adaptor.h \
         src/rhea_point_in_polygon.h \
         src/rhea_temperature.h \
+        src/rhea_plate.h \
         src/rhea_weakzone.h \
         src/rhea_weakzone_label.h \
+        src/rhea_topography.h \
         src/rhea_viscosity.h \
         src/rhea_velocity.h \
         src/rhea_pressure.h \
         src/rhea_velocity_pressure.h \
         src/rhea_strainrate.h \
         src/rhea_stress.h \
-        src/rhea_topography.h \
         src/rhea_stokes_norm.h \
         src/rhea_stokes_problem.h \
         src/rhea_stokes_problem_amr.h \
@@ -43,14 +44,15 @@ librhea_compiled_sources = \
         src/rhea_pointcloud_adaptor.cxx \
         src/rhea_point_in_polygon.c \
         src/rhea_temperature.c \
+        src/rhea_plate.c \
         src/rhea_weakzone.c \
+        src/rhea_topography.c \
         src/rhea_viscosity.c \
         src/rhea_velocity.c \
         src/rhea_pressure.c \
         src/rhea_velocity_pressure.c \
         src/rhea_strainrate.c \
         src/rhea_stress.c \
-        src/rhea_topography.c \
         src/rhea_stokes_norm.c \
         src/rhea_stokes_problem.c \
         src/rhea_stokes_problem_amr.c \
