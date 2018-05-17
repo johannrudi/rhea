@@ -207,6 +207,11 @@ main (int argc, char **argv)
     read_success = rhea_velocity_pressure_read (
         sol_vel_press, velocity_file_path_bin, pressure_file_path_bin,
         press_elem, mpicomm);
+    if (!read_success) {
+      RHEA_LERRORF (
+        "%s: Failed reading velocity & pressure from files: \"%s\", \"%s\"\n",
+        func_name, velocity_file_path_bin, pressure_file_path_bin);
+    }
     nonzero_inital_guess = (read_success != 0);
   }
   else {
