@@ -2129,9 +2129,9 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_process_options_all (&domain_options, &temp_options, &weak_options,
-                            &visc_options, &topo_options, &discr_options,
-                            &newton_options);
+  rhea_process_options_all (&domain_options, &temp_options, NULL,
+                            &weak_options, &topo_options, &visc_options,
+                            &discr_options, &newton_options);
 
   /*
    * Setup Mesh
