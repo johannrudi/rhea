@@ -2,6 +2,59 @@
 #include <rhea_base.h>
 #include <rhea_point_in_polygon.h>
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/* default options */
+#define RHEA_PLATE_DEFAULT_POLYGONS_FILE_PATH_TXT NULL
+
+/* initialize options */
+char               *rhea_plate_polygons_file_path_txt =
+  RHEA_PLATE_DEFAULT_POLYGONS_FILE_PATH_TXT;
+
+void
+rhea_plate_add_options (ymir_options_t * opt_sup)
+{
+  const char         *opt_prefix = "Plate";
+  ymir_options_t     *opt = ymir_options_new ();
+
+  /* *INDENT-OFF* */
+  ymir_options_addv (opt,
+
+  YMIR_OPTIONS_S, "polygons-file-path-txt", '\0',
+    &(rhea_plate_polygons_file_path_txt),
+    RHEA_PLATE_DEFAULT_POLYGONS_FILE_PATH_TXT,
+    "Path to a text file with (lon,lat) coordinates of plate polygons",
+
+  YMIR_OPTIONS_END_OF_LIST);
+  /* *INDENT-ON* */
+
+  /* add these options as sub-options */
+  ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
+  ymir_options_destroy (opt);
+}
+
+void
+rhea_plate_process_options (rhea_plate_options_t *opt,
+                            rhea_domain_options_t *domain_options)
+{
+  /* exit if nothing to do */
+  if (opt == NULL) {
+    return;
+  }
+
+  /* set paths to binary & text files */
+  opt->polygons_file_path_txt = rhea_plate_polygons_file_path_txt;
+
+  /* set dependent options */
+  opt->domain_options = domain_options;
+}
+
+/******************************************************************************
+ * TODO
+ *****************************************************************************/
+
 static int
 rhea_plate_is_inside (const float test_x,
                       const float test_y,

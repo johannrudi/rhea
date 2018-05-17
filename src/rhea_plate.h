@@ -3,7 +3,7 @@
 #ifndef RHEA_PLATE_H
 #define RHEA_PLATE_H
 
-#include <sc.h>
+#include <rhea_domain.h>
 
 /* generic label for plate "none" */
 #define RHEA_PLATE_NONE (-1)
@@ -12,7 +12,28 @@
  * Options
  *****************************************************************************/
 
-//TODO
+/* options for plates */
+typedef struct rhea_plate_options
+{
+  /* binary/text files with coordinates of plate polygons */
+  char               *polygons_file_path_txt;
+
+  /* options & properties of the computational domain */
+  rhea_domain_options_t *domain_options;
+}
+rhea_plate_options_t;
+
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_plate_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Processes options and stores them.
+ */
+void                rhea_plate_process_options (
+                                        rhea_plate_options_t *opt,
+                                        rhea_domain_options_t *domain_options);
 
 /******************************************************************************
  * Plates of Cube Domain
