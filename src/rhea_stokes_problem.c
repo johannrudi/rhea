@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_stokes_problem.h>
 #include <rhea_base.h>
 #include <rhea_strainrate.h>
@@ -8,7 +5,6 @@
 #include <rhea_stokes_norm.h>
 #include <rhea_newton.h>
 #include <rhea_stokes_problem_amr.h>
-#include <rhea_io_mpi.h>
 #include <rhea.h>
 #include <ymir_mass_vec.h>
 #include <ymir_stress_op_optimized.h>
