@@ -578,10 +578,16 @@ rhea_temperature_read_internal (ymir_vec_t *temperature)
     const int           segment_size = (int) ymir_mesh->cnodes->Ngo[mpirank];
     int                 n_read;
 
+    RHEA_ASSERT (file_path_bin != NULL);
     n_read = rhea_io_mpi_read_segment_double (
         temp_data, segment_offset[mpirank], segment_size,
         file_path_bin, mpicomm);
-    RHEA_ASSERT (n_read == segment_size);
+    if (!(n_read == segment_size)) {
+      RHEA_LERRORF ("%s: Mismatch of #entries read: "
+                    "#requested %lli, #read %lli, file path %s\n",
+                    __func__, (long long int) segment_size,
+                    (long long int) n_read, file_path_bin);
+    }
   }
 
   /* destroy */
