@@ -1,44 +1,18 @@
-/* RHEA_PLATE TODO write comment */
+/* RHEA_PLATE  Assigns plate labels and retrieves them from coordinates. */
 
 #ifndef RHEA_PLATE_H
 #define RHEA_PLATE_H
 
 #include <rhea_domain.h>
 
+/******************************************************************************
+ * Plate Labels
+ *****************************************************************************/
+
 /* generic label for plate "none" */
 #define RHEA_PLATE_NONE (-1)
 
-/******************************************************************************
- * Options
- *****************************************************************************/
-
-/* options for plates */
-typedef struct rhea_plate_options
-{
-  /* binary/text files with coordinates of plate polygons */
-  char               *polygons_file_path_txt;
-
-  /* options & properties of the computational domain */
-  rhea_domain_options_t *domain_options;
-}
-rhea_plate_options_t;
-
-/**
- * Defines options and adds them as sub-options.
- */
-void                rhea_plate_add_options (ymir_options_t * opt_sup);
-
-/**
- * Processes options and stores them.
- */
-void                rhea_plate_process_options (
-                                        rhea_plate_options_t *opt,
-                                        rhea_domain_options_t *domain_options);
-
-/******************************************************************************
- * Plates of Cube Domain
- *****************************************************************************/
-
+/* plates of cube domain */
 typedef enum
 {
   RHEA_PLATE_CUBE_NONE = RHEA_PLATE_NONE, /* "none" (must come first) */
@@ -50,13 +24,7 @@ typedef enum
 }
 rhea_plate_cube_label_t;
 
-rhea_plate_cube_label_t   rhea_plate_cube_get_label (const double test_x,
-                                                     const double test_y);
-
-/******************************************************************************
- * Plates of Earth Domain
- *****************************************************************************/
-
+/* plates of earth domain */
 typedef enum
 {
   RHEA_PLATE_EARTH_NONE = RHEA_PLATE_NONE,  /* "none" (must come first) */
@@ -125,7 +93,75 @@ typedef enum
 }
 rhea_plate_earth_label_t;
 
-rhea_plate_earth_label_t  rhea_plate_earth_get_label (const double test_x,
-                                                      const double test_y);
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/* options for plates */
+typedef struct rhea_plate_options
+{
+  /* text files with vertices of plate polygons */
+  char               *vertices_file_path_txt;
+  char               *vertices_coarse_container_file_path_txt;
+  int                 n_vertices_total;
+
+  /* storage of polygon vertices */
+  float             **vertices_x;
+  float             **vertices_y;
+  size_t             *n_vertices;
+  float              *translation_x;
+  float              *translation_y;
+
+  /* storage of vertices of coarse polygon containers */
+  float             **vertices_coarse_container_x;
+  float             **vertices_coarse_container_y;
+  size_t             *n_vertices_coarse_container;
+  float              *translation_coarse_container_x;
+  float              *translation_coarse_container_y;
+
+  /* options & properties of the computational domain */
+  rhea_domain_options_t *domain_options;
+}
+rhea_plate_options_t;
+
+/**
+ * Defines options and adds them as sub-options.
+ */
+void                rhea_plate_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Processes options and stores them.
+ */
+void                rhea_plate_process_options (
+                                        rhea_plate_options_t *opt,
+                                        rhea_domain_options_t *domain_options);
+
+/******************************************************************************
+ * Data
+ *****************************************************************************/
+
+/**
+ * Allocates and performs the setup of data that is required for plate
+ * retrieval.
+ */
+int                 rhea_plate_data_create (rhea_plate_options_t *opt,
+                                            sc_MPI_Comm mpicomm);
+
+/**
+ * Clears storage of plate data.
+ */
+void                rhea_plate_data_clear (rhea_plate_options_t *opt);
+
+/******************************************************************************
+ * Plate Retrieval
+ *****************************************************************************/
+
+int                 rhea_plate_get_label (const double x, const double y,
+                                          const double z,
+                                          rhea_plate_options_t *opt);
+
+void                rhea_plate_apply_filter (ymir_vec_t *vec,
+                                             const int plate_label,
+                                             rhea_plate_options_t *opt);
 
 #endif /* RHEA_PLATE_H */
