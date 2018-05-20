@@ -1,5 +1,4 @@
-/*
- */
+/* RHEA_IO_STD  Reads & writes files (with a single processor/rank). */
 
 #ifndef RHEA_IO_STD_H
 #define RHEA_IO_STD_H
@@ -20,6 +19,17 @@ size_t              rhea_io_std_read_double (double *values,
 size_t              rhea_io_std_write_double (const char *file_path,
                                               const double *values,
                                               const size_t n_entries);
+
+/**
+ * Reads/writes float values from/to a binary file.
+ */
+size_t              rhea_io_std_read_float (float *values,
+                                            const size_t n_entries,
+                                            const char *file_path);
+
+size_t              rhea_io_std_write_float (const char *file_path,
+                                             const float *values,
+                                             const size_t n_entries);
 
 /**
  * Reads/writes int values from/to a binary file.
@@ -90,6 +100,19 @@ size_t              rhea_io_std_read_double_from_txt (double *values,
 size_t              rhea_io_std_write_double_to_txt (
                                           const char *file_path,
                                           const double *values,
+                                          size_t n_entries,
+                                          int n_entries_per_line);
+
+/**
+ * Reads/writes float values from/to a text file.
+ */
+size_t              rhea_io_std_read_float_from_txt (float *values,
+                                                     size_t n_entries,
+                                                     const char *file_path);
+
+size_t              rhea_io_std_write_float_to_txt (
+                                          const char *file_path,
+                                          const float *values,
                                           size_t n_entries,
                                           int n_entries_per_line);
 
