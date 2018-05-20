@@ -1,10 +1,3 @@
-/**
- * Shared functions for rhea examples.
- *
- ******************************************************************************
- * Author:             Johann Rudi <johann@ices.utexas.edu>
- *****************************************************************************/
-
 #include <example_share_stokes.h>
 #include <rhea.h>
 #include <rhea_stokes_problem_amr.h>
@@ -14,6 +7,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
                           ymir_mesh_t **ymir_mesh,
                           ymir_pressure_elem_t **press_elem,
                           rhea_temperature_options_t *temp_options,
+                          rhea_plate_options_t *plate_options,
                           rhea_weakzone_options_t *weak_options,
                           rhea_viscosity_options_t *visc_options,
                           rhea_newton_options_t *newton_options,
@@ -32,6 +26,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
 
   /* set up data */
+  rhea_plate_data_create (plate_options, mpicomm);
   rhea_weakzone_data_create (weak_options, mpicomm);
 
   /* compute temperature */
@@ -77,6 +72,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
 void
 example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
                               rhea_temperature_options_t *temp_options,
+                              rhea_plate_options_t *plate_options,
                               rhea_weakzone_options_t *weak_options,
                               rhea_viscosity_options_t *visc_options)
 {
@@ -96,6 +92,7 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
   }
 
   /* destroy data */
+  rhea_plate_data_clear (plate_options);
   rhea_weakzone_data_clear (weak_options);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
