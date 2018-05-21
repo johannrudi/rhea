@@ -102,8 +102,9 @@ typedef struct rhea_plate_options
 {
   /* text files with vertices of plate polygons */
   char               *vertices_file_path_txt;
-  char               *vertices_coarse_container_file_path_txt;
   int                 n_vertices_total;
+  char               *vertices_coarse_container_file_path_txt;
+  int                 n_vertices_coarse_total;
 
   /* storage of polygon vertices */
   float             **vertices_x;
