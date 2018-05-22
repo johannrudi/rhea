@@ -157,12 +157,18 @@ void                rhea_plate_data_clear (rhea_plate_options_t *opt);
  * Plate Retrieval
  *****************************************************************************/
 
-int                 rhea_plate_get_label (const double x, const double y,
-                                          const double z,
-                                          rhea_plate_options_t *opt);
+/**
+ * Sets plate labels at all entries of a vector.
+ */
+void                rhea_plate_set_label_vec (ymir_vec_t *vec,
+                                              rhea_plate_options_t *opt);
 
-void                rhea_plate_apply_filter (ymir_vec_t *vec,
-                                             const int plate_label,
-                                             rhea_plate_options_t *opt);
+/**
+ * Filters values of a vector inside a plate.  Sets values outside this plate
+ * to zero.
+ */
+void                rhea_plate_apply_filter_vec (ymir_vec_t *vec,
+                                                 const int plate_label,
+                                                 rhea_plate_options_t *opt);
 
 #endif /* RHEA_PLATE_H */
