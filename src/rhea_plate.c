@@ -169,7 +169,6 @@ rhea_plate_process_vertices_cube (float **vertices_x,
     for (vid = 0; vid < n_vert; vid++) {
       vert_x[vid] = vertices_all[2*(idx_curr + vid)    ];
       vert_y[vid] = vertices_all[2*(idx_curr + vid) + 1];
-      RHEA_INFOF ("###DEV### pid %i, vid %i, x %g, y %g\n", pid, vid, vert_x[vid], vert_y[vid]);
       RHEA_ASSERT (isfinite (vert_x[vid]));
       RHEA_ASSERT (isfinite (vert_y[vid]));
     }
@@ -337,6 +336,13 @@ rhea_plate_data_clear (rhea_plate_options_t *opt)
   }
 }
 
+static int
+rhea_plate_data_exitst (rhea_plate_options_t *opt)
+{
+  return (opt->vertices_x != NULL && opt->vertices_y != NULL &&
+          opt->n_vertices != NULL);
+}
+
 /******************************************************************************
  * Plate Retrieval
  *****************************************************************************/
@@ -477,30 +483,78 @@ rhea_plate_set_label_node_fn (double *v, double x, double y, double z,
   }
 }
 
+static void
+rhea_plate_set_label_face_node_fn (double *v, double x, double y, double z,
+                                   double nx, double ny, double nz,
+                                   ymir_topidx_t face, ymir_locidx_t nodeid,
+                                   void *data)
+{
+  rhea_plate_node_fn_data_t *d = data;
+  const int           n_fields = d->n_fields;
+  int                 fieldid;
+  int                 plate_label;
+
+  plate_label = rhea_plate_get_label (x, y, z, d->opt);
+  for (fieldid = 0; fieldid < n_fields; fieldid++) {
+    v[fieldid] = (double) plate_label;
+  }
+}
+
 void
 rhea_plate_set_label_vec (ymir_vec_t *vec, rhea_plate_options_t *opt)
 {
   rhea_plate_node_fn_data_t  data;
 
+  /* check input */
+  RHEA_ASSERT (opt != NULL);
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exitst (opt)) {
+    ymir_vec_set_value (vec, (double) RHEA_PLATE_NONE);
+    return;
+  }
+
   /* set data parameters */
   data.opt = opt;
   data.plate_label = RHEA_PLATE_NONE;
 
-  /* set labels at continuous GLL nodes */
-  if (ymir_vec_has_cvec (vec)) {
-    data.n_fields = vec->ncfields;
-    ymir_cvec_set_function (vec, rhea_plate_set_label_node_fn, &data);
-  }
+  if (!ymir_vec_is_face_vec (vec)) { /* if volume vector */
+    /* set labels at continuous GLL nodes */
+    if (ymir_vec_has_cvec (vec)) {
+      data.n_fields = vec->ncfields;
+      ymir_cvec_set_function (vec, rhea_plate_set_label_node_fn, &data);
+    }
 
-  /* set labels at discontinuous GLL/Gauss nodes */
-  if (ymir_vec_has_dvec (vec)) {
-    data.n_fields = vec->ndfields;
-    ymir_dvec_set_function (vec, rhea_plate_set_label_node_fn, &data);
-  }
+    /* set labels at discontinuous GLL/Gauss nodes */
+    if (ymir_vec_has_dvec (vec)) {
+      data.n_fields = vec->ndfields;
+      ymir_dvec_set_function (vec, rhea_plate_set_label_node_fn, &data);
+    }
 
-  /* note: processing of evec's is not implemented */
-  if (ymir_vec_has_evec (vec)) {
-    RHEA_ABORT_NOT_REACHED ();
+    /* note: processing of evec's is not implemented */
+    if (ymir_vec_has_evec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+  else { /* if face vector */
+    /* set labels at continuous GLL nodes */
+    if (ymir_vec_has_cvec (vec)) {
+      data.n_fields = vec->ncfields;
+      ymir_face_cvec_set_function (vec, rhea_plate_set_label_face_node_fn,
+                                   &data);
+    }
+
+    /* set labels at discontinuous GLL/Gauss nodes */
+    if (ymir_vec_has_dvec (vec)) {
+      data.n_fields = vec->ndfields;
+      ymir_face_dvec_set_function (vec, rhea_plate_set_label_face_node_fn,
+                                   &data);
+    }
+
+    /* note: processing of evec's is not implemented */
+    if (ymir_vec_has_evec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
   }
 }
 
@@ -524,30 +578,79 @@ rhea_plate_apply_filter_node_fn (double *v, double x, double y, double z,
   }
 }
 
+static void
+rhea_plate_apply_filter_face_node_fn (double *v, double x, double y, double z,
+                                      double nx, double ny, double nz,
+                                      ymir_topidx_t face, ymir_locidx_t nodeid,
+                                      void *data)
+{
+  rhea_plate_node_fn_data_t *d = data;
+
+  if (!rhea_plate_is_inside (x, y, z, d->plate_label, d->opt)) { /* if out */
+    const int           n_fields = d->n_fields;
+    int                 fieldid;
+
+    /* set values to zero outside of plate */
+    for (fieldid = 0; fieldid < n_fields; fieldid++) {
+      v[fieldid] = 0.0;
+    }
+  }
+}
+
 void
 rhea_plate_apply_filter_vec (ymir_vec_t *vec, const int plate_label,
                              rhea_plate_options_t *opt)
 {
   rhea_plate_node_fn_data_t  data;
 
+  /* check input */
+  RHEA_ASSERT (opt != NULL);
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exitst (opt)) {
+    return;
+  }
+
   /* set data parameters */
   data.opt = opt;
   data.plate_label = plate_label;
 
-  /* filter vector at continuous GLL nodes */
-  if (ymir_vec_has_cvec (vec)) {
-    data.n_fields = vec->ncfields;
-    ymir_cvec_set_function (vec, rhea_plate_apply_filter_node_fn, &data);
-  }
+  if (!ymir_vec_is_face_vec (vec)) { /* if volume vector */
+    /* filter vector at continuous GLL nodes */
+    if (ymir_vec_has_cvec (vec)) {
+      data.n_fields = vec->ncfields;
+      ymir_cvec_set_function (vec, rhea_plate_apply_filter_node_fn, &data);
+    }
 
-  /* filter vector at discontinuous GLL/Gauss nodes */
-  if (ymir_vec_has_dvec (vec)) {
-    data.n_fields = vec->ndfields;
-    ymir_dvec_set_function (vec, rhea_plate_apply_filter_node_fn, &data);
-  }
+    /* filter vector at discontinuous GLL/Gauss nodes */
+    if (ymir_vec_has_dvec (vec)) {
+      data.n_fields = vec->ndfields;
+      ymir_dvec_set_function (vec, rhea_plate_apply_filter_node_fn, &data);
+    }
 
-  /* note: processing of evec's is not implemented */
-  if (ymir_vec_has_evec (vec)) {
-    RHEA_ABORT_NOT_REACHED ();
+    /* note: processing of evec's is not implemented */
+    if (ymir_vec_has_evec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+  else { /* if face vector */
+    /* filter vector at continuous GLL nodes */
+    if (ymir_vec_has_cvec (vec)) {
+      data.n_fields = vec->ncfields;
+      ymir_face_cvec_set_function (vec, rhea_plate_apply_filter_face_node_fn,
+                                   &data);
+    }
+
+    /* filter vector at discontinuous GLL/Gauss nodes */
+    if (ymir_vec_has_dvec (vec)) {
+      data.n_fields = vec->ndfields;
+      ymir_face_dvec_set_function (vec, rhea_plate_apply_filter_face_node_fn,
+                                   &data);
+    }
+
+    /* note: processing of evec's is not implemented */
+    if (ymir_vec_has_evec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
   }
 }
