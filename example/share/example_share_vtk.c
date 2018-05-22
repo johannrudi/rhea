@@ -17,6 +17,7 @@ void
 example_share_vtk_write_input_data (const char *vtk_write_input_path,
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_temperature_options_t *temp_options,
+                                    rhea_plate_options_t *plate_options,
                                     rhea_viscosity_options_t *visc_options)
 {
   ymir_mesh_t        *ymir_mesh;
@@ -24,6 +25,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   ymir_vec_t         *rhs_vel;
 //ymir_vec_t         *rhs_vel_nonzero_dirichlet;
   ymir_vec_t         *background_temp, *viscosity, *bounds_marker;
+  ymir_vec_t         *plate_label;
 
   /* exit if nothing to do */
   if (vtk_write_input_path == NULL) {
@@ -43,6 +45,15 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   /* compute background temperature */
   background_temp = rhea_temperature_new (ymir_mesh);
   rhea_temperature_background_compute (background_temp, temp_options);
+
+  /* get plate labels */
+  if (plate_options != NULL) {
+    plate_label = rhea_viscosity_surface_new (ymir_mesh);
+    rhea_plate_set_label_vec (plate_label, plate_options);
+  }
+  else {
+    plate_label = NULL;
+  }
 
   /* compute viscosity */
   viscosity = rhea_viscosity_new (ymir_mesh);
@@ -71,13 +82,16 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 
   /* write vtk */
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity,
+                             background_temp, plate_label, weakzone, viscosity,
                              bounds_marker, rhs_vel);
 
   /* destroy */
-  rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (bounds_marker);
+  rhea_temperature_destroy (background_temp);
+  if (plate_label != NULL ) {
+    rhea_viscosity_surface_destroy (plate_label);
+  }
 }
 
 void
