@@ -166,7 +166,8 @@ main (int argc, char **argv)
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
-                                      &temp_options, &visc_options);
+                                      &temp_options, &plate_options,
+                                      &visc_options);
 
   /*
    * Solve Stokes Problem
