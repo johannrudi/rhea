@@ -22,6 +22,7 @@
 #define RHEA_VTK_NAME_VISCSTRESS_SQRT_2INV "viscstress_sqrt_2inv"
 #define RHEA_VTK_NAME_STRESS_NORM "stress_norm"
 
+#define RHEA_VTK_NAME_PLATE_LABEL "plate_label"
 #define RHEA_VTK_NAME_WEAKZONE "weakzone"
 #define RHEA_VTK_NAME_VISCOSITY "viscosity"
 #define RHEA_VTK_NAME_BOUNDS_MARKER "bounds_marker"
@@ -31,6 +32,7 @@ void
 rhea_vtk_write_input_data (const char *filepath,
                            ymir_vec_t *temperature,
                            ymir_vec_t *background_temp,
+                           ymir_vec_t *plate_label,
                            ymir_vec_t *weakzone,
                            ymir_vec_t *viscosity,
                            ymir_vec_t *bounds_marker,
@@ -38,6 +40,7 @@ rhea_vtk_write_input_data (const char *filepath,
 {
   const int           in_temp = (temperature != NULL);
   const int           in_back = (background_temp != NULL);
+  const int           in_plate = (plate_label != NULL);
   const int           in_weak = (weakzone != NULL);
   const int           in_bounds = (bounds_marker != NULL);
   ymir_mesh_t        *ymir_mesh;
@@ -69,7 +72,7 @@ rhea_vtk_write_input_data (const char *filepath,
     ymir_vec_set_value (bounds_marker, 0.0);
   }
 
-  /* write vtk file (reduce output for common use cases) */
+  /* write vtk file with volume fields (reduce output for common use cases) */
   if (!in_temp && !in_back && !in_weak && !in_bounds) {
     ymir_vtk_write (ymir_mesh, filepath,
                     viscosity, RHEA_VTK_NAME_VISCOSITY,
@@ -106,6 +109,12 @@ rhea_vtk_write_input_data (const char *filepath,
                     background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
                     weakzone, RHEA_VTK_NAME_WEAKZONE,
                     bounds_marker, RHEA_VTK_NAME_BOUNDS_MARKER, NULL);
+  }
+
+  /* write vtk file with surface fields */
+  if (!in_plate) {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    plate_label, RHEA_VTK_NAME_PLATE_LABEL, NULL);
   }
 
   /* destroy */
