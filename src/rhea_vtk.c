@@ -4,6 +4,7 @@
 #include <rhea_vtk.h>
 #include <rhea_base.h>
 #include <rhea_temperature.h>
+#include <rhea_plate.h>
 #include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
@@ -63,6 +64,10 @@ rhea_vtk_write_input_data (const char *filepath,
     background_temp = rhea_temperature_new (ymir_mesh);
     ymir_vec_set_value (background_temp, -1.0);
   }
+  if (!in_plate) {
+    plate_label = rhea_viscosity_new (ymir_mesh);
+    ymir_vec_set_value (plate_label, RHEA_PLATE_NONE);
+  }
   if (!in_weak) {
     weakzone = rhea_weakzone_new (ymir_mesh);
     ymir_vec_set_value (weakzone, -1.0);
@@ -107,14 +112,9 @@ rhea_vtk_write_input_data (const char *filepath,
                     rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
                     temperature, RHEA_VTK_NAME_TEMPERATURE,
                     background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+                    plate_label, RHEA_VTK_NAME_PLATE_LABEL,
                     weakzone, RHEA_VTK_NAME_WEAKZONE,
                     bounds_marker, RHEA_VTK_NAME_BOUNDS_MARKER, NULL);
-  }
-
-  /* write vtk file with surface fields */
-  if (!in_plate) {
-    ymir_vtk_write (ymir_mesh, filepath,
-                    plate_label, RHEA_VTK_NAME_PLATE_LABEL, NULL);
   }
 
   /* destroy */
@@ -123,6 +123,9 @@ rhea_vtk_write_input_data (const char *filepath,
   }
   if (!in_back) {
     rhea_temperature_destroy (background_temp);
+  }
+  if (!in_plate) {
+    rhea_viscosity_destroy (plate_label);
   }
   if (!in_weak) {
     rhea_weakzone_destroy (weakzone);
