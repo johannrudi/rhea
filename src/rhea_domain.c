@@ -767,8 +767,10 @@ rhea_domain_convert_coordinates (double *coord1, double *coord2, double *coord3,
     rhea_domain_convert_cartesian_to_spherical_geo (coord1, coord2, coord3,
                                                     x, y, z);
     *coord1 = rhea_domain_radius_to_radius_m (*coord1, opt);
-    *coord2 *= 360.0;
-    *coord3 *= 360.0;
+    *coord2 = 360.0 / (2.0 * M_PI) * (*coord2 + M_PI);
+    *coord3 *= 360.0 / (2.0 * M_PI);
+    RHEA_ASSERT (-SC_1000_EPS <= *coord2 && *coord2 <= 360.0 + SC_1000_EPS);
+    RHEA_ASSERT (-SC_1000_EPS <= *coord3 && *coord3 <= 180.0 + SC_1000_EPS);
     break;
 
   default: /* unknown coordinate type */
