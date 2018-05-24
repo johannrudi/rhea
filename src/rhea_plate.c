@@ -80,13 +80,11 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
   opt->vertices_x = NULL;
   opt->vertices_y = NULL;
   opt->n_vertices = NULL;
-  opt->translation_x = NULL;
-  opt->translation_y = NULL;
   opt->vertices_coarse_container_x = NULL;
   opt->vertices_coarse_container_y = NULL;
   opt->n_vertices_coarse_container = NULL;
-  opt->translation_coarse_container_x = NULL;
-  opt->translation_coarse_container_y = NULL;
+  opt->translation_x = NULL;
+  opt->translation_y = NULL;
 
   /* set dependent options */
   opt->domain_options = domain_options;
@@ -304,12 +302,6 @@ rhea_plate_data_clear (rhea_plate_options_t *opt)
     opt->vertices_y = NULL;
     opt->n_vertices = NULL;
   }
-  if (opt->translation_x != NULL && opt->translation_y != NULL) {
-    RHEA_FREE (opt->translation_x);
-    RHEA_FREE (opt->translation_y);
-    opt->translation_x = NULL;
-    opt->translation_y = NULL;
-  }
 
   /* destroy container vertices */
   if (opt->vertices_coarse_container_x != NULL &&
@@ -327,12 +319,13 @@ rhea_plate_data_clear (rhea_plate_options_t *opt)
     opt->vertices_coarse_container_y = NULL;
     opt->n_vertices_coarse_container = NULL;
   }
-  if (opt->translation_coarse_container_x != NULL &&
-      opt->translation_coarse_container_y != NULL) {
-    RHEA_FREE (opt->translation_coarse_container_x);
-    RHEA_FREE (opt->translation_coarse_container_y);
-    opt->translation_coarse_container_x = NULL;
-    opt->translation_coarse_container_y = NULL;
+
+  /* destroy translation */
+  if (opt->translation_x != NULL && opt->translation_y != NULL) {
+    RHEA_FREE (opt->translation_x);
+    RHEA_FREE (opt->translation_y);
+    opt->translation_x = NULL;
+    opt->translation_y = NULL;
   }
 }
 
@@ -399,6 +392,7 @@ rhea_plate_is_inside (const double x, const double y, const double z,
   const size_t        nv = opt->n_vertices[plate_label];
   float              *vcx = NULL, *vcy = NULL;
   size_t              nvc = 0;
+  double              tmp_x, tmp_y;
   float               test_x, test_y;
 
   /* check input */
@@ -406,20 +400,17 @@ rhea_plate_is_inside (const double x, const double y, const double z,
   RHEA_ASSERT (opt->vertices_y != NULL);
   RHEA_ASSERT (opt->n_vertices != NULL);
 
-  /* transform test coordinates */
-  switch (opt->domain_options->shape) {
-  case RHEA_DOMAIN_CUBE:
-    //TODO apply a coordinate mapping from `rhea_domain` (maybe implement that)
-    test_x = (float) x;
-    test_y = (float) y;
-    break;
-  case RHEA_DOMAIN_SHELL:
-    //TODO convert to spherical and apply shift
-    //test_x = (float) x;
-    //test_y = (float) y;
-    break;
-  default: /* unknown domain shape */
-    RHEA_ABORT_NOT_REACHED ();
+  /* calculate test coordinates */
+  rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
+                               RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM,
+                               opt->domain_options);
+  test_x = (float) tmp_x;
+  test_y = (float) tmp_y;
+
+  /* translate coordinates */
+  if (opt->translation_x != NULL && opt->translation_y != NULL) {
+    tmp_x += opt->translation_x[plate_label];
+    tmp_y += opt->translation_y[plate_label];
   }
 
   /* get vertices of coarse container (if they exist) */

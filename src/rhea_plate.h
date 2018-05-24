@@ -110,15 +110,15 @@ typedef struct rhea_plate_options
   float             **vertices_x;
   float             **vertices_y;
   size_t             *n_vertices;
-  float              *translation_x;
-  float              *translation_y;
 
   /* storage of vertices of coarse polygon containers */
   float             **vertices_coarse_container_x;
   float             **vertices_coarse_container_y;
   size_t             *n_vertices_coarse_container;
-  float              *translation_coarse_container_x;
-  float              *translation_coarse_container_y;
+
+  /* translation of polygon & container vertices */
+  float              *translation_x;
+  float              *translation_y;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t *domain_options;
