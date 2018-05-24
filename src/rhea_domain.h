@@ -155,6 +155,12 @@ double              rhea_domain_depth_m_to_radius (const double depth_m,
                                                    rhea_domain_options_t *opt);
 
 /**
+ * Converts nondimensional radius to dimensional radius [m].
+ */
+double              rhea_domain_radius_to_radius_m (const double radius,
+                                                    rhea_domain_options_t *opt);
+
+/**
  * Computes the radius of a shell domain or the corresponding value for a
  * rectangular domain.
  */
