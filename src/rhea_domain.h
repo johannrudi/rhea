@@ -142,6 +142,26 @@ void                rhea_domain_process_options (rhea_domain_options_t *opt);
  * Basic Calculations
  *****************************************************************************/
 
+/* types of coordinates */
+typedef enum
+{
+  RHEA_DOMAIN_COORDINATE_CARTESIAN,
+  RHEA_DOMAIN_COORDINATE_SPHERICAL_MATH,
+  RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
+  RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM
+}
+rhea_domain_coordinate_type_t;
+
+/**
+ * Converts nondimensional Cartesian coordinates (x,y,z) into coordinates
+ * (coord1,coord2,coord3) of the type `coord_type`.
+ */
+void                rhea_domain_convert_coordinates (
+                                double *coord1, double *coord2, double *coord3,
+                                const double x, const double y, const double z,
+                                rhea_domain_coordinate_type_t coord_type,
+                                rhea_domain_options_t *opt);
+
 /**
  * Converts dimensional depth [m] to nondimensional depth.
  */

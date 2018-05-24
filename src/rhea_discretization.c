@@ -943,53 +943,10 @@ rhea_discretization_ymir_mesh_destroy (ymir_mesh_t *ymir_mesh,
  * Coordinates
  *****************************************************************************/
 
-/**
- * Converts Cartesian coordinates (x,y,z) to spherical coordinates
- * (r,theta,phi) using the mathematical convention.
- */
-static void
-rhea_discretization_convert_cartesian_to_spherical_math (
-                                double *r, double *theta, double *phi,
-                                const double x, const double y, const double z)
-{
-  /* compute radius `r = sqrt(x^2 + y^2 + z^2)` */
-  *r = sqrt (x*x + y*y + z*z);
-  RHEA_ASSERT (0.0 <= *r);
-
-  /* compute azimuthal angle `theta = arctan(y/x)` with `-pi < theta <= pi` */
-  *theta = atan2 (y, x);
-  RHEA_ASSERT (isfinite (*theta));
-  RHEA_ASSERT (-M_PI - SC_1000_EPS < *theta && *theta <= M_PI + SC_1000_EPS);
-
-  /* compute polar angle `phi = arccos(z/r)` with `0 <= phi <= pi` */
-  if (0.0 < *r) {
-    RHEA_ASSERT (fabs (z / *r) <= 1.0);
-    *phi = acos (z / *r);
-  }
-  else {
-    *phi = 0.0;
-  }
-  RHEA_ASSERT (isfinite (*phi));
-  RHEA_ASSERT (0.0 <= *phi && *phi <= M_PI + SC_1000_EPS);
-}
-
-/**
- * Converts Cartesian coordinates (x,y,z) to spherical coordinates
- * (r,phi,theta) using the geophysical convention.
- */
-static void
-rhea_discretization_convert_cartesian_to_spherical_geo (
-                                double *r, double *phi, double *theta,
-                                const double x, const double y, const double z)
-{
-  rhea_discretization_convert_cartesian_to_spherical_math (
-      r, phi, theta, x, y, z);
-}
-
 static void
 rhea_discretization_set_cont_coordinates (
                                   ymir_vec_t *coordinates,
-                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_coordinate_type_t coord_type,
                                   rhea_domain_options_t *domain_options)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (coordinates);
@@ -1018,34 +975,11 @@ rhea_discretization_set_cont_coordinates (
                           ymir_cvec_index (coordinates, 0, 0);
 
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-      switch (type) {
-      case RHEA_DISCRETIZATION_COORDINATE_CARTESIAN:
-        coord[3*nodeid    ] = x[nodeid];
-        coord[3*nodeid + 1] = y[nodeid];
-        coord[3*nodeid + 2] = z[nodeid];
-        break;
-      case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_MATH:
-        rhea_discretization_convert_cartesian_to_spherical_math (
-            &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
-            x[nodeid], y[nodeid], z[nodeid]);
-        break;
-      case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO:
-        rhea_discretization_convert_cartesian_to_spherical_geo (
-            &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
-            x[nodeid], y[nodeid], z[nodeid]);
-        break;
-      case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO_DIM:
-        rhea_discretization_convert_cartesian_to_spherical_geo (
-            &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
-            x[nodeid], y[nodeid], z[nodeid]);
-        coord[3*nodeid    ] *= 360.0;
-        coord[3*nodeid + 1] *= 360.0;
-        coord[3*nodeid + 2] = rhea_domain_radius_to_radius_m (
-            coord[3*nodeid + 2], domain_options);
-        break;
-      default: /* unknown coordinate type */
-        RHEA_ABORT_NOT_REACHED ();
-      }
+      rhea_domain_convert_coordinates (&coord[3*nodeid    ],
+                                       &coord[3*nodeid + 1],
+                                       &coord[3*nodeid + 2],
+                                       x[nodeid], y[nodeid], z[nodeid],
+                                       coord_type, domain_options);
     }
   }
   else {
@@ -1063,7 +997,7 @@ rhea_discretization_write_cont_coordinates (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
                                   ymir_topidx_t meshid,
-                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_coordinate_type_t coord_type,
                                   rhea_domain_options_t *domain_options)
 {
   ymir_face_mesh_t   *face_mesh = &(ymir_mesh->fmeshes[meshid]);
@@ -1085,7 +1019,8 @@ rhea_discretization_write_cont_coordinates (
 
   /* set coordinates */
   coordinates = ymir_face_cvec_new (ymir_mesh, meshid, 3);
-  rhea_discretization_set_cont_coordinates (coordinates, type, domain_options);
+  rhea_discretization_set_cont_coordinates (coordinates, coord_type,
+                                            domain_options);
   if (0 < face_mesh->Ncn) { /* if nodes exist on this rank */
     coord_data = ymir_cvec_index (coordinates, 0, 0);
   }
@@ -1106,11 +1041,11 @@ void
 rhea_discretization_write_cont_coordinates_volume (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_coordinate_type_t coord_type,
                                   rhea_domain_options_t *domain_options)
 {
   rhea_discretization_write_cont_coordinates (file_path_txt, ymir_mesh,
-                                              YMIR_VOL_MESH, type,
+                                              YMIR_VOL_MESH, coord_type,
                                               domain_options);
 }
 
@@ -1118,10 +1053,10 @@ void
 rhea_discretization_write_cont_coordinates_surface (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_coordinate_type_t coord_type,
                                   rhea_domain_options_t *domain_options)
 {
   rhea_discretization_write_cont_coordinates (file_path_txt, ymir_mesh,
                                               RHEA_DOMAIN_BOUNDARY_FACE_TOP,
-                                              type, domain_options);
+                                              coord_type, domain_options);
 }

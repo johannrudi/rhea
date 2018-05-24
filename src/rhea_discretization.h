@@ -140,33 +140,23 @@ void                rhea_discretization_ymir_mesh_destroy (
  * Coordinates
  *****************************************************************************/
 
-/* types of coordinates */
-typedef enum
-{
-  RHEA_DISCRETIZATION_COORDINATE_CARTESIAN,
-  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_MATH,
-  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO,
-  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO_DIM
-}
-rhea_discretization_coordinate_type_t;
-
 void                rhea_discretization_write_coordinates_cont (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
                                   ymir_topidx_t meshid,
-                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_coordinate_type_t coord_type,
                                   rhea_domain_options_t *domain_options);
 
 void                rhea_discretization_write_cont_coordinates_volume (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_coordinate_type_t coord_type,
                                   rhea_domain_options_t *domain_options);
 
 void                rhea_discretization_write_cont_coordinates_surface (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_coordinate_type_t coord_type,
                                   rhea_domain_options_t *domain_options);
 
 #endif /* RHEA_DISCRETIZATION_H */

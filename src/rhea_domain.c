@@ -697,6 +697,85 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
  * Basic Calculations
  *****************************************************************************/
 
+/**
+ * Converts Cartesian coordinates (x,y,z) to spherical coordinates
+ * (r,theta,phi) using the mathematical convention.
+ */
+static void
+rhea_domain_convert_cartesian_to_spherical_math (
+                                double *r, double *theta, double *phi,
+                                const double x, const double y, const double z)
+{
+  /* compute radius `r = sqrt(x^2 + y^2 + z^2)` */
+  *r = sqrt (x*x + y*y + z*z);
+  RHEA_ASSERT (0.0 <= *r);
+
+  /* compute azimuthal angle `theta = arctan(y/x)` with `-pi < theta <= pi` */
+  *theta = atan2 (y, x);
+  RHEA_ASSERT (isfinite (*theta));
+  RHEA_ASSERT (-M_PI - SC_1000_EPS < *theta && *theta <= M_PI + SC_1000_EPS);
+
+  /* compute polar angle `phi = arccos(z/r)` with `0 <= phi <= pi` */
+  if (0.0 < *r) {
+    RHEA_ASSERT (fabs (z / *r) <= 1.0);
+    *phi = acos (z / *r);
+  }
+  else {
+    *phi = 0.0;
+  }
+  RHEA_ASSERT (isfinite (*phi));
+  RHEA_ASSERT (0.0 <= *phi && *phi <= M_PI + SC_1000_EPS);
+}
+
+/**
+ * Converts Cartesian coordinates (x,y,z) to spherical coordinates
+ * (r,phi,theta) using the geophysical convention.
+ */
+static void
+rhea_domain_convert_cartesian_to_spherical_geo (
+                                double *r, double *phi, double *theta,
+                                const double x, const double y, const double z)
+{
+  rhea_domain_convert_cartesian_to_spherical_math (r, phi, theta, x, y, z);
+}
+
+void
+rhea_domain_convert_coordinates (double *coord1, double *coord2, double *coord3,
+                                 const double x, const double y, const double z,
+                                 rhea_domain_coordinate_type_t coord_type,
+                                 rhea_domain_options_t *opt)
+{
+  switch (coord_type) {
+  case RHEA_DOMAIN_COORDINATE_CARTESIAN:
+    *coord1 = x;
+    *coord2 = y;
+    *coord3 = z;
+    break;
+
+  case RHEA_DOMAIN_COORDINATE_SPHERICAL_MATH:
+    rhea_domain_convert_cartesian_to_spherical_math (coord1, coord2, coord3,
+                                                     x, y, z);
+    break;
+
+  case RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO:
+    rhea_domain_convert_cartesian_to_spherical_geo (coord1, coord2, coord3,
+                                                    x, y, z);
+    break;
+
+  case RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM:
+    RHEA_ASSERT (opt != NULL);
+    rhea_domain_convert_cartesian_to_spherical_geo (coord1, coord2, coord3,
+                                                    x, y, z);
+    *coord1 = rhea_domain_radius_to_radius_m (*coord1, opt);
+    *coord2 *= 360.0;
+    *coord3 *= 360.0;
+    break;
+
+  default: /* unknown coordinate type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
 double
 rhea_domain_depth_m_to_depth (const double depth_m,
                               rhea_domain_options_t *opt)
