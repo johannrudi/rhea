@@ -5,6 +5,10 @@
 #include <rhea_topography.h>
 #include <ymir_pressure_elem.h>
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /* options for the discretization */
 typedef struct rhea_discretization_options
 {
@@ -45,6 +49,10 @@ void                rhea_discretization_process_options (
 void                rhea_discretization_set_X_fn (
                                         rhea_discretization_options_t *opt,
                                         mangll_X_t X_fn, void *X_data);
+
+/******************************************************************************
+ * Boundary
+ *****************************************************************************/
 
 /**
  * Sets boundary information in the discretization options object.
@@ -129,7 +137,7 @@ void                rhea_discretization_ymir_mesh_destroy (
                                           ymir_pressure_elem_t *press_elem);
 
 /******************************************************************************
- * Other
+ * Coordinates
  *****************************************************************************/
 
 /* types of coordinates */
@@ -137,7 +145,8 @@ typedef enum
 {
   RHEA_DISCRETIZATION_COORDINATE_CARTESIAN,
   RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_MATH,
-  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO
+  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO,
+  RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO_DIM
 }
 rhea_discretization_coordinate_type_t;
 
@@ -145,16 +154,19 @@ void                rhea_discretization_write_coordinates_cont (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
                                   ymir_topidx_t meshid,
-                                  rhea_discretization_coordinate_type_t type);
+                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_options_t *domain_options);
 
 void                rhea_discretization_write_cont_coordinates_volume (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type);
+                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_options_t *domain_options);
 
 void                rhea_discretization_write_cont_coordinates_surface (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type);
+                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_options_t *domain_options);
 
 #endif /* RHEA_DISCRETIZATION_H */

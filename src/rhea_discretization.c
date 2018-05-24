@@ -10,6 +10,10 @@
 #include <ymir_stress_pc.h>
 #include <ymir_gmg.h>
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /* default options */
 #define RHEA_DISCRETIZATION_DEFAULT_ORDER (2)
 #define RHEA_DISCRETIZATION_DEFAULT_LEVEL_MIN (1)
@@ -557,6 +561,10 @@ rhea_discretization_set_X_fn (rhea_discretization_options_t *opt,
   opt->X_data = X_data;
 }
 
+/******************************************************************************
+ * Boundary
+ *****************************************************************************/
+
 void
 rhea_discretization_boundary_create (rhea_discretization_options_t *opt,
                                      p4est_t *p4est,
@@ -932,7 +940,7 @@ rhea_discretization_ymir_mesh_destroy (ymir_mesh_t *ymir_mesh,
 }
 
 /******************************************************************************
- * Other
+ * Coordinates
  *****************************************************************************/
 
 /**
@@ -981,7 +989,8 @@ rhea_discretization_convert_cartesian_to_spherical_geo (
 static void
 rhea_discretization_set_cont_coordinates (
                                   ymir_vec_t *coordinates,
-                                  rhea_discretization_coordinate_type_t type)
+                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_options_t *domain_options)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (coordinates);
   ymir_topidx_t       meshid = coordinates->meshnum;
@@ -1025,6 +1034,15 @@ rhea_discretization_set_cont_coordinates (
             &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
             x[nodeid], y[nodeid], z[nodeid]);
         break;
+      case RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO_DIM:
+        rhea_discretization_convert_cartesian_to_spherical_geo (
+            &coord[3*nodeid], &coord[3*nodeid + 1], &coord[3*nodeid + 2],
+            x[nodeid], y[nodeid], z[nodeid]);
+        coord[3*nodeid    ] *= 360.0;
+        coord[3*nodeid + 1] *= 360.0;
+        coord[3*nodeid + 2] = rhea_domain_radius_to_radius_m (
+            coord[3*nodeid + 2], domain_options);
+        break;
       default: /* unknown coordinate type */
         RHEA_ABORT_NOT_REACHED ();
       }
@@ -1045,7 +1063,8 @@ rhea_discretization_write_cont_coordinates (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
                                   ymir_topidx_t meshid,
-                                  rhea_discretization_coordinate_type_t type)
+                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_options_t *domain_options)
 {
   ymir_face_mesh_t   *face_mesh = &(ymir_mesh->fmeshes[meshid]);
   const ymir_locidx_t *n_nodes = face_mesh->Ngo;
@@ -1066,7 +1085,7 @@ rhea_discretization_write_cont_coordinates (
 
   /* set coordinates */
   coordinates = ymir_face_cvec_new (ymir_mesh, meshid, 3);
-  rhea_discretization_set_cont_coordinates (coordinates, type);
+  rhea_discretization_set_cont_coordinates (coordinates, type, domain_options);
   if (0 < face_mesh->Ncn) { /* if nodes exist on this rank */
     coord_data = ymir_cvec_index (coordinates, 0, 0);
   }
@@ -1087,19 +1106,22 @@ void
 rhea_discretization_write_cont_coordinates_volume (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type)
+                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_options_t *domain_options)
 {
   rhea_discretization_write_cont_coordinates (file_path_txt, ymir_mesh,
-                                              YMIR_VOL_MESH, type);
+                                              YMIR_VOL_MESH, type,
+                                              domain_options);
 }
 
 void
 rhea_discretization_write_cont_coordinates_surface (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
-                                  rhea_discretization_coordinate_type_t type)
+                                  rhea_discretization_coordinate_type_t type,
+                                  rhea_domain_options_t *domain_options)
 {
   rhea_discretization_write_cont_coordinates (file_path_txt, ymir_mesh,
                                               RHEA_DOMAIN_BOUNDARY_FACE_TOP,
-                                              type);
+                                              type, domain_options);
 }
