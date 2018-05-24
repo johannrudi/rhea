@@ -140,12 +140,12 @@ main (int argc, char **argv)
   if (write_vol_coord_file_path_txt != NULL) {
     rhea_discretization_write_cont_coordinates_volume (
         write_vol_coord_file_path_txt, ymir_mesh,
-        RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO, &domain_options);
+        RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO, &domain_options);
   }
   if (write_surf_coord_file_path_txt != NULL) {
     rhea_discretization_write_cont_coordinates_surface (
         write_surf_coord_file_path_txt, ymir_mesh,
-        RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO, &domain_options);
+        RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO, &domain_options);
   }
 
   /*
