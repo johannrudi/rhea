@@ -888,6 +888,31 @@ rhea_domain_project_to_surface (double *x, double *y, double *z,
   }
 }
 
+void
+rhea_domain_extract_lateral (double *coord_2d_1, double *coord_2d_2,
+                             const double x, const double y, const double z,
+                             rhea_domain_coordinate_type_t coord_type,
+                             rhea_domain_options_t *opt)
+{
+  double              coord_tmp;
+
+  switch (opt->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+    *coord_2d_1 = x;
+    *coord_2d_1 = y;
+    break;
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    rhea_domain_convert_coordinates (&coord_tmp, coord_2d_1, coord_2d_2,
+                                     x, y, z, coord_type, opt);
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
 /******************************************************************************
  * Domain Boundary
  *****************************************************************************/

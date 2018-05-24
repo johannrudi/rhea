@@ -205,6 +205,15 @@ void                rhea_domain_project_to_surface (double *x, double *y,
                                                     double *z,
                                                     rhea_domain_options_t *opt);
 
+/**
+ * Extracts lateral 2-dimensional coordinates of type `coord_type`.
+ */
+void                rhea_domain_extract_lateral (
+                                double *coord1, double *coord2,
+                                const double x, const double y, const double z,
+                                rhea_domain_coordinate_type_t coord_type,
+                                rhea_domain_options_t *opt);
+
 /******************************************************************************
  * Domain Boundary
  *****************************************************************************/
