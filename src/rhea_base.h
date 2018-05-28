@@ -106,8 +106,23 @@ void                RHEA_GLOBAL_LERRORF (const char *fmt, ...)
 #define RHEA_GLOBAL_LERRORF(f,...)                            \
         RHEA_GLOBAL_LOGF (SC_LP_ERROR, (f), __VA_ARGS__)
 #endif
-#define RHEA_GLOBAL_NOTICE     RHEA_GLOBAL_STATISTICS
-#define RHEA_GLOBAL_NOTICEF    RHEA_GLOBAL_STATISTICSF
+#define RHEA_GLOBAL_NOTICE        RHEA_GLOBAL_STATISTICS
+#define RHEA_GLOBAL_NOTICEF       RHEA_GLOBAL_STATISTICSF
+
+/* global log macros for beginning and end of a function (XML type output) */
+#define RHEA_GLOBAL_VERBOSE_FN_BEGIN(fn)   RHEA_GLOBAL_VERBOSEF ("<%s>\n", fn)
+#define RHEA_GLOBAL_VERBOSE_FN_END(fn)     RHEA_GLOBAL_VERBOSEF ("</%s>\n", fn)
+#define RHEA_GLOBAL_INFO_FN_BEGIN(fn)      RHEA_GLOBAL_INFOF ("<%s>\n", fn)
+#define RHEA_GLOBAL_INFO_FN_END(fn)        RHEA_GLOBAL_INFOF ("</%s>\n", fn)
+
+#define RHEA_GLOBAL_VERBOSEF_FN_BEGIN(fn,a,...) \
+        RHEA_GLOBAL_VERBOSEF ("<%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_GLOBAL_VERBOSEF_FN_END(fn,a,...) \
+        RHEA_GLOBAL_VERBOSEF ("</%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_GLOBAL_INFOF_FN_BEGIN(fn,a,...) \
+        RHEA_GLOBAL_INFOF ("<%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_GLOBAL_INFOF_FN_END(fn,a,...) \
+        RHEA_GLOBAL_INFOF ("</%s "a">\n", fn, __VA_ARGS__)
 
 /* log macros that are active on every processor */
 #define RHEA_TRACE(s)      RHEA_LOG (SC_LP_TRACE, (s))
