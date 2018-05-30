@@ -12,6 +12,10 @@
 #define RHEA_PLATE_DEFAULT_POLYGON_N_VERTICES_TOTAL (0)
 #define RHEA_PLATE_DEFAULT_POLYGON_VERTICES_COARSE_FILE_PATH_TXT NULL
 #define RHEA_PLATE_DEFAULT_POLYGON_N_VERTICES_COARSE_TOTAL (0)
+#define RHEA_PLATE_DEFAULT_POLYGON_X_MIN (0.0)
+#define RHEA_PLATE_DEFAULT_POLYGON_X_MAX (360.0)
+#define RHEA_PLATE_DEFAULT_POLYGON_Y_MIN (0.0)
+#define RHEA_PLATE_DEFAULT_POLYGON_Y_MAX (180.0)
 
 /* initialize options */
 char               *rhea_plate_polygon_vertices_file_path_txt =
@@ -22,6 +26,14 @@ char               *rhea_plate_polygon_vertices_coarse_file_path_txt =
   RHEA_PLATE_DEFAULT_POLYGON_VERTICES_COARSE_FILE_PATH_TXT;
 int                 rhea_plate_polygon_n_vertices_coarse_total =
   RHEA_PLATE_DEFAULT_POLYGON_N_VERTICES_COARSE_TOTAL;
+double              rhea_plate_polygon_x_min =
+  RHEA_PLATE_DEFAULT_POLYGON_X_MIN;
+double              rhea_plate_polygon_x_max =
+  RHEA_PLATE_DEFAULT_POLYGON_X_MAX;
+double              rhea_plate_polygon_y_min =
+  RHEA_PLATE_DEFAULT_POLYGON_Y_MIN;
+double              rhea_plate_polygon_y_max =
+  RHEA_PLATE_DEFAULT_POLYGON_Y_MAX;
 
 void
 rhea_plate_add_options (ymir_options_t * opt_sup)
@@ -36,7 +48,6 @@ rhea_plate_add_options (ymir_options_t * opt_sup)
     &(rhea_plate_polygon_vertices_file_path_txt),
     RHEA_PLATE_DEFAULT_POLYGON_VERTICES_FILE_PATH_TXT,
     "Path to a text file with (lon,lat) vertices of plate polygons",
-
   YMIR_OPTIONS_I, "polygon-vertices-num-total", '\0',
     &(rhea_plate_polygon_n_vertices_total),
     RHEA_PLATE_DEFAULT_POLYGON_N_VERTICES_TOTAL,
@@ -46,11 +57,23 @@ rhea_plate_add_options (ymir_options_t * opt_sup)
     &(rhea_plate_polygon_vertices_coarse_file_path_txt),
     RHEA_PLATE_DEFAULT_POLYGON_VERTICES_COARSE_FILE_PATH_TXT,
     "Path to a text file with vertices to coarse polygon containers",
-
   YMIR_OPTIONS_I, "polygon-vertices-coarse-num-total", '\0',
     &(rhea_plate_polygon_n_vertices_coarse_total),
     RHEA_PLATE_DEFAULT_POLYGON_N_VERTICES_COARSE_TOTAL,
     "Total number of vertices of all combined coarse polygon containers",
+
+  YMIR_OPTIONS_D, "polygon-x-min", '\0',
+    &(rhea_plate_polygon_x_min), RHEA_PLATE_DEFAULT_POLYGON_X_MIN,
+    "Polygon vertices: Min x",
+  YMIR_OPTIONS_D, "polygon-x-max", '\0',
+    &(rhea_plate_polygon_x_max), RHEA_PLATE_DEFAULT_POLYGON_X_MAX,
+    "Polygon vertices: Max x",
+  YMIR_OPTIONS_D, "polygon-y-min", '\0',
+    &(rhea_plate_polygon_y_min), RHEA_PLATE_DEFAULT_POLYGON_Y_MIN,
+    "Polygon vertices: Min y",
+  YMIR_OPTIONS_D, "polygon-y-max", '\0',
+    &(rhea_plate_polygon_y_max), RHEA_PLATE_DEFAULT_POLYGON_Y_MAX,
+    "Polygon vertices: Max y",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -85,6 +108,12 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
   opt->n_vertices_coarse_container = NULL;
   opt->translation_x = NULL;
   opt->translation_y = NULL;
+
+  /* initialize range of values */
+  opt->x_min = (float) rhea_plate_polygon_x_min;
+  opt->x_max = (float) rhea_plate_polygon_x_max;
+  opt->y_min = (float) rhea_plate_polygon_y_min;
+  opt->y_max = (float) rhea_plate_polygon_y_max;
 
   /* set dependent options */
   opt->domain_options = domain_options;
@@ -136,7 +165,9 @@ rhea_plate_process_vertices_cube (float **vertices_x,
                                   size_t *n_vertices,
                                   const int n_plates,
                                   const float *vertices_all,
-                                  const int n_vertices_total)
+                                  const int n_vertices_total,
+                                  const float x_min, const float x_max,
+                                  const float y_min, const float y_max)
 {
   int                 idx_curr = 0;
   int                 n_total = n_vertices_total;
@@ -172,6 +203,9 @@ rhea_plate_process_vertices_cube (float **vertices_x,
       vert_y[vid] = vertices_all[2*(idx_curr + vid) + 1];
       RHEA_ASSERT (isfinite (vert_x[vid]));
       RHEA_ASSERT (isfinite (vert_y[vid]));
+
+      vert_x[vid] = (vert_x[vid] - x_min) / (x_max - x_min);
+      vert_y[vid] = (vert_y[vid] - y_min) / (y_max - y_min);
       RHEA_ASSERT (0.0 <= vert_x[vid] && vert_x[vid] <= 1.0);
       RHEA_ASSERT (0.0 <= vert_y[vid] && vert_y[vid] <= 1.0);
     }
@@ -186,7 +220,7 @@ rhea_plate_process_vertices_cube (float **vertices_x,
 
 static void
 rhea_plate_polygon_translation_shell_init (int bins_x[36],
-                                           int bins_y[18],
+                                           int bins_y[180],
                                            const float *vertices_x,
                                            const float *vertices_y,
                                            const size_t n_vertices)
@@ -196,12 +230,12 @@ rhea_plate_polygon_translation_shell_init (int bins_x[36],
 
   /* init bins to zero */
   memset (bins_x, 0, 36 * sizeof (int));
-  memset (bins_y, 0, 18 * sizeof (int));
+  memset (bins_y, 0, 180 * sizeof (int));
 
   /* add vertex coordinates to bins */
   for (vid = 0; vid < n_vertices; vid++) {
     bx = SC_MIN (SC_MAX (0, (int) floor (vertices_x[vid]/10.0)), 35);
-    by = SC_MIN (SC_MAX (0, (int) floor (vertices_y[vid]/10.0)), 17);
+    by = SC_MIN (SC_MAX (0, (int) floor (vertices_y[vid])), 179);
     bins_x[bx]++;
     bins_y[by]++;
   }
@@ -211,7 +245,7 @@ static void
 rhea_plate_polygon_translation_shell_set (float *translation_x,
                                           float *translation_y,
                                           const int bins_x[36],
-                                          const int bins_y[18])
+                                          const int bins_y[180])
 {
   int                 bin_east, bin_west, bin_south, bin_north;
   int                 i;
@@ -237,24 +271,24 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
   }
 
   /* find north & south bounds */
-  for (i = 0; i <= 17; i++) { /* loop south (down) */
+  for (i = 0; i <= 179; i++) { /* loop south (down) */
     if (0 < bins_y[i]) {
       bin_north = i;
       break;
     }
   }
-  for (i = 17; 0 <= i; i--) { /* loop north (up) */
+  for (i = 179; 0 <= i; i--) { /* loop north (up) */
     if (0 < bins_y[i]) {
       bin_south = i;
       break;
     }
   }
   if (0 == bin_west && bin_east == 35) { /* if whole circle */
-    if (bin_north <= 8 && bin_south <= 8) { /* if polygon in south hemisph. */
+    if (bin_north < 90 && bin_south < 90) { /* if polygon in south hemisph. */
       bin_north = 0;
     }
-    else if (9 <= bin_north && 9 <= bin_south) { /* if polygon in north hemi. */
-      bin_south = 17;
+    else if (90 < bin_north && 90 < bin_south) { /* if polygon in north hemi. */
+      bin_south = 179;
     }
     else {
       RHEA_ABORT_NOT_REACHED ();
@@ -262,11 +296,11 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
   }
 
   /* set translations */
-  if (bin_west <= bin_east && 0 < bin_north && bin_south < 17) { /* no wrap */
+  if (bin_west <= bin_east && 0 < bin_north && bin_south < 179) { /* no wrap */
     *translation_x = 0.0;
     *translation_y = 0.0;
   }
-  else if (0 < bin_north && bin_south < 17) { /* set translation in west dir. */
+  else if (0 < bin_north && bin_south < 179) { /* set translation in west dir */
     RHEA_ASSERT (bin_east < bin_west);
     *translation_x = -10.0 * (double) bin_west;
     *translation_y = 0.0;
@@ -277,7 +311,7 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
   //*translation_y = +10.0 * (double) bin_south;
     *translation_y = 0.0; //TODO add pts to data: (0,0) and (360,0)
   }
-  else if (bin_south == 17) { /* set translation in south direction */
+  else if (bin_south == 179) { /* set translation in south direction */
     RHEA_ASSERT (9 <= bin_north);
     *translation_x = 0.0;
   //*translation_y = -10.0 * (double) bin_north;
@@ -290,7 +324,7 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
   RHEA_GLOBAL_VERBOSEF (
       " %s Polygon bounds: west %i, east %i, north %i, south %i; "
       "translation: x %g, y %g\n",
-      __func__, 10*bin_west, 10*bin_east, 10*bin_north, 10*bin_south,
+      __func__, 10*bin_west, 10*bin_east, bin_north, bin_south,
       *translation_x, *translation_y);
 }
 
@@ -333,7 +367,7 @@ rhea_plate_translate_vertices_shell (float *translation_x,
                                      const size_t *n_vertices,
                                      const int n_plates)
 {
-  int                 bins_x[36], bins_y[18];
+  int                 bins_x[36], bins_y[180];
   int                 pid;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "n_plates=%i", n_plates);
@@ -362,7 +396,9 @@ rhea_plate_process_vertices_shell (float **vertices_x,
                                    size_t *n_vertices,
                                    const int n_plates,
                                    const float *vertices_all,
-                                   const int n_vertices_total)
+                                   const int n_vertices_total,
+                                   const float x_min, const float x_max,
+                                   const float y_min, const float y_max)
 {
   int                 idx_curr = 0;
   int                 n_total = n_vertices_total;
@@ -398,6 +434,9 @@ rhea_plate_process_vertices_shell (float **vertices_x,
       vert_y[vid] = vertices_all[2*(idx_curr + vid) + 1];
       RHEA_ASSERT (isfinite (vert_x[vid]));
       RHEA_ASSERT (isfinite (vert_y[vid]));
+
+      vert_x[vid] = 360.0 * (vert_x[vid] - x_min) / (x_max - x_min);
+      vert_y[vid] = 180.0 * (vert_y[vid] - y_min) / (y_max - y_min);
       RHEA_ASSERT (-1.0e8*SC_EPS < vert_x[vid] &&
                    vert_x[vid] < 360.0 + 1.0e8*SC_EPS);
       RHEA_ASSERT (-1.0e8*SC_EPS < vert_y[vid] &&
@@ -453,12 +492,14 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
       case RHEA_DOMAIN_CUBE:
         rhea_plate_process_vertices_cube (
             opt->vertices_x, opt->vertices_y, opt->n_vertices, n_plates,
-            vertices_all, n_vertices_total);
+            vertices_all, n_vertices_total,
+            opt->x_min, opt->x_max, opt->y_min, opt->y_max);
         break;
       case RHEA_DOMAIN_SHELL:
         rhea_plate_process_vertices_shell (
             opt->vertices_x, opt->vertices_y, opt->n_vertices, n_plates,
-            vertices_all, n_vertices_total);
+            vertices_all, n_vertices_total,
+            opt->x_min, opt->x_max, opt->y_min, opt->y_max);
         break;
       default: /* unknown domain shape */
         RHEA_ABORT_NOT_REACHED ();
@@ -494,13 +535,15 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
         rhea_plate_process_vertices_cube (
             opt->vertices_coarse_container_x, opt->vertices_coarse_container_y,
             opt->n_vertices_coarse_container, n_plates,
-            vertices_all, n_vertices_total);
+            vertices_all, n_vertices_total,
+            opt->x_min, opt->x_max, opt->y_min, opt->y_max);
         break;
       case RHEA_DOMAIN_SHELL:
         rhea_plate_process_vertices_shell (
             opt->vertices_coarse_container_x, opt->vertices_coarse_container_y,
             opt->n_vertices_coarse_container, n_plates,
-            vertices_all, n_vertices_total);
+            vertices_all, n_vertices_total,
+            opt->x_min, opt->x_max, opt->y_min, opt->y_max);
         break;
       default: /* unknown domain shape */
         RHEA_ABORT_NOT_REACHED ();

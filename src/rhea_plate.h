@@ -44,7 +44,7 @@ typedef enum
   RHEA_PLATE_EARTH_MQ,      /* Macquarie */
   RHEA_PLATE_EARTH_NZ,      /* Nazca */
   RHEA_PLATE_EARTH_NA,      /* North America */
-  RHEA_PLATE_EARTH_NU,      /* Nubia */
+//RHEA_PLATE_EARTH_NU,      /* Nubia */
   RHEA_PLATE_EARTH_PA,      /* Pacific */
   RHEA_PLATE_EARTH_PS,      /* Philippine Sea */
   RHEA_PLATE_EARTH_RI,      /* Rivera */
@@ -65,24 +65,24 @@ typedef enum
   RHEA_PLATE_EARTH_BH,      /* Birds Head */
   RHEA_PLATE_EARTH_BU,      /* Burma */
   RHEA_PLATE_EARTH_CL,      /* Caroline */
-  RHEA_PLATE_EARTH_CR,      /* Conway Reef */
+//RHEA_PLATE_EARTH_CR,      /* Conway Reef */
   RHEA_PLATE_EARTH_EA,      /* Easter */
-  RHEA_PLATE_EARTH_FT,      /* Futuna */
-  RHEA_PLATE_EARTH_GP,      /* Galapagos */
-  RHEA_PLATE_EARTH_JZ,      /* Juan Fernandez */
+//RHEA_PLATE_EARTH_FT,      /* Futuna */
+//RHEA_PLATE_EARTH_GP,      /* Galapagos */
+//RHEA_PLATE_EARTH_JZ,      /* Juan Fernandez */
   RHEA_PLATE_EARTH_KE,      /* Kermadec */
-  RHEA_PLATE_EARTH_MN,      /* Manus */
-  RHEA_PLATE_EARTH_MO,      /* Maoke */
+//RHEA_PLATE_EARTH_MN,      /* Manus */
+//RHEA_PLATE_EARTH_MO,      /* Maoke */
   RHEA_PLATE_EARTH_MA,      /* Mariana */
   RHEA_PLATE_EARTH_MS,      /* Molucca Sea */
   RHEA_PLATE_EARTH_NH,      /* New Hebrides */
-  RHEA_PLATE_EARTH_NI,      /* Niuafo'ou */
+//RHEA_PLATE_EARTH_NI,      /* Niuafo'ou */
   RHEA_PLATE_EARTH_ND,      /* North Andes */
   RHEA_PLATE_EARTH_NB,      /* North Bismarck */
   RHEA_PLATE_EARTH_OK,      /* Okhotsk */
   RHEA_PLATE_EARTH_ON,      /* Okinawa */
   RHEA_PLATE_EARTH_PM,      /* Panama */
-  RHEA_PLATE_EARTH_SL,      /* Shetland */
+//RHEA_PLATE_EARTH_SL,      /* Shetland */
   RHEA_PLATE_EARTH_SS,      /* Solomon Sea */
   RHEA_PLATE_EARTH_SB,      /* South Bismarck */
   RHEA_PLATE_EARTH_TI,      /* Timor */
@@ -119,6 +119,12 @@ typedef struct rhea_plate_options
   /* translation of polygon & container vertices */
   float              *translation_x;
   float              *translation_y;
+
+  /* range of values for the vertex coordinates */
+  float               x_min;
+  float               x_max;
+  float               y_min;
+  float               y_max;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t *domain_options;
