@@ -38,6 +38,11 @@ void                rhea_velocity_convert_to_dimensional_cm_yr (
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options);
 
+void                rhea_velocity_convert_to_dimensional_mm_yr (
+                                    ymir_vec_t * velocity,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
+
 /**
  * Checks whether a vector is of the right type.
  */

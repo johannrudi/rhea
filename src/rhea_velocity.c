@@ -53,6 +53,16 @@ rhea_velocity_convert_to_dimensional_cm_yr (
                   100.0 * RHEA_TEMPERATURE_SECONDS_PER_YEAR, velocity);
 }
 
+void
+rhea_velocity_convert_to_dimensional_mm_yr (
+                                      ymir_vec_t * velocity,
+                                      rhea_domain_options_t *domain_options,
+                                      rhea_temperature_options_t *temp_options)
+{
+  ymir_vec_scale (rhea_velocity_get_dim_scal (domain_options, temp_options) *
+                  1000.0 * RHEA_TEMPERATURE_SECONDS_PER_YEAR, velocity);
+}
+
 int
 rhea_velocity_check_vec_type (ymir_vec_t *vec)
 {
