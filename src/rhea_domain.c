@@ -352,18 +352,30 @@ static void
 rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
 {
   switch (opt->shape) {
-  case RHEA_DOMAIN_CUBE: /* (mass * side_length^2 / 6) */
+  case RHEA_DOMAIN_CUBE:
+    /* volume: mass/6 * side_length^2 */
     {
       const double        moment_of_inertia = 1.0 / 6.0;
 
       opt->moment_of_inertia[0] = moment_of_inertia;
       opt->moment_of_inertia[1] = moment_of_inertia;
       opt->moment_of_inertia[2] = moment_of_inertia;
+
+      //TODO
+      opt->moment_of_inertia_surface[0] = 0.0;
+      opt->moment_of_inertia_surface[1] = 0.0;
+      opt->moment_of_inertia_surface[2] = 0.0;
     }
     break;
-  case RHEA_DOMAIN_BOX: /* x: (mass/12 * (dy^2 + dz^2))
-                         * y: (mass/12 * (dx^2 + dz^2))
-                         * z: (mass/12 * (dx^2 + dy^2)) */
+
+  case RHEA_DOMAIN_BOX:
+    /* volume:
+     *   x: mass/12 * (dy^2 + dz^2)
+     *   y: mass/12 * (dx^2 + dz^2)
+     *   z: mass/12 * (dx^2 + dy^2)
+     * where
+     *   mass = density * volume = density * (dx*dy*dz)
+     */
     RHEA_ASSERT (isfinite (opt->volume));
     RHEA_ASSERT (isfinite (opt->x_min));
     RHEA_ASSERT (isfinite (opt->x_max));
@@ -380,10 +392,28 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
       opt->moment_of_inertia[0] = vol/12.0 * (dy*dy + dz*dz);
       opt->moment_of_inertia[1] = vol/12.0 * (dx*dx + dz*dz);
       opt->moment_of_inertia[2] = vol/12.0 * (dx*dx + dy*dy);
+
+      //TODO
+      opt->moment_of_inertia_surface[0] = 0.0;
+      opt->moment_of_inertia_surface[1] = 0.0;
+      opt->moment_of_inertia_surface[2] = 0.0;
     }
     break;
-  case RHEA_DOMAIN_SHELL: /* (2/5 * mass * (radius_top^5 - radius_bottom^5)
-                           *             / (radius_top^3 - radius_bottom^3)) */
+
+  case RHEA_DOMAIN_SHELL:
+    /* volume:
+     *   2/5 * mass * (radius_top^5 - radius_bottom^5)
+     *              / (radius_top^3 - radius_bottom^3)
+     * where
+     *   mass = density * volume
+     *   volume = 4/3 * pi * (radius_top^3 - radius_bottom^3)
+     *
+     * surface:
+     *   2/3 * mass * radius_top^2
+     * where
+     *   mass = density * area
+     *   area = 4 * pi * radius_top^2
+     */
     RHEA_ASSERT (isfinite (opt->radius_min));
     RHEA_ASSERT (isfinite (opt->radius_max));
     {
@@ -395,14 +425,23 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
       opt->moment_of_inertia[0] = moment_of_inertia;
       opt->moment_of_inertia[1] = moment_of_inertia;
       opt->moment_of_inertia[2] = moment_of_inertia;
+
+      moment_of_inertia = (8.0 / 3.0) * M_PI * pow(rmax, 4);
+      opt->moment_of_inertia_surface[0] = moment_of_inertia;
+      opt->moment_of_inertia_surface[1] = moment_of_inertia;
+      opt->moment_of_inertia_surface[2] = moment_of_inertia;
     }
     break;
+
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
     //TODO
     opt->moment_of_inertia[0] = 0.0;
     opt->moment_of_inertia[1] = 0.0;
     opt->moment_of_inertia[2] = 0.0;
+    opt->moment_of_inertia_surface[0] = 0.0;
+    opt->moment_of_inertia_surface[1] = 0.0;
+    opt->moment_of_inertia_surface[2] = 0.0;
     break;
 
   default: /* unknown domain shape */
@@ -411,6 +450,9 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
   RHEA_ASSERT (isfinite (opt->moment_of_inertia[0]));
   RHEA_ASSERT (isfinite (opt->moment_of_inertia[1]));
   RHEA_ASSERT (isfinite (opt->moment_of_inertia[2]));
+  RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[0]));
+  RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[1]));
+  RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[2]));
 }
 
 /**

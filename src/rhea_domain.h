@@ -121,6 +121,7 @@ typedef struct rhea_domain_options
   double              volume;
   double              center[3];
   double              moment_of_inertia[3];
+  double              moment_of_inertia_surface[3];
 
   /* dimensional properties of the domain (input) */
   double              radius_min_m;
@@ -145,10 +146,27 @@ void                rhea_domain_process_options (rhea_domain_options_t *opt);
 /* types of coordinates */
 typedef enum
 {
-  RHEA_DOMAIN_COORDINATE_CARTESIAN,
-  RHEA_DOMAIN_COORDINATE_SPHERICAL_MATH,
-  RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
-  RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM
+  RHEA_DOMAIN_COORDINATE_CARTESIAN,         /* Cartesian non-dimensional
+                                             * (x,y,z) coordinates
+                                             */
+  RHEA_DOMAIN_COORDINATE_SPHERICAL_MATH,    /* Spherical non-dimensional
+                                             * (r,theta,phi) coordinates with
+                                             * - radius:  0<=r<=1
+                                             * - azimuthal angle: -pi<theta<=pi
+                                             * - polar angle:        0<=phi<=pi
+                                             */
+  RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,     /* Spherical non-dimensional
+                                             * (r,phi,theta) coordinates with
+                                             * - radius:  0<=r<=1
+                                             * - azimuthal angle:   -pi<phi<=pi
+                                             * - polar angle:      0<=theta<=pi
+                                             */
+  RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM  /* Spherical dimensional
+                                             * (r,phi,theta) coordinates with
+                                             * - radius: 0<=r<=6371.0e3
+                                             * - east longitude: 0<phi<=360
+                                             * - colatitude:  0<=theta<=180
+                                             */
 }
 rhea_domain_coordinate_type_t;
 
