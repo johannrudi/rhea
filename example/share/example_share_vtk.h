@@ -19,9 +19,7 @@
 void                example_share_vtk_write_input_data (
                                       const char *vtk_write_input_path,
                                       rhea_stokes_problem_t *stokes_problem,
-                                      rhea_temperature_options_t *temp_options,
-                                      rhea_plate_options_t *plate_options,
-                                      rhea_viscosity_options_t *visc_options);
+                                      rhea_plate_options_t *plate_options);
 
 /**
  * Writes VTK of solution.

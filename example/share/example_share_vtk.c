@@ -16,29 +16,38 @@
 void
 example_share_vtk_write_input_data (const char *vtk_write_input_path,
                                     rhea_stokes_problem_t *stokes_problem,
-                                    rhea_temperature_options_t *temp_options,
-                                    rhea_plate_options_t *plate_options,
-                                    rhea_viscosity_options_t *visc_options)
+                                    rhea_plate_options_t *plate_options)
 {
+  rhea_domain_options_t      *domain_options;
+  rhea_temperature_options_t *temp_options;
+  rhea_viscosity_options_t   *visc_options;
   ymir_mesh_t        *ymir_mesh;
-  ymir_vec_t         *temperature, *weakzone;
+  ymir_vec_t         *temperature, *background_temp;
+  ymir_vec_t         *weakzone, *viscosity, *bounds_marker;
   ymir_vec_t         *rhs_vel;
 //ymir_vec_t         *rhs_vel_nonzero_dirichlet;
-  ymir_vec_t         *background_temp, *viscosity, *bounds_marker;
-  ymir_vec_t         *plate_label;
+  ymir_vec_t         *plate_label, *plate_vel;
+  char                path[BUFSIZ];
 
   /* exit if nothing to do */
   if (vtk_write_input_path == NULL) {
     return;
   }
 
+  /* get options */
+  domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
+  temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
+  visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
+
   /* get mesh */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
 
   /* get vectors */
-  temperature = rhea_stokes_problem_get_temperature (stokes_problem);
+  temperature = ymir_vec_clone (
+      rhea_stokes_problem_get_temperature (stokes_problem));
   weakzone = rhea_stokes_problem_get_weakzone (stokes_problem);
-  rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
+  rhs_vel = ymir_vec_clone (
+      rhea_stokes_problem_get_rhs_vel (stokes_problem));
 //rhs_vel_nonzero_dirichlet =
 //  rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (stokes_problem);
 
@@ -49,10 +58,13 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   /* get plate labels */
   if (plate_options != NULL) {
     plate_label = rhea_viscosity_surface_new (ymir_mesh);
+    plate_vel = rhea_velocity_surface_new (ymir_mesh);
     rhea_plate_set_label_vec (plate_label, plate_options);
+    rhea_plate_velocity_get_all (plate_vel, plate_options);
   }
   else {
     plate_label = NULL;
+    plate_vel = NULL;
   }
 
   /* compute viscosity */
@@ -80,17 +92,35 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
     RHEA_ABORT_NOT_REACHED ();
   }
 
+  /* convert to physical dimensions */
+  rhea_temperature_convert_to_dimensional_K (temperature, temp_options);
+  rhea_temperature_convert_to_dimensional_K (background_temp, temp_options);
+  rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
+  rhea_velocity_convert_to_dimensional_mm_yr (rhs_vel, domain_options,
+                                              temp_options);
+  if (plate_vel != NULL ) {
+    rhea_velocity_convert_to_dimensional_mm_yr (plate_vel, domain_options,
+                                                temp_options);
+  }
+
   /* write vtk */
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, plate_label, weakzone, viscosity,
+                             background_temp, weakzone, viscosity,
                              bounds_marker, rhs_vel);
+  snprintf (path, BUFSIZ, "%s_obs", vtk_write_input_path);
+  rhea_vtk_write_observation_data (path, plate_label, plate_vel);
 
   /* destroy */
+  ymir_vec_destroy (temperature);
+  rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (bounds_marker);
-  rhea_temperature_destroy (background_temp);
+  ymir_vec_destroy (rhs_vel);
   if (plate_label != NULL ) {
     rhea_viscosity_surface_destroy (plate_label);
+  }
+  if (plate_vel != NULL ) {
+    rhea_velocity_surface_destroy (plate_vel);
   }
 }
 
@@ -145,9 +175,9 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
                                       visc_options->min, visc_options->max);
 
   /* convert to physical dimensions */
-  rhea_velocity_convert_to_dimensional_cm_yr (velocity, domain_options,
+  rhea_velocity_convert_to_dimensional_mm_yr (velocity, domain_options,
                                               temp_options);
-  rhea_velocity_convert_to_dimensional_cm_yr (velocity_surf, domain_options,
+  rhea_velocity_convert_to_dimensional_mm_yr (velocity_surf, domain_options,
                                               temp_options);
   rhea_pressure_convert_to_dimensional_Pa (pressure, domain_options,
                                            temp_options, visc_options);
