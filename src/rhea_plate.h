@@ -144,7 +144,7 @@ void                rhea_plate_process_options (
                                         rhea_domain_options_t *domain_options);
 
 /******************************************************************************
- * Data
+ * Plate Boundary Data
  *****************************************************************************/
 
 /**
@@ -175,6 +175,23 @@ void                rhea_plate_set_label_vec (ymir_vec_t *vec,
  */
 void                rhea_plate_apply_filter_vec (ymir_vec_t *vec,
                                                  const int plate_label,
+                                                 rhea_plate_options_t *opt);
+
+/******************************************************************************
+ * Plate Velocities
+ *****************************************************************************/
+
+/**
+ * Sets plate velocity at all coordinates in the plate's interior.
+ */
+void                rhea_plate_velocity_get (ymir_vec_t *vel,
+                                             const int plate_label,
+                                             rhea_plate_options_t *opt);
+
+/**
+ * Sets velocities of all plates at all coordinates.
+ */
+void                rhea_plate_velocity_get_all (ymir_vec_t *vel,
                                                  rhea_plate_options_t *opt);
 
 #endif /* RHEA_PLATE_H */

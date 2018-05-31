@@ -2,6 +2,8 @@
 #include <rhea_base.h>
 #include <rhea_point_in_polygon.h>
 #include <rhea_io_mpi.h>
+#include <rhea_velocity.h>
+#include <ymir_velocity_vec.h>
 
 /******************************************************************************
  * Options
@@ -120,7 +122,7 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
 }
 
 /******************************************************************************
- * Data
+ * Plate Boundary Data
  *****************************************************************************/
 
 static int
@@ -976,4 +978,217 @@ rhea_plate_apply_filter_vec (ymir_vec_t *vec, const int plate_label,
       RHEA_ABORT_NOT_REACHED ();
     }
   }
+}
+
+/******************************************************************************
+ * Plate Velocities
+ *****************************************************************************/
+
+/* Cartesian angular velocities.  For each plate we have:
+ *   [0] x
+ *   [1] y
+ *   [2] z
+ */
+static const double rhea_plate_velocity_cube[3*RHEA_PLATE_CUBE_N] =
+{
+  /*RHEA_PLATE_CUBE_NW*/ 0.0, 0.0,  1.0,
+  /*RHEA_PLATE_CUBE_NE*/ 0.0, 0.0, -1.0,
+  /*RHEA_PLATE_CUBE_SE*/ 0.0, 0.0,  1.0,
+  /*RHEA_PLATE_CUBE_SW*/ 0.0, 0.0, -1.0
+};
+
+/* Spherical angular velocities from NNR-MORVEL56.  For each plate we have:
+ *   [0] longitude        -180 <   phi  <= +180
+ *   [1] latitude         - 90 <= theta <= + 90
+ *   [2] angular velocity    0 <= omega
+ */
+static const double rhea_plate_velocity_earth_morvel56[3*RHEA_PLATE_EARTH_N] =
+{
+  /*RHEA_PLATE_EARTH_AM*/  63.1704, -122.8242, 0.2973,
+  /*RHEA_PLATE_EARTH_AN*/  65.4235, -118.1053, 0.2500,
+  /*RHEA_PLATE_EARTH_AR*/  48.8807, -  8.4909, 0.5588,
+  /*RHEA_PLATE_EARTH_AU*/  33.8612,   37.9414, 0.6316,
+  /*RHEA_PLATE_EARTH_CP*/  44.4352,   23.0880, 0.6080,
+  /*RHEA_PLATE_EARTH_CA*/  35.1956, - 92.6236, 0.2862,
+  /*RHEA_PLATE_EARTH_CO*/  26.9346, -124.3074, 1.1978,
+  /*RHEA_PLATE_EARTH_EU*/  48.8509, -106.5007, 0.2227,
+  /*RHEA_PLATE_EARTH_IN*/  50.3722, -  3.2898, 0.5438,
+  /*RHEA_PLATE_EARTH_JF*/ -38.3086,   60.0379, 0.9513,
+  /*RHEA_PLATE_EARTH_LW*/  51.8860, - 69.5195, 0.2856,
+  /*RHEA_PLATE_EARTH_MQ*/  49.1891,   11.0524, 1.1440,
+  /*RHEA_PLATE_EARTH_NZ*/  46.2348, -101.0564, 0.6957,
+  /*RHEA_PLATE_EARTH_NA*/ - 4.8548, - 80.6447, 0.2087,
+///*RHEA_PLATE_EARTH_NU*/  47.6763, - 68.4377, 0.2921,
+  /*RHEA_PLATE_EARTH_PA*/ -63.5756,  114.6975, 0.6509,
+  /*RHEA_PLATE_EARTH_PS*/ -46.0242, - 31.3615, 0.9098,
+  /*RHEA_PLATE_EARTH_RI*/  20.2450, -107.2861, 4.5359,
+  /*RHEA_PLATE_EARTH_SW*/ -29.9420, - 36.8671, 1.3616,
+  /*RHEA_PLATE_EARTH_SC*/  22.5244, -106.1485, 0.1464,
+  /*RHEA_PLATE_EARTH_SM*/  49.9506, - 84.5154, 0.3393,
+  /*RHEA_PLATE_EARTH_SA*/ -22.6179, -112.8327, 0.1090,
+  /*RHEA_PLATE_EARTH_SU*/  50.0558, - 95.0218, 0.3368,
+  /*RHEA_PLATE_EARTH_SR*/ -32.4957, -111.3224, 0.1072,
+  /*RHEA_PLATE_EARTH_YZ*/  63.0285, -116.6180, 0.3335,
+
+  /*RHEA_PLATE_EARTH_AS*/  19.4251,  122.8665, 0.1239,
+  /*RHEA_PLATE_EARTH_AP*/ - 6.5763, - 83.9776, 0.4881,
+  /*RHEA_PLATE_EARTH_AT*/  40.1121,   26.6585, 1.2105,
+  /*RHEA_PLATE_EARTH_BR*/ -63.7420,  142.0636, 0.4898,
+  /*RHEA_PLATE_EARTH_BS*/ - 1.4855,  121.6413, 2.4753,
+  /*RHEA_PLATE_EARTH_BH*/ -39.9983,  100.4994, 0.7988,
+  /*RHEA_PLATE_EARTH_BU*/ - 6.1254, - 78.1008, 2.2287,
+  /*RHEA_PLATE_EARTH_CL*/ -72.7849,   72.0525, 0.6066,
+///*RHEA_PLATE_EARTH_CR*/ -20.3985,  170.5303, 3.9232,
+  /*RHEA_PLATE_EARTH_EA*/  24.9729,   67.5269, 11.334,
+///*RHEA_PLATE_EARTH_FT*/ -16.3322,  178.0679, 5.1006,
+///*RHEA_PLATE_EARTH_GP*/   2.5287,   81.1806, 5.4868,
+///*RHEA_PLATE_EARTH_JZ*/  34.2507,   70.7429, 22.368,
+  /*RHEA_PLATE_EARTH_KE*/  39.9929,    6.4584, 2.3474,
+///*RHEA_PLATE_EARTH_MN*/ - 3.6699,  150.2676, 51.569,
+///*RHEA_PLATE_EARTH_MO*/  14.2480,   92.6656, 0.7742,
+  /*RHEA_PLATE_EARTH_MA*/  11.0533,  137.8404, 1.3061,
+  /*RHEA_PLATE_EARTH_MS*/   2.1477, - 56.0916, 3.5655,
+  /*RHEA_PLATE_EARTH_NH*/   0.5684, -  6.6018, 2.4688,
+///*RHEA_PLATE_EARTH_NI*/ - 3.2883, -174.4882, 3.3136,
+  /*RHEA_PLATE_EARTH_ND*/  17.7331, -122.6815, 0.1162,
+  /*RHEA_PLATE_EARTH_NB*/ -45.0406,  127.6370, 0.8563,
+  /*RHEA_PLATE_EARTH_OK*/  30.3022, - 92.2813, 0.2290,
+  /*RHEA_PLATE_EARTH_ON*/  36.1163,  137.9182, 2.5391,
+  /*RHEA_PLATE_EARTH_PM*/  31.3510, -113.9038, 0.3171,
+///*RHEA_PLATE_EARTH_SL*/  50.7058, -143.4675, 0.2677,
+  /*RHEA_PLATE_EARTH_SS*/ - 2.8685,  130.6236, 1.7029,
+  /*RHEA_PLATE_EARTH_SB*/   6.8767, - 31.8883, 8.1107,
+  /*RHEA_PLATE_EARTH_TI*/ - 4.4363,  113.4976, 1.8639,
+  /*RHEA_PLATE_EARTH_TO*/  25.8737,    4.4767, 8.9417,
+  /*RHEA_PLATE_EARTH_WL*/   0.1050,  128.5186, 1.7444
+};
+
+static void
+rhea_plate_velocity_earth_apply_dim_scal (double rot_spherical[3],
+                                          const int remove_dim,
+                                          rhea_plate_options_t *opt)
+{
+  const double  sec_per_yr = RHEA_TEMPERATURE_SECONDS_PER_YEAR;
+  const double  radius_m = opt->domain_options->radius_max_m;
+
+  if (!remove_dim) {
+    rot_spherical[0] = rot_spherical[0]/(2.0*M_PI) * 360.0;
+    rot_spherical[0] = rot_spherical[0] * sec_per_yr/(1.0e6*radius_m);
+    rot_spherical[1] = rot_spherical[1]/(2.0*M_PI) * 360.0 - 180.0;
+    rot_spherical[2] = rot_spherical[2]/M_PI * 180.0 - 90.0;
+  }
+  else {
+    rot_spherical[0] = rot_spherical[0]/360.0 * (2.0*M_PI);
+    rot_spherical[0] = rot_spherical[0] * (1.0e6*radius_m)/sec_per_yr;
+    rot_spherical[1] = (rot_spherical[1] + 180.0)/360.0 * (2.0*M_PI);
+    rot_spherical[2] = (rot_spherical[2] + 90.0)/180.0 * M_PI;
+  }
+}
+
+/**
+ * Assigns angular velocity of plate `plate_label`.
+ */
+static void
+rhea_plate_velocity_get_angular_velocity (double rot_axis[3],
+                                          const int plate_label,
+                                          rhea_plate_options_t *opt)
+{
+  /* check input */
+  RHEA_ASSERT (RHEA_PLATE_NONE < plate_label &&
+               plate_label < rhea_plate_get_n_plates (opt));
+
+  switch (opt->domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+    /* get values */
+    rot_axis[0] = rhea_plate_velocity_cube[3*plate_label    ];
+    rot_axis[1] = rhea_plate_velocity_cube[3*plate_label + 1];
+    rot_axis[2] = rhea_plate_velocity_cube[3*plate_label + 2];
+    break;
+
+  case RHEA_DOMAIN_SHELL:
+    {
+      double        rot_sp[3];
+
+      /* get values */
+      rot_sp[0] = rhea_plate_velocity_earth_morvel56[3*plate_label + 2];
+      rot_sp[1] = rhea_plate_velocity_earth_morvel56[3*plate_label    ];
+      rot_sp[2] = rhea_plate_velocity_earth_morvel56[3*plate_label + 1];
+
+      /* non-dimensionalize */
+      rhea_plate_velocity_earth_apply_dim_scal (
+          rot_sp, 1 /* remove dim. */, opt);
+
+      /* convert into Cartesian coordinates */
+      rot_axis[0] = rot_sp[0] * cos (rot_sp[1]) * sin (rot_sp[2]);
+      rot_axis[1] = rot_sp[0] * sin (rot_sp[1]) * sin (rot_sp[2]);
+      rot_axis[2] = rot_sp[0] * cos (rot_sp[2]);
+    }
+    break;
+
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+void
+rhea_plate_velocity_get (ymir_vec_t *vel, const int plate_label,
+                         rhea_plate_options_t *opt)
+{
+  int                 n_plates, pid;
+  double              rot_center[3], rot_axis[3];
+
+  /* check input */
+  RHEA_ASSERT (opt != NULL);
+
+  /* exit if nothing to do */
+  if (plate_label <= RHEA_PLATE_NONE) {
+    ymir_vec_set_value (vel, 0.0);
+    return;
+  }
+  else if (!rhea_plate_data_exitst (opt)) {
+    ymir_vec_set_value (vel, NAN);
+    return;
+  }
+
+  /* set parameters from options */
+  n_plates = rhea_plate_get_n_plates (opt);
+  rot_center[0] = opt->domain_options->center[0];
+  rot_center[1] = opt->domain_options->center[1];
+  rot_center[2] = opt->domain_options->center[2];
+
+  /* set velocities at coordinates within plate(s) */
+  if (plate_label < n_plates) { /* if get velocity of a single plate */
+    /* assign angular velocity */
+    rhea_plate_velocity_get_angular_velocity (rot_axis, plate_label, opt);
+
+    /* generate velocity field and apply filter for the plate's interior */
+    ymir_velocity_vec_generate_rotation (vel, rot_center, rot_axis);
+    rhea_plate_apply_filter_vec (vel, plate_label, opt);
+  }
+  else { /* get velocities of all plates */
+    ymir_vec_t         *plate_vel = ymir_vec_template (vel);
+
+    /* initialize output */
+    ymir_vec_set_value (vel, 0.0);
+
+    for (pid = 0; pid < n_plates; pid++) { /* loop over all plates */
+      /* assign angular velocity */
+      rhea_plate_velocity_get_angular_velocity (rot_axis, pid, opt);
+
+      /* add velocity within the boundaries of current plate */
+      ymir_velocity_vec_generate_rotation (plate_vel, rot_center, rot_axis);
+      rhea_plate_apply_filter_vec (plate_vel, pid, opt);
+      ymir_vec_add (1.0, plate_vel, vel);
+    }
+
+    /* destroy */
+    ymir_vec_destroy (plate_vel);
+  }
+}
+
+void
+rhea_plate_velocity_get_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
+{
+  RHEA_ASSERT (opt != NULL);
+  rhea_plate_velocity_get (vel, rhea_plate_get_n_plates (opt), opt);
 }
