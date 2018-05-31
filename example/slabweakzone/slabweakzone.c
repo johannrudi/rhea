@@ -4416,7 +4416,7 @@ slabs_write_input (ymir_mesh_t *ymir_mesh,
 
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, NULL, weakzone, viscosity, NULL,
+                             background_temp, weakzone, viscosity, NULL,
                              rhs_vel);
 
   rhea_temperature_destroy (background_temp);
