@@ -787,6 +787,7 @@ typedef struct rhea_plate_node_fn_data
   rhea_plate_options_t *opt;
   int                 plate_label;
   int                 n_fields;
+  ymir_vec_t         *filter;
 }
 rhea_plate_node_fn_data_t;
 
@@ -980,6 +981,104 @@ rhea_plate_apply_filter_vec (ymir_vec_t *vec, const int plate_label,
   }
 }
 
+/**
+ * Filters values at a single node.
+ */
+static void
+rhea_plate_apply_filter_all_node_fn (double *v, double x, double y, double z,
+                                     ymir_locidx_t nodeid, void *data)
+{
+  rhea_plate_node_fn_data_t *d = data;
+  const double        filter_val = *ymir_cvec_index (d->filter, nodeid, 0);
+
+  if (filter_val < 0.0) {
+    const int           n_fields = d->n_fields;
+    int                 fieldid;
+
+    /* set values to zero outside of plate */
+    for (fieldid = 0; fieldid < n_fields; fieldid++) {
+      v[fieldid] = 0.0;
+    }
+  }
+}
+
+static void
+rhea_plate_apply_filter_all_face_node_fn (double *v, double x, double y,
+                                          double z, double nx, double ny,
+                                          double nz, ymir_topidx_t face,
+                                          ymir_locidx_t nodeid, void *data)
+{
+  rhea_plate_node_fn_data_t *d = data;
+  const double        filter_val = *ymir_cvec_index (d->filter, nodeid, 0);
+
+  if (filter_val < 0.0) {
+    const int           n_fields = d->n_fields;
+    int                 fieldid;
+
+    /* set values to zero outside of plate */
+    for (fieldid = 0; fieldid < n_fields; fieldid++) {
+      v[fieldid] = 0.0;
+    }
+  }
+}
+
+void
+rhea_plate_apply_filter_all_vec (ymir_vec_t *vec, rhea_plate_options_t *opt)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  rhea_plate_node_fn_data_t  data;
+
+  /* check input */
+  RHEA_ASSERT (opt != NULL);
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exitst (opt)) {
+    return;
+  }
+
+  if (!ymir_vec_is_face_vec (vec)) { /* if volume vector */
+    /* filter vector at continuous GLL nodes */
+    if (ymir_vec_has_cvec (vec)) {
+      data.n_fields = vec->ncfields;
+      data.filter = ymir_cvec_new (ymir_mesh, 1);
+      rhea_plate_set_label_vec (data.filter, opt);
+      ymir_cvec_set_function (vec, rhea_plate_apply_filter_all_node_fn, &data);
+      ymir_vec_destroy (data.filter);
+    }
+
+    /* note: processing of dvec's is not implemented */
+    if (ymir_vec_has_dvec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
+
+    /* note: processing of evec's is not implemented */
+    if (ymir_vec_has_evec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+  else { /* if face vector */
+    /* filter vector at continuous GLL nodes */
+    if (ymir_vec_has_cvec (vec)) {
+      data.n_fields = vec->ncfields;
+      data.filter = ymir_face_cvec_new (ymir_mesh, 1, vec->meshnum);
+      rhea_plate_set_label_vec (data.filter, opt);
+      ymir_face_cvec_set_function (
+          vec, rhea_plate_apply_filter_all_face_node_fn, &data);
+      ymir_vec_destroy (data.filter);
+    }
+
+    /* note: processing of dvec's is not implemented */
+    if (ymir_vec_has_dvec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
+
+    /* note: processing of evec's is not implemented */
+    if (ymir_vec_has_evec (vec)) {
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+}
+
 /******************************************************************************
  * Plate Velocities
  *****************************************************************************/
@@ -1134,61 +1233,54 @@ void
 rhea_plate_velocity_get (ymir_vec_t *vel, const int plate_label,
                          rhea_plate_options_t *opt)
 {
-  int                 n_plates, pid;
   double              rot_center[3], rot_axis[3];
 
   /* check input */
   RHEA_ASSERT (opt != NULL);
+  RHEA_ASSERT (RHEA_PLATE_NONE <= plate_label &&
+               plate_label < rhea_plate_get_n_plates (opt));
 
   /* exit if nothing to do */
-  if (plate_label <= RHEA_PLATE_NONE) {
-    ymir_vec_set_value (vel, 0.0);
-    return;
-  }
-  else if (!rhea_plate_data_exitst (opt)) {
+  if (!rhea_plate_data_exitst (opt)) {
     ymir_vec_set_value (vel, NAN);
     return;
   }
+  else if (RHEA_PLATE_NONE == plate_label ) {
+    ymir_vec_set_value (vel, 0.0);
+    return;
+  }
 
-  /* set parameters from options */
-  n_plates = rhea_plate_get_n_plates (opt);
+  /* get center from options */
   rot_center[0] = opt->domain_options->center[0];
   rot_center[1] = opt->domain_options->center[1];
   rot_center[2] = opt->domain_options->center[2];
 
-  /* set velocities at coordinates within plate(s) */
-  if (plate_label < n_plates) { /* if get velocity of a single plate */
-    /* assign angular velocity */
-    rhea_plate_velocity_get_angular_velocity (rot_axis, plate_label, opt);
+  /* assign angular velocity */
+  rhea_plate_velocity_get_angular_velocity (rot_axis, plate_label, opt);
 
-    /* generate velocity field and apply filter for the plate's interior */
-    ymir_velocity_vec_generate_rotation (vel, rot_center, rot_axis);
-    rhea_plate_apply_filter_vec (vel, plate_label, opt);
-  }
-  else { /* get velocities of all plates */
-    ymir_vec_t         *plate_vel = ymir_vec_template (vel);
-
-    /* initialize output */
-    ymir_vec_set_value (vel, 0.0);
-
-    for (pid = 0; pid < n_plates; pid++) { /* loop over all plates */
-      /* assign angular velocity */
-      rhea_plate_velocity_get_angular_velocity (rot_axis, pid, opt);
-
-      /* add velocity within the boundaries of current plate */
-      ymir_velocity_vec_generate_rotation (plate_vel, rot_center, rot_axis);
-      rhea_plate_apply_filter_vec (plate_vel, pid, opt);
-      ymir_vec_add (1.0, plate_vel, vel);
-    }
-
-    /* destroy */
-    ymir_vec_destroy (plate_vel);
-  }
+  /* generate velocity field and apply filter for the plate's interior */
+  ymir_velocity_vec_generate_rotation (vel, rot_center, rot_axis);
+  rhea_plate_apply_filter_vec (vel, plate_label, opt);
 }
 
 void
 rhea_plate_velocity_get_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
 {
+  ymir_vec_t         *plate_vel = ymir_vec_template (vel);
+  int                 pid;
+
+  /* check input */
   RHEA_ASSERT (opt != NULL);
-  rhea_plate_velocity_get (vel, rhea_plate_get_n_plates (opt), opt);
+
+  /* initialize output */
+  ymir_vec_set_value (vel, 0.0);
+
+  /* get velocities of all plates */
+  for (pid = 0; pid < rhea_plate_get_n_plates (opt); pid++) {
+    rhea_plate_velocity_get (plate_vel, pid, opt);
+    ymir_vec_add (1.0, plate_vel, vel);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (plate_vel);
 }

@@ -177,6 +177,13 @@ void                rhea_plate_apply_filter_vec (ymir_vec_t *vec,
                                                  const int plate_label,
                                                  rhea_plate_options_t *opt);
 
+/**
+ * Filters values of a vector inside any plate.  Sets values outside of all
+ * plates to zero.
+ */
+void                rhea_plate_apply_filter_all_vec (ymir_vec_t *vec,
+                                                     rhea_plate_options_t *opt)
+
 /******************************************************************************
  * Plate Velocities
  *****************************************************************************/
