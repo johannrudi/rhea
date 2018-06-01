@@ -1230,8 +1230,8 @@ rhea_plate_velocity_get_angular_velocity (double rot_axis[3],
 }
 
 void
-rhea_plate_velocity_get (ymir_vec_t *vel, const int plate_label,
-                         rhea_plate_options_t *opt)
+rhea_plate_velocity_generate (ymir_vec_t *vel, const int plate_label,
+                              rhea_plate_options_t *opt)
 {
   double              rot_center[3], rot_axis[3];
 
@@ -1264,7 +1264,7 @@ rhea_plate_velocity_get (ymir_vec_t *vel, const int plate_label,
 }
 
 void
-rhea_plate_velocity_get_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
+rhea_plate_velocity_generate_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
 {
   ymir_vec_t         *plate_vel = ymir_vec_template (vel);
   int                 pid;
@@ -1277,10 +1277,46 @@ rhea_plate_velocity_get_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
 
   /* get velocities of all plates */
   for (pid = 0; pid < rhea_plate_get_n_plates (opt); pid++) {
-    rhea_plate_velocity_get (plate_vel, pid, opt);
+    rhea_plate_velocity_generate (plate_vel, pid, opt);
     ymir_vec_add (1.0, plate_vel, vel);
   }
 
   /* destroy */
   ymir_vec_destroy (plate_vel);
+}
+
+void
+rhea_plate_velocity_project_out_mean_rotation (ymir_vec_t *vel,
+                                               rhea_plate_options_t *opt)
+{
+  double              rot_center[3], moment_of_inertia[3];
+
+  /* check input */
+  RHEA_ASSERT (opt != NULL);
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exitst (opt)) {
+    return;
+  }
+
+  /* get center from options */
+  rot_center[0] = opt->domain_options->center[0];
+  rot_center[1] = opt->domain_options->center[1];
+  rot_center[2] = opt->domain_options->center[2];
+
+  /* get moment of inertia from options */
+  if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
+    moment_of_inertia[0] = opt->domain_options->moment_of_inertia[0];
+    moment_of_inertia[1] = opt->domain_options->moment_of_inertia[1];
+    moment_of_inertia[2] = opt->domain_options->moment_of_inertia[2];
+  }
+  else { /* if face vector */
+    moment_of_inertia[0] = opt->domain_options->moment_of_inertia_surface[0];
+    moment_of_inertia[1] = opt->domain_options->moment_of_inertia_surface[1];
+    moment_of_inertia[2] = opt->domain_options->moment_of_inertia_surface[2];
+  }
+
+  /* project out mean rotation */
+  ymir_velocity_vec_project_out_mean_rotation (
+      vel, rot_center, moment_of_inertia, 0 /*residual_space*/);
 }

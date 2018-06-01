@@ -182,23 +182,33 @@ void                rhea_plate_apply_filter_vec (ymir_vec_t *vec,
  * plates to zero.
  */
 void                rhea_plate_apply_filter_all_vec (ymir_vec_t *vec,
-                                                     rhea_plate_options_t *opt)
+                                                     rhea_plate_options_t *opt);
 
 /******************************************************************************
  * Plate Velocities
  *****************************************************************************/
 
 /**
- * Sets plate velocity at all coordinates in the plate's interior.
+ * Computes plate velocity at all coordinates in the plate's interior from
+ * (Euler pole) data.  Velocity is zero outside of the plate.
  */
-void                rhea_plate_velocity_get (ymir_vec_t *vel,
-                                             const int plate_label,
-                                             rhea_plate_options_t *opt);
+void                rhea_plate_velocity_generate (ymir_vec_t *vel,
+                                                  const int plate_label,
+                                                  rhea_plate_options_t *opt);
 
 /**
- * Sets velocities of all plates at all coordinates.
+ * Computes velocities of all plates at all coordinates from (Euler pole)
+ * data.  Velocity is zero outside if outside of any plate.
  */
-void                rhea_plate_velocity_get_all (ymir_vec_t *vel,
-                                                 rhea_plate_options_t *opt);
+void                rhea_plate_velocity_generate_all (
+                                                    ymir_vec_t *vel,
+                                                    rhea_plate_options_t *opt);
+
+/**
+ * Removes mean rotation (or net rotation) from a velocity field.
+ */
+void                rhea_plate_velocity_project_out_mean_rotation (
+                                                    ymir_vec_t *vel,
+                                                    rhea_plate_options_t *opt);
 
 #endif /* RHEA_PLATE_H */
