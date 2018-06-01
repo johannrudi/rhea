@@ -1072,15 +1072,15 @@ rhea_plate_velocity_earth_apply_dim_scal (double rot_spherical[3],
   const double  radius_m = opt->domain_options->radius_max_m;
 
   if (!remove_dim) {
-    rot_spherical[0] = rot_spherical[0]/(2.0*M_PI) * 360.0;
+    rot_spherical[0] = rot_spherical[0]/M_PI * 180.0;
     rot_spherical[0] = rot_spherical[0] * sec_per_yr/(1.0e6*radius_m);
-    rot_spherical[1] = rot_spherical[1]/(2.0*M_PI) * 360.0 - 180.0;
+    rot_spherical[1] = rot_spherical[1]/M_PI * 180.0;
     rot_spherical[2] = rot_spherical[2]/M_PI * 180.0 - 90.0;
   }
   else {
-    rot_spherical[0] = rot_spherical[0]/360.0 * (2.0*M_PI);
+    rot_spherical[0] = rot_spherical[0]/180.0 * M_PI;
     rot_spherical[0] = rot_spherical[0] * (1.0e6*radius_m)/sec_per_yr;
-    rot_spherical[1] = (rot_spherical[1] + 180.0)/360.0 * (2.0*M_PI);
+    rot_spherical[1] = rot_spherical[1]/180.0 * M_PI;
     rot_spherical[2] = (rot_spherical[2] + 90.0)/180.0 * M_PI;
   }
 }
