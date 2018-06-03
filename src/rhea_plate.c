@@ -4,6 +4,7 @@
 #include <rhea_io_mpi.h>
 #include <rhea_velocity.h>
 #include <ymir_velocity_vec.h>
+#include <ymir_mass_vec.h>
 
 /******************************************************************************
  * Options
@@ -1168,19 +1169,28 @@ rhea_plate_velocity_earth_apply_dim_scal (double rot_spherical[3],
                                           rhea_plate_options_t *opt)
 {
   const double  sec_per_yr = RHEA_TEMPERATURE_SECONDS_PER_YEAR;
+  const double  thermal_diffus_m2_s = 1.0e-6; //TODO take from temp options
   const double  radius_m = opt->domain_options->radius_max_m;
 
   if (!remove_dim) {
+    RHEA_ASSERT (0.0 <= rot_spherical[0]);
+    RHEA_ASSERT (0.0 <= rot_spherical[1] && rot_spherical[1] <= 2.0*M_PI);
+    RHEA_ASSERT (0.0 <= rot_spherical[2] && rot_spherical[2] <= M_PI);
     rot_spherical[0] = rot_spherical[0]/M_PI * 180.0;
-    rot_spherical[0] = rot_spherical[0] * sec_per_yr/(1.0e6*radius_m);
-    rot_spherical[1] = rot_spherical[1]/M_PI * 180.0;
-    rot_spherical[2] = rot_spherical[2]/M_PI * 180.0 - 90.0;
+    rot_spherical[0] /= radius_m / (thermal_diffus_m2_s/radius_m);
+    rot_spherical[0] /= 1.0 / (1.0e6*sec_per_yr);
+    rot_spherical[1] = rot_spherical[1]/M_PI * 180.0 - 180.0;
+    rot_spherical[2] = -rot_spherical[2]/M_PI * 180.0 + 90.0;
   }
   else {
+    RHEA_ASSERT (0.0 <= rot_spherical[0]);
+    RHEA_ASSERT (-180.0 <= rot_spherical[1] && rot_spherical[1] <= 180.0);
+    RHEA_ASSERT (- 90.0 <= rot_spherical[2] && rot_spherical[2] <=  90.0);
     rot_spherical[0] = rot_spherical[0]/180.0 * M_PI;
-    rot_spherical[0] = rot_spherical[0] * (1.0e6*radius_m)/sec_per_yr;
-    rot_spherical[1] = rot_spherical[1]/180.0 * M_PI;
-    rot_spherical[2] = (rot_spherical[2] + 90.0)/180.0 * M_PI;
+    rot_spherical[0] *= radius_m / (thermal_diffus_m2_s/radius_m);
+    rot_spherical[0] *= 1.0 / (1.0e6*sec_per_yr);
+    rot_spherical[1] = (rot_spherical[1] + 180.0)/180.0 * M_PI;
+    rot_spherical[2] = -(rot_spherical[2] - 90.0)/180.0 * M_PI;
   }
 }
 
@@ -1210,16 +1220,19 @@ rhea_plate_velocity_get_angular_velocity (double rot_axis[3],
 
       /* get values */
       rot_sp[0] = rhea_plate_velocity_earth_morvel56[3*plate_label + 2];
-      rot_sp[1] = rhea_plate_velocity_earth_morvel56[3*plate_label    ];
-      rot_sp[2] = rhea_plate_velocity_earth_morvel56[3*plate_label + 1];
+      rot_sp[1] = rhea_plate_velocity_earth_morvel56[3*plate_label + 1];
+      rot_sp[2] = rhea_plate_velocity_earth_morvel56[3*plate_label    ];
 
       /* non-dimensionalize */
       rhea_plate_velocity_earth_apply_dim_scal (
           rot_sp, 1 /* remove dim. */, opt);
 
       /* convert into Cartesian coordinates */
-      rot_axis[0] = rot_sp[0] * cos (rot_sp[1]) * sin (rot_sp[2]);
-      rot_axis[1] = rot_sp[0] * sin (rot_sp[1]) * sin (rot_sp[2]);
+      RHEA_ASSERT (0.0 <= rot_sp[0]);
+      RHEA_ASSERT (0.0 <= rot_sp[1] && rot_sp[1] <= 2.0*M_PI);
+      RHEA_ASSERT (0.0 <= rot_sp[2] && rot_sp[2] <= M_PI);
+      rot_axis[0] = rot_sp[0] * sin (rot_sp[2]) * cos (rot_sp[1]);
+      rot_axis[1] = rot_sp[0] * sin (rot_sp[2]) * sin (rot_sp[1]);
       rot_axis[2] = rot_sp[0] * cos (rot_sp[2]);
     }
     break;
@@ -1283,6 +1296,65 @@ rhea_plate_velocity_generate_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
 
   /* destroy */
   ymir_vec_destroy (plate_vel);
+}
+
+double
+rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
+                                        const int plate_label,
+                                        rhea_plate_options_t *opt)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel);
+  const ymir_topidx_t face_surf = RHEA_DOMAIN_BOUNDARY_FACE_TOP;
+  ymir_vec_t         *vel_surf;
+  ymir_vec_t         *magn_surf, *filter_surf, *tmp_mass;
+  double              vel_mean;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel) ||
+               rhea_velocity_surface_check_vec_type (vel));
+  RHEA_ASSERT (opt != NULL);
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exitst (opt)) {
+    return NAN;
+  }
+
+  /* create surface velocity without net rotations */
+  if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
+    vel_surf = rhea_velocity_surface_new_from_vol (vel);
+  }
+  else { /* if face vector */
+    vel_surf = rhea_velocity_surface_new (ymir_mesh);
+    ymir_vec_copy (vel, vel_surf);
+  }
+  rhea_plate_velocity_project_out_mean_rotation (vel_surf, opt);
+
+  /* compute pointwise magnitude */
+  magn_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  ymir_cvec_innerprod_pointwise (magn_surf, vel_surf, vel_surf);
+  ymir_cvec_sqrt (magn_surf, magn_surf);
+  rhea_velocity_surface_destroy (vel_surf);
+
+  /* generate filter for plate; apply to velocity vector */
+  filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  ymir_vec_set_value (filter_surf, 1.0);
+  rhea_plate_apply_filter_vec (filter_surf, plate_label, opt);
+  ymir_vec_multiply_in1 (filter_surf, magn_surf);
+
+  /* compute mean velocity */
+  tmp_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  ymir_mass_apply (magn_surf, tmp_mass);
+  vel_mean = ymir_vec_innerprod (tmp_mass, magn_surf);
+  ymir_mass_apply (filter_surf, tmp_mass);
+  vel_mean /= ymir_vec_innerprod (tmp_mass, filter_surf);
+
+  /* destroy */
+  ymir_vec_destroy (magn_surf);
+  ymir_vec_destroy (filter_surf);
+  ymir_vec_destroy (tmp_mass);
+
+  /* return mean velocity */
+  return vel_mean;
 }
 
 void

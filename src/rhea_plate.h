@@ -205,6 +205,14 @@ void                rhea_plate_velocity_generate_all (
                                                     rhea_plate_options_t *opt);
 
 /**
+ * Computes the mean velocity of a plate given the velocity `vel`.
+ */
+double              rhea_plate_velocity_get_mean_magnitude (
+                                                    ymir_vec_t *vel,
+                                                    const int plate_label,
+                                                    rhea_plate_options_t *opt);
+
+/**
  * Removes mean rotation (or net rotation) from a velocity field.
  */
 void                rhea_plate_velocity_project_out_mean_rotation (
