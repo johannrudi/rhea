@@ -161,6 +161,7 @@ rhea_velocity_surface_check_vec_type (ymir_vec_t *vec)
 {
   return (
       rhea_velocity_check_vec_type (vec) &&
+      ymir_vec_is_face_vec (vec) &&
       vec->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP
   );
 }
