@@ -961,6 +961,22 @@ rhea_domain_extract_lateral (double *coord_2d_1, double *coord_2d_2,
  * Domain Boundary
  *****************************************************************************/
 
+int
+rhea_domain_boundary_get_num (rhea_domain_options_t *opt)
+{
+  switch (opt->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    return 6;
+  case RHEA_DOMAIN_SHELL:
+    return 2;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
 /**
  * Assigns boundary faces of to p4est-tree faces.
  */

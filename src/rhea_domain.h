@@ -237,6 +237,11 @@ void                rhea_domain_extract_lateral (
  *****************************************************************************/
 
 /**
+ * Returns the number of boundary faces.
+ */
+int                 rhea_domain_boundary_get_num (rhea_domain_options_t *opt);
+
+/**
  * Creates a new boundary object.
  */
 rhea_domain_boundary_t *rhea_domain_boundary_new (p4est_t *p4est,
