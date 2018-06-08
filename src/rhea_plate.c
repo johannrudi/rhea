@@ -88,7 +88,8 @@ rhea_plate_add_options (ymir_options_t * opt_sup)
 
 void
 rhea_plate_process_options (rhea_plate_options_t *opt,
-                            rhea_domain_options_t *domain_options)
+                            rhea_domain_options_t *domain_options,
+                            rhea_temperature_options_t *temp_options)
 {
   /* exit if nothing to do */
   if (opt == NULL) {
@@ -120,6 +121,7 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
 
   /* set dependent options */
   opt->domain_options = domain_options;
+  opt->temp_options = temp_options;
 }
 
 /******************************************************************************
@@ -324,11 +326,10 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_VERBOSEF (
-      " %s Polygon bounds: west %i, east %i, north %i, south %i; "
-      "translation: x %g, y %g\n",
-      __func__, 10*bin_west, 10*bin_east, bin_north, bin_south,
-      *translation_x, *translation_y);
+  RHEA_GLOBAL_VERBOSEF (" %s west=%i, east=%i, north=%i, south=%i; "
+                        "translation_x=%g, translation_y=%g\n",
+                        __func__, 10*bin_west, 10*bin_east,
+                        bin_north, bin_south, *translation_x, *translation_y);
 }
 
 static void
@@ -1169,8 +1170,9 @@ rhea_plate_velocity_earth_apply_dim_scal (double rot_spherical[3],
                                           rhea_plate_options_t *opt)
 {
   const double  sec_per_yr = RHEA_TEMPERATURE_SECONDS_PER_YEAR;
-  const double  thermal_diffus_m2_s = 1.0e-6; //TODO take from temp options
   const double  radius_m = opt->domain_options->radius_max_m;
+  const double  thermal_diffus_m2_s =
+                  opt->temp_options->thermal_diffusivity_m2_s;
 
   if (!remove_dim) {
     RHEA_ASSERT (0.0 <= rot_spherical[0]);
@@ -1281,6 +1283,11 @@ rhea_plate_velocity_generate_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
 {
   ymir_vec_t         *plate_vel = ymir_vec_template (vel);
   int                 pid;
+#ifdef RHEA_ENABLE_DEBUG
+  double              mean_vel_magn;
+
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+#endif
 
   /* check input */
   RHEA_ASSERT (opt != NULL);
@@ -1292,22 +1299,36 @@ rhea_plate_velocity_generate_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
   for (pid = 0; pid < rhea_plate_get_n_plates (opt); pid++) {
     rhea_plate_velocity_generate (plate_vel, pid, opt);
     ymir_vec_add (1.0, plate_vel, vel);
+#ifdef RHEA_ENABLE_DEBUG
+    rhea_velocity_convert_to_dimensional_mm_yr (
+        plate_vel, opt->domain_options, opt->temp_options);
+    mean_vel_magn = rhea_plate_velocity_get_mean_magnitude (
+        plate_vel, pid, 0 /* !projection */, opt);
+    RHEA_GLOBAL_VERBOSEF (
+        " %s plate_label=%i, mean_velocity_magn=\"%g mm/yr\"\n",
+        __func__, pid, mean_vel_magn);
+#endif
   }
 
   /* destroy */
   ymir_vec_destroy (plate_vel);
+
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+#endif
 }
 
 double
 rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
                                         const int plate_label,
+                                        const int project_out_mean_rot,
                                         rhea_plate_options_t *opt)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel);
   const ymir_topidx_t face_surf = RHEA_DOMAIN_BOUNDARY_FACE_TOP;
   ymir_vec_t         *vel_surf;
-  ymir_vec_t         *magn_surf, *filter_surf, *tmp_mass;
-  double              vel_mean;
+  ymir_vec_t         *magn_surf, *filter_surf, *filter_surf_mass;
+  double              vel_mean, filter_area;
 
   /* check input */
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel) ||
@@ -1319,6 +1340,16 @@ rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
     return NAN;
   }
 
+  /* generate filter for plate */
+  filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  ymir_vec_set_value (filter_surf, 1.0);
+  rhea_plate_apply_filter_vec (filter_surf, plate_label, opt);
+
+  /* calculate area */
+  filter_surf_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  ymir_mass_apply (filter_surf, filter_surf_mass);
+  filter_area = ymir_vec_innerprod (filter_surf_mass, filter_surf);
+
   /* create surface velocity without net rotations */
   if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
     vel_surf = rhea_velocity_surface_new_from_vol (vel);
@@ -1327,7 +1358,11 @@ rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
     vel_surf = rhea_velocity_surface_new (ymir_mesh);
     ymir_vec_copy (vel, vel_surf);
   }
-  rhea_plate_velocity_project_out_mean_rotation (vel_surf, opt);
+
+  /* project out mean rotation (no net rotation) */
+  if (project_out_mean_rot) {
+    rhea_plate_velocity_project_out_mean_rotation (vel_surf, opt);
+  }
 
   /* compute pointwise magnitude */
   magn_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
@@ -1335,23 +1370,14 @@ rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
   ymir_cvec_sqrt (magn_surf, magn_surf);
   rhea_velocity_surface_destroy (vel_surf);
 
-  /* generate filter for plate; apply to velocity vector */
-  filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  ymir_vec_set_value (filter_surf, 1.0);
-  rhea_plate_apply_filter_vec (filter_surf, plate_label, opt);
-  ymir_vec_multiply_in1 (filter_surf, magn_surf);
-
   /* compute mean velocity */
-  tmp_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  ymir_mass_apply (magn_surf, tmp_mass);
-  vel_mean = ymir_vec_innerprod (tmp_mass, magn_surf);
-  ymir_mass_apply (filter_surf, tmp_mass);
-  vel_mean /= ymir_vec_innerprod (tmp_mass, filter_surf);
+  ymir_vec_multiply_in (filter_surf, magn_surf);
+  vel_mean = ymir_vec_innerprod (filter_surf_mass, magn_surf) / filter_area;
 
   /* destroy */
   ymir_vec_destroy (magn_surf);
   ymir_vec_destroy (filter_surf);
-  ymir_vec_destroy (tmp_mass);
+  ymir_vec_destroy (filter_surf_mass);
 
   /* return mean velocity */
   return vel_mean;

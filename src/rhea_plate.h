@@ -4,6 +4,7 @@
 #define RHEA_PLATE_H
 
 #include <rhea_domain.h>
+#include <rhea_temperature.h>
 
 /******************************************************************************
  * Plate Labels
@@ -126,8 +127,9 @@ typedef struct rhea_plate_options
   float               y_min;
   float               y_max;
 
-  /* options & properties of the computational domain */
-  rhea_domain_options_t *domain_options;
+  /* options (not owned) */
+  rhea_domain_options_t      *domain_options;
+  rhea_temperature_options_t *temp_options;
 }
 rhea_plate_options_t;
 
@@ -140,8 +142,9 @@ void                rhea_plate_add_options (ymir_options_t * opt_sup);
  * Processes options and stores them.
  */
 void                rhea_plate_process_options (
-                                        rhea_plate_options_t *opt,
-                                        rhea_domain_options_t *domain_options);
+                                    rhea_plate_options_t *opt,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
 
 /******************************************************************************
  * Plate Boundary Data
@@ -208,9 +211,10 @@ void                rhea_plate_velocity_generate_all (
  * Computes the mean velocity of a plate given the velocity `vel`.
  */
 double              rhea_plate_velocity_get_mean_magnitude (
-                                                    ymir_vec_t *vel,
-                                                    const int plate_label,
-                                                    rhea_plate_options_t *opt);
+                                                ymir_vec_t *vel,
+                                                const int plate_label,
+                                                const int project_out_mean_rot,
+                                                rhea_plate_options_t *opt);
 
 /**
  * Removes mean rotation (or net rotation) from a velocity field.
