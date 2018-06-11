@@ -30,7 +30,7 @@ typedef enum
 {
   RHEA_PLATE_EARTH_NONE = RHEA_PLATE_NONE,  /* "none" (must come first) */
 
-  /* MORVEL (25 plates) */
+  /* MORVEL(25) (25 plates) */
   RHEA_PLATE_EARTH_AM = 0,  /* Amur (must start at zero) */
   RHEA_PLATE_EARTH_AN,      /* Antarctic */
   RHEA_PLATE_EARTH_AR,      /* Arabia */
@@ -165,6 +165,11 @@ void                rhea_plate_data_clear (rhea_plate_options_t *opt);
 /******************************************************************************
  * Plate Retrieval
  *****************************************************************************/
+
+/**
+ * Returns the number of plates.
+ */
+int                 rhea_plate_get_n_plates (rhea_plate_options_t *opt);
 
 /**
  * Sets plate labels at all entries of a vector.

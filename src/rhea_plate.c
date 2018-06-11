@@ -129,17 +129,6 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
  *****************************************************************************/
 
 static int
-rhea_plate_get_n_plates (rhea_plate_options_t *opt)
-{
-  switch (opt->domain_options->shape) {
-  case RHEA_DOMAIN_CUBE:  return RHEA_PLATE_CUBE_N;
-  case RHEA_DOMAIN_SHELL: return RHEA_PLATE_EARTH_N;
-  default: /* unknown domain shape */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-}
-
-static int
 rhea_plate_polygon_is_separator (const float vert_x, const float vert_y)
 {
   return (!isfinite (vert_x) && !isfinite (vert_y));
@@ -660,6 +649,27 @@ rhea_plate_data_exitst (rhea_plate_options_t *opt)
 /******************************************************************************
  * Plate Retrieval
  *****************************************************************************/
+
+int
+rhea_plate_get_n_plates (rhea_plate_options_t *opt)
+{
+  /* exit if nothing to do */
+  if (opt == NULL) {
+    return -1;
+  }
+
+  /* return number of plates */
+  switch (opt->domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:            return RHEA_PLATE_CUBE_N;
+  case RHEA_DOMAIN_BOX:             return 0;
+  case RHEA_DOMAIN_SHELL:           return RHEA_PLATE_EARTH_N;
+  case RHEA_DOMAIN_CUBE_SPHERICAL:  return 0;
+  case RHEA_DOMAIN_BOX_SPHERICAL:   return 0;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+    return -1;
+  }
+}
 
 /**
  * Checks whether the given (x,y) coordinates are inside a polygon.
