@@ -295,45 +295,45 @@ rhea_velocity_stats_compute_mean (ymir_vec_t *vec, ymir_vec_t *filter,
 }
 
 void
-rhea_velocity_stats_get_global (double *magn_min_cm_yr, double *magn_max_cm_yr,
-                                double *magn_mean_cm_yr, ymir_vec_t *velocity,
+rhea_velocity_stats_get_global (double *magn_min_mm_yr, double *magn_max_mm_yr,
+                                double *magn_mean_mm_yr, ymir_vec_t *velocity,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
-  ymir_vec_t         *magnitude_cm_yr = ymir_cvec_new (ymir_mesh, 1);
+  ymir_vec_t         *magnitude = ymir_cvec_new (ymir_mesh, 1);
 
   /* check input */
   RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
   RHEA_ASSERT (rhea_velocity_is_valid (velocity));
 
   /* compute pointwise magnitude */
-  rhea_velocity_stats_compute_magnitude (magnitude_cm_yr, velocity);
+  rhea_velocity_stats_compute_magnitude (magnitude, velocity);
 
-  /* convert to dimensional values [cm/yr] */
-  rhea_velocity_convert_to_dimensional_cm_yr (magnitude_cm_yr, domain_options,
+  /* convert to dimensional values [mm/yr] */
+  rhea_velocity_convert_to_dimensional_mm_yr (magnitude, domain_options,
                                               temp_options);
 
   /* find global values */
-  if (magn_min_cm_yr != NULL) {
-    *magn_min_cm_yr = ymir_vec_min_global (magnitude_cm_yr);
+  if (magn_min_mm_yr != NULL) {
+    *magn_min_mm_yr = ymir_vec_min_global (magnitude);
   }
-  if (magn_max_cm_yr != NULL) {
-    *magn_max_cm_yr = ymir_vec_max_global (magnitude_cm_yr);
+  if (magn_max_mm_yr != NULL) {
+    *magn_max_mm_yr = ymir_vec_max_global (magnitude);
   }
-  if (magn_mean_cm_yr != NULL) {
-    *magn_mean_cm_yr = rhea_velocity_stats_compute_mean (magnitude_cm_yr, NULL,
+  if (magn_mean_mm_yr != NULL) {
+    *magn_mean_mm_yr = rhea_velocity_stats_compute_mean (magnitude, NULL,
                                                          domain_options);
   }
 
   /* destroy */
-  ymir_vec_destroy (magnitude_cm_yr);
+  ymir_vec_destroy (magnitude);
 }
 
 void
 rhea_velocity_stats_get_global_lithosphere (
-                                    double *magn_max_cm_yr,
-                                    double *magn_mean_cm_yr,
+                                    double *magn_max_mm_yr,
+                                    double *magn_mean_mm_yr,
                                     ymir_vec_t *velocity,
                                     ymir_vec_t *viscosity,
                                     rhea_domain_options_t *domain_options,
@@ -341,48 +341,47 @@ rhea_velocity_stats_get_global_lithosphere (
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
   ymir_vec_t         *filter = ymir_cvec_new (ymir_mesh, 1);
-  ymir_vec_t         *magnitude_cm_yr = ymir_cvec_new (ymir_mesh, 1);
+  ymir_vec_t         *magnitude = ymir_cvec_new (ymir_mesh, 1);
 
   /* check input */
   RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
   RHEA_ASSERT (rhea_velocity_is_valid (velocity));
 
   /* compute pointwise magnitude */
-  rhea_velocity_stats_compute_magnitude (magnitude_cm_yr, velocity);
+  rhea_velocity_stats_compute_magnitude (magnitude, velocity);
 
   /* filter */
   rhea_viscosity_stats_filter_lithosphere (filter, viscosity, NULL, NAN);
-  ymir_vec_multiply_in1 (filter, magnitude_cm_yr);
+  ymir_vec_multiply_in1 (filter, magnitude);
 
-  /* convert to dimensional values [cm/yr] */
-  rhea_velocity_convert_to_dimensional_cm_yr (magnitude_cm_yr, domain_options,
+  /* convert to dimensional values [mm/yr] */
+  rhea_velocity_convert_to_dimensional_mm_yr (magnitude, domain_options,
                                               temp_options);
 
   /* find global values */
-  if (magn_max_cm_yr != NULL) {
-    *magn_max_cm_yr = ymir_vec_max_global (magnitude_cm_yr);
+  if (magn_max_mm_yr != NULL) {
+    *magn_max_mm_yr = ymir_vec_max_global (magnitude);
   }
-  if (magn_mean_cm_yr != NULL) {
-    *magn_mean_cm_yr = rhea_velocity_stats_compute_mean (magnitude_cm_yr,
-                                                         filter,
+  if (magn_mean_mm_yr != NULL) {
+    *magn_mean_mm_yr = rhea_velocity_stats_compute_mean (magnitude, filter,
                                                          domain_options);
   }
 
   /* destroy */
   ymir_vec_destroy (filter);
-  ymir_vec_destroy (magnitude_cm_yr);
+  ymir_vec_destroy (magnitude);
 }
 
 void
 rhea_velocity_stats_get_global_surface (
-                                double *magn_min_cm_yr, double *magn_max_cm_yr,
-                                double *magn_mean_cm_yr, ymir_vec_t *vel_vol,
+                                double *magn_min_mm_yr, double *magn_max_mm_yr,
+                                double *magn_mean_mm_yr, ymir_vec_t *vel_vol,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_vol);
-  ymir_vec_t         *magn_vol_cm_yr = ymir_cvec_new (ymir_mesh, 1);
-  ymir_vec_t         *magn_surf_cm_yr = ymir_face_cvec_new (
+  ymir_vec_t         *magn_vol = ymir_cvec_new (ymir_mesh, 1);
+  ymir_vec_t         *magn_surf = ymir_face_cvec_new (
                           ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
 
   /* check input */
@@ -390,37 +389,37 @@ rhea_velocity_stats_get_global_surface (
   RHEA_ASSERT (rhea_velocity_is_valid (vel_vol));
 
   /* compute pointwise magnitude */
-  rhea_velocity_stats_compute_magnitude (magn_vol_cm_yr, vel_vol);
+  rhea_velocity_stats_compute_magnitude (magn_vol, vel_vol);
 
   /* map magnitude to surface */
-  ymir_interp_vec (magn_vol_cm_yr, magn_surf_cm_yr);
-  RHEA_ASSERT (rhea_velocity_is_valid (magn_surf_cm_yr));
+  ymir_interp_vec (magn_vol, magn_surf);
+  RHEA_ASSERT (rhea_velocity_is_valid (magn_surf));
 
-  /* convert to dimensional values [cm/yr] */
-  rhea_velocity_convert_to_dimensional_cm_yr (magn_surf_cm_yr, domain_options,
+  /* convert to dimensional values [mm/yr] */
+  rhea_velocity_convert_to_dimensional_mm_yr (magn_surf, domain_options,
                                               temp_options);
 
   /* find global values */
-  if (magn_min_cm_yr != NULL) {
-    *magn_min_cm_yr = ymir_vec_min_global (magn_surf_cm_yr);
+  if (magn_min_mm_yr != NULL) {
+    *magn_min_mm_yr = ymir_vec_min_global (magn_surf);
   }
-  if (magn_max_cm_yr != NULL) {
-    *magn_max_cm_yr = ymir_vec_max_global (magn_surf_cm_yr);
+  if (magn_max_mm_yr != NULL) {
+    *magn_max_mm_yr = ymir_vec_max_global (magn_surf);
   }
-  if (magn_mean_cm_yr != NULL) {
-    *magn_mean_cm_yr = rhea_velocity_stats_compute_mean (magn_surf_cm_yr,
-                                                         NULL, NULL);
+  if (magn_mean_mm_yr != NULL) {
+    *magn_mean_mm_yr = rhea_velocity_stats_compute_mean (magn_surf, NULL,
+                                                         NULL);
   }
 
   /* destroy */
-  ymir_vec_destroy (magn_vol_cm_yr);
-  ymir_vec_destroy (magn_surf_cm_yr);
+  ymir_vec_destroy (magn_vol);
+  ymir_vec_destroy (magn_surf);
 }
 
 void
 rhea_velocity_stats_get_global_surface_lithosphere (
-                                    double *magn_max_cm_yr,
-                                    double *magn_mean_cm_yr,
+                                    double *magn_max_mm_yr,
+                                    double *magn_mean_mm_yr,
                                     ymir_vec_t *vel_vol,
                                     ymir_vec_t *visc_vol,
                                     rhea_domain_options_t *domain_options,
@@ -430,8 +429,8 @@ rhea_velocity_stats_get_global_surface_lithosphere (
   ymir_vec_t         *filter_vol = ymir_cvec_new (ymir_mesh, 1);
   ymir_vec_t         *filter_surf = ymir_face_cvec_new (
                           ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-  ymir_vec_t         *magn_vol_cm_yr = ymir_cvec_new (ymir_mesh, 1);
-  ymir_vec_t         *magn_surf_cm_yr = ymir_face_cvec_new (
+  ymir_vec_t         *magn_vol = ymir_cvec_new (ymir_mesh, 1);
+  ymir_vec_t         *magn_surf = ymir_face_cvec_new (
                           ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
 
   /* check input */
@@ -439,37 +438,37 @@ rhea_velocity_stats_get_global_surface_lithosphere (
   RHEA_ASSERT (rhea_velocity_is_valid (vel_vol));
 
   /* compute pointwise magnitude */
-  rhea_velocity_stats_compute_magnitude (magn_vol_cm_yr, vel_vol);
+  rhea_velocity_stats_compute_magnitude (magn_vol, vel_vol);
 
   /* filter in volume */
   rhea_viscosity_stats_filter_lithosphere (filter_vol, visc_vol, NULL, NAN);
-  ymir_vec_multiply_in1 (filter_vol, magn_vol_cm_yr);
+  ymir_vec_multiply_in1 (filter_vol, magn_vol);
 
   /* map magnitude to surface */
-  ymir_interp_vec (magn_vol_cm_yr, magn_surf_cm_yr);
-  RHEA_ASSERT (rhea_velocity_is_valid (magn_surf_cm_yr));
+  ymir_interp_vec (magn_vol, magn_surf);
+  RHEA_ASSERT (rhea_velocity_is_valid (magn_surf));
 
   /* filter at surface */
   rhea_viscosity_stats_filter_lithosphere_surf (filter_surf, visc_vol, NULL,
                                                 NAN);
-  ymir_vec_multiply_in1 (filter_surf, magn_surf_cm_yr);
+  ymir_vec_multiply_in1 (filter_surf, magn_surf);
 
-  /* convert to dimensional values [cm/yr] */
-  rhea_velocity_convert_to_dimensional_cm_yr (magn_surf_cm_yr, domain_options,
+  /* convert to dimensional values [mm/yr] */
+  rhea_velocity_convert_to_dimensional_mm_yr (magn_surf, domain_options,
                                               temp_options);
 
   /* find global values */
-  if (magn_max_cm_yr != NULL) {
-    *magn_max_cm_yr = ymir_vec_max_global (magn_surf_cm_yr);
+  if (magn_max_mm_yr != NULL) {
+    *magn_max_mm_yr = ymir_vec_max_global (magn_surf);
   }
-  if (magn_mean_cm_yr != NULL) {
-    *magn_mean_cm_yr = rhea_velocity_stats_compute_mean (magn_surf_cm_yr,
+  if (magn_mean_mm_yr != NULL) {
+    *magn_mean_mm_yr = rhea_velocity_stats_compute_mean (magn_surf,
                                                          filter_surf, NULL);
   }
 
   /* destroy */
   ymir_vec_destroy (filter_vol);
   ymir_vec_destroy (filter_surf);
-  ymir_vec_destroy (magn_vol_cm_yr);
-  ymir_vec_destroy (magn_surf_cm_yr);
+  ymir_vec_destroy (magn_vol);
+  ymir_vec_destroy (magn_surf);
 }
