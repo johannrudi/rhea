@@ -1318,6 +1318,50 @@ rhea_plate_velocity_generate_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
 #endif
 }
 
+static double
+rhea_plate_velocity_compute_mean_magnitude_internal (
+                                                  ymir_vec_t *vel_surf,
+                                                  const int plate_label,
+                                                  ymir_vec_t *magn_surf,
+                                                  ymir_vec_t *filter_surf,
+                                                  ymir_vec_t *filter_surf_mass,
+                                                  rhea_plate_options_t *opt)
+{
+  double              filter_area;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_surf));
+  RHEA_ASSERT (ymir_vec_is_cvec (magn_surf));
+  RHEA_ASSERT (ymir_vec_is_cvec (filter_surf));
+  RHEA_ASSERT (ymir_vec_is_cvec (filter_surf_mass));
+  RHEA_ASSERT (ymir_vec_is_face_vec (magn_surf));
+  RHEA_ASSERT (ymir_vec_is_face_vec (filter_surf));
+  RHEA_ASSERT (ymir_vec_is_face_vec (filter_surf_mass));
+  RHEA_ASSERT (magn_surf->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP);
+  RHEA_ASSERT (filter_surf->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP);
+  RHEA_ASSERT (filter_surf_mass->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP);
+  RHEA_ASSERT (magn_surf->ncfields == 1);
+  RHEA_ASSERT (filter_surf->ncfields == 1);
+  RHEA_ASSERT (filter_surf_mass->ncfields == 1);
+  RHEA_ASSERT (opt != NULL);
+
+  /* generate filter for plate */
+  ymir_vec_set_value (filter_surf, 1.0);
+  rhea_plate_apply_filter_vec (filter_surf, plate_label, opt);
+
+  /* calculate area */
+  ymir_mass_apply (filter_surf, filter_surf_mass);
+  filter_area = ymir_vec_innerprod (filter_surf_mass, filter_surf);
+
+  /* compute pointwise magnitude */
+  ymir_cvec_innerprod_pointwise (magn_surf, vel_surf, vel_surf);
+  ymir_cvec_sqrt (magn_surf, magn_surf);
+
+  /* compute mean velocity */
+  ymir_vec_multiply_in (filter_surf, magn_surf);
+  return ymir_vec_innerprod (filter_surf_mass, magn_surf) / filter_area;
+}
+
 double
 rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
                                         const int plate_label,
@@ -1328,7 +1372,7 @@ rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
   const ymir_topidx_t face_surf = RHEA_DOMAIN_BOUNDARY_FACE_TOP;
   ymir_vec_t         *vel_surf;
   ymir_vec_t         *magn_surf, *filter_surf, *filter_surf_mass;
-  double              vel_mean, filter_area;
+  double              mean_vel_magn;
 
   /* check input */
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel) ||
@@ -1340,17 +1384,12 @@ rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
     return NAN;
   }
 
-  /* generate filter for plate */
+  /* create work variables */
+  magn_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
   filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  ymir_vec_set_value (filter_surf, 1.0);
-  rhea_plate_apply_filter_vec (filter_surf, plate_label, opt);
-
-  /* calculate area */
   filter_surf_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  ymir_mass_apply (filter_surf, filter_surf_mass);
-  filter_area = ymir_vec_innerprod (filter_surf_mass, filter_surf);
 
-  /* create surface velocity without net rotations */
+  /* create surface velocity */
   if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
     vel_surf = rhea_velocity_surface_new_from_vol (vel);
   }
@@ -1364,23 +1403,81 @@ rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
     rhea_plate_velocity_project_out_mean_rotation (vel_surf, opt);
   }
 
-  /* compute pointwise magnitude */
-  magn_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  ymir_cvec_innerprod_pointwise (magn_surf, vel_surf, vel_surf);
-  ymir_cvec_sqrt (magn_surf, magn_surf);
-  rhea_velocity_surface_destroy (vel_surf);
-
   /* compute mean velocity */
-  ymir_vec_multiply_in (filter_surf, magn_surf);
-  vel_mean = ymir_vec_innerprod (filter_surf_mass, magn_surf) / filter_area;
+  mean_vel_magn = rhea_plate_velocity_compute_mean_magnitude_internal (
+      vel_surf, plate_label, magn_surf, filter_surf, filter_surf_mass, opt);
 
   /* destroy */
+  rhea_velocity_surface_destroy (vel_surf);
   ymir_vec_destroy (magn_surf);
   ymir_vec_destroy (filter_surf);
   ymir_vec_destroy (filter_surf_mass);
 
   /* return mean velocity */
-  return vel_mean;
+  return mean_vel_magn;
+}
+
+void
+rhea_plate_velocity_get_mean_magnitude_all (double *mean_vel_magn,
+                                            ymir_vec_t *vel,
+                                            const int *plate_label,
+                                            const int project_out_mean_rot,
+                                            rhea_plate_options_t *opt)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel);
+  const ymir_topidx_t face_surf = RHEA_DOMAIN_BOUNDARY_FACE_TOP;
+  ymir_vec_t         *vel_surf;
+  ymir_vec_t         *magn_surf, *filter_surf, *filter_surf_mass;
+  const int           n_plates = rhea_plate_get_n_plates (opt);
+  int                 pid;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel) ||
+               rhea_velocity_surface_check_vec_type (vel));
+  RHEA_ASSERT (opt != NULL);
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exitst (opt)) {
+    for (pid = 0; pid < n_plates; pid++) {
+      mean_vel_magn[pid] = NAN;
+    }
+    return;
+  }
+
+  /* create work variables */
+  magn_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  filter_surf_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+
+  /* create surface velocity */
+  if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
+    vel_surf = rhea_velocity_surface_new_from_vol (vel);
+  }
+  else { /* if face vector */
+    vel_surf = rhea_velocity_surface_new (ymir_mesh);
+    ymir_vec_copy (vel, vel_surf);
+  }
+
+  /* project out mean rotation (no net rotation) */
+  if (project_out_mean_rot) {
+    rhea_plate_velocity_project_out_mean_rotation (vel_surf, opt);
+  }
+
+  /* compute mean velocities */
+  for (pid = 0; pid < n_plates; pid++) {
+    if (plate_label != NULL && plate_label[pid] <= 0) { /* if skip this plate */
+      mean_vel_magn[pid] = NAN;
+      continue;
+    }
+    mean_vel_magn[pid] = rhea_plate_velocity_compute_mean_magnitude_internal (
+        vel_surf, pid, magn_surf, filter_surf, filter_surf_mass, opt);
+  }
+
+  /* destroy */
+  rhea_velocity_surface_destroy (vel_surf);
+  ymir_vec_destroy (magn_surf);
+  ymir_vec_destroy (filter_surf);
+  ymir_vec_destroy (filter_surf_mass);
 }
 
 void
