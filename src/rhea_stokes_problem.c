@@ -2295,6 +2295,42 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         __func__, asth_vol, asth_vol/domain_vol);
   }
 
+  /* print plate velocities */
+  if (stokes_problem_nl->plate_options != NULL &&
+      0 < rhea_plate_get_n_plates (stokes_problem_nl->plate_options)) {
+    rhea_plate_options_t *plate_options = stokes_problem_nl->plate_options;
+    const int           n_plates = rhea_plate_get_n_plates (plate_options);
+    int                 n_plates_print = n_plates;
+    int                 pid;
+    ymir_vec_t         *velocity_surf_mm_yr = ymir_vec_clone (velocity_surf);
+    double             *mean_vel_magn_mm_yr;
+
+    rhea_velocity_convert_to_dimensional_mm_yr (
+        velocity_surf_mm_yr, stokes_problem_nl->domain_options,
+        stokes_problem_nl->temp_options);
+
+    mean_vel_magn_mm_yr = RHEA_ALLOC (double, n_plates);
+    rhea_plate_velocity_get_mean_magnitude_all (
+        mean_vel_magn_mm_yr, velocity_surf_mm_yr, NULL /* plate_label */,
+        1 /* project_out_mean_rot */, plate_options);
+
+    switch (stokes_problem_nl->domain_options->shape) {
+    case RHEA_DOMAIN_SHELL:
+      n_plates_print = RHEA_PLATE_EARTH_YZ+1; /* MORVEL(25) only */
+      break;
+    default: /* no mean rotation */
+      n_plates_print = n_plates;
+    }
+
+    for (pid = 0; pid < n_plates_print; pid++) {
+      RHEA_GLOBAL_STATISTICSF (
+          " %s plate_label=%i, mean_velocity_magn=\"%g mm/yr\"\n",
+          __func__, pid, mean_vel_magn_mm_yr[pid]);
+    }
+
+    RHEA_FREE (mean_vel_magn_mm_yr);
+  }
+
   /* write binary files */
   if (bin_path != NULL) {
     char                path[BUFSIZ];
