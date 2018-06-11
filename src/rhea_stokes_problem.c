@@ -2139,45 +2139,45 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 
   /* print velocity statistics */
   {
-    double              magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr;
-    double              lith_magn_max_cm_yr, lith_magn_mean_cm_yr;
-    double              surf_magn_min_cm_yr, surf_magn_max_cm_yr,
-                        surf_magn_mean_cm_yr;
-    double              surf_lith_magn_max_cm_yr, surf_lith_magn_mean_cm_yr;
+    double              magn_min_mm_yr, magn_max_mm_yr, magn_mean_mm_yr;
+    double              lith_magn_max_mm_yr, lith_magn_mean_mm_yr;
+    double              surf_magn_min_mm_yr, surf_magn_max_mm_yr,
+                        surf_magn_mean_mm_yr;
+    double              surf_lith_magn_max_mm_yr, surf_lith_magn_mean_mm_yr;
     double              mean_rot_axis[3];
     int                 has_mean_rot = 0;
 
     rhea_velocity_stats_get_global (
-        &magn_min_cm_yr, &magn_max_cm_yr, &magn_mean_cm_yr, velocity,
+        &magn_min_mm_yr, &magn_max_mm_yr, &magn_mean_mm_yr, velocity,
         stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
     rhea_velocity_stats_get_global_lithosphere (
-        &lith_magn_max_cm_yr, &lith_magn_mean_cm_yr, velocity, viscosity,
+        &lith_magn_max_mm_yr, &lith_magn_mean_mm_yr, velocity, viscosity,
         stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
     rhea_velocity_stats_get_global_surface (
-        &surf_magn_min_cm_yr, &surf_magn_max_cm_yr, &surf_magn_mean_cm_yr,
+        &surf_magn_min_mm_yr, &surf_magn_max_mm_yr, &surf_magn_mean_mm_yr,
         velocity, stokes_problem_nl->domain_options,
         stokes_problem_nl->temp_options);
     rhea_velocity_stats_get_global_surface_lithosphere (
-        &surf_lith_magn_max_cm_yr, &surf_lith_magn_mean_cm_yr,
+        &surf_lith_magn_max_mm_yr, &surf_lith_magn_mean_mm_yr,
         velocity, viscosity, stokes_problem_nl->domain_options,
         stokes_problem_nl->temp_options);
     has_mean_rot = rhea_stokes_problem_velocity_compute_mean_rotation (
         mean_rot_axis, velocity, stokes_problem_nl);
 
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity magn [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
-        __func__, magn_min_cm_yr, magn_max_cm_yr, magn_mean_cm_yr);
+        "%s: Velocity magn [mm/yr]: global min %.3e, max %.3e, mean %.3e\n",
+        __func__, magn_min_mm_yr, magn_max_mm_yr, magn_mean_mm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity magn [cm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
-        __func__, /*space*/ 9, "", lith_magn_max_cm_yr, lith_magn_mean_cm_yr);
+        "%s: Velocity magn [mm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
+        __func__, /*space*/ 9, "", lith_magn_max_mm_yr, lith_magn_mean_mm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s:  ~ at surface [cm/yr]: global min %.3e, max %.3e, mean %.3e\n",
-        __func__, surf_magn_min_cm_yr, surf_magn_max_cm_yr,
-        surf_magn_mean_cm_yr);
+        "%s:  ~ at surface [mm/yr]: global min %.3e, max %.3e, mean %.3e\n",
+        __func__, surf_magn_min_mm_yr, surf_magn_max_mm_yr,
+        surf_magn_mean_mm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s:  ~ at surface [cm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
-        __func__, /*space*/ 9, "", surf_lith_magn_max_cm_yr,
-        surf_lith_magn_mean_cm_yr);
+        "%s:  ~ at surface [mm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
+        __func__, /*space*/ 9, "", surf_lith_magn_max_mm_yr,
+        surf_lith_magn_mean_mm_yr);
     if (has_mean_rot) {
       RHEA_GLOBAL_STATISTICSF (
         "%s: Velocity mean rot axis: x,y,z = %+.3e , %+.3e , %+.3e\n",
