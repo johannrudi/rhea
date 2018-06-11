@@ -9,6 +9,7 @@
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>
+#include <rhea_plate.h>
 #include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
 #include <rhea_velocity.h>
@@ -143,12 +144,29 @@ void                rhea_stokes_problem_remove_velocity_pressure (
 
 rhea_domain_options_t      *rhea_stokes_problem_get_domain_options (
                                     rhea_stokes_problem_t *stokes_problem);
+void                        rhea_stokes_problem_set_domain_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_domain_options_t *domain_options);
 rhea_temperature_options_t *rhea_stokes_problem_get_temperature_options (
                                     rhea_stokes_problem_t *stokes_problem);
+void                        rhea_stokes_problem_set_temperature_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_temperature_options_t *temp_options);
+rhea_plate_options_t       *rhea_stokes_problem_get_plate_options (
+                                    rhea_stokes_problem_t *stokes_problem);
+void                        rhea_stokes_problem_set_plate_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_plate_options_t *plate_options);
 rhea_weakzone_options_t    *rhea_stokes_problem_get_weakzone_options (
                                     rhea_stokes_problem_t *stokes_problem);
+void                        rhea_stokes_problem_set_weakzone_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_weakzone_options_t *weak_options);
 rhea_viscosity_options_t   *rhea_stokes_problem_get_viscosity_options (
                                     rhea_stokes_problem_t *stokes_problem);
+void                        rhea_stokes_problem_set_viscosity_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_viscosity_options_t *visc_options);
 
 void                rhea_stokes_problem_compute_coefficient (
                                     rhea_stokes_problem_t *stokes_problem,

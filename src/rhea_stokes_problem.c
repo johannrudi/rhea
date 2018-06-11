@@ -125,6 +125,7 @@ struct rhea_stokes_problem
   /* options (not owned) */
   rhea_domain_options_t      *domain_options;
   rhea_temperature_options_t *temp_options;
+  rhea_plate_options_t       *plate_options;
   rhea_weakzone_options_t    *weak_options;
   rhea_viscosity_options_t   *visc_options;
 
@@ -188,6 +189,7 @@ static rhea_stokes_problem_t *
 rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options,
+                                rhea_plate_options_t *plate_options,
                                 rhea_weakzone_options_t *weak_options,
                                 rhea_viscosity_options_t *visc_options)
 {
@@ -204,6 +206,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
 
   stokes_problem->domain_options = domain_options;
   stokes_problem->temp_options = temp_options;
+  stokes_problem->plate_options = plate_options;
   stokes_problem->weak_options = weak_options;
   stokes_problem->visc_options = visc_options;
 
@@ -628,6 +631,7 @@ rhea_stokes_problem_linear_new (ymir_mesh_t *ymir_mesh,
                                 ymir_vec_t *temperature,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options,
+                                rhea_plate_options_t *plate_options,
                                 rhea_weakzone_options_t *weak_options,
                                 rhea_viscosity_options_t *visc_options,
                                 void *solver_options)
@@ -642,7 +646,7 @@ rhea_stokes_problem_linear_new (ymir_mesh_t *ymir_mesh,
   /* initialize general Stokes problem structure */
   stokes_problem_lin = rhea_stokes_problem_struct_new (
       RHEA_STOKES_PROBLEM_LINEAR,
-      domain_options, temp_options, weak_options, visc_options);
+      domain_options, temp_options, plate_options, weak_options, visc_options);
 
   /* set temperature */
   rhea_stokes_problem_set_temperature (stokes_problem_lin, temperature);
@@ -2558,6 +2562,7 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
                                    ymir_vec_t *temperature,
                                    rhea_domain_options_t *domain_options,
                                    rhea_temperature_options_t *temp_options,
+                                   rhea_plate_options_t *plate_options,
                                    rhea_weakzone_options_t *weak_options,
                                    rhea_viscosity_options_t *visc_options,
                                    void *solver_options)
@@ -2573,7 +2578,7 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
   /* initialize general Stokes problem structure */
   stokes_problem_nl = rhea_stokes_problem_struct_new (
       RHEA_STOKES_PROBLEM_NONLINEAR,
-      domain_options, temp_options, weak_options, visc_options);
+      domain_options, temp_options, plate_options, weak_options, visc_options);
 
   /* set temperature */
   rhea_stokes_problem_set_temperature (stokes_problem_nl, temperature);
@@ -2726,11 +2731,11 @@ rhea_stokes_problem_new (ymir_mesh_t *ymir_mesh,
   case RHEA_VISCOSITY_LINEAR:
     return rhea_stokes_problem_linear_new (
         ymir_mesh, press_elem, temperature, domain_options, temp_options,
-        weak_options, visc_options, solver_options);
+        NULL /* plate_options */, weak_options, visc_options, solver_options);
   case RHEA_VISCOSITY_NONLINEAR:
     return rhea_stokes_problem_nonlinear_new (
         ymir_mesh, press_elem, temperature, domain_options, temp_options,
-        weak_options, visc_options, solver_options);
+        NULL /* plate_options */, weak_options, visc_options, solver_options);
   default: /* not clear which Stokes type to choose */
     RHEA_ABORT_NOT_REACHED ();
   }
@@ -2946,11 +2951,39 @@ rhea_stokes_problem_get_domain_options (rhea_stokes_problem_t *stokes_problem)
   return stokes_problem->domain_options;
 }
 
+void
+rhea_stokes_problem_set_domain_options (rhea_stokes_problem_t *stokes_problem,
+                                        rhea_domain_options_t *domain_options)
+{
+  stokes_problem->domain_options = domain_options;
+}
+
 rhea_temperature_options_t *
 rhea_stokes_problem_get_temperature_options (
                                         rhea_stokes_problem_t *stokes_problem)
 {
   return stokes_problem->temp_options;
+}
+
+void
+rhea_stokes_problem_set_temperature_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_temperature_options_t *temp_options)
+{
+  stokes_problem->temp_options = temp_options;
+}
+
+rhea_plate_options_t *
+rhea_stokes_problem_get_plate_options (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->plate_options;
+}
+
+void
+rhea_stokes_problem_set_plate_options (rhea_stokes_problem_t *stokes_problem,
+                                       rhea_plate_options_t *plate_options)
+{
+  stokes_problem->plate_options = plate_options;
 }
 
 rhea_weakzone_options_t *
@@ -2960,11 +2993,27 @@ rhea_stokes_problem_get_weakzone_options (
   return stokes_problem->weak_options;
 }
 
+void
+rhea_stokes_problem_set_weakzone_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_weakzone_options_t *weak_options)
+{
+  stokes_problem->weak_options = weak_options;
+}
+
 rhea_viscosity_options_t *
 rhea_stokes_problem_get_viscosity_options (
                                         rhea_stokes_problem_t *stokes_problem)
 {
   return stokes_problem->visc_options;
+}
+
+void
+rhea_stokes_problem_set_viscosity_options (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_viscosity_options_t *visc_options)
+{
+  stokes_problem->visc_options = visc_options;
 }
 
 void
