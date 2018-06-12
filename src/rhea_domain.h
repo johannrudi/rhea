@@ -1,5 +1,4 @@
-/*
- */
+/* RHEA_DOMAIN  Physical domain properties, independent of discretization. */
 
 #ifndef RHEA_DOMAIN_H
 #define RHEA_DOMAIN_H
@@ -231,6 +230,32 @@ void                rhea_domain_extract_lateral (
                                 const double x, const double y, const double z,
                                 rhea_domain_coordinate_type_t coord_type,
                                 rhea_domain_options_t *opt);
+
+/* properties of a column inside a domain */
+typedef struct rhea_domain_column
+{
+  /* base & top of column are defined by a polygon */
+  float                        *polygon_vertices_x;
+  float                        *polygon_vertices_y;
+  size_t                        polygon_n_vertices;
+  rhea_domain_coordinate_type_t polygon_coord_type;
+
+  /* column boundaries w.r.t. radius/depth */
+  float               radius_min;
+  float               radius_max;
+}
+rhea_domain_column_t;
+
+/**
+ * Checks whether the given (x,y,z) coordinates are inside a column within the
+ * domain.
+ */
+int                 rhea_domain_point_is_in_column (
+                                                  const double x,
+                                                  const double y,
+                                                  const double z,
+                                                  rhea_domain_column_t *column,
+                                                  rhea_domain_options_t *opt);
 
 /******************************************************************************
  * Domain Boundary
