@@ -50,6 +50,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   *stokes_problem = rhea_stokes_problem_new (
       *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
       weak_options, visc_options, solver_options);
+  rhea_stokes_problem_set_plate_options (*stokes_problem, plate_options);
   rhea_stokes_problem_set_solver_amr (*stokes_problem, p4est, discr_options);
   rhea_stokes_problem_set_solver_bin_output (*stokes_problem, solver_bin_path);
   rhea_stokes_problem_set_solver_vtk_output (*stokes_problem, solver_vtk_path);
