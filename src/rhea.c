@@ -311,6 +311,7 @@ rhea_performance_monitor_init (const char **monitor_name,
   rhea_perfmon_matvec_init (active, 0);
   rhea_io_mpi_perfmon_init (active, 0);
   rhea_amr_perfmon_init (active, 0);
+  rhea_plate_perfmon_init (active, 0);
   rhea_weakzone_perfmon_init (active, 0);
 }
 
@@ -352,6 +353,8 @@ rhea_performance_monitor_print (const char *title,
                              print_flops);
   rhea_amr_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
                           print_flops);
+  rhea_plate_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
+                            print_flops);
   rhea_weakzone_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
                                print_flops);
 

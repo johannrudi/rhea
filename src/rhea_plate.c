@@ -5,6 +5,7 @@
 #include <rhea_velocity.h>
 #include <ymir_velocity_vec.h>
 #include <ymir_mass_vec.h>
+#include <ymir_perf_counter.h>
 
 /******************************************************************************
  * Options
@@ -19,6 +20,7 @@
 #define RHEA_PLATE_DEFAULT_POLYGON_X_MAX (360.0)
 #define RHEA_PLATE_DEFAULT_POLYGON_Y_MIN (0.0)
 #define RHEA_PLATE_DEFAULT_POLYGON_Y_MAX (180.0)
+#define RHEA_PLATE_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* initialize options */
 char               *rhea_plate_polygon_vertices_file_path_txt =
@@ -37,6 +39,8 @@ double              rhea_plate_polygon_y_min =
   RHEA_PLATE_DEFAULT_POLYGON_Y_MIN;
 double              rhea_plate_polygon_y_max =
   RHEA_PLATE_DEFAULT_POLYGON_Y_MAX;
+int                 rhea_plate_monitor_performance =
+                      RHEA_PLATE_DEFAULT_MONITOR_PERFORMANCE;
 
 void
 rhea_plate_add_options (ymir_options_t * opt_sup)
@@ -78,12 +82,19 @@ rhea_plate_add_options (ymir_options_t * opt_sup)
     &(rhea_plate_polygon_y_max), RHEA_PLATE_DEFAULT_POLYGON_Y_MAX,
     "Polygon vertices: Max y",
 
+  YMIR_OPTIONS_B, "monitor-performance", '\0',
+    &(rhea_plate_monitor_performance), RHEA_PLATE_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
+
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
   ymir_options_destroy (opt);
+
+  /* initialize (deactivated) performance counters */
+  rhea_plate_perfmon_init (0, 0);
 }
 
 void
@@ -122,6 +133,68 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
   /* set dependent options */
   opt->domain_options = domain_options;
   opt->temp_options = temp_options;
+}
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_PLATE_PERFMON_DATA_CREATE,
+  RHEA_PLATE_PERFMON_POINT_INSIDE_POLYGON,
+  RHEA_PLATE_PERFMON_SET_LABEL,
+  RHEA_PLATE_PERFMON_APPLY_FILTER,
+  RHEA_PLATE_PERFMON_N
+}
+rhea_plate_perfmon_idx_t;
+
+static const char  *rhea_plate_perfmon_name[RHEA_PLATE_PERFMON_N] =
+{
+  "Create data",
+  "Point inside polygon test",
+  "Set plate label",
+  "Apply plate filter"
+};
+ymir_perf_counter_t rhea_plate_perfmon[RHEA_PLATE_PERFMON_N];
+
+void
+rhea_plate_perfmon_init (const int activate, const int skip_if_active)
+{
+  const int           active = activate && rhea_plate_monitor_performance;
+
+  ymir_perf_counter_init_all_ext (rhea_plate_perfmon,
+                                  rhea_plate_perfmon_name,
+                                  RHEA_PLATE_PERFMON_N,
+                                  active, skip_if_active);
+}
+
+void
+rhea_plate_perfmon_print (sc_MPI_Comm mpicomm,
+                          const int print_wtime,
+                          const int print_n_calls,
+                          const int print_flops)
+{
+  const int           active = rhea_plate_monitor_performance;
+  const int           print = (print_wtime || print_n_calls || print_flops);
+  int                 n_stats = RHEA_PLATE_PERFMON_N *
+                                YMIR_PERF_COUNTER_N_STATS;
+  sc_statinfo_t       stats[n_stats];
+  char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+
+  /* exit if nothing to do */
+  if (!active || !print) {
+    return;
+  }
+
+  /* gather performance statistics */
+  n_stats = ymir_perf_counter_gather_stats (
+      rhea_plate_perfmon, RHEA_PLATE_PERFMON_N, stats, stats_name,
+      mpicomm, print_wtime, print_n_calls, print_flops);
+
+  /* print performance statistics */
+  ymir_perf_counter_print_stats (stats, n_stats, "Plate");
 }
 
 /******************************************************************************
@@ -460,6 +533,10 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
     return 1;
   }
 
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_DATA_CREATE]);
+
   /* get parameters from options */
   n_plates = rhea_plate_get_n_plates (opt);
   n_vertices_total = opt->n_vertices_total;
@@ -582,6 +659,10 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
     RHEA_ABORT_NOT_REACHED ();
   }
 
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_DATA_CREATE]);
+
   return (success_vert + success_vert_coarse);
 }
 
@@ -675,15 +756,18 @@ rhea_plate_get_n_plates (rhea_plate_options_t *opt)
  * Checks whether the given (x,y) coordinates are inside a polygon.
  */
 static int
-rhea_plate_is_inside_polygon (const float test_x,
-                              const float test_y,
-                              const float *_sc_restrict vert_x,
-                              const float *_sc_restrict vert_y,
-                              const size_t n_vert,
-                              const float *_sc_restrict vert_coarse_container_x,
-                              const float *_sc_restrict vert_coarse_container_y,
-                              const size_t n_vert_coarse_container)
+rhea_plate_point_inside_polygon_test (
+                            const float test_x,
+                            const float test_y,
+                            const float *_sc_restrict vert_x,
+                            const float *_sc_restrict vert_y,
+                            const size_t n_vert,
+                            const float *_sc_restrict vert_coarse_container_x,
+                            const float *_sc_restrict vert_coarse_container_y,
+                            const size_t n_vert_coarse_container)
 {
+  int                 is_inside = 1;
+
   /* check input */
   RHEA_ASSERT (vert_x != NULL);
   RHEA_ASSERT (vert_y != NULL);
@@ -691,24 +775,32 @@ rhea_plate_is_inside_polygon (const float test_x,
   RHEA_ASSERT (0 >= n_vert_coarse_container || vert_coarse_container_x != NULL);
   RHEA_ASSERT (0 >= n_vert_coarse_container || vert_coarse_container_y != NULL);
 
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_POINT_INSIDE_POLYGON]);
+
   /* check coarse container of plate */
   if (0 < n_vert_coarse_container) {
-    int                 is_inside;
-
-    /* run point-in-polygon test on coarse container */
     is_inside = rhea_point_in_polygon_is_inside (
         test_x, test_y, vert_coarse_container_x, vert_coarse_container_y,
         n_vert_coarse_container);
-
-    /* exit if point is outside of container */
-    if (!is_inside) {
-      return 0;
-    }
   }
 
   /* check fine-resolution boundary of plate */
-  return rhea_point_in_polygon_is_inside (test_x, test_y, vert_x, vert_y,
-                                          n_vert);
+  if (is_inside) {
+    is_inside = rhea_point_in_polygon_is_inside (test_x, test_y,
+                                                 vert_x, vert_y, n_vert);
+  }
+  else {
+    is_inside = 0;
+  }
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_POINT_INSIDE_POLYGON]);
+
+  /* return if test coordinate is inside polygon */
+  return is_inside;
 }
 
 /**
@@ -768,8 +860,8 @@ rhea_plate_is_inside (const double x, const double y, const double z,
     nvc = opt->n_vertices_coarse_container[plate_label];
   }
 
-  return rhea_plate_is_inside_polygon (test_x, test_y, vx, vy, nv,
-                                       vcx, vcy, nvc);
+  return rhea_plate_point_inside_polygon_test (test_x, test_y, vx, vy, nv,
+                                               vcx, vcy, nvc);
 }
 
 /**
@@ -852,6 +944,10 @@ rhea_plate_set_label_vec (ymir_vec_t *vec, rhea_plate_options_t *opt)
     return;
   }
 
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_SET_LABEL]);
+
   /* set data parameters */
   data.opt = opt;
   data.plate_label = RHEA_PLATE_NONE;
@@ -894,6 +990,10 @@ rhea_plate_set_label_vec (ymir_vec_t *vec, rhea_plate_options_t *opt)
       RHEA_ABORT_NOT_REACHED ();
     }
   }
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_SET_LABEL]);
 }
 
 /**
@@ -949,6 +1049,10 @@ rhea_plate_apply_filter_vec (ymir_vec_t *vec, const int plate_label,
     return;
   }
 
+  /* start performance monitors */
+  ymir_perf_counter_start (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_APPLY_FILTER]);
+
   /* set data parameters */
   data.opt = opt;
   data.plate_label = plate_label;
@@ -991,6 +1095,10 @@ rhea_plate_apply_filter_vec (ymir_vec_t *vec, const int plate_label,
       RHEA_ABORT_NOT_REACHED ();
     }
   }
+
+  /* stop performance monitors */
+  ymir_perf_counter_stop_add (
+      &rhea_plate_perfmon[RHEA_PLATE_PERFMON_APPLY_FILTER]);
 }
 
 /**

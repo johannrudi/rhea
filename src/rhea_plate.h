@@ -95,7 +95,7 @@ typedef enum
 rhea_plate_earth_label_t;
 
 /******************************************************************************
- * Options
+ * Options & Monitoring
  *****************************************************************************/
 
 /* options for plates */
@@ -145,6 +145,20 @@ void                rhea_plate_process_options (
                                     rhea_plate_options_t *opt,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options);
+
+/**
+ * Initializes performance counters.
+ */
+void                rhea_plate_perfmon_init (const int activate,
+                                             const int skip_if_active);
+
+/**
+ * Prints statistics collected by performance monitors.
+ */
+void                rhea_plate_perfmon_print (sc_MPI_Comm mpicomm,
+                                              const int print_wtime,
+                                              const int print_n_calls,
+                                              const int print_flops);
 
 /******************************************************************************
  * Plate Boundary Data
