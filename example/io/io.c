@@ -34,6 +34,96 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 };
 
 /******************************************************************************
+ * Functions
+ *****************************************************************************/
+
+/**
+ * Filters out a specific region and applies that filter to a vector.
+ *
+ *  east longitude: 170E .. 220E
+ *  latitude:       45N .. 65N (colatitude: 45..25)
+ *  depth:          200km .. 20km
+ */
+static const size_t aleutian_n_vertices = 5;
+static const float  aleutian_vertices_x[] = {170.0, 220.0, 220.0, 170.0, 170.0};
+static const float  aleutian_vertices_y[] = { 45.0,  45.0,  25.0,  25.0,  45.0};
+static const float  aleutian_depth_top = 20.0e3;
+static const float  aleutian_depth_bottom = 200.0e3;
+
+/* Filter data */
+typedef struct rhea_io_filter_node_fn_data
+{
+  rhea_domain_column_t   *column;
+  rhea_domain_options_t  *domain_options;
+  int                     n_fields;
+}
+rhea_io_filter_node_fn_data_t;
+
+/** Filters at a node. */
+static void
+rhea_io_apply_filter_aleutian_node_fn (double *v, double x, double y, double z,
+                                       ymir_locidx_t nodeid, void *data)
+{
+  rhea_io_filter_node_fn_data_t  *d = data;
+
+  if (!rhea_domain_point_is_in_column (x, y, z, d->column, d->domain_options)) {
+    const int           n_fields = d->n_fields;
+    int                 fieldid;
+
+    /* set outside values to zero */
+    for (fieldid = 0; fieldid < n_fields; fieldid++) {
+      v[fieldid] = 0.0;
+    }
+  }
+}
+
+/** Filters a vector. */
+static void
+rhea_io_apply_filter_aleutian (ymir_vec_t *vec,
+                               rhea_domain_options_t *domain_options)
+{
+  rhea_domain_column_t  column;
+  rhea_io_filter_node_fn_data_t data;
+
+  /* set lateral parameters of column */
+  column.polygon_vertices_x = RHEA_ALLOC (float, aleutian_n_vertices);
+  column.polygon_vertices_y = RHEA_ALLOC (float, aleutian_n_vertices);
+  memcpy (column.polygon_vertices_x, aleutian_vertices_x,
+          aleutian_n_vertices * sizeof (float));
+  memcpy (column.polygon_vertices_y, aleutian_vertices_y,
+          aleutian_n_vertices * sizeof (float));
+  column.polygon_n_vertices = aleutian_n_vertices;
+  column.polygon_coord_type = RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM;
+
+  /* set radial parameters of column */
+  column.radius_min = domain_options->radius_max -
+                      aleutian_depth_bottom / domain_options->radius_max_m;
+  column.radius_max = domain_options->radius_max -
+                      aleutian_depth_top / domain_options->radius_max_m;
+
+  /* set filter data */
+  data.column = &column;
+  data.domain_options = domain_options;
+
+  /* apply filter */
+  if (ymir_vec_is_cvec (vec)) {
+    data.n_fields = vec->ncfields;
+    ymir_cvec_set_function (vec, rhea_io_apply_filter_aleutian_node_fn, &data);
+  }
+  else if (ymir_vec_is_dvec (vec)) {
+    data.n_fields = vec->ndfields;
+    ymir_dvec_set_function (vec, rhea_io_apply_filter_aleutian_node_fn, &data);
+  }
+  else {
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* destroy */
+  RHEA_FREE (column.polygon_vertices_x);
+  RHEA_FREE (column.polygon_vertices_y);
+}
+
+/******************************************************************************
  * Main Program
  *****************************************************************************/
 
@@ -164,7 +254,7 @@ main (int argc, char **argv)
                                       &plate_options);
 
   /* write vtk of weak zone data */
-  if (rhea_weakzone_exists (&weak_options)) {
+  if (vtk_input_path != NULL && rhea_weakzone_exists (&weak_options)) {
     ymir_vec_t         *distance;
     char                path[BUFSIZ];
 
@@ -178,7 +268,7 @@ main (int argc, char **argv)
   }
 
   /* write vtk of topography data */
-  if (rhea_topography_exists (&topo_options)) {
+  if (vtk_input_path != NULL && rhea_topography_exists (&topo_options)) {
     ymir_vec_t         *displacement, *displacement_surf;
     char                path[BUFSIZ];
 
@@ -194,6 +284,22 @@ main (int argc, char **argv)
 
     ymir_vec_destroy (displacement);
     rhea_topography_destroy (displacement_surf);
+  }
+
+  /* write vtk of Aleutian */
+  if (vtk_input_path != NULL) {
+    ymir_vec_t         *aleutian_filter;
+    char                path[BUFSIZ];
+
+    aleutian_filter = ymir_dvec_new (ymir_mesh, 1, YMIR_GLL_NODE);
+    ymir_vec_set_value (aleutian_filter, 1.0);
+    rhea_io_apply_filter_aleutian (aleutian_filter, &domain_options);
+
+    snprintf (path, BUFSIZ, "%s_aleutian", vtk_input_path);
+    ymir_vtk_write (ymir_mesh, path,
+                    aleutian_filter, "aleutian_filter", NULL);
+
+    ymir_vec_destroy (aleutian_filter);
   }
 
   /*
