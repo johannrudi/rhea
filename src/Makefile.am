@@ -7,6 +7,7 @@ librhea_generated_headers = src/rhea_config.h
 librhea_installed_headers = \
         src/rhea_base.h \
         src/rhea_domain.h \
+        src/rhea_domain_subset.h \
         src/rhea_discretization.h \
         src/rhea_amr.h \
         src/rhea_pointcloud.hpp \
@@ -38,6 +39,7 @@ librhea_internal_headers =
 librhea_compiled_sources = \
         src/rhea_base.c \
         src/rhea_domain.c \
+        src/rhea_domain_subset.c \
         src/rhea_discretization.c \
         src/rhea_amr.c \
         src/rhea_pointcloud.cpp \
