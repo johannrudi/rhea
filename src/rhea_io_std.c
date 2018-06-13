@@ -64,8 +64,8 @@ rhea_io_std_read_double (double *values, const size_t n_entries,
   FILE               *file_ptr;
   size_t              n_read;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
-              (int) n_entries);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\", n_entries=%i",
+                       file_path, (int) n_entries);
 
   /* exit if nothing to do */
   if (0 == n_entries) {
@@ -93,7 +93,7 @@ rhea_io_std_read_double (double *values, const size_t n_entries,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of read entries */
   return n_read;
@@ -106,8 +106,8 @@ rhea_io_std_write_double (const char *file_path, const double *values,
   FILE               *file_ptr;
   size_t              n_written;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
-              (int) n_entries);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\", n_entries=%i",
+                       file_path, (int) n_entries);
 
   /* exit if nothing to do */
   if (0 == n_entries) {
@@ -135,7 +135,7 @@ rhea_io_std_write_double (const char *file_path, const double *values,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of written entries */
   return n_written;
@@ -148,8 +148,8 @@ rhea_io_std_read_float (float *values, const size_t n_entries,
   FILE               *file_ptr;
   size_t              n_read;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
-              (int) n_entries);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\", n_entries=%i",
+                       file_path, (int) n_entries);
 
   /* exit if nothing to do */
   if (0 == n_entries) {
@@ -177,7 +177,7 @@ rhea_io_std_read_float (float *values, const size_t n_entries,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of read entries */
   return n_read;
@@ -190,8 +190,8 @@ rhea_io_std_write_float (const char *file_path, const float *values,
   FILE               *file_ptr;
   size_t              n_written;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
-              (int) n_entries);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\", n_entries=%i",
+                       file_path, (int) n_entries);
 
   /* exit if nothing to do */
   if (0 == n_entries) {
@@ -219,7 +219,7 @@ rhea_io_std_write_float (const char *file_path, const float *values,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of written entries */
   return n_written;
@@ -232,8 +232,8 @@ rhea_io_std_read_int (int *values, const size_t n_entries,
   FILE               *file_ptr;
   size_t              n_read;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
-              (int) n_entries);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\", n_entries=%i",
+                       file_path, (int) n_entries);
 
   /* exit if nothing to do */
   if (0 == n_entries) {
@@ -261,7 +261,7 @@ rhea_io_std_read_int (int *values, const size_t n_entries,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of read entries */
   return n_read;
@@ -274,8 +274,8 @@ rhea_io_std_write_int (const char *file_path, const int *values,
   FILE               *file_ptr;
   size_t              n_written;
 
-  RHEA_INFOF ("Into %s (%s, #entries %i)\n", __func__, file_path,
-              (int) n_entries);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\", n_entries=%i",
+                       file_path, (int) n_entries);
 
   /* exit if nothing to do */
   if (0 == n_entries) {
@@ -303,7 +303,7 @@ rhea_io_std_write_int (const char *file_path, const int *values,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of written entries */
   return n_written;
@@ -321,7 +321,7 @@ rhea_io_std_read_txt (void *data, rhea_io_std_fscanf_fn_t fscanf_fn,
   size_t              n_read;
   int                 status;
 
-  RHEA_INFOF ("Into %s (%s)\n", __func__, file_path);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\"", file_path);
 
   /* open text file */
   file_ptr = rhea_io_std_file_open (file_path, "r", __func__);
@@ -341,7 +341,7 @@ rhea_io_std_read_txt (void *data, rhea_io_std_fscanf_fn_t fscanf_fn,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of read items */
   return n_read;
@@ -356,7 +356,7 @@ rhea_io_std_write_txt (const char *file_path, const void *data,
   size_t              n_written;
   int                 status;
 
-  RHEA_INFOF ("Into %s (%s)\n", __func__, file_path);
+  RHEA_INFOF_FN_BEGIN (__func__, "path=\"%s\"", file_path);
 
   /* open binary file */
   file_ptr = rhea_io_std_file_open (file_path, "w", __func__);
@@ -377,7 +377,7 @@ rhea_io_std_write_txt (const char *file_path, const void *data,
   /* close file */
   rhea_io_std_file_close (file_ptr, file_path, __func__);
 
-  RHEA_INFOF ("Done %s (%s)\n", __func__, file_path);
+  RHEA_INFO_FN_END (__func__);
 
   /* return number of written items */
   return n_written;
