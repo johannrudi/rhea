@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_stress.h>
 #include <rhea_base.h>
 #include <rhea_strainrate.h>
@@ -60,6 +57,82 @@ rhea_stress_is_valid (ymir_vec_t *vec)
   return sc_dmatrix_is_valid (vec->dataown);
 }
 
+void
+rhea_stress_compute_viscstress (ymir_vec_t *viscstress,
+                                ymir_vec_t *strainrate,
+                                ymir_vec_t *viscosity)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_stress_check_vec_type (viscstress));
+  RHEA_ASSERT (rhea_strainrate_check_vec_type (strainrate));
+  RHEA_ASSERT (rhea_strainrate_is_valid (strainrate));
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (viscosity));
+  RHEA_ASSERT (rhea_viscosity_is_valid (viscosity));
+
+  /* compute viscous stress tensor */
+  ymir_dvec_copy (strainrate, viscstress);
+  ymir_dvec_multiply_in1 (viscosity, viscstress);
+  ymir_dvec_scale (2.0, viscstress);
+  RHEA_ASSERT (rhea_stress_is_valid (viscstress));
+}
+
+double
+rhea_stress_compute_norm (ymir_vec_t *stress)
+{
+  ymir_vec_t         *stress_mass = ymir_vec_clone (stress);
+  double              ip;
+
+  /* check input */
+  RHEA_ASSERT (rhea_stress_check_vec_type (stress));
+  RHEA_ASSERT (rhea_stress_is_valid (stress));
+
+  /* compute inner product */
+  ymir_mass_apply_gauss (stress_mass);
+  ip = ymir_dvec_innerprod (stress_mass, stress);
+  ymir_vec_destroy (stress_mass);
+
+  /* return norm */
+  return sqrt (ip);
+}
+
+void
+rhea_stress_separate_diag_offdiag (ymir_vec_t *stress_diag,
+                                   ymir_vec_t *stress_offdiag,
+                                   ymir_vec_t *stress)
+{
+  const ymir_locidx_t n_elements = stress->K;
+  const int           n_nodes_per_el = stress->Np;
+  ymir_locidx_t       elid;
+  int                 nodeid;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (stress_diag) &&
+               stress_diag->ndfields == 3 &&
+               stress_diag->node_type == stress->node_type);
+  RHEA_ASSERT (ymir_vec_is_dvec (stress_offdiag) &&
+               stress_offdiag->ndfields == 3 &&
+               stress_offdiag->node_type == stress->node_type);
+  RHEA_ASSERT (rhea_stress_check_vec_type (stress));
+  RHEA_ASSERT (rhea_stress_is_valid (stress));
+
+  /* separate at each node; assume: stress tensor is upper-triangular */
+  for (elid = 0; elid < n_elements; elid++) {
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+      const double       *S = ymir_dvec_index (stress, elid, nodeid, 0);
+      double             *D = ymir_dvec_index (stress_diag, elid, nodeid, 0);
+      double             *E = ymir_dvec_index (stress_offdiag, elid, nodeid, 0);
+
+      D[0] = S[0];
+      D[1] = S[3];
+      D[2] = S[5];
+
+      E[0] = S[1];
+      E[1] = S[2];
+      E[2] = S[4];
+    }
+  }
+}
+
 ymir_vec_t *
 rhea_stress_2inv_new (ymir_mesh_t *ymir_mesh)
 {
@@ -96,29 +169,18 @@ rhea_stress_compute_viscstress_sqrt_of_2inv (ymir_vec_t *viscstress_sqrt_2inv,
                                              ymir_vec_t *strainrate_sqrt_2inv,
                                              ymir_vec_t *viscosity)
 {
+  /* check input */
   RHEA_ASSERT (rhea_stress_2inv_check_vec_type (viscstress_sqrt_2inv));
-  RHEA_ASSERT (rhea_strainrate_2inv_check_vec_type (viscstress_sqrt_2inv));
-  RHEA_ASSERT (rhea_viscosity_check_vec_type (viscstress_sqrt_2inv));
+  RHEA_ASSERT (rhea_strainrate_2inv_check_vec_type (strainrate_sqrt_2inv));
+  RHEA_ASSERT (rhea_strainrate_2inv_is_valid (strainrate_sqrt_2inv));
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (viscosity));
+  RHEA_ASSERT (rhea_viscosity_is_valid (viscosity));
 
+  /* compute sqrt of the 2nd invariant of the viscous stress */
   ymir_dvec_copy (strainrate_sqrt_2inv, viscstress_sqrt_2inv);
   ymir_dvec_multiply_in (viscosity, viscstress_sqrt_2inv);
   ymir_dvec_scale (2.0, viscstress_sqrt_2inv);
-}
-
-double
-rhea_stress_compute_norm (ymir_vec_t *stress)
-{
-  ymir_vec_t         *stress_mass = ymir_vec_clone (stress);
-  double              ip;
-
-  RHEA_ASSERT (rhea_stress_check_vec_type (stress));
-  RHEA_ASSERT (rhea_stress_is_valid (stress));
-
-  ymir_mass_apply_gauss (stress_mass);
-  ip = ymir_dvec_innerprod (stress_mass, stress);
-  ymir_vec_destroy (stress_mass);
-
-  return sqrt (ip);
+  RHEA_ASSERT (rhea_stress_2inv_is_valid (viscstress_sqrt_2inv));
 }
 
 /******************************************************************************

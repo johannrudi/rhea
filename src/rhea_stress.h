@@ -1,5 +1,4 @@
-/*
- */
+/* RHEA_STRESS  Stress tensor and its second invariant. */
 
 #ifndef RHEA_STRESS_H
 #define RHEA_STRESS_H
@@ -53,6 +52,13 @@ int                 rhea_stress_is_valid (ymir_vec_t *vec);
 int                 rhea_stress_2inv_is_valid (ymir_vec_t *vec);
 
 /**
+ * Computes the viscous stress tensor.
+ */
+void                rhea_stress_compute_viscstress (ymir_vec_t *viscstress,
+                                                    ymir_vec_t *strainrate,
+                                                    ymir_vec_t *viscosity);
+
+/**
  * Computes the square root of the second invariant of the viscous stress
  * tensor.
  */
@@ -65,6 +71,15 @@ void                rhea_stress_compute_viscstress_sqrt_of_2inv (
  * Computes the norm of a stress tensor.
  */
 double              rhea_stress_compute_norm (ymir_vec_t *stress);
+
+/**
+ * Separates the 6 components of a (symmetric) stress tensor into diagonal and
+ * off-diagonal components.
+ */
+void                rhea_stress_separate_diag_offdiag (
+                                                    ymir_vec_t *stress_diag,
+                                                    ymir_vec_t *stress_offdiag,
+                                                    ymir_vec_t *stress);
 
 /******************************************************************************
  * Stress Surface Vector
