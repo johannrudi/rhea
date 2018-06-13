@@ -1,5 +1,4 @@
-/*
- */
+/* RHEA_STRAINRATE  Strain rate tensor and its second invariant. */
 
 #ifndef RHEA_STRAINRATE_H
 #define RHEA_STRAINRATE_H
@@ -53,6 +52,12 @@ int                 rhea_strainrate_2inv_check_vec_type (ymir_vec_t *vec);
 int                 rhea_strainrate_is_valid (ymir_vec_t *vec);
 
 int                 rhea_strainrate_2inv_is_valid (ymir_vec_t *vec);
+
+/**
+ * Computes the strain rate tensor.
+ */
+void                rhea_strainrate_compute (ymir_vec_t *strainrate,
+                                             ymir_vec_t *velocity);
 
 /**
  * Computes the squre root of the second invariant of the strain rate.

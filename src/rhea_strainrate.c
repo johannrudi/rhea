@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_strainrate.h>
 #include <rhea_base.h>
 #include <rhea_velocity.h>
@@ -56,6 +53,17 @@ int
 rhea_strainrate_is_valid (ymir_vec_t *vec)
 {
   return sc_dmatrix_is_valid (vec->dataown);
+}
+
+void
+rhea_strainrate_compute (ymir_vec_t *strainrate, ymir_vec_t *velocity)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_strainrate_check_vec_type (strainrate));
+  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
+
+  /* compute strain rate tensor */
+  ymir_velocity_strain_rate (velocity, strainrate, 0 /* !transpose */);
 }
 
 ymir_vec_t *
