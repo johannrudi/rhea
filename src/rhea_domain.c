@@ -1,7 +1,6 @@
 #include <rhea_domain.h>
 #include <rhea_base.h>
 #include <rhea_discretization.h>
-#include <rhea_point_in_polygon.h>
 
 /* constant: reference value for shell radius */
 #define RHEA_DOMAIN_REFERENCE_SHELL_RADIUS (1.0)
@@ -956,47 +955,6 @@ rhea_domain_extract_lateral (double *coord_2d_1, double *coord_2d_2,
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
   }
-}
-
-int
-rhea_domain_point_is_in_column (const double x, const double y,
-                                const double z, rhea_domain_column_t *column,
-                                rhea_domain_options_t *opt)
-{
-  const float         rmin = column->radius_min;
-  const float         rmax = column->radius_max;
-  float               test_r;
-  int                 is_inside;
-
-  /* check input */
-  RHEA_ASSERT (column->radius_min <= column->radius_max);
-
-  /* calculate radius */
-  test_r = (float) rhea_domain_compute_radius (x, y, z, opt);
-
-  /* check radial coordinate first, then lateral coordinates */
-  if (rmin <= test_r && test_r <= rmax) { /* if radial coordinate matches */
-    const float        *_sc_restrict vx = column->polygon_vertices_x;
-    const float        *_sc_restrict vy = column->polygon_vertices_y;
-    const size_t        nv = column->polygon_n_vertices;
-    double              tmp_x, tmp_y;
-    float               test_x, test_y;
-
-    /* calculate (2-dim) lateral test coordinates */
-    rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
-                                 column->polygon_coord_type, opt);
-    test_x = (float) tmp_x;
-    test_y = (float) tmp_y;
-
-    /* check if lateral coordinates are inside polygon */
-    is_inside = rhea_point_in_polygon_is_inside (test_x, test_y, vx, vy, nv);
-  }
-  else { /* if radial coordinate is out of bounds */
-    is_inside = 0;
-  }
-
-  /* return if point is inside column */
-  return is_inside;
 }
 
 /******************************************************************************
