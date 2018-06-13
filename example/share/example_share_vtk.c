@@ -98,7 +98,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
   rhea_velocity_convert_to_dimensional_mm_yr (rhs_vel, domain_options,
                                               temp_options);
-  if (plate_vel != NULL ) {
+  if (plate_vel != NULL) {
     rhea_velocity_convert_to_dimensional_mm_yr (plate_vel, domain_options,
                                                 temp_options);
   }
@@ -116,10 +116,10 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (bounds_marker);
   ymir_vec_destroy (rhs_vel);
-  if (plate_label != NULL ) {
+  if (plate_label != NULL) {
     rhea_viscosity_surface_destroy (plate_label);
   }
-  if (plate_vel != NULL ) {
+  if (plate_vel != NULL) {
     rhea_velocity_surface_destroy (plate_vel);
   }
 }
