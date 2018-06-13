@@ -7,9 +7,11 @@
  *****************************************************************************/
 
 #include <rhea.h>
+#include <rhea_domain_subset.h>
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
+#include <ymir_vtk.h>
 
 /******************************************************************************
  * Monitoring
@@ -35,6 +37,91 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
   "Solve",
   "Total"
 };
+
+/******************************************************************************
+ * Post-Processing
+ *****************************************************************************/
+
+/** Writes the viscous stress tensor as VTK and TXT output. */
+static void
+earth_write_viscstress_tensor (ymir_vec_t *sol_vel_press,
+                               rhea_stokes_problem_t *stokes_problem,
+                               const char *vtk_path,
+                               const char *txt_aleutian_path)
+{
+  rhea_domain_options_t      *domain_options;
+  rhea_temperature_options_t *temp_options;
+  rhea_viscosity_options_t   *visc_options;
+  ymir_mesh_t          *ymir_mesh;
+  ymir_pressure_elem_t *press_elem;
+  ymir_vec_t         *velocity, *viscosity;
+  ymir_vec_t         *strainrate, *viscstress;
+
+  /* exit if nothing to do */
+  if (vtk_path == NULL && txt_aleutian_path == NULL) {
+    return;
+  }
+
+  /* get options */
+  domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
+  temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
+  visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
+
+  /* get mesh */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+  /* get fields */
+  velocity = rhea_velocity_new (ymir_mesh);
+  viscosity = rhea_viscosity_new (ymir_mesh);
+  rhea_velocity_pressure_copy_components (velocity, NULL, sol_vel_press,
+                                          press_elem);
+  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+
+  /* compute strain rate tensor */
+  strainrate = rhea_strainrate_new (ymir_mesh);
+  rhea_strainrate_compute (strainrate, velocity);
+  rhea_velocity_destroy (velocity);
+
+  /* compute viscous stress tensor */
+  viscstress = rhea_stress_new (ymir_mesh);
+  rhea_stress_compute_viscstress (viscstress, strainrate, viscosity);
+  rhea_viscosity_destroy (viscosity);
+  rhea_strainrate_destroy (strainrate);
+
+  /* convert to physical dimensions */
+  rhea_stress_convert_to_dimensional_Pa (viscstress, domain_options,
+                                         temp_options, visc_options);
+
+
+  /* write vtk file */
+  if (vtk_path != NULL) {
+    ymir_vec_t         *viscstress_diag, *viscstress_offdiag;
+
+    viscstress_diag = ymir_dvec_new (ymir_mesh, 3, viscstress->node_type);
+    viscstress_offdiag = ymir_dvec_new (ymir_mesh, 3, viscstress->node_type);
+    rhea_stress_separate_diag_offdiag (viscstress_diag, viscstress_offdiag,
+                                       viscstress);
+
+    ymir_vtk_write (ymir_mesh, vtk_path,
+                    viscstress_diag, "viscstress_diag",
+                    viscstress_offdiag, "viscstress_offdiag", NULL);
+    ymir_vec_destroy (viscstress_diag);
+    ymir_vec_destroy (viscstress_offdiag);
+  }
+
+  /* write txt file */
+  if (txt_aleutian_path != NULL) {
+    ymir_gloidx_t       n_points_in_subset_global;
+
+    rhea_domain_subset_write_txt_aleutian (txt_aleutian_path, viscstress,
+                                           &n_points_in_subset_global,
+                                           domain_options);
+  }
+
+  /* destroy */
+  rhea_stress_destroy (viscstress);
+}
 
 /******************************************************************************
  * Main Program
@@ -69,6 +156,7 @@ main (int argc, char **argv)
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
+  char               *txt_aleutian_path;
   /* mesh */
   p4est_t              *p4est;
   ymir_mesh_t          *ymir_mesh;
@@ -124,6 +212,11 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
+
+  /* txt file output */
+  YMIR_OPTIONS_S, "txt-write-aleutian-path", '\0',
+    &(txt_aleutian_path), NULL,
+    "TXT file path for the viscous stress tensor of the Aleutian subduction",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -218,6 +311,19 @@ main (int argc, char **argv)
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
                                     stokes_problem);
+
+  /* write vtk & txt of viscous stress tensor */
+  if (vtk_solution_path != NULL) {
+    char                path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_viscstress", vtk_solution_path);
+    earth_write_viscstress_tensor (sol_vel_press, stokes_problem, path,
+                                   txt_aleutian_path);
+  }
+  else if (txt_aleutian_path != NULL) {
+    earth_write_viscstress_tensor (sol_vel_press, stokes_problem, NULL,
+                                   txt_aleutian_path);
+  }
 
   /*
    * Clear Stokes Problem & Mesh
