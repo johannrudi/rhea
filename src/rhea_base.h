@@ -110,12 +110,14 @@ void                RHEA_GLOBAL_LERRORF (const char *fmt, ...)
 #define RHEA_GLOBAL_NOTICEF       RHEA_GLOBAL_STATISTICSF
 
 /* global log macros for beginning and end of a function (XML type output) */
-#define RHEA_GLOBAL_VERBOSE_FN_BEGIN(fn)    RHEA_GLOBAL_VERBOSEF ("<%s>\n", fn)
-#define RHEA_GLOBAL_VERBOSE_FN_END(fn)      RHEA_GLOBAL_VERBOSEF ("</%s>\n", fn)
-#define RHEA_GLOBAL_INFO_FN_BEGIN(fn)       RHEA_GLOBAL_INFOF ("<%s>\n", fn)
-#define RHEA_GLOBAL_INFO_FN_END(fn)         RHEA_GLOBAL_INFOF ("</%s>\n", fn)
-#define RHEA_GLOBAL_PRODUCTION_FN_BEGIN(fn) RHEA_GLOBAL_INFOF ("<%s>\n", fn)
-#define RHEA_GLOBAL_PRODUCTION_FN_END(fn)   RHEA_GLOBAL_INFOF ("</%s>\n", fn)
+#define RHEA_GLOBAL_VERBOSE_FN_BEGIN(fn)  RHEA_GLOBAL_VERBOSEF ("<%s>\n", fn)
+#define RHEA_GLOBAL_VERBOSE_FN_END(fn)    RHEA_GLOBAL_VERBOSEF ("</%s>\n", fn)
+#define RHEA_GLOBAL_INFO_FN_BEGIN(fn)     RHEA_GLOBAL_INFOF ("<%s>\n", fn)
+#define RHEA_GLOBAL_INFO_FN_END(fn)       RHEA_GLOBAL_INFOF ("</%s>\n", fn)
+#define RHEA_GLOBAL_PRODUCTION_FN_BEGIN(fn) \
+        RHEA_GLOBAL_PRODUCTIONF ("<%s>\n", fn)
+#define RHEA_GLOBAL_PRODUCTION_FN_END(fn) \
+        RHEA_GLOBAL_PRODUCTIONF ("</%s>\n", fn)
 
 #define RHEA_GLOBAL_VERBOSEF_FN_BEGIN(fn,a,...) \
         RHEA_GLOBAL_VERBOSEF ("<%s "a">\n", fn, __VA_ARGS__)
@@ -175,6 +177,27 @@ void                RHEA_LERRORF (const char *fmt, ...)
 #endif
 #define RHEA_NOTICE            RHEA_STATISTICS
 #define RHEA_NOTICEF           RHEA_STATISTICSF
+
+/* log macros for beginning and end of a function (XML type output) */
+#define RHEA_VERBOSE_FN_BEGIN(fn)     RHEA_VERBOSEF ("<%s>\n", fn)
+#define RHEA_VERBOSE_FN_END(fn)       RHEA_VERBOSEF ("</%s>\n", fn)
+#define RHEA_INFO_FN_BEGIN(fn)        RHEA_INFOF ("<%s>\n", fn)
+#define RHEA_INFO_FN_END(fn)          RHEA_INFOF ("</%s>\n", fn)
+#define RHEA_PRODUCTION_FN_BEGIN(fn)  RHEA_PRODUCTIONF ("<%s>\n", fn)
+#define RHEA_PRODUCTION_FN_END(fn)    RHEA_PRODUCTIONF ("</%s>\n", fn)
+
+#define RHEA_VERBOSEF_FN_BEGIN(fn,a,...) \
+        RHEA_VERBOSEF ("<%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_VERBOSEF_FN_END(fn,a,...) \
+        RHEA_VERBOSEF ("</%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_INFOF_FN_BEGIN(fn,a,...) \
+        RHEA_INFOF ("<%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_INFOF_FN_END(fn,a,...) \
+        RHEA_INFOF ("</%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_PRODUCTIONF_FN_BEGIN(fn,a,...) \
+        RHEA_PRODUCTIONF ("<%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_PRODUCTIONF_FN_END(fn,a,...) \
+        RHEA_PRODUCTIONF ("</%s "a">\n", fn, __VA_ARGS__)
 
 /* extern declarations */
 extern int          rhea_package_id;
