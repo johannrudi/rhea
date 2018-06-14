@@ -541,7 +541,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s (type %i)\n", __func__, opt->type);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "type=%i", opt->type);
 
   /* check input */
   RHEA_ASSERT (0 < opt->n_points);
@@ -579,7 +579,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
       RHEA_ABORT_NOT_REACHED ();
     }
 
-    RHEA_GLOBAL_INFOF ("%s: Number of weak zone points: %i\n", __func__,
+    RHEA_GLOBAL_INFOF ("%s Number of weak zone points=%i\n", __func__,
                        opt->n_points);
 
     /* write to file */
@@ -648,7 +648,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
       RHEA_ABORT_NOT_REACHED ();
     }
 
-    RHEA_GLOBAL_INFOF ("%s: Number of labels: %i\n", __func__, n_read);
+    RHEA_GLOBAL_INFOF ("%s Number of labels=%i\n", __func__, n_read);
 
     /* stop performance monitors */
     ymir_perf_counter_stop_add (
@@ -685,7 +685,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
       RHEA_ABORT_NOT_REACHED ();
     }
 
-    RHEA_GLOBAL_INFOF ("%s: Number of factors: %i\n", __func__, n_read);
+    RHEA_GLOBAL_INFOF ("%s Number of factors=%i\n", __func__, n_read);
 
     /* find min factor */
     for (idx = 0; idx < n_entries; idx++) {
@@ -745,7 +745,7 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
         file_path_txt, mpicomm);
     RHEA_ASSERT (n_read == n_entries);
 
-    RHEA_GLOBAL_INFOF ("%s: Number of distinct labels: %i\n", __func__,
+    RHEA_GLOBAL_INFOF ("%s Number of distinct labels=%i\n", __func__,
                        n_read);
 
     /* find min factor */
@@ -761,14 +761,14 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
   }
 
   /* print statistics */
-  RHEA_GLOBAL_INFOF ("%s: Weak zone statistics: Min radius %g\n",
+  RHEA_GLOBAL_INFOF ("%s Weak zone statistics: Min radius=%g\n",
                      __func__, opt->stats_radius_min);
-  RHEA_GLOBAL_INFOF ("%s: Weak zone statistics: Max thickness %g\n",
+  RHEA_GLOBAL_INFOF ("%s Weak zone statistics: Max thickness=%g\n",
                      __func__, opt->stats_thickness_max);
-  RHEA_GLOBAL_INFOF ("%s: Weak zone statistics: Min factor interior %g\n",
+  RHEA_GLOBAL_INFOF ("%s Weak zone statistics: Min factor interior=%g\n",
                      __func__, opt->stats_factor_interior_min);
 
-  RHEA_GLOBAL_INFOF ("Done %s (type %i)\n", __func__, opt->type);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
