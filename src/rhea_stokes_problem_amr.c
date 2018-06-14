@@ -1110,8 +1110,9 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
   const int           has_temp = (temperature != NULL);
   const int           has_vel_press = (velocity_pressure != NULL);
 
-  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i)\n",
-                     __func__, has_temp, has_vel_press);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "temperature=%i, velocity-pressure=%i",
+      has_temp, has_vel_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original == d->ymir_mesh->ma);
@@ -1170,7 +1171,7 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
   d->ymir_mesh = NULL;
   d->press_elem = NULL;
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 static void
@@ -1182,8 +1183,10 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   const int           has_press = (d->pressure_original != NULL);
   ymir_vec_t         *temperature, *velocity_pressure;
 
-  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
-                     __func__, has_temp, has_vel, has_press);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "temperature=%i, velocity-pressure=%i-%i",
+      has_temp, has_vel, has_press);
+
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
   RHEA_ASSERT (d->mangll_adapted == NULL);
@@ -1257,7 +1260,7 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   rhea_stokes_problem_create_mesh_dependencies (d->stokes_problem,
                                                 d->ymir_mesh, d->press_elem);
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 static void
@@ -1268,8 +1271,9 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
 
-  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
-                     __func__, has_temp, has_vel, has_press);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "temperature=%i, velocity-pressure=%i-%i",
+      has_temp, has_vel, has_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
@@ -1319,7 +1323,7 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
   }
   d->mangll_original = NULL;
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 static void
@@ -1330,8 +1334,9 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   const int           has_vel = (d->velocity_adapted != NULL);
   const int           has_press = (d->pressure_adapted != NULL);
 
-  RHEA_GLOBAL_INFOF ("Into %s (temperature %i, velocity-pressure %i-%i)\n",
-                     __func__, has_temp, has_vel, has_press);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "temperature=%i, velocity-pressure=%i-%i",
+      has_temp, has_vel, has_press);
 
   /* check input */
   RHEA_ASSERT (d->mangll_original == NULL);
@@ -1375,7 +1380,7 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   d->mangll_original = d->mangll_partitioned;
   d->mangll_partitioned = NULL;
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 /******************************************************************************
@@ -1406,7 +1411,7 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
     return 0;
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, type_name);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "type=\"%s\"", type_name);
 
   /* check input */
   RHEA_ASSERT (p4est != NULL);
@@ -1451,7 +1456,7 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
         rhea_stokes_problem_get_press_elem (stokes_problem));
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, type_name);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 
   /* return number of performed AMR iterations */
   return amr_iter;
@@ -1486,7 +1491,7 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
     return 0;
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s (%s)\n", __func__, type_name);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "type=\"%s\"", type_name);
 
   /* check input */
   RHEA_ASSERT (p4est != NULL);
@@ -1526,7 +1531,7 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
         rhea_stokes_problem_get_press_elem (stokes_problem));
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s (%s)\n", __func__, type_name);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 
   /* return number of performed AMR iterations */
   return amr_iter;
@@ -1549,7 +1554,7 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
   void                           *flag_fn_data;
   int                 amr_iter;
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
   /* create AMR data */
   amr_data = rhea_stokes_problem_amr_data_new (stokes_problem, discr_options);
@@ -1579,7 +1584,7 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
         rhea_stokes_problem_get_press_elem (stokes_problem));
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 
   /* return number of performed AMR iterations */
   return amr_iter;
