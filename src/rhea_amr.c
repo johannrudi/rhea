@@ -230,9 +230,9 @@ rhea_amr_init_refine (p4est_t *p4est,
   }
   RHEA_ASSERT (level_min <= level_max);
 
-  RHEA_GLOBAL_VERBOSEF (
-      "Into %s (refine \"%s\", type %i, level min %i, max %i\n",
-      __func__, refine_name, type, level_min, level_max);
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+      __func__, "refine=\"%s\", type=%i, level_min=%i, level_max=%i",
+      refine_name, type, level_min, level_max);
 
   /* set refinement function and data */
   switch (type) {
@@ -356,7 +356,7 @@ rhea_amr_init_refine (p4est_t *p4est,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 
   /* return whether refinement was performed */
   return (refine_fn != NULL);
@@ -483,10 +483,10 @@ rhea_amr (p4est_t *p4est,
   /* start performance monitors */
   ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_TOTAL]);
 
-  RHEA_GLOBAL_INFOF (
-      "Into %s (#cycles %i, flagged elements threshold begin %g, "
-      "threshold cycle %g)\n", __func__, n_cycles,
-      flagged_elements_thresh_begin, flagged_elements_thresh_cycle);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__,
+      "#cycles=%i, flagged elements threshold begin=%g, threshold cycle=%g",
+      n_cycles, flagged_elements_thresh_begin, flagged_elements_thresh_cycle);
 
   /* check input */
   RHEA_ASSERT (flag_elements_fn != NULL);
@@ -670,7 +670,7 @@ rhea_amr (p4est_t *p4est,
                        rhea_amr_get_global_max_level (p4est));
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 
   /* stop performance monitors */
   ymir_perf_counter_stop_add (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_TOTAL]);
