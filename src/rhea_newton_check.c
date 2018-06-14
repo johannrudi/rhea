@@ -18,8 +18,6 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   double              abs_error, rel_error;
   int                 n;
 
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
-
   /* check input */
   RHEA_ASSERT (NULL != rhea_newton_problem_get_neg_gradient_vec (nl_problem));
   RHEA_ASSERT (NULL != rhea_newton_problem_get_step_vec (nl_problem));
@@ -27,10 +25,12 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   /* return if check cannot be executed */
   if (!rhea_newton_problem_evaluate_objective_exists (nl_problem)) {
     RHEA_GLOBAL_VERBOSEF (
-        "%s: Cannot execute because objective functional is not provided.\n",
+        "%s Cannot execute because objective functional is not provided.\n",
         __func__);
     return;
   }
+
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
   /* create work vectors */
   sol_vec = ymir_vec_template (step_vec);
@@ -68,8 +68,8 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
     abs_error = fabs (grad_dir_ref - grad_dir_chk);
     rel_error = abs_error / fabs (grad_dir_ref);
 
-    RHEA_GLOBAL_INFOF ("%s: eps %.1e, error abs %.1e, rel %.1e "
-                       "(grad^T*dir ref %.12e, chk %.12e)\n",
+    RHEA_GLOBAL_INFOF ("<%s_result eps=%.1e, error abs=%.1e, rel=%.1e "
+                       "(grad^T*dir ref=%.12e, chk=%.12e) />\n",
                        __func__, eps, abs_error, rel_error,
                        grad_dir_ref, grad_dir_chk);
   }
@@ -82,7 +82,7 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   ymir_vec_destroy (dir_vec);
   ymir_vec_destroy (perturb_vec);
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
@@ -100,8 +100,6 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   double              abs_error, rel_error, norm_ref;
   int                 n;
 
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
-
   /* check input */
   RHEA_ASSERT (NULL != solution);
   RHEA_ASSERT (NULL != rhea_newton_problem_get_neg_gradient_vec (nl_problem));
@@ -111,10 +109,12 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   /* return if check cannot be executed */
   if (!rhea_newton_problem_apply_hessian_exists (nl_problem)) {
     RHEA_GLOBAL_VERBOSEF (
-        "%s: Cannot execute because Hessian-apply function is not provided.\n",
+        "%s Cannot execute because Hessian-apply function is not provided.\n",
         __func__);
     return;
   }
+
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
   /* create work vectors */
   sol_vec = solution;
@@ -156,7 +156,7 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
     abs_error = ymir_vec_norm (H_dir_chk);
     rel_error = abs_error / norm_ref;
 
-    RHEA_GLOBAL_INFOF ("%s: eps %.1e, error abs %.1e, rel %.1e\n",
+    RHEA_GLOBAL_INFOF ("<%s_result eps=%.1e, error abs=%.1e, rel=%.1e />\n",
                        __func__, eps, abs_error, rel_error);
   }
 
@@ -171,5 +171,5 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   ymir_vec_destroy (H_dir_ref);
   ymir_vec_destroy (H_dir_chk);
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
