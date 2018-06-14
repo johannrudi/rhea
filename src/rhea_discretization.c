@@ -617,7 +617,7 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   p4est_connectivity_t *conn;
   p4est_t            *p4est;
 
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /*
    * Read p4est from file
@@ -636,7 +636,7 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
     /* partition for multigrid coarsening */
     p4est_partition_ext (p4est, 1 /* for coarsening */, NULL);
 
-    RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+    RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 
     /* return p4est */
     return p4est;
@@ -764,7 +764,7 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   /* refine */
   rhea_amr_init_refine (p4est, level_min, level_max, domain_options);
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 
   /* return p4est */
   return p4est;
@@ -797,7 +797,7 @@ rhea_discretization_mangll_continuous_new (mangll_t **mangll,
   p4est_ghost_t      *ghost;
   mangll_mesh_t      *mangll_mesh;
 
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /* create p4est ghost */
   if (cnodes != NULL) {
@@ -830,7 +830,7 @@ rhea_discretization_mangll_continuous_new (mangll_t **mangll,
   /* destroy ghost */
   p4est_ghost_destroy (ghost);
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 void
@@ -852,11 +852,11 @@ rhea_discretization_mangll_discontinuous_new (
 {
   mangll_t           *mangll;
 
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   rhea_discretization_mangll_continuous_new (&mangll, NULL, p4est, opt);
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 
   return mangll;
 }
@@ -883,7 +883,7 @@ rhea_discretization_ymir_mesh_new_from_mangll (
   const int           skip_diag_prealloc = ymir_stress_pc_gmg;
   rhea_domain_boundary_t  *boundary = opt->boundary;
 
-  RHEA_GLOBAL_VERBOSEF ("Into %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /* check_input */
   RHEA_ASSERT (opt->boundary != NULL);
@@ -898,7 +898,7 @@ rhea_discretization_ymir_mesh_new_from_mangll (
     *press_elem = ymir_pressure_elem_new (mangll->refel, mangll->ompsize);
   }
 
-  RHEA_GLOBAL_VERBOSEF ("Done %s\n", __func__);
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 void
