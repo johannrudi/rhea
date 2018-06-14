@@ -269,7 +269,7 @@ rhea_topography_data_create (rhea_topography_options_t *opt,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_INFOF ("Into %s\n", __func__);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "type=%i", opt->type);
 
   /* check input */
   RHEA_ASSERT (0 < opt->n_points);
@@ -301,7 +301,7 @@ rhea_topography_data_create (rhea_topography_options_t *opt,
       RHEA_ABORT_NOT_REACHED ();
     }
 
-    RHEA_GLOBAL_INFOF ("%s: Number of topography points: %i\n", __func__,
+    RHEA_GLOBAL_INFOF ("%s Number of topography points=%i\n", __func__,
                        opt->n_points);
   }
 
@@ -382,7 +382,7 @@ rhea_topography_data_create (rhea_topography_options_t *opt,
     RHEA_FREE (labels);
   }
 
-  RHEA_GLOBAL_INFOF ("Done %s\n", __func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
