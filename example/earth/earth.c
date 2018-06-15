@@ -313,16 +313,16 @@ main (int argc, char **argv)
                                     stokes_problem);
 
   /* write vtk & txt of viscous stress tensor */
-  if (vtk_solution_path != NULL) {
-    char                path[BUFSIZ];
+  if (vtk_solution_path != NULL || txt_aleutian_path != NULL) {
+    char                vtk_path[BUFSIZ];
+    char                aleu_path[BUFSIZ];
 
-    snprintf (path, BUFSIZ, "%s_viscstress", vtk_solution_path);
-    earth_write_viscstress_tensor (sol_vel_press, stokes_problem, path,
-                                   txt_aleutian_path);
-  }
-  else if (txt_aleutian_path != NULL) {
-    earth_write_viscstress_tensor (sol_vel_press, stokes_problem, NULL,
-                                   txt_aleutian_path);
+    snprintf (vtk_path, BUFSIZ, "%s_viscstress", vtk_solution_path);
+    snprintf (aleu_path, BUFSIZ, "%s_viscstress", txt_aleutian_path);
+    earth_write_viscstress_tensor (
+        sol_vel_press, stokes_problem,
+        (vtk_solution_path != NULL ? vtk_path : NULL),
+        (txt_aleutian_path != NULL ? aleu_path : NULL));
   }
 
   /*
