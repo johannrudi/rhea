@@ -1486,7 +1486,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   ymir_vec_t         *step_vec = nl_problem->step_vec;
   const int           nonzero_initial_guess = 0;
   const int           lin_iter_max = opt->lin_iter_max;
-  int                 lin_iter_count = -1;
+  int                 stop_reason, lin_iter_count = -1;
   const double        lin_res_norm_rtol = step->lin_res_norm_rtol;
   double              lin_res_norm_reduction;
   double              lin_conv;
@@ -1502,7 +1502,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   RHEA_ASSERT (0.0 < step->lin_res_norm_rtol && step->lin_res_norm_rtol < 1.0);
 
   /* run solver for the linearized system */
-  nl_problem->solve_hessian_sys (
+  stop_reason = nl_problem->solve_hessian_sys (
       step_vec, rhs, lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, nl_problem->data, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
@@ -1540,10 +1540,10 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   step->lin_res_norm_reduction = lin_res_norm_reduction;
   step->lin_convergence = lin_conv;
 
-  RHEA_GLOBAL_INFOF ("<%s num_lin_iter=%i, residual_reduction=%.1e, "
-                     "lin_rtol=%.1e (prescribed) />\n",
-                     __func__, lin_iter_count, lin_res_norm_reduction,
-                     lin_res_norm_rtol);
+  RHEA_GLOBAL_INFOF ("<%s_stop reason=%i, iterations=%i, "
+                     "residual_reduction=%.1e, lin_rtol=%.1e (prescribed) />\n",
+                     __func__, stop_reason, lin_iter_count,
+                     lin_res_norm_reduction, lin_res_norm_rtol);
   RHEA_GLOBAL_INFOF_FN_END (__func__, "newton_iter=%i", iter);
 }
 
@@ -1866,7 +1866,7 @@ rhea_newton_solve (ymir_vec_t **solution,
     {
       RHEA_GLOBAL_INFOF (
           "<%s_linear_solve_status newton_iter=%i, "
-          "num_lin_iter=%i, residual_reduction=%.3e, "
+          "lin_iterations=%i, residual_reduction=%.3e, "
           "lin_rtol=%.3e (prescribed), convergence=%.3e (=rtol^(1/#iter)) />\n",
           __func__, iter, step.lin_iter_count,
           step.lin_res_norm_reduction, step.lin_res_norm_rtol,
