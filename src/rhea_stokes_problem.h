@@ -89,7 +89,7 @@ void                rhea_stokes_problem_solve (
                                     ymir_vec_t **sol_vel_press,
                                     const int nonzero_initial_guess,
                                     const int iter_max,
-                                    const double rel_tol,
+                                    const double rtol,
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**

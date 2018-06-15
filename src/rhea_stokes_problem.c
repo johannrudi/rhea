@@ -723,10 +723,10 @@ static void
 rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
                                   const int nonzero_initial_guess,
                                   const int iter_max,
-                                  const double rel_tol,
+                                  const double rtol,
                                   rhea_stokes_problem_t *stokes_problem_lin)
 {
-  const double        abs_tol = 1.0e-100;
+  const double        atol = 1.0e-100;
   const int           krylov_gmres_n_vecs = 100;
   const int           out_residual = !rhea_production_run_get ();
   ymir_vec_t         *rhs_vel_press = stokes_problem_lin->rhs_vel_press;
@@ -745,8 +745,8 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
   }
 
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (
-      __func__, "max iter=%i, rel tol=%.1e, nonzero init guess=%i",
-      iter_max, rel_tol, nonzero_initial_guess);
+      __func__, "iter_max=%i, rtol=%.1e, nonzero_init_guess=%i",
+      iter_max, rtol, nonzero_initial_guess);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
@@ -783,7 +783,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
   stop_reason = ymir_stokes_pc_solve (rhs_vel_press, *sol_vel_press,
                                       stokes_problem_lin->stokes_pc,
                                       nonzero_initial_guess,
-                                      rel_tol, abs_tol, iter_max,
+                                      rtol, atol, iter_max,
                                       krylov_gmres_n_vecs /* unused */,
                                       &itn);
 
@@ -817,29 +817,28 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
   /* print output */
   if (out_residual) {
     if (stokes_problem_lin->incompressible) {
-      RHEA_GLOBAL_PRODUCTIONF_FN_END (
-          __func__,
-          "solver stopping reason=%i, iterations=%i, "
-          "residual reduction=%.3e, convergence=%.3e, "
-          "reduction momentum=%.3e, norm mass=%.3e",
-          stop_reason, itn, res_reduction, conv_factor,
+      RHEA_GLOBAL_PRODUCTIONF (
+          "<%s_stop reason=%i, iterations=%i, "
+          "residual_reduction=%.3e, convergence=%.3e, "
+          "reduction_momentum=%.3e, norm_mass=%.3e />\n",
+          __func__, stop_reason, itn, res_reduction, conv_factor,
           res_reduction_vel, norm_res_press);
     }
     else {
-      RHEA_GLOBAL_PRODUCTIONF_FN_END (
-          __func__,
-          "solver stopping reason=%i, iterations=%i, "
-          "residual reduction=%.3e, convergence=%.3e, "
-          "reduction momentum=%.3e, reduction mass=%.3e",
-          stop_reason, itn, res_reduction, conv_factor,
+      RHEA_GLOBAL_PRODUCTIONF (
+          "<%s_stop reason=%i, iterations=%i, "
+          "residual_reduction=%.3e, convergence=%.3e, "
+          "reduction_momentum=%.3e, reduction_mass=%.3e />\n",
+          __func__, stop_reason, itn, res_reduction, conv_factor,
           res_reduction_vel, res_reduction_press);
     }
   }
   else {
-    RHEA_GLOBAL_PRODUCTIONF_FN_END (
-        __func__, "solver stopping reason=%i, num iter=%i",
-        stop_reason, itn);
+    RHEA_GLOBAL_PRODUCTIONF (
+        "<%s_stop reason=%i, iterations=%i />\n",
+        __func__, stop_reason, itn);
   }
+  RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
 
 /******************************************************************************
@@ -1993,7 +1992,7 @@ rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
 {
   const int           check_lin_aniso =
     rhea_stokes_problem_nonlinear_lin_aniso_check;
-  const double        lin_res_abs_tol = 1.0e-100;
+  const double        lin_res_atol = 1.0e-100;
   const int           krylov_gmres_restart = 100;
   rhea_stokes_problem_t *stokes_problem_nl = data;
   int                 itn, stop_reason;
@@ -2011,7 +2010,7 @@ rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
   stop_reason = ymir_stokes_pc_solve (neg_gradient, step,
                                       stokes_problem_nl->stokes_pc,
                                       nonzero_initial_guess,
-                                      lin_res_norm_rtol, lin_res_abs_tol,
+                                      lin_res_norm_rtol, lin_res_atol,
                                       lin_iter_max,
                                       krylov_gmres_restart /* unused */, &itn);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (step));
@@ -2118,7 +2117,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   ymir_vec_t         *velocity, *pressure, *viscosity;
   ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf;
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
@@ -2171,23 +2170,23 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         mean_rot_axis, velocity, stokes_problem_nl);
 
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity magn [mm/yr]: global min %.3e, max %.3e, mean %.3e\n",
-        __func__, magn_min_mm_yr, magn_max_mm_yr, magn_mean_mm_yr);
+        "Velocity magn [mm/yr] vol:  global min %.3e, max %.3e, mean %.3e\n",
+        magn_min_mm_yr, magn_max_mm_yr, magn_mean_mm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity magn [mm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
-        __func__, /*space*/ 9, "", lith_magn_max_mm_yr, lith_magn_mean_mm_yr);
+        "Velocity magn [mm/yr] vol:  lithosphere %*s max %.3e, mean %.3e\n",
+        /*space*/ 9, "", lith_magn_max_mm_yr, lith_magn_mean_mm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s:  ~ at surface [mm/yr]: global min %.3e, max %.3e, mean %.3e\n",
-        __func__, surf_magn_min_mm_yr, surf_magn_max_mm_yr,
+        "Velocity magn [mm/yr] surf: global min %.3e, max %.3e, mean %.3e\n",
+        surf_magn_min_mm_yr, surf_magn_max_mm_yr,
         surf_magn_mean_mm_yr);
     RHEA_GLOBAL_STATISTICSF (
-        "%s:  ~ at surface [mm/yr]: lithosphere %*s max %.3e, mean %.3e\n",
-        __func__, /*space*/ 9, "", surf_lith_magn_max_mm_yr,
+        "Velocity magn [mm/yr] surf: lithosphere %*s max %.3e, mean %.3e\n",
+        /*space*/ 9, "", surf_lith_magn_max_mm_yr,
         surf_lith_magn_mean_mm_yr);
     if (has_mean_rot) {
       RHEA_GLOBAL_STATISTICSF (
-        "%s: Velocity mean rot axis: x,y,z = %+.3e , %+.3e , %+.3e\n",
-        __func__, mean_rot_axis[0], mean_rot_axis[1], mean_rot_axis[2]);
+        "Velocity mean rot axis: x,y,z = %+.3e , %+.3e , %+.3e\n",
+        mean_rot_axis[0], mean_rot_axis[1], mean_rot_axis[2]);
     }
   }
 
@@ -2201,8 +2200,8 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         stokes_problem_nl->temp_options, stokes_problem_nl->visc_options);
 
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Pressure [Pa]: global abs min %.3e, abs max %.3e, mean %.3e\n",
-        __func__, abs_min_Pa, abs_max_Pa, mean_Pa);
+        "Pressure [Pa]: global abs min %.3e, abs max %.3e, mean %.3e\n",
+        abs_min_Pa, abs_max_Pa, mean_Pa);
   }
 
   /* print strain rate statistics */
@@ -2214,9 +2213,9 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         stokes_problem_nl->domain_options, stokes_problem_nl->temp_options);
 
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Strain rate (sqrt 2nd inv) [1/s]: global min %.3e, max %.3e, "
+        "Strain rate (sqrt 2nd inv) [1/s]: global min %.3e, max %.3e, "
         "max/min %.3e, mean %.3e\n",
-        __func__, min_1_s, max_1_s, max_1_s/min_1_s, mean_1_s);
+        min_1_s, max_1_s, max_1_s/min_1_s, mean_1_s);
   }
 
   /* print stress statistics */
@@ -2234,13 +2233,13 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         stokes_problem_nl->visc_options);
 
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Visc stress (sqrt 2nd inv) [Pa]:  global min %.3e, max %.3e, "
+        "Visc stress (sqrt 2nd inv) [Pa]:  global min %.3e, max %.3e, "
         "max/min %.3e, mean %.3e\n",
-        __func__, min_Pa, max_Pa, max_Pa/min_Pa, mean_Pa);
+        min_Pa, max_Pa, max_Pa/min_Pa, mean_Pa);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Stress normal at surface [Pa]:    global min %+.3e, max %+.3e, "
+        "Stress normal at surface [Pa]:    global min %+.3e, max %+.3e, "
         "mean %+.3e\n",
-        __func__, surf_min_Pa, surf_max_Pa, surf_mean_Pa);
+        surf_min_Pa, surf_max_Pa, surf_mean_Pa);
   }
 
   /* print viscosity statistics */
@@ -2270,31 +2269,31 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
         viscosity, stokes_problem_nl->visc_options);
 
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Viscosity [Pa*s]: global min %.3e, max %.3e, max/min %.3e, "
+        "Viscosity [Pa*s]: global min %.3e, max %.3e, max/min %.3e, "
         "mean %.3e\n",
-        __func__, min_Pas, max_Pas, max_Pas/min_Pas, mean_Pas);
+        min_Pas, max_Pas, max_Pas/min_Pas, mean_Pas);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Viscosity [Pa*s]: upp-m mean %.3e, low-m mean %.3e\n",
-        __func__, upper_mantle_mean_Pas, lower_mantle_mean_Pas);
+        "Viscosity [Pa*s]: upp-m mean %.3e, low-m mean %.3e\n",
+        upper_mantle_mean_Pas, lower_mantle_mean_Pas);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Viscosity [Pa*s]: asth. mean %.3e, lith. mean %.3e\n",
-        __func__, asth_mean_Pas, lith_mean_Pas);
+        "Viscosity [Pa*s]: asth. mean %.3e, lith. mean %.3e\n",
+        asth_mean_Pas, lith_mean_Pas);
 
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Visc min bounds volume: abs %.8e, rel %.6f\n",
-        __func__, bounds_vol_min, bounds_vol_min/domain_vol);
+        "Visc min bounds volume: abs %.8e, rel %.6f\n",
+        bounds_vol_min, bounds_vol_min/domain_vol);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Visc max bounds volume: abs %.8e, rel %.6f\n",
-        __func__, bounds_vol_max, bounds_vol_max/domain_vol);
+        "Visc max bounds volume: abs %.8e, rel %.6f\n",
+        bounds_vol_max, bounds_vol_max/domain_vol);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Yielding volume:        abs %.8e, rel %.6f\n",
-        __func__, yielding_vol, yielding_vol/domain_vol);
+        "Yielding volume:        abs %.8e, rel %.6f\n",
+        yielding_vol, yielding_vol/domain_vol);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Lithoshpere volume:     abs %.8e, rel %.6f\n",
-        __func__, lith_vol, lith_vol/domain_vol);
+        "Lithoshpere volume:     abs %.8e, rel %.6f\n",
+        lith_vol, lith_vol/domain_vol);
     RHEA_GLOBAL_STATISTICSF (
-        "%s: Asthenoshpere volume:   abs %.8e, rel %.6f\n",
-        __func__, asth_vol, asth_vol/domain_vol);
+        "Asthenoshpere volume:   abs %.8e, rel %.6f\n",
+        asth_vol, asth_vol/domain_vol);
   }
 
   /* print plate velocities */
@@ -2326,8 +2325,8 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 
     for (pid = 0; pid < n_plates_print; pid++) {
       RHEA_GLOBAL_STATISTICSF (
-          " %s plate_label=%i, mean_velocity_magn=\"%g mm/yr\"\n",
-          __func__, pid, mean_vel_magn_mm_yr[pid]);
+          "Plate velocity: plate_label=%i, mean_velocity_magn=\"%g mm/yr\"\n",
+          pid, mean_vel_magn_mm_yr[pid]);
     }
 
     RHEA_FREE (mean_vel_magn_mm_yr);
@@ -2369,7 +2368,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   rhea_stress_surface_destroy (stress_norm_surf);
   rhea_viscosity_surface_destroy (viscosity_surf);
 
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFOF_FN_END (__func__, "newton_iter=%i", iter);
 }
 
 /******************************************************************************
@@ -2726,7 +2725,7 @@ static void
 rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
                                      const int nonzero_initial_guess,
                                      const int iter_max,
-                                     const double rel_tol,
+                                     const double rtol,
                                      rhea_stokes_problem_t *stokes_problem_nl)
 {
   const int           status_verbosity = 1;
@@ -2742,7 +2741,7 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
   /* run Newton solver */
   newton_options->nonzero_initial_guess = nonzero_initial_guess;
   newton_options->iter_max = newton_options->iter_start + iter_max;
-  newton_options->rtol = rel_tol;
+  newton_options->rtol = rtol;
   newton_options->status_verbosity = status_verbosity;
   rhea_newton_solve (sol_vel_press, newton_problem, newton_options);
 
@@ -2886,17 +2885,17 @@ void
 rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
                            const int nonzero_initial_guess,
                            const int iter_max,
-                           const double rel_tol,
+                           const double rtol,
                            rhea_stokes_problem_t *stokes_problem)
 {
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
     rhea_stokes_problem_linear_solve (sol_vel_press, nonzero_initial_guess,
-                                      iter_max, rel_tol, stokes_problem);
+                                      iter_max, rtol, stokes_problem);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     rhea_stokes_problem_nonlinear_solve (sol_vel_press, nonzero_initial_guess,
-                                         iter_max, rel_tol, stokes_problem);
+                                         iter_max, rtol, stokes_problem);
     break;
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
