@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH -J earth_weak100km
-#SBATCH -o earth_weak100km.o%j
-#SBATCH -e earth_weak100km.e%j
-#SBATCH -p normal
-#SBATCH -N 128            # Total number of nodes (now required)
-#SBATCH -n 4352           # Total number of mpi tasks
-#SBATCH -t 10:00:00
+#SBATCH -J earth_weak20km
+#SBATCH -o earth_weak20km.o%j
+#SBATCH -e earth_weak20km.e%j
+#SBATCH -p large
+#SBATCH -N 1024           # Total number of nodes (now required)
+#SBATCH -n 34816          # Total number of mpi tasks
+#SBATCH -t 24:00:00
 #SBATCH -A TG-DPP130002
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=johann@ices.utexas.edu
@@ -23,7 +23,7 @@ declare -r BUILD_DIR="$HOME/build/perf/rhea"
 declare -r EXEC_RELPATH="example/earth/rhea_earth"
 declare -r CODE_DIR="$HOME/code/rhea"
 
-declare -r JOB_DIR="$SCRATCH/runs/rhea/earth_weak100km_YYYY-MM-DD"
+declare -r JOB_DIR="$SCRATCH/runs/rhea/earth_weak20km_YYYY-MM-DD"
 
 declare -r BIN_DIR="$JOB_DIR/bin"
 declare -r VTK_DIR="$JOB_DIR/vtk"
