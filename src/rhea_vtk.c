@@ -164,7 +164,7 @@ rhea_vtk_write_observation_data (const char *filepath,
     plate_label = rhea_viscosity_surface_new (ymir_mesh);
     ymir_vec_set_value (plate_label, RHEA_PLATE_NONE);
   }
-  if (!in_pl_label) {
+  if (!in_pl_vel) {
     plate_vel = rhea_velocity_surface_new (ymir_mesh);
     ymir_vec_set_value (plate_vel, NAN);
   }
