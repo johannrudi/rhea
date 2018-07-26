@@ -21,6 +21,7 @@
 #define RHEA_AMR_DEFAULT_INIT_REFINE_DEPTH_M NULL
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN (-1)
 #define RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX (-1)
+#define RHEA_AMR_DEFAULT_LOG_LEVEL (1)
 #define RHEA_AMR_DEFAULT_LOG_LEVEL_MAX (1)
 #define RHEA_AMR_DEFAULT_MONITOR_PERFORMANCE (0)
 
@@ -33,6 +34,7 @@ int                 rhea_amr_init_refine_level_min =
   RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MIN;
 int                 rhea_amr_init_refine_level_max =
   RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX;
+int                 rhea_amr_log_level = RHEA_AMR_DEFAULT_LOG_LEVEL;
 int                 rhea_amr_log_level_max = RHEA_AMR_DEFAULT_LOG_LEVEL_MAX;
 int                 rhea_amr_monitor_performance =
                       RHEA_AMR_DEFAULT_MONITOR_PERFORMANCE;
@@ -64,9 +66,12 @@ rhea_amr_add_options (ymir_options_t * opt_sup)
     &(rhea_amr_init_refine_level_max), RHEA_AMR_DEFAULT_INIT_REFINE_LEVEL_MAX,
     "Refinement of new/initial mesh: Maximum level of mesh refinement",
 
+  YMIR_OPTIONS_B, "log-level", '\0',
+    &(rhea_amr_log_level), RHEA_AMR_DEFAULT_LOG_LEVEL,
+    "Print histogram of mesh refinement levels",
   YMIR_OPTIONS_B, "log-level-max", '\0',
     &(rhea_amr_log_level_max), RHEA_AMR_DEFAULT_LOG_LEVEL_MAX,
-    "Print max refinement level of the mesh",
+    "Print max mesh refinement level",
 
   YMIR_OPTIONS_B, "monitor-performance", '\0',
     &(rhea_amr_monitor_performance), RHEA_AMR_DEFAULT_MONITOR_PERFORMANCE,
@@ -419,13 +424,13 @@ rhea_amr_get_global_n_elems (p4est_t *p4est)
 }
 
 static int
-rhea_amr_get_global_max_level (p4est_t *p4est)
+rhea_amr_get_level_max (p4est_t *p4est)
 {
   MPI_Comm            mpicomm = p4est->mpicomm;
   int                 mpiret;
-  p4est_topidx_t      ti;
   int                 level_max_loc;
   int                 level_max_glo;
+  p4est_topidx_t      ti;
 
   /* find processor local max level among all trees */
   level_max_loc = 0;
@@ -441,6 +446,49 @@ rhea_amr_get_global_max_level (p4est_t *p4est)
                              sc_MPI_MAX, mpicomm); SC_CHECK_MPI (mpiret);
 
   return level_max_glo;
+}
+
+static int
+rhea_amr_get_level_histogram (p4est_t *p4est,
+                              int level_histogram[P4EST_QMAXLEVEL+1])
+{
+  MPI_Comm            mpicomm = p4est->mpicomm;
+  int                 mpiret;
+  int                 level_histogram_loc[P4EST_QMAXLEVEL + 1];
+  int                 l;
+  p4est_topidx_t      ti;
+  size_t              tqi;
+
+  /* set counts to zero */
+  for (l = 0; l <= P4EST_QMAXLEVEL; l++) {
+    level_histogram_loc[l] = 0;
+  }
+
+  /* count levels on this processor */
+  for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
+    p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
+    sc_array_t         *tquadrants = &(t->quadrants);
+
+    for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
+      p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
+
+      RHEA_ASSERT (0 <= q->level && q->level <= P4EST_QMAXLEVEL);
+      level_histogram_loc[q->level]++;
+    }
+  }
+
+  /* sum levels from all processors */
+  mpiret = sc_MPI_Allreduce (level_histogram_loc, level_histogram,
+                             P4EST_QMAXLEVEL + 1, sc_MPI_INT, sc_MPI_SUM,
+                             mpicomm); SC_CHECK_MPI (mpiret);
+
+  /* find max level */
+  for (l = P4EST_QMAXLEVEL; 0 <= l; l--) {
+    if (0 < level_histogram[l]) {
+      break;
+    }
+  }
+  return l;
 }
 
 int
@@ -485,14 +533,15 @@ rhea_amr (p4est_t *p4est,
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__,
-      "#cycles=%i, flagged elements threshold begin=%g, threshold cycle=%g",
+      "#cycles=%i, #elements_flagged_threshold_begin=%g, "
+      "#elements_flagged_threshold_cycle=%g",
       n_cycles, flagged_elements_thresh_begin, flagged_elements_thresh_cycle);
 
   /* check input */
   RHEA_ASSERT (flag_elements_fn != NULL);
 
   for (iter = 0; iter < iter_max; iter++) { /* BEGIN: AMR iterations */
-    RHEA_GLOBAL_INFOF ("%s -- iter %i: #Elements %lli\n",
+    RHEA_GLOBAL_INFOF ("<%s cycle=%i, #elements=%lli />\n",
                        __func__, iter, (long long int) n_elements_curr);
 
     /*
@@ -503,7 +552,7 @@ rhea_amr (p4est_t *p4est,
     ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_FLAG]);
     flagged_rel = flag_elements_fn (p4est, flag_elements_data);
     ymir_perf_counter_stop_add (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_FLAG]);
-    RHEA_GLOBAL_INFOF ("%s -- iter %i: Relative #elements flagged %g\n",
+    RHEA_GLOBAL_INFOF ("<%s cycle=%i, #elements_flagged_rel=%g />\n",
                        __func__, iter, flagged_rel);
 
     /* set threshold for #elements flagged for coarsening/refinement */
@@ -521,9 +570,10 @@ rhea_amr (p4est_t *p4est,
 
     /* stop AMR if not enough elements were flagged */
     if (flagged_rel <= flagged_thresh) {
-      RHEA_GLOBAL_INFOF ("%s -- iter %i: Stop AMR, "
-                         "rel. #elements flagged %g <= flagged threshold %g\n",
-                         __func__, iter, flagged_rel, flagged_thresh);
+      RHEA_GLOBAL_INFOF (
+          "<%s_stop cycle=%i, "
+          "reason=\"#elements_flagged_rel %g <= threshold %g\" />\n",
+          __func__, iter, flagged_rel, flagged_thresh);
       break;
     }
 
@@ -555,14 +605,15 @@ rhea_amr (p4est_t *p4est,
                     (double) n_elements_prev;
 
     /* check if max #elements is estimated to be reached */
-    n_elements_estd = (flagged_rel - coarsened_rel) * (double) n_elements_prev +
-                      (double) n_elements_coar;
+    n_elements_estd = (double) n_elements_coar;
+    n_elements_estd +=
+      (double) (P4EST_CHILDREN - 1) *
+      (double) n_elements_prev * (flagged_rel - coarsened_rel);
+    RHEA_GLOBAL_INFOF (
+        "<%s cycle=%i, #elements_estimate=%g, #elements_max=%g />\n",
+        __func__, iter, n_elements_estd, n_elements_maxd);
     if (n_elements_maxd < n_elements_estd) {
       reached_n_elements_max = 1;
-      RHEA_GLOBAL_INFOF (
-          "%s -- iter %i: No refinement, est. #elements %g above "
-          "max #elements %g\n", __func__, iter,
-          n_elements_estd, n_elements_maxd);
     }
 
     /* refine p4est */
@@ -620,9 +671,9 @@ rhea_amr (p4est_t *p4est,
     /* stop AMR if max #elements was estimated to be reached */
     if (reached_n_elements_max) {
       RHEA_GLOBAL_INFOF (
-          "%s -- iter %i: Stop AMR, est. #elements %g above "
-          "max #elements %g\n", __func__, iter,
-          n_elements_estd, n_elements_maxd);
+          "<%s_stop cycle=%i, "
+          "reason=\"#elements est. %g > #elements max %g\" />\n",
+          __func__, iter, n_elements_estd, n_elements_maxd);
       iter++; /* adjust #cycles */
       break;
     }
@@ -635,8 +686,9 @@ rhea_amr (p4est_t *p4est,
                   (double) n_elements_prev;
     if (changed_rel <= flagged_thresh && 2.0*refined_rel <= flagged_thresh) {
       RHEA_GLOBAL_INFOF (
-          "%s -- iter %i: Stop AMR, rel. #elements changed %g and "
-          "2x rel. #elements refined %g <= flagged threshold %g\n",
+          "<%s_stop cycle=%i, "
+          "reason=\"rel. #elements changed %g and "
+          "2x rel. #elements refined %g <= flagged threshold %g\" />\n",
           __func__, iter, changed_rel, refined_rel, flagged_thresh);
       iter++; /* adjust #cycles */
       break;
@@ -645,8 +697,9 @@ rhea_amr (p4est_t *p4est,
 
   /* print message if stopped due to reaching max #cycles */
   if (iter_max == iter) {
-    RHEA_GLOBAL_INFOF ("%s -- iter %i: Stop AMR, max #cycles reached\n",
-                       __func__, iter - 1);
+    RHEA_GLOBAL_INFOF (
+        "<%s_stop cycle=%i, reason=\"max #cycles reached\" />\n",
+        __func__, iter - 1);
   }
 
   /* finalize data if AMR was performed */
@@ -660,14 +713,33 @@ rhea_amr (p4est_t *p4est,
 
   /* print statistics */
   RHEA_GLOBAL_INFOF (
-      "%s: #Cycles %i, #elements changed from %lli to %lli (%+.1f%%)\n",
-      __func__, iter,
+      "<%s #cycles=%i, #elements_beginning=%lli, #elements_end=%lli, "
+      "change=%+.1f%% />\n", __func__, iter,
       (long long int) n_elements_begin, (long long int) n_elements_curr,
       (double) (n_elements_curr - n_elements_begin) /
       (double) n_elements_curr * 100.0);
-  if (0 < iter && rhea_amr_log_level_max) {
-    RHEA_GLOBAL_INFOF ("%s: Max level of mesh refinement %i\n", __func__,
-                       rhea_amr_get_global_max_level (p4est));
+  if (0 < iter) {
+    int                 level_max = -1;
+
+    if (rhea_amr_log_level) {
+      int                 level_histogram[P4EST_QMAXLEVEL + 1];
+      int                 l;
+
+      level_max = rhea_amr_get_level_histogram (p4est, level_histogram);
+      RHEA_GLOBAL_INFOF ("<%s_mesh_level_histogram>\n", __func__);
+      for (l = 0; l <= level_max; l++) {
+        RHEA_GLOBAL_INFOF ("level %2i ... %9i elements\n",
+                           l, level_histogram[l]);
+      }
+      RHEA_GLOBAL_INFOF ("</%s_mesh_level_histogram>\n", __func__);
+    }
+    else if (rhea_amr_log_level_max) {
+      level_max = rhea_amr_get_level_max (p4est);
+    }
+
+    if (0 <= level_max) {
+      RHEA_GLOBAL_INFOF ("<%s mesh_level_max=%i />\n", __func__, level_max);
+    }
   }
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
