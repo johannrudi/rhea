@@ -2304,13 +2304,11 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
     int                 n_plates_print = n_plates;
     int                 pid;
     ymir_vec_t         *velocity_surf_mm_yr = ymir_vec_clone (velocity_surf);
-    double             *mean_vel_magn_mm_yr;
+    double             *mean_vel_magn_mm_yr = RHEA_ALLOC (double, n_plates);
 
     rhea_velocity_convert_to_dimensional_mm_yr (
         velocity_surf_mm_yr, stokes_problem_nl->domain_options,
         stokes_problem_nl->temp_options);
-
-    mean_vel_magn_mm_yr = RHEA_ALLOC (double, n_plates);
     rhea_plate_velocity_get_mean_magnitude_all (
         mean_vel_magn_mm_yr, velocity_surf_mm_yr, NULL /* plate_label */,
         1 /* project_out_mean_rot */, plate_options);
@@ -2329,6 +2327,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
           pid, mean_vel_magn_mm_yr[pid]);
     }
 
+    ymir_vec_destroy (velocity_surf_mm_yr);
     RHEA_FREE (mean_vel_magn_mm_yr);
   }
 
