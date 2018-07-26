@@ -551,6 +551,7 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
     success_vert = rhea_io_mpi_read_broadcast_float (
         vertices_all, 2*n_vertices_total, NULL /* path bin */,
         opt->vertices_file_path_txt, mpicomm);
+    RHEA_ASSERT (success_vert == 2*n_vertices_total);
 
     /* process vertices */
     if (success_vert) {
@@ -591,8 +592,9 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
     /* read file */
     vertices_all = RHEA_ALLOC (float, 2*n_vertices_coarse_total);
     success_vert_coarse = rhea_io_mpi_read_broadcast_float (
-        vertices_all, 2*n_vertices_total, NULL /* path bin */,
+        vertices_all, 2*n_vertices_coarse_total, NULL /* path bin */,
         opt->vertices_coarse_container_file_path_txt, mpicomm);
+    RHEA_ASSERT (success_vert == 2*n_vertices_coarse_total);
 
     /* process vertices */
     if (success_vert_coarse) {
