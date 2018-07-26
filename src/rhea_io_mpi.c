@@ -144,6 +144,7 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
       if (file_path_bin != NULL) {
         rhea_io_std_write_double (file_path_bin, values_all, total_size);
       }
+      n_entries = (int) total_size;
     }
   }
 
@@ -205,6 +206,7 @@ rhea_io_mpi_read_broadcast_float (float *values_all,
       if (file_path_bin != NULL) {
         rhea_io_std_write_float (file_path_bin, values_all, total_size);
       }
+      n_entries = (int) total_size;
     }
   }
 
@@ -266,6 +268,7 @@ rhea_io_mpi_read_broadcast_int (int *values_all,
       if (file_path_bin != NULL) {
         rhea_io_std_write_int (file_path_bin, values_all, total_size);
       }
+      n_entries = (int) total_size;
     }
   }
 
