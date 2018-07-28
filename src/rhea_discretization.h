@@ -140,7 +140,7 @@ void                rhea_discretization_ymir_mesh_destroy (
  * Coordinates
  *****************************************************************************/
 
-void                rhea_discretization_write_coordinates_cont (
+void                rhea_discretization_write_cont_coordinates (
                                   const char *file_path_txt,
                                   ymir_mesh_t *ymir_mesh,
                                   ymir_topidx_t meshid,
