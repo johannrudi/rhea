@@ -1491,7 +1491,8 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
     return 0;
   }
 
-  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "type=\"%s\"", type_name);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "type=\"%s\", nl_iter=%i", type_name,
+                              nonlinear_iter);
 
   /* check input */
   RHEA_ASSERT (p4est != NULL);
@@ -1512,6 +1513,77 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
   }
   amr_data->tol_min = tol_min;
   amr_data->tol_max = tol_max;
+
+  /* perform AMR */
+  amr_iter = rhea_amr (p4est, n_cycles, flagged_elements_thresh_begin,
+                       flagged_elements_thresh_cycle, flag_fn, flag_fn_data,
+                       rhea_stokes_problem_amr_data_initialize_fn,
+                       rhea_stokes_problem_amr_data_finalize_fn,
+                       rhea_stokes_problem_amr_data_project_fn,
+                       rhea_stokes_problem_amr_data_partition_fn, amr_data);
+
+  /* destroy */
+  rhea_stokes_problem_amr_data_destroy (amr_data);
+
+  /* print mesh statistics */
+  if (0 < amr_iter) {
+    ymir_monitor_print_global_mesh_stats (
+        rhea_stokes_problem_get_ymir_mesh (stokes_problem),
+        rhea_stokes_problem_get_press_elem (stokes_problem));
+  }
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
+
+  /* return number of performed AMR iterations */
+  return amr_iter;
+}
+
+int
+rhea_stokes_problem_solution_amr (rhea_stokes_problem_t *stokes_problem,
+                                  p4est_t *p4est,
+                                  rhea_discretization_options_t *discr_options)
+{
+  int                 level_min = discr_options->level_min;
+  int                 level_max = discr_options->level_max;
+
+  const char         *type_name = "coarsen_to_level"; //TODO
+  const int           n_cycles = level_max - level_min;
+  const double        flagged_elements_thresh_begin = NAN; //TODO
+  const double        flagged_elements_thresh_cycle = NAN; //TODO
+
+  rhea_stokes_problem_amr_data_t *amr_data;
+  rhea_amr_flag_elements_fn_t     flag_fn;
+  void                           *flag_fn_data;
+  int                 amr_iter;
+
+  /* exit if nothing to do */
+  if (strcmp (type_name, "NONE") == 0) {
+    return 0;
+  }
+
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "type=\"%s\"", type_name);
+
+  /* check input */
+  RHEA_ASSERT (p4est != NULL);
+  RHEA_ASSERT (discr_options != NULL);
+
+  /* create AMR data */
+  amr_data = rhea_stokes_problem_amr_data_new (stokes_problem, discr_options);
+
+  /* set up flagging of elements for coarsening/refinement */
+  if (strcmp (type_name, "coarsen_to_level") == 0) {
+    flag_fn = rhea_amr_flag_coarsen_to_level_fn;
+    flag_fn_data = &level_min;
+  }
+  else if (strcmp (type_name, "refine_to_level") == 0) {
+    flag_fn = rhea_amr_flag_refine_to_level_fn;
+    flag_fn_data = &level_max;
+  }
+  else { /* unknown type name */
+    RHEA_ABORT ("Unknown initial AMR name");
+    flag_fn = NULL;
+    flag_fn_data = NULL;
+  }
 
   /* perform AMR */
   amr_iter = rhea_amr (p4est, n_cycles, flagged_elements_thresh_begin,

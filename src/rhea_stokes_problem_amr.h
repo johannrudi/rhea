@@ -40,6 +40,14 @@ int                 rhea_stokes_problem_nonlinear_amr (
 /**
  *
  */
+int                 rhea_stokes_problem_solution_amr (
+                                rhea_stokes_problem_t *stokes_problem,
+                                p4est_t *p4est,
+                                rhea_discretization_options_t *discr_options);
+
+/**
+ *
+ */
 int                 rhea_stokes_problem_amr (
                                 rhea_stokes_problem_t *stokes_problem,
                                 p4est_t *p4est,
