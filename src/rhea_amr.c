@@ -249,7 +249,7 @@ rhea_amr_init_refine (p4est_t *p4est,
     break;
   case RHEA_AMR_INIT_REFINE_UNIFORM:
     refine_data = &level_min;
-    refine_fn = rhea_amr_refine_to_min_level_fn;
+    refine_fn = rhea_amr_refine_to_level_fn;
     recursively = 1;
     break;
   case RHEA_AMR_INIT_REFINE_HALF:
@@ -770,14 +770,22 @@ rhea_amr_refine_all_fn (p4est_t * p4est, p4est_topidx_t which_tree,
 }
 
 int
-rhea_amr_refine_to_min_level_fn (p4est_t * p4est, p4est_topidx_t which_tree,
-                                 p4est_quadrant_t * quadrant)
+rhea_amr_coarsen_to_level_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                              p4est_quadrant_t * quadrant)
+{
+  int                *level_max = p4est->user_pointer;
+
+  return (0 <= *level_max && *level_max < quadrant->level);
+}
+
+int
+rhea_amr_refine_to_level_fn (p4est_t * p4est, p4est_topidx_t which_tree,
+                             p4est_quadrant_t * quadrant)
 {
   int                *level_min = p4est->user_pointer;
 
   return (quadrant->level < *level_min);
 }
-
 
 int
 rhea_amr_coarsen_half_fn (p4est_t * p4est, p4est_topidx_t which_tree,
@@ -874,9 +882,12 @@ rhea_amr_get_relative_global_num_flagged (const p4est_locidx_t n_flagged_loc,
 double
 rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
 {
+  void               *user_pointer = p4est->user_pointer;
   p4est_locidx_t      n_flagged_loc;
   p4est_topidx_t      ti;
   size_t              tqi;
+
+  p4est->user_pointer = data;
 
   /* flag quadrants */
   n_flagged_loc = 0;
@@ -898,6 +909,8 @@ rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
     }
   }
 
+  p4est->user_pointer = user_pointer;
+
   /* return relative number of flagged quadrants */
   return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
 }
@@ -905,9 +918,12 @@ rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
 double
 rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
 {
+  void               *user_pointer = p4est->user_pointer;
   p4est_locidx_t      n_flagged_loc;
   p4est_topidx_t      ti;
   size_t              tqi;
+
+  p4est->user_pointer = data;
 
   /* flag quadrants */
   n_flagged_loc = 0;
@@ -928,6 +944,80 @@ rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
       }
     }
   }
+
+  p4est->user_pointer = user_pointer;
+
+  /* return relative number of flagged quadrants */
+  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
+}
+
+double
+rhea_amr_flag_coarsen_to_level_fn (p4est_t *p4est, void *data)
+{
+  void               *user_pointer = p4est->user_pointer;
+  p4est_locidx_t      n_flagged_loc;
+  p4est_topidx_t      ti;
+  size_t              tqi;
+
+  p4est->user_pointer = data;
+
+  /* flag quadrants */
+  n_flagged_loc = 0;
+  for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
+    p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
+    sc_array_t         *tquadrants = &(t->quadrants);
+
+    for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
+      p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
+      rhea_p4est_quadrant_data_t *qd = q->p.user_data;
+
+      if (rhea_amr_coarsen_to_level_fn (p4est, ti, q)) {
+        qd->amr_flag = RHEA_AMR_FLAG_COARSEN;
+        n_flagged_loc++;
+      }
+      else {
+        qd->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
+      }
+    }
+  }
+
+  p4est->user_pointer = user_pointer;
+
+  /* return relative number of flagged quadrants */
+  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
+}
+
+double
+rhea_amr_flag_refine_to_level_fn (p4est_t *p4est, void *data)
+{
+  void               *user_pointer = p4est->user_pointer;
+  p4est_locidx_t      n_flagged_loc;
+  p4est_topidx_t      ti;
+  size_t              tqi;
+
+  p4est->user_pointer = data;
+
+  /* flag quadrants */
+  n_flagged_loc = 0;
+  for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
+    p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
+    sc_array_t         *tquadrants = &(t->quadrants);
+
+    for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
+      p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
+      rhea_p4est_quadrant_data_t *qd = q->p.user_data;
+
+      if (rhea_amr_refine_to_level_fn (p4est, ti, q)) {
+        qd->amr_flag = RHEA_AMR_FLAG_REFINE;
+        n_flagged_loc++;
+      }
+      else {
+        qd->amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
+      }
+    }
+  }
+
+  p4est->user_pointer = user_pointer;
 
   /* return relative number of flagged quadrants */
   return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);

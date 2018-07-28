@@ -128,10 +128,12 @@ int                 rhea_amr_refine_all_fn (p4est_t * p4est,
                                             p4est_topidx_t which_tree,
                                             p4est_quadrant_t * quadrant);
 
-int                 rhea_amr_refine_to_min_level_fn (
-                                                  p4est_t * p4est,
+int                 rhea_amr_coarsen_to_level_fn (p4est_t * p4est,
                                                   p4est_topidx_t which_tree,
                                                   p4est_quadrant_t * quadrant);
+int                 rhea_amr_refine_to_level_fn (p4est_t * p4est,
+                                                 p4est_topidx_t which_tree,
+                                                 p4est_quadrant_t * quadrant);
 
 int                 rhea_amr_coarsen_half_fn (p4est_t * p4est,
                                               p4est_topidx_t which_tree,
@@ -171,5 +173,10 @@ double              rhea_amr_get_relative_global_num_flagged (
 
 double              rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data);
 double              rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data);
+
+double              rhea_amr_flag_coarsen_to_level_fn (p4est_t *p4est,
+                                                       void *data);
+double              rhea_amr_flag_refine_to_level_fn (p4est_t *p4est,
+                                                      void *data);
 
 #endif /* RHEA_AMR_H */
