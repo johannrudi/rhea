@@ -6,10 +6,12 @@
 rhea_example_share_internal_headers = \
       example/share/example_share_mesh.h \
       example/share/example_share_stokes.h \
+      example/share/example_share_io.h \
       example/share/example_share_vtk.h
 rhea_example_share_compiled_sources = \
       example/share/example_share_mesh.c \
       example/share/example_share_stokes.c \
+      example/share/example_share_io.c \
       example/share/example_share_vtk.c
 
 librhea_internal_headers += $(rhea_example_share_internal_headers)
