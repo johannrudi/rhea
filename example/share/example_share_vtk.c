@@ -1,12 +1,7 @@
-/**
- * Shared functions for rhea examples.
- *
- ******************************************************************************
- * Author:             Johann Rudi <johann@ices.utexas.edu>
- *****************************************************************************/
-
 #include <example_share_vtk.h>
 #include <rhea_base.h>
+#include <rhea_temperature.h>
+#include <rhea_viscosity.h>
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
@@ -33,6 +28,9 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   if (vtk_write_input_path == NULL) {
     return;
   }
+
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "path=\"%s\"",
+                                 vtk_write_input_path);
 
   /* get options */
   domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
@@ -122,6 +120,8 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   if (plate_vel != NULL) {
     rhea_velocity_surface_destroy (plate_vel);
   }
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 void
@@ -141,6 +141,9 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   if (vtk_write_solution_path == NULL) {
     return;
   }
+
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "path=\"%s\"",
+                                 vtk_write_solution_path);
 
   /* get options */
   domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
@@ -199,4 +202,6 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   rhea_velocity_surface_destroy (velocity_surf);
   rhea_stress_surface_destroy (stress_norm_surf);
   rhea_viscosity_surface_destroy (viscosity_surf);
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }

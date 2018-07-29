@@ -1,9 +1,7 @@
-/**
- * Shared functions for rhea examples.
+/* EXAMPLE_SHARE_MESH  Shared functions for rhea examples.
  *
- ******************************************************************************
  * Author:             Johann Rudi <johann@ices.utexas.edu>
- *****************************************************************************/
+ */
 
 #ifndef EXAMPLE_SHARE_MESH_H
 #define EXAMPLE_SHARE_MESH_H

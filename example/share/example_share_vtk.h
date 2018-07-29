@@ -1,17 +1,13 @@
-/**
- * Shared functions for rhea examples.
+/* EXAMPLE_SHARE_VTK  Shared functions for rhea examples.
  *
- ******************************************************************************
  * Author:             Johann Rudi <johann@ices.utexas.edu>
- *****************************************************************************/
+ */
 
 #ifndef EXAMPLE_SHARE_VTK_H
 #define EXAMPLE_SHARE_VTK_H
 
 #include <rhea_stokes_problem.h>
-#include <rhea_temperature.h>
 #include <rhea_plate.h>
-#include <rhea_viscosity.h>
 
 /**
  * Writes VTK of input data.

@@ -1,10 +1,3 @@
-/**
- * Shared functions for rhea examples.
- *
- ******************************************************************************
- * Author:             Johann Rudi <johann@ices.utexas.edu>
- *****************************************************************************/
-
 #include <example_share_mesh.h>
 #include <rhea.h>
 
@@ -19,7 +12,7 @@ example_share_mesh_new (p4est_t **p4est,
                         const int performance_monitor_index_mesh)
 {
   rhea_performance_monitor_start_barrier (performance_monitor_index_mesh);
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
   /* set up data */
   rhea_topography_data_create (topo_options, mpicomm);
@@ -35,7 +28,7 @@ example_share_mesh_new (p4est_t **p4est,
   rhea_discretization_ymir_mesh_new_from_p4est (ymir_mesh, press_elem, *p4est,
                                                 discr_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
   rhea_performance_monitor_stop_add (performance_monitor_index_mesh);
 }
 
@@ -46,7 +39,7 @@ example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
                             rhea_topography_options_t *topo_options,
                             rhea_discretization_options_t *discr_options)
 {
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
   /* destroy mesh */
   rhea_discretization_ymir_mesh_destroy (ymir_mesh, press_elem);
@@ -58,5 +51,5 @@ example_share_mesh_destroy (ymir_mesh_t *ymir_mesh,
   /* destroy data */
   rhea_topography_data_clear (topo_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }

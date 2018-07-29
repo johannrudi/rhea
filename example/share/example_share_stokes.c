@@ -23,7 +23,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   ymir_vec_t         *temperature;
   void               *solver_options;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
   /* set up data */
   rhea_plate_data_create (plate_options, mpicomm);
@@ -67,7 +67,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
     *press_elem = rhea_stokes_problem_get_press_elem (*stokes_problem);
   }
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
 
 void
@@ -79,7 +79,7 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
 {
   ymir_vec_t         *temperature;
 
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
   /* get temperature */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
@@ -96,5 +96,5 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
   rhea_plate_data_clear (plate_options);
   rhea_weakzone_data_clear (weak_options);
 
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", __func__);
+  RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
