@@ -8,8 +8,10 @@
 
 #include <rhea.h>
 #include <rhea_domain_subset.h>
+#include <rhea_stokes_problem_amr.h>
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
+#include <example_share_io.h>
 #include <example_share_vtk.h>
 #include <ymir_vtk.h>
 
@@ -152,10 +154,12 @@ main (int argc, char **argv)
   double              solver_rel_tol;
   char               *velocity_file_path_bin;
   char               *pressure_file_path_bin;
+  int                *write_solution_amr;
   char               *bin_solver_path;
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
+  char               *txt_solution_surf_path;
   char               *txt_aleutian_path;
   /* mesh */
   p4est_t              *p4est;
@@ -183,10 +187,10 @@ main (int argc, char **argv)
 
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
-    &solver_iter_max, 100,
+    &(solver_iter_max), 100,
     "Maximum number of iterations for Stokes solver",
   YMIR_OPTIONS_D, "solver-rel-tol", '\0',
-    &solver_rel_tol, 1.0e-6,
+    &(solver_rel_tol), 1.0e-6,
     "Relative tolerance for Stokes solver",
 
   /* velocity & pressure (initial guess) intput */
@@ -196,6 +200,11 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "pressure-file-path", '\0',
     &(pressure_file_path_bin), NULL,
     "Path to a binary file that contains a pressure field",
+
+  /* file output */
+  YMIR_OPTIONS_B, "write-solution-amr", '\0',
+    &(write_solution_amr), 0,
+    "Perform AMR before writing output of the solution",
 
   /* binary file output */
   YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
@@ -213,7 +222,10 @@ main (int argc, char **argv)
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
 
-  /* txt file output */
+  /* text file output */
+  YMIR_OPTIONS_S, "txt-write-solution-surf-path", '\0',
+    &(txt_solution_surf_path), NULL,
+    "TXT file path for velocity and surface stress at surface",
   YMIR_OPTIONS_S, "txt-write-aleutian-path", '\0',
     &(txt_aleutian_path), NULL,
     "TXT file path for the viscous stress tensor of the Aleutian subduction",
@@ -312,17 +324,45 @@ main (int argc, char **argv)
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
                                     stokes_problem);
 
-  /* write vtk & txt of viscous stress tensor */
-  if (vtk_solution_path != NULL || txt_aleutian_path != NULL) {
-    char                vtk_path[BUFSIZ];
-    char                aleu_path[BUFSIZ];
+  /* write various output, possibly on a coarse mesh */
+  {
+    int                 amr_iter = 0;
 
-    snprintf (vtk_path, BUFSIZ, "%s_viscstress", vtk_solution_path);
-    snprintf (aleu_path, BUFSIZ, "%s_viscstress", txt_aleutian_path);
-    earth_write_viscstress_tensor (
-        sol_vel_press, stokes_problem,
-        (vtk_solution_path != NULL ? vtk_path : NULL),
-        (txt_aleutian_path != NULL ? aleu_path : NULL));
+    /* run AMR before writing solution */
+    if (write_solution_amr) {
+      rhea_stokes_problem_set_velocity_pressure (stokes_problem,
+                                                 sol_vel_press);
+      amr_iter = rhea_stokes_problem_solution_amr (stokes_problem, p4est,
+                                                   &discr_options);
+      sol_vel_press = rhea_stokes_problem_get_velocity_pressure (
+          stokes_problem);
+    }
+
+    /* write vtk of coarse solution */
+    if (vtk_solution_path != NULL && 0 < amr_iter) {
+      char                path[BUFSIZ];
+
+      snprintf (path, BUFSIZ, "%s_coarse", vtk_solution_path);
+      example_share_vtk_write_solution (path, sol_vel_press, stokes_problem);
+    }
+
+    /* write vtk & txt of (coarse) viscous stress tensor */
+    if (vtk_solution_path != NULL || txt_aleutian_path != NULL) {
+      char                vtk_path[BUFSIZ];
+      char                aleu_path[BUFSIZ];
+
+      snprintf (vtk_path, BUFSIZ, "%s_viscstress", vtk_solution_path);
+      snprintf (aleu_path, BUFSIZ, "%s_viscstress", txt_aleutian_path);
+      earth_write_viscstress_tensor (
+          sol_vel_press, stokes_problem,
+          (vtk_solution_path != NULL ? vtk_path : NULL),
+          (txt_aleutian_path != NULL ? aleu_path : NULL));
+    }
+
+    /* write txt of (coarse) solution at surface */
+    example_share_io_write_solution_surf_txt (
+        txt_solution_surf_path, RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
+        sol_vel_press, stokes_problem);
   }
 
   /*
