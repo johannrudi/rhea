@@ -512,8 +512,10 @@ rhea_amr (p4est_t *p4est,
   p4est_gloidx_t      n_elements_prev, n_elements_coar, n_elements_refn;
   const int           iter_max = SC_MAX (1, n_cycles);
   int                 iter;
+  p4est_gloidx_t      n_flagged_coar, n_flagged_refn;
   double              flagged_thresh, flagged_rel;
-  double              coarsened_rel, refined_rel, changed_rel;
+//double              coarsened_rel;
+  double              refined_rel, changed_rel;
   int                 data_altered = 0;
   /* arguments for coarsening/refinement */
   const int           coarsen_recursively = 0;
@@ -550,10 +552,14 @@ rhea_amr (p4est_t *p4est,
 
     /* call function that flags elements for coarsening/refinement */
     ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_FLAG]);
-    flagged_rel = flag_elements_fn (p4est, flag_elements_data);
+    flagged_rel = flag_elements_fn (p4est, flag_elements_data,
+                                    &n_flagged_coar, &n_flagged_refn);
     ymir_perf_counter_stop_add (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_FLAG]);
-    RHEA_GLOBAL_INFOF ("<%s cycle=%i, #elements_flagged_rel=%g />\n",
-                       __func__, iter, flagged_rel);
+    RHEA_GLOBAL_INFOF ("<%s cycle=%i, #elements_flagged_rel=%g, "
+                       "n_flagged_coarsen=%lli, n_flagged_refine=%lli />\n",
+                       __func__, iter, flagged_rel,
+                       (long long int) n_flagged_coar,
+                       (long long int) n_flagged_refn);
 
     /* set threshold for #elements flagged for coarsening/refinement */
     if (isfinite (flagged_elements_thresh_begin) &&
@@ -601,14 +607,12 @@ rhea_amr (p4est_t *p4est,
         &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_COARSEN]);
     n_elements_coar = rhea_amr_get_global_n_elems (p4est);
     RHEA_ASSERT (0 <= n_elements_prev - n_elements_coar);
-    coarsened_rel = (double) (n_elements_prev - n_elements_coar) /
-                    (double) n_elements_prev;
+  //coarsened_rel = (double) (n_elements_prev - n_elements_coar) /
+  //                (double) n_elements_prev;
 
     /* check if max #elements is estimated to be reached */
-    n_elements_estd = (double) n_elements_coar;
-    n_elements_estd +=
-      (double) (P4EST_CHILDREN - 1) *
-      (double) n_elements_prev * (flagged_rel - coarsened_rel);
+    n_elements_estd =
+      (double) (n_elements_coar + (P4EST_CHILDREN - 1) * n_flagged_refn);
     RHEA_GLOBAL_INFOF (
         "<%s cycle=%i, #elements_estimate=%g, #elements_max=%g />\n",
         __func__, iter, n_elements_estd, n_elements_maxd);
@@ -862,25 +866,37 @@ rhea_amr_refine_depth_box_fn (p4est_t * p4est, p4est_topidx_t which_tree,
  *****************************************************************************/
 
 double
-rhea_amr_get_relative_global_num_flagged (const p4est_locidx_t n_flagged_loc,
-                                          p4est_t *p4est)
+rhea_amr_get_global_num_flagged (const p4est_locidx_t n_flagged_coar_loc,
+                                 const p4est_locidx_t n_flagged_refn_loc,
+                                 p4est_t *p4est,
+                                 p4est_gloidx_t *n_flagged_coar_glo,
+                                 p4est_gloidx_t *n_flagged_refn_glo)
 {
   sc_MPI_Comm         mpicomm = p4est->mpicomm;
   int                 mpiret;
-  int64_t             n_loc = (int64_t) n_flagged_loc;
-  int64_t             n_glo;
+  int64_t             n_loc[2], n_glo[2];
 
   /* sum local contributions to get the global number of flagged quadrants */
-  mpiret = sc_MPI_Allreduce (&n_loc, &n_glo, 1, MPI_INT64_T, sc_MPI_SUM,
+  n_loc[0] = (int64_t) n_flagged_coar_loc;
+  n_loc[1] = (int64_t) n_flagged_refn_loc;
+  mpiret = sc_MPI_Allreduce (n_loc, n_glo, 2, MPI_INT64_T, sc_MPI_SUM,
                              mpicomm); SC_CHECK_MPI (mpiret);
   //TODO `sc_MPI_INT64_T` does not exist
 
   /* return relative number of flagged quadrants */
-  return (double) n_glo / (double) p4est->global_num_quadrants;
+  if (n_flagged_coar_glo != NULL) {
+    *n_flagged_coar_glo = n_glo[0];
+  }
+  if (n_flagged_refn_glo != NULL) {
+    *n_flagged_refn_glo = n_glo[1];
+  }
+  return (double) (n_glo[0] + n_glo[1]) / (double) p4est->global_num_quadrants;
 }
 
 double
-rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
+rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data,
+                               p4est_gloidx_t *n_flagged_coar,
+                               p4est_gloidx_t *n_flagged_refn)
 {
   void               *user_pointer = p4est->user_pointer;
   p4est_locidx_t      n_flagged_loc;
@@ -911,12 +927,15 @@ rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data)
 
   p4est->user_pointer = user_pointer;
 
-  /* return relative number of flagged quadrants */
-  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
+  /* return absolute & relative numbers of flagged quadrants */
+  return rhea_amr_get_global_num_flagged (n_flagged_loc, 0, p4est,
+                                          n_flagged_coar, n_flagged_refn);
 }
 
 double
-rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
+rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data,
+                              p4est_gloidx_t *n_flagged_coar,
+                              p4est_gloidx_t *n_flagged_refn)
 {
   void               *user_pointer = p4est->user_pointer;
   p4est_locidx_t      n_flagged_loc;
@@ -947,12 +966,15 @@ rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data)
 
   p4est->user_pointer = user_pointer;
 
-  /* return relative number of flagged quadrants */
-  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
+  /* return absolute & relative numbers of flagged quadrants */
+  return rhea_amr_get_global_num_flagged (0, n_flagged_loc, p4est,
+                                          n_flagged_coar, n_flagged_refn);
 }
 
 double
-rhea_amr_flag_coarsen_to_level_fn (p4est_t *p4est, void *data)
+rhea_amr_flag_coarsen_to_level_fn (p4est_t *p4est, void *data,
+                                   p4est_gloidx_t *n_flagged_coar,
+                                   p4est_gloidx_t *n_flagged_refn)
 {
   void               *user_pointer = p4est->user_pointer;
   p4est_locidx_t      n_flagged_loc;
@@ -983,12 +1005,15 @@ rhea_amr_flag_coarsen_to_level_fn (p4est_t *p4est, void *data)
 
   p4est->user_pointer = user_pointer;
 
-  /* return relative number of flagged quadrants */
-  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
+  /* return absolute & relative numbers of flagged quadrants */
+  return rhea_amr_get_global_num_flagged (n_flagged_loc, 0, p4est,
+                                          n_flagged_coar, n_flagged_refn);
 }
 
 double
-rhea_amr_flag_refine_to_level_fn (p4est_t *p4est, void *data)
+rhea_amr_flag_refine_to_level_fn (p4est_t *p4est, void *data,
+                                  p4est_gloidx_t *n_flagged_coar,
+                                  p4est_gloidx_t *n_flagged_refn)
 {
   void               *user_pointer = p4est->user_pointer;
   p4est_locidx_t      n_flagged_loc;
@@ -1019,6 +1044,7 @@ rhea_amr_flag_refine_to_level_fn (p4est_t *p4est, void *data)
 
   p4est->user_pointer = user_pointer;
 
-  /* return relative number of flagged quadrants */
-  return rhea_amr_get_relative_global_num_flagged (n_flagged_loc, p4est);
+  /* return absolute & relative numbers of flagged quadrants */
+  return rhea_amr_get_global_num_flagged (0, n_flagged_loc, p4est,
+                                          n_flagged_coar, n_flagged_refn);
 }

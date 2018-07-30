@@ -64,11 +64,17 @@ int                 rhea_amr_flag_is_valid (const rhea_amr_flag_t amr_flag);
 /**
  * Flags elements of a p4est mesh for coarsening/refinement.
  *
- * \param [in] p4est    p4est mesh
- * \param [in/out] data User data
- * \return              Relative #elements flagged for coarsening/refinement
+ * \param [in] p4est            p4est mesh
+ * \param [in/out] data         User data
+ * \param [out] n_flagged_coar  #elements flagged for coarsening
+ * \param [out] n_flagged_refn  #elements flagged for refinement
+ * \return                      Relative #elements flagged for
+ *                                coarsening + refinement
  */
-typedef double    (*rhea_amr_flag_elements_fn_t) (p4est_t *p4est, void *data);
+typedef double    (*rhea_amr_flag_elements_fn_t) (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn);
 
 /**
  * Initializes data before mesh is altered through coarsening/refinement.
@@ -165,18 +171,45 @@ int                 rhea_amr_refine_depth_box_fn (p4est_t * p4est,
 
 /**
  * Sums local contributions to get the global number of flagged quadrants.
- * Returns the relative number of flagged quadrants.
+ * \param [in] n_flagged_coar_loc   Local #elements flagged for coarsening
+ * \param [in] n_flagged_refn_loc   Local #elements flagged for refinement
+ * \param [in] p4est                p4est mesh
+ * \param [out] n_flagged_coar_glo  Global #elements flagged for coarsening
+ * \param [out] n_flagged_refn_glo  Global #elements flagged for refinement
+ * \return                          Relative #elements flagged for
+ *                                    coarsening + refinement
  */
-double              rhea_amr_get_relative_global_num_flagged (
-                                            const p4est_locidx_t n_flagged_loc,
-                                            p4est_t *p4est);
+double              rhea_amr_get_global_num_flagged (
+                                      const p4est_locidx_t n_flagged_coar_loc,
+                                      const p4est_locidx_t n_flagged_refn_loc,
+                                      p4est_t *p4est,
+                                      p4est_gloidx_t *n_flagged_coar_glo,
+                                      p4est_gloidx_t *n_flagged_refn_glo);
 
-double              rhea_amr_flag_coarsen_half_fn (p4est_t *p4est, void *data);
-double              rhea_amr_flag_refine_half_fn (p4est_t *p4est, void *data);
+/**
+ * Flags half of domain for coarsening/refinement.
+ * (Callback function of type `rhea_amr_flag_elements_fn_t`)
+ */
+double              rhea_amr_flag_coarsen_half_fn (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn);
+double              rhea_amr_flag_refine_half_fn (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn);
 
-double              rhea_amr_flag_coarsen_to_level_fn (p4est_t *p4est,
-                                                       void *data);
-double              rhea_amr_flag_refine_to_level_fn (p4est_t *p4est,
-                                                      void *data);
+/**
+ * Flags for coarsening/refinement until reaching a specific max/min level.
+ * (Callback function of type `rhea_amr_flag_elements_fn_t`)
+ */
+double              rhea_amr_flag_coarsen_to_level_fn (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn);
+double              rhea_amr_flag_refine_to_level_fn (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn);
 
 #endif /* RHEA_AMR_H */
