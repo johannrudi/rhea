@@ -34,6 +34,9 @@
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MAX (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_FIRST (0)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_LAST (-1)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_TYPE_NAME "NONE"
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MIN (0)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MAX (-1)
 
 /* initialize options */
 int                 rhea_stokes_problem_amr_n_cycles =
@@ -58,6 +61,12 @@ int                 rhea_stokes_problem_amr_nonlinear_iter_first =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_FIRST;
 int                 rhea_stokes_problem_amr_nonlinear_iter_last =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_LAST;
+char               *rhea_stokes_problem_amr_solution_type_name =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_TYPE_NAME;
+int                 rhea_stokes_problem_amr_solution_level_min =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MIN;
+int                 rhea_stokes_problem_amr_solution_level_max =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MAX;
 
 void
 rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
@@ -85,7 +94,7 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_S, "init-amr-name", '\0',
     &(rhea_stokes_problem_amr_init_type_name),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TYPE_NAME,
-    "AMR for initial mesh: name of coarsening/refinemen indicator",
+    "AMR for initial mesh: name of coarsening/refinement indicator",
   YMIR_OPTIONS_D, "init-amr-tol-min", '\0',
     &(rhea_stokes_problem_amr_init_tol_min),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN,
@@ -98,7 +107,7 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_S, "nonlinear-amr-name", '\0',
     &(rhea_stokes_problem_amr_nonlinear_type_name),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TYPE_NAME,
-    "AMR for nl. solver/grid cont.: name of coarsening/refinemen indicator",
+    "AMR for nl. solver/grid cont.: name of coarsening/refinement indicator",
   YMIR_OPTIONS_D, "nonlinear-amr-tol-min", '\0',
     &(rhea_stokes_problem_amr_nonlinear_tol_min),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MIN,
@@ -115,6 +124,19 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
     &(rhea_stokes_problem_amr_nonlinear_iter_last),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_LAST,
     "AMR for nl. solver/grid cont.: max # of nonlinear iterations with AMR",
+
+  YMIR_OPTIONS_S, "solution-amr-name", '\0',
+    &(rhea_stokes_problem_amr_solution_type_name),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_TYPE_NAME,
+    "AMR for solution: name of coarsening/refinement type",
+  YMIR_OPTIONS_I, "solution-amr-level-min", '\0',
+    &(rhea_stokes_problem_amr_solution_level_min),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MIN,
+    "AMR for solution: min level of mesh refinement",
+  YMIR_OPTIONS_I, "solution-amr-level-max", '\0',
+    &(rhea_stokes_problem_amr_solution_level_max),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MAX,
+    "AMR for solution: max level of mesh refinement",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -1584,17 +1606,22 @@ rhea_stokes_problem_solution_amr (rhea_stokes_problem_t *stokes_problem,
                                   p4est_t *p4est,
                                   rhea_discretization_options_t *discr_options)
 {
-  int                 level_min = discr_options->level_min;
-  int                 level_max = discr_options->level_max;
+  const int           opt_level_min = discr_options->level_min;
+  const int           opt_level_max = discr_options->level_max;
+  const int           amr_level_min =
+                        rhea_stokes_problem_amr_solution_level_min;
+  const int           amr_level_max =
+                        rhea_stokes_problem_amr_solution_level_max;
 
-  const char         *type_name = "coarsen_to_level"; //TODO
-  const int           n_cycles = level_max - level_min;
+  const char         *type_name = rhea_stokes_problem_amr_solution_type_name;
+  int                 n_cycles = opt_level_max - opt_level_min;
   const double        flagged_elements_thresh_begin = NAN; //TODO
   const double        flagged_elements_thresh_cycle = NAN; //TODO
 
   rhea_stokes_problem_amr_data_t *amr_data;
   rhea_amr_flag_elements_fn_t     flag_fn;
   void                           *flag_fn_data;
+  int                 amr_level;
   int                 amr_iter;
 
   /* exit if nothing to do */
@@ -1614,11 +1641,15 @@ rhea_stokes_problem_solution_amr (rhea_stokes_problem_t *stokes_problem,
   /* set up flagging of elements for coarsening/refinement */
   if (strcmp (type_name, "coarsen_to_level") == 0) {
     flag_fn = rhea_amr_flag_coarsen_to_level_fn;
-    flag_fn_data = &level_min;
+    amr_level = SC_MAX (opt_level_min, amr_level_max);
+    n_cycles = opt_level_max - amr_level;
+    flag_fn_data = &amr_level;
   }
   else if (strcmp (type_name, "refine_to_level") == 0) {
     flag_fn = rhea_amr_flag_refine_to_level_fn;
-    flag_fn_data = &level_max;
+    amr_level = SC_MAX (opt_level_min, amr_level_min);
+    n_cycles = amr_level - opt_level_min;
+    flag_fn_data = &amr_level;
   }
   else { /* unknown type name */
     RHEA_ABORT ("Unknown initial AMR name");
