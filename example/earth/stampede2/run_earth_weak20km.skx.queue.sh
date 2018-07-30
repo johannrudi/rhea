@@ -26,6 +26,7 @@ declare -r CODE_DIR="$HOME/code/rhea"
 declare -r JOB_DIR="$SCRATCH/runs/rhea/earth_weak20km_YYYY-MM-DD"
 
 declare -r BIN_DIR="$JOB_DIR/bin"
+declare -r TXT_DIR="$JOB_DIR/txt"
 declare -r VTK_DIR="$JOB_DIR/vtk"
 declare -r ALEUTIAN_DIR="$JOB_DIR/aleutian"
 
@@ -109,6 +110,7 @@ echo "========================================"
 
 # create output paths
 mkdir -p "$BIN_DIR"
+mkdir -p "$TXT_DIR"
 mkdir -p "$VTK_DIR"
 mkdir -p "$ALEUTIAN_DIR"
 
