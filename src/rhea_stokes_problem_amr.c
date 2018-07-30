@@ -490,41 +490,51 @@ rhea_stokes_problem_amr_assign_flag (rhea_p4est_quadrant_data_t *qd,
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
 static void
 rhea_stokes_problem_amr_print_indicator_statistics (
-                                        const double ind_loc_min,
-                                        const double ind_loc_max,
-                                        const double ind_loc_sum,
-                                        const p4est_locidx_t n_flagged_coarsen,
-                                        const p4est_locidx_t n_flagged_refine,
-                                        const char *func_name,
-                                        p4est_t *p4est)
+                                      const double ind_loc_min,
+                                      const double ind_loc_max,
+                                      const double ind_loc_sum,
+                                      const p4est_locidx_t n_flagged_coar_loc,
+                                      const p4est_locidx_t n_flagged_refn_loc,
+                                      const char *func_name,
+                                      p4est_t *p4est)
 {
   sc_MPI_Comm         mpicomm = p4est->mpicomm;
   int                 mpiret;
   double              ind_glo_min, ind_glo_max, ind_glo_sum;
   int64_t             n_loc[2], n_glo[2];
 
+  /* gather and print statistics for indicator values */
   mpiret = sc_MPI_Allreduce (&ind_loc_min, &ind_glo_min, 1, sc_MPI_DOUBLE,
                              sc_MPI_MIN, mpicomm); SC_CHECK_MPI (mpiret);
   mpiret = sc_MPI_Allreduce (&ind_loc_max, &ind_glo_max, 1, sc_MPI_DOUBLE,
                              sc_MPI_MAX, mpicomm); SC_CHECK_MPI (mpiret);
   mpiret = sc_MPI_Allreduce (&ind_loc_sum, &ind_glo_sum, 1, sc_MPI_DOUBLE,
                              sc_MPI_SUM, mpicomm); SC_CHECK_MPI (mpiret);
-  RHEA_GLOBAL_INFOF ("%s: min %.3e, max %.3e, mean %.3e\n",
+  RHEA_GLOBAL_INFOF ("<%s ind_min=%.3e, ind_max=%.3e, ind_mean=%.3e />\n",
                      func_name, ind_glo_min, ind_glo_max,
                      ind_glo_sum / (double) p4est->global_num_quadrants);
 
-  n_loc[0] = (int64_t) n_flagged_coarsen;
-  n_loc[1] = (int64_t) n_flagged_refine;
-  mpiret = sc_MPI_Allreduce (n_loc, &n_glo, 2, MPI_INT64_T, sc_MPI_SUM,
+  /* gather and print statistics for element counts */
+  n_loc[0] = (int64_t) n_flagged_coar_loc;
+  n_loc[1] = (int64_t) n_flagged_refn_loc;
+  mpiret = sc_MPI_Allreduce (n_loc, n_glo, 2, MPI_INT64_T, sc_MPI_SUM,
                              mpicomm); SC_CHECK_MPI (mpiret);
   //TODO `sc_MPI_INT64_T` does not exist
-  RHEA_GLOBAL_INFOF ("%s: #flagged coarsen %li, refine %li, sum %li\n",
+  RHEA_GLOBAL_INFOF ("<%s n_flagged_coarsen=%li, n_flagged_refine=%li, "
+                     "n_flagged_total=%li />\n",
                      func_name, n_glo[0], n_glo[1], n_glo[0] + n_glo[1]);
 }
 #endif
 
+/**
+ * Flags elements for coarsening/refinement based on gradient of weak zone.
+ * (Callback function of type `rhea_amr_flag_elements_fn_t`)
+ */
 static double
-rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
+rhea_stokes_problem_amr_flag_weakzone_peclet_fn (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn)
 {
   rhea_stokes_problem_amr_data_t *d = data;
   rhea_stokes_problem_t *stokes_problem = d->stokes_problem;
@@ -532,7 +542,8 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   int                 n_nodes_per_el, nodeid;
 
   rhea_amr_flag_t     amr_flag;
-  p4est_locidx_t      n_flagged_coarsen, n_flagged_refine, n_flagged;
+  p4est_locidx_t      n_flagged_coar_loc, n_flagged_refn_loc;
+  double              flagged_rel;
   p4est_topidx_t      ti;
   size_t              tqi;
 
@@ -570,6 +581,12 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   }
 #endif
 
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "tol_min=%.3e, tol_max=%.3e, level_min=%i, level_max=%i",
+      tol_min, tol_max, level_min, level_max);
+#endif
+
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
 
@@ -581,8 +598,8 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   ind_mass_mat = sc_dmatrix_new (n_nodes_per_el, 1);
 
   /* flag quadrants */
-  n_flagged_coarsen = 0;
-  n_flagged_refine = 0;
+  n_flagged_coar_loc = 0;
+  n_flagged_refn_loc = 0;
   for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
     p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
     sc_array_t         *tquadrants = &(t->quadrants);
@@ -651,16 +668,20 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
                                                    (int) q->level,
                                                    level_min, level_max);
       rhea_stokes_problem_amr_assign_flag (qd, amr_flag, d->merge_mode,
-                                           &n_flagged_coarsen,
-                                           &n_flagged_refine);
+                                           &n_flagged_coar_loc,
+                                           &n_flagged_refn_loc);
     }
   }
-  n_flagged = n_flagged_coarsen + n_flagged_refine;
 
   /* destroy work variables */
   sc_dmatrix_destroy (tmp_mat);
   sc_dmatrix_destroy (ind_mat);
   sc_dmatrix_destroy (ind_mass_mat);
+
+  /* get absolute & relative numbers of flagged quadrants */
+  flagged_rel = rhea_amr_get_global_num_flagged (
+      n_flagged_coar_loc, n_flagged_refn_loc, p4est,
+      n_flagged_coar, n_flagged_refn);
 
   /* VTK output of AMR indicator */
 #if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
@@ -678,16 +699,24 @@ rhea_stokes_problem_amr_flag_weakzone_peclet_fn (p4est_t *p4est, void *data)
   /* print statistics */
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
   rhea_stokes_problem_amr_print_indicator_statistics (
-      ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coarsen,
-      n_flagged_refine, __func__, p4est);
+      ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coar_loc,
+      n_flagged_refn_loc, __func__, p4est);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 #endif
 
-  /* return relative number of flagged quadrants */
-  return rhea_amr_get_relative_global_num_flagged (n_flagged, p4est);
+  return flagged_rel;
 }
 
+/**
+ * Flags elements for coarsening/refinement based on viscosity gradient.
+ * (Callback function of type `rhea_amr_flag_elements_fn_t`)
+ */
 static double
-rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
+rhea_stokes_problem_amr_flag_viscosity_peclet_fn (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn)
 {
   rhea_stokes_problem_amr_data_t *d = data;
   rhea_stokes_problem_t *stokes_problem = d->stokes_problem;
@@ -696,7 +725,8 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   int                 n_nodes_per_el;
 
   rhea_amr_flag_t     amr_flag;
-  p4est_locidx_t      n_flagged_coarsen, n_flagged_refine, n_flagged;
+  p4est_locidx_t      n_flagged_coar_loc, n_flagged_refn_loc;
+  double              flagged_rel;
   p4est_topidx_t      ti;
   size_t              tqi;
 
@@ -751,6 +781,12 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   }
 #endif
 
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "tol_min=%.3e, tol_max=%.3e, level_min=%i, level_max=%i",
+      tol_min, tol_max, level_min, level_max);
+#endif
+
   /* check input */
   RHEA_ASSERT (d->mangll_original != NULL);
 
@@ -793,8 +829,8 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   /* *INDENT-ON* */
 
   /* flag quadrants */
-  n_flagged_coarsen = 0;
-  n_flagged_refine = 0;
+  n_flagged_coar_loc = 0;
+  n_flagged_refn_loc = 0;
   for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
     p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
     sc_array_t         *tquadrants = &(t->quadrants);
@@ -890,11 +926,10 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
                                                    (int) q->level,
                                                    level_min, level_max);
       rhea_stokes_problem_amr_assign_flag (qd, amr_flag, d->merge_mode,
-                                           &n_flagged_coarsen,
-                                           &n_flagged_refine);
+                                           &n_flagged_coar_loc,
+                                           &n_flagged_refn_loc);
     }
   }
-  n_flagged = n_flagged_coarsen + n_flagged_refine;
 
   /* destroy work variables */
   sc_dmatrix_destroy (tmp_mat);
@@ -922,6 +957,11 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   sc_dmatrix_destroy (ut_el_mat);
   sc_dmatrix_destroy (visc_el_mat);
 
+  /* get absolute & relative numbers of flagged quadrants */
+  flagged_rel = rhea_amr_get_global_num_flagged (
+      n_flagged_coar_loc, n_flagged_refn_loc, p4est,
+      n_flagged_coar, n_flagged_refn);
+
   /* VTK output of AMR indicator */
 #if (3 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK)
   if (write_vtk) {
@@ -938,12 +978,13 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (p4est_t *p4est, void *data)
   /* print statistics */
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
   rhea_stokes_problem_amr_print_indicator_statistics (
-      ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coarsen,
-      n_flagged_refine, __func__, p4est);
+      ind_loc_min, ind_loc_max, ind_loc_sum, n_flagged_coar_loc,
+      n_flagged_refn_loc, __func__, p4est);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 #endif
 
-  /* return relative number of flagged quadrants */
-  return rhea_amr_get_relative_global_num_flagged (n_flagged, p4est);
+  return flagged_rel;
 }
 
 /******************************************************************************
