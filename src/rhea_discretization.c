@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_discretization.h>
 #include <rhea_base.h>
 #include <rhea_amr.h>
