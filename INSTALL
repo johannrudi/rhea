@@ -96,7 +96,7 @@ Then change into your build directory and run the script (add the optional flag
 `-o` for an optimized build):
 
   $ cd BUILD_DIRECTORY
-  $ configure_arch_stampede2 [-o]
+  $ RHEA_DIRECTORY/configure_arch_stampede2 [-o]
 
 References
 **********
