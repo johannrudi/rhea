@@ -79,15 +79,17 @@ subd_txt_io (rhea_stokes_problem_t *stokes_problem, subd_options_t *subd_options
   if (txt_write_cart_vol_coord_path != NULL) {
     rhea_discretization_write_cont_coordinates_volume (
         txt_write_cart_vol_coord_path, ymir_mesh,
-        RHEA_DISCRETIZATION_COORDINATE_CARTESIAN);
-//        RHEA_DISCRETIZATION_COORDINATE_SPHERICAL_GEO);
+        RHEA_DOMAIN_COORDINATE_CARTESIAN,
+//        RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
+        subd_options->domain_options);
   }
 
   /* write Cartesian volume coordinates */
   if (txt_write_cart_surf_coord_path != NULL) {
     rhea_discretization_write_cont_coordinates_surface (
         txt_write_cart_surf_coord_path, ymir_mesh,
-        RHEA_DISCRETIZATION_COORDINATE_CARTESIAN);
+        RHEA_DOMAIN_COORDINATE_CARTESIAN,
+        subd_options->domain_options);
   }
 
   /* write mesh (coordinates and connectivity)

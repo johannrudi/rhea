@@ -9,6 +9,7 @@
 #include <subduction_test.h>
 #include <subduction_TI.h>
 #include <subduction_vtk.h>
+#include <subduction_adjoint.h>
 
 void
 subd_setup_mesh (p4est_t **p4est,
@@ -43,6 +44,7 @@ subd_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                          rhea_viscosity_options_t *visc_options,
                          rhea_weakzone_options_t *weak_options,
                          rhea_topography_options_t *topo_options,
+                         rhea_plate_options_t *plate_options,
                          rhea_discretization_options_t *discr_options);
 
 void
@@ -50,6 +52,7 @@ subd_run_solver (ymir_vec_t *sol_vel_press,
                     ymir_mesh_t *ymir_mesh,
                     ymir_pressure_elem_t *press_elem,
                     rhea_stokes_problem_t *stokes_problem,
+                    const int nonzero_initial_guess,
                     const int iter_max, const double rel_tol);
 
 #endif /*SUBDUCTION_ESSENTIAL_H*/

@@ -2,6 +2,7 @@
 #define SUBDUCTION_ADJOINT_H
 
 #include <subduction_options.h>
+#include <subduction_io.h>
 #include <rhea.h>
 #include <ymir_vec_ops.h>
 #include <ymir_vec_getset.h>

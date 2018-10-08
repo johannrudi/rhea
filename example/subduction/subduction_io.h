@@ -1,6 +1,7 @@
 #ifndef SUBDUCTION_IO_H
 #define SUBDUCTION_IO_H
 
+#include <subduction_adjoint.h>
 #include <subduction_options.h>
 #include <subduction_physics.h>
 #include <subduction_postp.h>

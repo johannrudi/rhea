@@ -40,6 +40,7 @@ main (int argc, char **argv)
   rhea_weakzone_options_t       weak_options;
   rhea_viscosity_options_t      visc_options;
   rhea_topography_options_t     topo_options;
+  rhea_plate_options_t     plate_options;
   rhea_discretization_options_t discr_options;
   rhea_newton_options_t         newton_options;
 
@@ -55,6 +56,7 @@ main (int argc, char **argv)
   subd_options_t          subd_options;
 
   /* options local to this function */
+  int                 nonzero_initial_guess = 0;
   int                 solver_iter_max;
   double              solver_rel_tol;
 
@@ -121,8 +123,8 @@ main (int argc, char **argv)
   ymir_options_print_summary (SC_LP_INFO, opt);
 
   /*process rhea options */
-  rhea_process_options_all (&domain_options, &temp_options, &weak_options,
-                            &visc_options, &topo_options, &discr_options,
+  rhea_process_options_all (&domain_options, &temp_options, &plate_options, &weak_options,
+                            &topo_options, &visc_options, &discr_options,
                             &newton_options);
 
   /*process subduction options */
@@ -154,7 +156,7 @@ main (int argc, char **argv)
 
   /* run solver */
   subd_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
-                      solver_iter_max, solver_rel_tol);
+                   nonzero_initial_guess, solver_iter_max, solver_rel_tol);
 
   rhea_stokes_problem_set_velocity_pressure (stokes_problem, sol_vel_press);
   subd_vtk_write (stokes_problem, &subd_options);
@@ -170,7 +172,7 @@ main (int argc, char **argv)
   /* destroy Stokes problem and mesh */
   subd_setup_clear_all (stokes_problem, p4est, ymir_mesh, press_elem,
                         &temp_options, &visc_options, &weak_options,
-                        &topo_options, &discr_options);
+                        &topo_options, &plate_options, &discr_options);
 
   /* destroy options */
   ymir_options_global_destroy ();

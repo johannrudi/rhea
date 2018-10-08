@@ -186,6 +186,9 @@ ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_surf_neumann (
                                     rhea_stokes_problem_t *stokes_problem); //XI
+ymir_vel_dir_t *
+rhea_stokes_problem_get_vel_dir (
+                             rhea_stokes_problem_t *stokes_problem); //XI
 
 void                rhea_stokes_prbolem_set_weakzone_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,

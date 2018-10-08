@@ -132,6 +132,7 @@ subd_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                          rhea_viscosity_options_t *visc_options,
                          rhea_weakzone_options_t *weak_options,
                          rhea_topography_options_t *topo_options,
+                         rhea_plate_options_t *plate_options,
                          rhea_discretization_options_t *discr_options)
 {
   const char         *this_fn_name = "subd_setup_clear_all";
@@ -152,7 +153,7 @@ subd_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
     }
   }
 
-  example_share_stokes_destroy (stokes_problem, temp_options, weak_options,
+  example_share_stokes_destroy (stokes_problem, temp_options, plate_options, weak_options,
                                 visc_options);
 
   /* destroy mesh */
@@ -171,6 +172,7 @@ subd_run_solver (ymir_vec_t *sol_vel_press,
                     ymir_mesh_t *ymir_mesh,
                     ymir_pressure_elem_t *press_elem,
                     rhea_stokes_problem_t *stokes_problem,
+                    const int nonzero_initial_guess,
                     const int iter_max, const double rel_tol)
 {
   const char         *this_fn_name = "subd_run_solver";
@@ -179,7 +181,8 @@ subd_run_solver (ymir_vec_t *sol_vel_press,
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
   /* run solver */
-  rhea_stokes_problem_solve (&sol_vel_press, iter_max, rel_tol, stokes_problem);
+  rhea_stokes_problem_solve (&sol_vel_press, nonzero_initial_guess,
+                iter_max, rel_tol, stokes_problem);
 
   /* add nonzero dirichlet values of the velocity to the solution */
   rhs_vel_nonzero_dirichlet =
