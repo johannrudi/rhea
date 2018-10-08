@@ -1,10 +1,12 @@
+#include <subduction_TI.h>
+
 /******************************************************
  *  Transversely Isotropic Viscosity
 *******************************************************/
 
 /* get shear viscosity for transversely isotropy model from stress operator*/
 void
-slabs_stress_op_copy_shear_visc (ymir_vec_t *shear_visc,
+subd_stress_op_copy_shear_visc (ymir_vec_t *shear_visc,
                                    ymir_stress_op_t *stress_op)
 {
   /* check input */
@@ -17,7 +19,7 @@ slabs_stress_op_copy_shear_visc (ymir_vec_t *shear_visc,
 
 /* get TI tensor for transversely isotropy model from stress operator*/
 void
-slabs_stress_op_copy_TI_tensor (ymir_vec_t *TI_tensor,
+subd_stress_op_copy_TI_tensor (ymir_vec_t *TI_tensor,
                                    ymir_stress_op_t *stress_op)
 {
   /* check input */
@@ -28,8 +30,8 @@ slabs_stress_op_copy_TI_tensor (ymir_vec_t *TI_tensor,
 
 /* Computes the rotation from x axis of weak fault zone with two plates. */
 static double
-slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
-                                       slabs_options_t * slabs_options)
+subd_TI_rotation_brick_2plates_poly2 (double r, double lon,
+                                       subd_options_t * subd_options)
 {
   double              subdu_lon;
   double              subdu_dip_angle;
@@ -41,15 +43,15 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
   double              ridge_weak_factor;
 
   double              consider_thickness, courtesy_width;
-  double              y_min = slabs_options->slabs_domain_options->y_min;
+  double              y_min = subd_options->domain_options->y_min;
   double              start_node, start_val, start_deriv, end_node, end_val;
   double              *poly2_coeff;
   double              rot = 0.0;
   int                 orientation_wrt_curve;
   double             *closest_pt, dist=1.0;
 
-  slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
-  slabs_2plates_poly2_geo_coeff_t *geo = weak_options->weak_2plates_geo_coeff;
+  subd_weak_options_t *weak_options = subd_options->weak_options;
+  subd_2plates_poly2_geo_coeff_t *geo = weak_options->weak_2plates_geo_coeff;
 
   /* set parameters according to weakzone options */
   subdu_lon = weak_options->weakzone_2plates_subdu_longitude;
@@ -84,7 +86,7 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
 
   /* only consider point in a rectangle containing the weak zone */
   consider_thickness = (2.0 * subdu_thickness)
-                    / SLABS_MANTLE_DEPTH;
+                    / SUBD_MANTLE_DEPTH;
   if (   (  start_node - 0.5 * consider_thickness
           / sin (subdu_dip_angle / 180.0 * M_PI)) <= lon
       && lon <= (end_node + 0.5 * consider_thickness)
@@ -94,19 +96,19 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
      * */
 
     /* compute closest point on curve and orientation w.r.t. curve */
-    closest_pt = slabs_compute_closest_pt_on_poly2 (lon, r,
+    closest_pt = subd_compute_closest_pt_on_poly2 (lon, r,
                                                   poly2_coeff, start_node,
                                                   start_val, start_deriv,
                                                   end_node, end_val,
                                                   &orientation_wrt_curve);
 
-    if (orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM_BACK)
+    if (orientation_wrt_curve == SUBD_SLAB_CURVE_ORIENT_BOTTOM_BACK)
       closest_pt[0] = start_node;
-    else if (orientation_wrt_curve == SLABS_CURVE_ORIENT_BOTTOM_LEFT ||
-             orientation_wrt_curve == SLABS_CURVE_ORIENT_TOP_RIGHT)
+    else if (orientation_wrt_curve == SUBD_SLAB_CURVE_ORIENT_BOTTOM_LEFT ||
+             orientation_wrt_curve == SUBD_SLAB_CURVE_ORIENT_TOP_RIGHT)
       closest_pt[0] = end_node;
 
-    rot = slabs_compute_rot_on_poly2 (poly2_coeff, closest_pt);
+    rot = subd_compute_rot_on_poly2 (poly2_coeff, closest_pt);
 
     RHEA_FREE (closest_pt);
   }
@@ -118,8 +120,8 @@ slabs_TI_rotation_brick_2plates_poly2 (double r, double lon,
 }
 
 static double
-slabs_TI_rotation_node (const double x, const double y, const double z,
-                        slabs_options_t *slabs_options)
+subd_TI_rotation_node (const double x, const double y, const double z,
+                        subd_options_t *subd_options)
 {
   double              lon;
   double              r;
@@ -129,18 +131,18 @@ slabs_TI_rotation_node (const double x, const double y, const double z,
   r = z;
 
   /* compute weak zone factor */
-  return slabs_TI_rotation_brick_2plates_poly2 (r, lon, slabs_options);
+  return subd_TI_rotation_brick_2plates_poly2 (r, lon, subd_options);
 }
 
 /* compute weak zone factor of an element */
 void
-slabs_TI_rotation_elem (double *_sc_restrict rot_elem,
+subd_TI_rotation_elem (double *_sc_restrict rot_elem,
                         double *_sc_restrict weak_elem,
                          const double *x,
                          const double *y,
                          const double *z,
                          const int n_nodes_per_el,
-                         slabs_options_t *slabs_options)
+                         subd_options_t *subd_options)
 {
   int            nodeid;
 
@@ -150,15 +152,15 @@ slabs_TI_rotation_elem (double *_sc_restrict rot_elem,
       rot_elem[nodeid] = .0;
     }
     else {
-      rot_elem[nodeid] = slabs_TI_rotation_node (x[nodeid], y[nodeid], z[nodeid],
-                                                 slabs_options);
+      rot_elem[nodeid] = subd_TI_rotation_node (x[nodeid], y[nodeid], z[nodeid],
+                                                 subd_options);
     }
   }
 }
 
 static void
-slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *weak,
-                           slabs_options_t *slabs_options)
+subd_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *weak,
+                           subd_options_t *subd_options)
 {
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (rotate);
   const ymir_locidx_t n_elements = ymir_mesh_get_num_elems_loc (mesh);
@@ -175,9 +177,9 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *weak,
   double              subdu_dip_angle;
   double              subdu_depth, subdu_width;
   double              *poly2_coeff;
-  slabs_2plates_poly2_geo_coeff_t geo;
-  slabs_weak_options_t *weak_options = slabs_options->slabs_weak_options;
-  const char         *this_fn_name = "slabs_TI_rotation_compute";
+  subd_2plates_poly2_geo_coeff_t geo;
+  subd_weak_options_t *weak_options = subd_options->weak_options;
+  const char         *this_fn_name = "subd_TI_rotation_compute";
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -198,12 +200,12 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *weak,
 
   /* set points for polynomial interpolation */
   start_node = subdu_lon;
-  start_val = SLABS_SHELL_RADIUS_TOP;
+  start_val = SUBD_SHELL_RADIUS_TOP;
   start_deriv = tan (-subdu_dip_angle / 180.0 * M_PI);
-  end_node = start_node + subdu_width / SLABS_MANTLE_DEPTH;
-  end_val = start_val - subdu_depth / SLABS_MANTLE_DEPTH;
+  end_node = start_node + subdu_width / SUBD_MANTLE_DEPTH;
+  end_val = start_val - subdu_depth / SUBD_MANTLE_DEPTH;
   /* compute interpolating quadratic polynomial */
-  poly2_coeff = slabs_compute_poly2_interpolation (start_node, start_val,
+  poly2_coeff = subd_compute_poly2_interpolation (start_node, start_val,
                                                    start_deriv,
                                                    end_node, end_val);
 
@@ -234,8 +236,8 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *weak,
     weak_el_data = rhea_viscosity_get_elem_gauss (weak_el_mat, weak, elid);
 
     /* compute weak zone factor */
-    slabs_TI_rotation_elem (rot_el_data, weak_el_data, x, y, z,
-                            n_nodes_per_el, slabs_options);
+    subd_TI_rotation_elem (rot_el_data, weak_el_data, x, y, z,
+                            n_nodes_per_el, subd_options);
 
     /* set weak zone of this element */
     rhea_viscosity_set_elem_gauss (rotate, rot_el_mat, elid);
@@ -253,23 +255,23 @@ slabs_TI_rotation_compute (ymir_vec_t *rotate, ymir_vec_t *weak,
 
 /* Computes shear viscosity and rotation angle.*/
 static void
-slabs_TI_viscosity_compute ( ymir_mesh_t *ymir_mesh,  ymir_vec_t *TI_svisc,
+subd_TI_viscosity_compute ( ymir_mesh_t *ymir_mesh,  ymir_vec_t *TI_svisc,
                             ymir_vec_t *viscosity,
                             ymir_vec_t *weakzone,
-                            slabs_options_t *slabs_options)
+                            subd_options_t *subd_options)
 {
   ymir_vec_multiply (viscosity, weakzone, TI_svisc);
 }
 
 /* setup the TI shear viscosity and tensor in stress operator */
 void
-slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
+subd_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
                                rhea_stokes_problem_t *stokes_problem,
-                               slabs_options_t *slabs_options,
+                               subd_options_t *subd_options,
                                ymir_vec_t *coeff_TI_svisc,
                                ymir_vec_t *TI_rotate)
 {
-  const char         *this_fn_name = "slabs_stokes_problem_setup_TI";
+  const char         *this_fn_name = "subd_stokes_problem_setup_TI";
   ymir_stokes_op_t   *stokes_op;
   ymir_stress_op_t   *stress_op;
   ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
@@ -281,12 +283,12 @@ slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
   /* compute the shear viscosity and rotation angles */
-  slabs_weakzone_compute (TI_weakzone, slabs_options);
-  slabs_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, TI_weakzone, slabs_options);
+  subd_poly2_weakzone_compute (TI_weakzone, subd_options);
+  subd_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, TI_weakzone, subd_options);
 
   ymir_vec_scale (2.0, coeff_TI_svisc);
 
-  slabs_TI_rotation_compute (TI_rotate, TI_weakzone, slabs_options);
+  subd_TI_rotation_compute (TI_rotate, TI_weakzone, subd_options);
 
   /* get the viscous stress operator */
   stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
@@ -304,19 +306,19 @@ slabs_stokes_problem_setup_TI (ymir_mesh_t *ymir_mesh,
 
 /* setup the TI shear viscosity and tensor in stress operator */
 void
-slabs_stokes_problem_setup_TI_manufactured (ymir_mesh_t *ymir_mesh,
+subd_stokes_problem_setup_TI_manufactured (ymir_mesh_t *ymir_mesh,
                                            rhea_stokes_problem_t *stokes_problem,
-                                           slabs_options_t *slabs_options,
+                                           subd_options_t *subd_options,
                                            ymir_vec_t *coeff_TI_svisc,
                                            ymir_vec_t *TI_rotate)
 {
-  const char         *this_fn_name = "slabs_stokes_problem_setup_TI_manufactured";
+  const char         *this_fn_name = "subd_stokes_problem_setup_TI_manufactured";
   ymir_stokes_op_t   *stokes_op;
   ymir_stress_op_t   *stress_op;
   ymir_vec_t         *viscosity = rhea_viscosity_new (ymir_mesh);
   ymir_vec_t         *TI_weakzone = rhea_viscosity_new (ymir_mesh);
-  const               slabs_test_manufactured_t
-                      test_type = slabs_options->slabs_test_options->test_manufactured;
+  const               subd_test_manufactured_t
+                      test_type = subd_options->test_options->test_manufactured;
   double              rot, s_n_ratio = 0.2; /*eta_n=5, eta_s=1 */
 
   const int           n_nodes_per_el = ymir_mesh_get_num_nodes_per_elem (ymir_mesh);
@@ -335,15 +337,15 @@ slabs_stokes_problem_setup_TI_manufactured (ymir_mesh_t *ymir_mesh,
 
   /* compute the shear viscosity and rotation angles */
   switch (test_type) {
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT90:
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT45:
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT60:
-    case SLABS_TEST_MANUFACTURED_POLY1_TIROT90:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT90:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT45:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT60:
+    case SUBD_TEST_MANUFACTURED_POLY1_TIROT90:
       ymir_vec_set_value (TI_weakzone, s_n_ratio);
       break;
 
      /* eta_n=5, eta_s=s_n_ratio * eta_n * 0.5*(exp(y)+exp(z)) */
-    case SLABS_TEST_MANUFACTURED_POLY1_TIROT90_VISCEXP:
+    case SUBD_TEST_MANUFACTURED_POLY1_TIROT90_VISCEXP:
       weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
       weak_el_data = weak_el_mat->e[0];
       x = RHEA_ALLOC (double, n_nodes_per_el);
@@ -365,7 +367,7 @@ slabs_stokes_problem_setup_TI_manufactured (ymir_mesh_t *ymir_mesh,
       RHEA_FREE (tmp_el);
       break;
 
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT60_VISCEXP60:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT60_VISCEXP60:
       weak_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
       weak_el_data = weak_el_mat->e[0];
       x = RHEA_ALLOC (double, n_nodes_per_el);
@@ -391,23 +393,23 @@ slabs_stokes_problem_setup_TI_manufactured (ymir_mesh_t *ymir_mesh,
     default: /* BC not set */
       RHEA_ABORT_NOT_REACHED ();
   }
-  slabs_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, TI_weakzone, slabs_options);
+  subd_TI_viscosity_compute (ymir_mesh, coeff_TI_svisc, viscosity, TI_weakzone, subd_options);
   ymir_vec_scale (2.0, coeff_TI_svisc);
 
   /* rotation angle */
   switch (test_type) {
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT90:
-    case SLABS_TEST_MANUFACTURED_POLY1_TIROT90:
-    case SLABS_TEST_MANUFACTURED_POLY1_TIROT90_VISCEXP:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT90:
+    case SUBD_TEST_MANUFACTURED_POLY1_TIROT90:
+    case SUBD_TEST_MANUFACTURED_POLY1_TIROT90_VISCEXP:
       rot = 0.5 * M_PI;
       break;
 
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT45:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT45:
       rot = 0.25 * M_PI;
       break;
 
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT60:
-    case SLABS_TEST_MANUFACTURED_SINCOS1_TIROT60_VISCEXP60:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT60:
+    case SUBD_TEST_MANUFACTURED_SINCOS1_TIROT60_VISCEXP60:
       rot = 1.0/3.0 * M_PI;
       break;
 
@@ -430,14 +432,9 @@ slabs_stokes_problem_setup_TI_manufactured (ymir_mesh_t *ymir_mesh,
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 
-
-/*************************************************************
- * Post-processes, mostly about (2inv) stress, strain, .etc
- *************************************************************/
-
-/* compute 9 components of the stress tensor at each element*/
+/* compute traction as well as normal/shear stress at each element*/
 void
-slabs_stress_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
+subd_stress_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
                    sc_dmatrix_t * visc, sc_dmatrix_t * svisc,
                    sc_dmatrix_t * TItens, ymir_velocity_elem_t * vel_elem,
                    double *_sc_restrict rxd, double *_sc_restrict sxd,
@@ -506,9 +503,9 @@ slabs_stress_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
   }
 }
 
-/* compute 9 components of the stress tensor*/
+/* compute traction as well as normal and shear stress*/
 void
-slabs_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tau,
+subd_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tau,
               ymir_dvec_t * visc, ymir_dvec_t *svisc,
               ymir_dvec_t * TItens, ymir_velocity_elem_t * vel_elem)
 {
@@ -522,7 +519,7 @@ slabs_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tau,
   sc_dmatrix_t       *elemvisc = sc_dmatrix_new (1, Np);
   sc_dmatrix_t       *elemsvisc = sc_dmatrix_new (1, Np);
   sc_dmatrix_t       *elemTItens = sc_dmatrix_new (1, 9 * Np);
-  const char          *this_fn_name = "slabs_stress_TI";
+  const char          *this_fn_name = "subd_stress_TI";
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -551,7 +548,7 @@ slabs_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tau,
     ymir_dvec_get_elem_interp (tau, elemout, YMIR_STRIDE_NODE, elid,
                              YMIR_GAUSS_NODE, YMIR_WRITE);
 
-    slabs_stress_TI_elem (elemin, elemout,
+    subd_stress_TI_elem (elemin, elemout,
                        elemvisc, elemsvisc, elemTItens,
                        vel_elem, rxd, sxd, txd, ryd,
                        syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
@@ -571,9 +568,9 @@ slabs_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tau,
   sc_dmatrix_destroy (elemTItens);
 }
 
-/* compute the traction on the fault plane at each element*/
+/* compute traction as well as normal/shear stress at each element*/
 void
-slabs_stressvec_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
+subd_stressvec_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
                    sc_dmatrix_t * visc, sc_dmatrix_t * svisc,
                    sc_dmatrix_t * TItens, ymir_velocity_elem_t * vel_elem,
                    double *_sc_restrict rxd, double *_sc_restrict sxd,
@@ -642,9 +639,9 @@ slabs_stressvec_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
   }
 }
 
-/* compute the traction on the fault plane*/
+/* compute traction as well as normal and shear stress*/
 void
-slabs_stressvec_TI (ymir_cvec_t * vel, ymir_dvec_t * tauvec,
+subd_stressvec_TI (ymir_cvec_t * vel, ymir_dvec_t * tauvec,
               ymir_dvec_t * visc, ymir_dvec_t *svisc,
               ymir_dvec_t * TItens, ymir_velocity_elem_t * vel_elem)
 {
@@ -658,7 +655,7 @@ slabs_stressvec_TI (ymir_cvec_t * vel, ymir_dvec_t * tauvec,
   sc_dmatrix_t       *elemvisc = sc_dmatrix_new (1, Np);
   sc_dmatrix_t       *elemsvisc = sc_dmatrix_new (1, Np);
   sc_dmatrix_t       *elemTItens = sc_dmatrix_new (1, 9 * Np);
-  const char          *this_fn_name = "slabs_stress_TI";
+  const char          *this_fn_name = "subd_stress_TI";
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -687,7 +684,7 @@ slabs_stressvec_TI (ymir_cvec_t * vel, ymir_dvec_t * tauvec,
     ymir_dvec_get_elem_interp (tauvec, elemout, YMIR_STRIDE_NODE, elid,
                              YMIR_GAUSS_NODE, YMIR_WRITE);
 
-    slabs_stressvec_TI_elem (elemin, elemout,
+    subd_stressvec_TI_elem (elemin, elemout,
                        elemvisc, elemsvisc, elemTItens,
                        vel_elem, rxd, sxd, txd, ryd,
                        syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
@@ -706,10 +703,9 @@ slabs_stressvec_TI (ymir_cvec_t * vel, ymir_dvec_t * tauvec,
   sc_dmatrix_destroy (elemsvisc);
   sc_dmatrix_destroy (elemTItens);
 }
-
-/* compute 2nd invariant stress at each element*/
+/* compute traction as well as normal/shear stress at each element*/
 void
-slabs_2inv_stress_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
+subd_2inv_stress_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
                             sc_dmatrix_t * visc, sc_dmatrix_t * svisc,
                             sc_dmatrix_t * TItens, ymir_velocity_elem_t * vel_elem,
                             double *_sc_restrict rxd, double *_sc_restrict sxd,
@@ -781,9 +777,9 @@ slabs_2inv_stress_TI_elem (sc_dmatrix_t * in, sc_dmatrix_t * out,
   }
 }
 
-/* compute 2nd invariant stress*/
+/* compute traction as well as normal and shear stress*/
 void
-slabs_2inv_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tauII,
+subd_2inv_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tauII,
                        ymir_dvec_t * visc, ymir_dvec_t *svisc,
                        ymir_dvec_t * TItens, ymir_velocity_elem_t * vel_elem)
 {
@@ -797,7 +793,7 @@ slabs_2inv_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tauII,
   sc_dmatrix_t       *elemvisc = sc_dmatrix_new (1, Np);
   sc_dmatrix_t       *elemsvisc = sc_dmatrix_new (1, Np);
   sc_dmatrix_t       *elemTItens = sc_dmatrix_new (1, 9 * Np);
-  const char          *this_fn_name = "slabs_2inv_stress_TI";
+  const char          *this_fn_name = "subd_2inv_stress_TI";
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -824,7 +820,7 @@ slabs_2inv_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tauII,
     ymir_dvec_get_elem_interp (TItens, elemTItens, YMIR_STRIDE_NODE, elid,
                               YMIR_GAUSS_NODE, YMIR_READ);
 
-    slabs_2inv_stress_TI_elem (elemin, elemout,
+    subd_2inv_stress_TI_elem (elemin, elemout,
                                 elemvisc, elemsvisc, elemTItens,
                                 vel_elem, rxd, sxd, txd, ryd,
                                 syd, tyd, rzd, szd, tzd, mesh->drst, mesh->brst);
@@ -845,4 +841,5 @@ slabs_2inv_stress_TI (ymir_cvec_t * vel, ymir_dvec_t * tauII,
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
+
 
