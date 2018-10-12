@@ -1,4 +1,4 @@
-#include <subduction_io.h>
+#include <adjoint_io.h>
 
 char               *txt_write_visual_mesh_path;
 char               *txt_write_cart_vol_coord_path;
@@ -6,8 +6,6 @@ char               *txt_write_cart_surf_coord_path;
 
 char               *txt_write_temp_path;
 char               *txt_write_surfvelo_path;
-char               *txt_write_surfveloZ_path;
-char               *txt_write_surfvelo2_path;
 char               *txt_write_velo_path;
 char               *txt_write_topo_path;
 char               *txt_write_topodispl_path;
@@ -39,14 +37,6 @@ void subduction_add_txt_options (ymir_options_t * opt)
 
   YMIR_OPTIONS_S, "txt-write-surfvelo-path", '\0',
     &(txt_write_surfvelo_path), NULL,
-    "File path for write surface velocity txt",
-
-  YMIR_OPTIONS_S, "txt-write-surfveloZ-path", '\0',
-    &(txt_write_surfveloZ_path), NULL,
-    "File path for write surface velocity txt",
-
-  YMIR_OPTIONS_S, "txt-write-surfvelo2-path", '\0',
-    &(txt_write_surfvelo2_path), NULL,
     "File path for write surface velocity txt",
 
   YMIR_OPTIONS_S, "txt-write-velo-path", '\0',
@@ -146,39 +136,6 @@ subd_txt_io (rhea_stokes_problem_t *stokes_problem, subd_options_t *subd_options
     rhea_velocity_destroy (velocity);
     ymir_vec_destroy (surf_velocity);
   }
-
-  /* write surface velocity to be read in as Neumann B.C. in adjoint equations */
-  if (txt_write_surfveloZ_path != NULL) {
-    ymir_vec_t              *velocity = rhea_velocity_new (ymir_mesh);
-    ymir_vec_t              *surf_velocity = ymir_face_cvec_new (ymir_mesh,
-                                              RHEA_DOMAIN_BOUNDARY_FACE_TOP, 3);
-    ymir_vec_t              *surf_velocityZ = ymir_face_cvec_new (ymir_mesh,
-                                              RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-    ymir_vec_t          *surf_velo2 = ymir_vec_template (surf_velocity);
-
-    ymir_vec_set_zero (surf_velo2);
-
-    sc_dmatrix_t  *surf_velocityZ_mat = surf_velocityZ->cvec;
-
-    ymir_stokes_vec_get_velocity (
-                rhea_stokes_problem_get_velocity_pressure (stokes_problem),
-                velocity,
-                rhea_stokes_problem_get_press_elem (stokes_problem));
-
-    ymir_interp_vec (velocity, surf_velocity);
-    ymir_cvec_get_comp (surf_velocity, surf_velocityZ_mat, 2, YMIR_COPY);
-
-    ymir_cvec_set_comp (surf_velo2, surf_velocityZ_mat, 2, YMIR_SET);
-
-    subd_facevec_write (surf_velocityZ, txt_write_surfveloZ_path);
-    subd_facevec_write (surf_velo2, txt_write_surfvelo2_path);
-
-    rhea_velocity_destroy (velocity);
-    ymir_vec_destroy (surf_velocity);
-    ymir_vec_destroy (surf_velocityZ);
-    ymir_vec_destroy (surf_velo2);
-  }
-
 
   if (txt_write_topo_path != NULL) {
     ymir_vec_t        *topography = ymir_face_cvec_new (ymir_mesh,

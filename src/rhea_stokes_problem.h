@@ -180,11 +180,15 @@ void                rhea_stokes_problem_copy_viscosity (
 
 ymir_vec_t         *rhea_stokes_problem_get_weakzone (
                                     rhea_stokes_problem_t *stokes_problem);
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_press (
+                                    rhea_stokes_problem_t *stokes_problem);//XI
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_surf_neumann (
+                                    rhea_stokes_problem_t *stokes_problem); //XI
+ymir_vec_t         **rhea_stokes_problem_get_rhs_vel_neumann (
                                     rhea_stokes_problem_t *stokes_problem); //XI
 ymir_vel_dir_t *
 rhea_stokes_problem_get_vel_dir (

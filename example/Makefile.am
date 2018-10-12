@@ -18,3 +18,4 @@ include example/yielding/Makefile.am
 include example/collide/Makefile.am
 include example/slabweakzone/Makefile.am
 include example/subduction/Makefile.am
+include example/adjoint/Makefile.am

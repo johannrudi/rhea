@@ -616,7 +616,6 @@ rhea_stokes_problem_linear_create_solver_data (
       stokes_problem_lin->press_elem,
       domain_options->center,
       domain_options->moment_of_inertia);
-
   /* set viscous stress coefficient */
   {
     ymir_stress_op_t   *stress_op = stokes_problem_lin->stokes_op->stress_op;
@@ -3118,6 +3117,12 @@ rhea_stokes_problem_get_weakzone (rhea_stokes_problem_t *stokes_problem)
 }
 
 ymir_vec_t *
+rhea_stokes_problem_get_rhs_vel_press (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->rhs_vel_press;
+}//XI
+
+ymir_vec_t *
 rhea_stokes_problem_get_rhs_vel (rhea_stokes_problem_t *stokes_problem)
 {
   return stokes_problem->rhs_vel;
@@ -3129,6 +3134,18 @@ rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
 {
   return stokes_problem->rhs_vel_nonzero_dirichlet;
 }
+
+ymir_vec_t **
+rhea_stokes_problem_get_rhs_vel_neumann (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  if (stokes_problem->rhs_vel_neumann != NULL) {
+    return stokes_problem->rhs_vel_neumann;
+  }
+  else {
+    return NULL;
+  }
+} //XI
 
 ymir_vec_t *
 rhea_stokes_problem_get_rhs_vel_surf_neumann (
