@@ -141,7 +141,7 @@ ymir_vec_t         *rhea_stokes_problem_get_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem);
 void                rhea_stokes_problem_remove_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem);
-void                rhea_stokes_problem_set_weakform_rhs_vel_press (
+void                rhea_stokes_problem_set_rhs_vel_press (
                                     rhea_stokes_problem_t *stokes_problem,
                                     ymir_vec_t *rhs_vel_press); //XI
 
@@ -178,6 +178,8 @@ void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 
+ymir_vec_t        *rhea_stokes_problem_get_coeff (
+                                  rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_weakzone (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_press (

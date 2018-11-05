@@ -102,13 +102,13 @@ subd_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* set up Stokes solver */
   rhea_stokes_problem_setup_solver (*stokes_problem);
 
-  /*if solve for Hessian forward use this*/
-  {
-    ymir_vec_t *rhs_vel_press = rhea_velocity_pressure_new (*ymir_mesh, *press_elem);
-    subd_adjoint_rhs_hessian_forward (rhs_vel_press, *stokes_problem, subd_options);
-    rhea_stokes_problem_set_weakform_rhs_vel_press (*stokes_problem, rhs_vel_press);
-    rhea_velocity_pressure_destroy (rhs_vel_press);
-  }
+//  /*if solve for Hessian forward use this*/
+//  {
+//    ymir_vec_t *rhs_vel_press = rhea_velocity_pressure_new (*ymir_mesh, *press_elem);
+//    subd_adjoint_rhs_hessian_forward (rhs_vel_press, *stokes_problem, subd_options);
+//    rhea_stokes_problem_set_weakform_rhs_vel_press (*stokes_problem, rhs_vel_press);
+//    rhea_velocity_pressure_destroy (rhs_vel_press);
+//  }
 
     /* write vtk of problem input */
   if (vtk_write_input_path != NULL) {

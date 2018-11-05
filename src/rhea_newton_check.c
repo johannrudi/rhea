@@ -12,6 +12,13 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
                         rhea_newton_problem_get_neg_gradient_vec (nl_problem);
   ymir_vec_t         *step_vec = rhea_newton_problem_get_step_vec (nl_problem);
 
+RHEA_GLOBAL_PRODUCTIONF ("Hello%d\n",10);
+RHEA_ASSERT (step_vec != NULL);
+RHEA_ASSERT (step_vec->meshnum = YMIR_VEC_MESHFREE);
+RHEA_GLOBAL_PRODUCTIONF ("m=%d n=%d\n",step_vec->meshfree->m, step_vec->meshfree->n);
+RHEA_ASSERT (step_vec->meshfree->m > 0 && step_vec->meshfree->n > 0);
+RHEA_GLOBAL_PRODUCTIONF ("step_vec=%f\n",step_vec->meshfree->e[0][0]);
+
   ymir_vec_t         *sol_vec, *dir_vec, *perturb_vec;
   double              grad_dir_ref, grad_dir_chk;
   double              obj_val, perturb_obj_val;
@@ -33,21 +40,30 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
   /* create work vectors */
-  sol_vec = ymir_vec_template (step_vec);
-  dir_vec = ymir_vec_template (step_vec);
-  perturb_vec = ymir_vec_template (step_vec);
-
+  sol_vec = ymir_vec_new_meshfree (1);
+  dir_vec = ymir_vec_new_meshfree (1);
+  perturb_vec = ymir_vec_new_meshfree (1);
+//  sol_vec = ymir_vec_template (step_vec);
+//RHEA_GLOBAL_PRODUCTIONF ("Hello%d\n",0);
+//  dir_vec = ymir_vec_template (step_vec);
+//RHEA_GLOBAL_PRODUCTIONF ("Hello%d\n",1);
+//  perturb_vec = ymir_vec_template (step_vec);
+//RHEA_GLOBAL_PRODUCTIONF ("Hello%d\n",2);
+//exit clearly here
   /* set position and direction vectors (possibly adjust scale of direction) */
   if (solution == NULL) {
     ymir_vec_set_zero (sol_vec);
     ymir_vec_set_random (dir_vec);
   }
   else {
-    ymir_vec_copy (solution, sol_vec);
+RHEA_GLOBAL_PRODUCTIONF ("solution!=NULL%d\n",1);
+//exit clearly here
+    ymir_vec_copy (solution, sol_vec); //problem is here
     ymir_vec_set_random (dir_vec);
+RHEA_GLOBAL_PRODUCTIONF ("solution!=NULL%d\n",2);
     ymir_vec_multiply_in (sol_vec, dir_vec);
+RHEA_GLOBAL_PRODUCTIONF ("solution!=NULL%d\n",3);
   }
-
   /* compute reference derivative */
   grad_dir_ref = ymir_vec_innerprod (neg_gradient_vec, dir_vec);
   grad_dir_ref *= -1.0;

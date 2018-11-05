@@ -1566,14 +1566,15 @@ subd_nz_neumann_sine_set_fn (double *neu_surf, double x, double y, double z,
 static void
 subd_nz_neumann_from_vec (ymir_vec_t *velo_neum, subd_options_t *subd_options)
 {
-   ymir_vec_t       *velo = subd_options->velo;
-   ymir_mesh_t      *ymir_mesh = velo->mesh;
-   ymir_vec_t              *surf_velo = ymir_face_cvec_new (ymir_mesh,
-                                             RHEA_DOMAIN_BOUNDARY_FACE_TOP, 3);
-   ymir_vec_t              *surf_veloZ = ymir_face_cvec_new (ymir_mesh,
+   ymir_vec_t       *velo;
+   ymir_mesh_t      *ymir_mesh = velo_neum->mesh;
+   ymir_vec_t       *surf_velo = ymir_face_cvec_new (ymir_mesh,
+                                      RHEA_DOMAIN_BOUNDARY_FACE_TOP, 3);
+   ymir_vec_t       *surf_veloZ = ymir_face_cvec_new (ymir_mesh,
                                              RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
    sc_dmatrix_t  *surf_veloZ_mat = surf_veloZ->cvec;
 
+   velo = (ymir_vec_t *) subd_options->data;
    ymir_interp_vec (velo, surf_velo);
    ymir_cvec_get_comp (surf_velo, surf_veloZ_mat, 2, YMIR_COPY);
    ymir_cvec_set_comp (velo_neum, surf_veloZ_mat, 2, YMIR_SET);
@@ -1582,7 +1583,6 @@ subd_nz_neumann_from_vec (ymir_vec_t *velo_neum, subd_options_t *subd_options)
 
    ymir_vec_destroy (surf_velo);
    ymir_vec_destroy (surf_veloZ);
-   ymir_vec_destroy (velo);
 }
 
 static void

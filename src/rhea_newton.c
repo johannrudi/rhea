@@ -896,6 +896,7 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
   /* evaluate objective functional */
   if (compute_obj) {
     obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem);
+  RHEA_GLOBAL_PRODUCTIONF ("check_gradient: compute_objective %d\n", 1);
   }
 
   /* compute gradient norm */
@@ -906,13 +907,13 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
     /* compute (negative) gradient */
     rhea_newton_problem_compute_neg_gradient (neg_gradient, solution,
                                               nl_problem);
+  RHEA_GLOBAL_PRODUCTIONF ("check_gradient: compute_gradient %d\n", 1);
     if (neg_gradient_updated != NULL) {
       *neg_gradient_updated = 1;
     }
     if (nl_problem->check_gradient) {
       rhea_newton_check_gradient (solution, nl_problem);
     }
-
     /* compute norm of gradient */
     if (0 < n_components) {
       grad_norm_comp = RHEA_ALLOC (double, n_components);
@@ -1764,7 +1765,6 @@ rhea_newton_solve (ymir_vec_t **solution,
       }
     }
   }
-
   /*
    * Iterations Loop
    */
@@ -1852,7 +1852,6 @@ rhea_newton_solve (ymir_vec_t **solution,
       rhea_newton_compute_step (
           /* out: */ &step,
           /* in:  */ nl_problem, opt);
-
       /* perform line search to get the step length (updates the solution and
        * the nonlinear operator) */
       rhea_newton_search_step_length (

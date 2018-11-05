@@ -3016,14 +3016,13 @@ rhea_stokes_problem_remove_velocity_pressure (
 }
 
 void
-rhea_stokes_problem_set_weakform_rhs_vel_press (
+rhea_stokes_problem_set_rhs_vel_press (
                                   rhea_stokes_problem_t *stokes_problem,
                                   ymir_vec_t *rhs_vel_press)
 {
   /* check input */
   RHEA_ASSERT (rhs_vel_press != NULL);
 
-  /* copy Stokes coefficient and divide by 2 */
   ymir_vec_copy (rhs_vel_press, stokes_problem->rhs_vel_press);
 } //XI for hessian forward rhs. TODO see whether it is needed in newton adjoint inversion.
 
@@ -3109,6 +3108,12 @@ rhea_stokes_problem_copy_viscosity (ymir_vec_t *viscosity,
   ymir_vec_copy (stokes_problem->coeff, viscosity);
   ymir_vec_scale (0.5, viscosity);
 }
+
+ymir_vec_t *
+rhea_stokes_problem_get_coeff (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->coeff;
+}// XI
 
 ymir_vec_t *
 rhea_stokes_problem_get_weakzone (rhea_stokes_problem_t *stokes_problem)
@@ -3305,7 +3310,7 @@ rhea_stokes_prbolem_set_rhs_vel_neumann_compute_fn (
       stokes_problem->rhs_vel_neumann = NULL;
     }
   }
-} //XI
+}// XI
 
 ymir_stokes_op_t *
 rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)

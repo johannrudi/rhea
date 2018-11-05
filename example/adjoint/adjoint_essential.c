@@ -38,167 +38,6 @@ subd_setup_mesh (p4est_t **p4est,
 }
 
 
-/*********************************************************************************************
- * Sets up a linear Stokes problem.
- *********************************************************************************************/
-/*Basic Stokes problem */
-void
-adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
-                    ymir_mesh_t **ymir_mesh,
-                    ymir_pressure_elem_t **press_elem,
-                    rhea_domain_options_t *domain_options,
-                    rhea_temperature_options_t *temp_options,
-                    rhea_weakzone_options_t *weak_options,
-                    rhea_viscosity_options_t *visc_options,
-                    subd_options_t *subd_options)
-{
-  const char         *this_fn_name = "adjoint_stokes_new";
-  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (*ymir_mesh);
-  ymir_vec_t         *temperature;
-  void               *solver_options = NULL;
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* set up data */
-  rhea_weakzone_data_create (weak_options, mpicomm);
-
-  /* compute temperature */
-  temperature = rhea_temperature_new (*ymir_mesh);
-  subd_compute_temperature (temperature, temp_options, subd_options);
-
-  subd_set_velocity_dirichlet_bc (domain_options, subd_options);
-
-  /* create Stokes problem */
-  *stokes_problem = rhea_stokes_problem_new (
-      *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options, solver_options);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
-
-void
-adjoint_step_initialize_stokes (rhea_stokes_problem_t **stokes_problem,
-                    p4est_t     *p4est,
-                    ymir_mesh_t **ymir_mesh,
-                    ymir_pressure_elem_t **press_elem,
-                    rhea_discretization_options_t *discr_options,
-                    rhea_temperature_options_t *temp_options,
-                    subd_options_t *subd_options,
-                    const char *vtk_write_input_path)
-
-{
-  const char *this_fn_name = "adjoint_setup_initialize_stokes";
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /*call back to recompute rhs_vel, rhs_velbc_nonzero_dir, rhs_velbc_nonzero_neumann, weakzone*/
-  subd_compute_rhs_vel (*stokes_problem, subd_options);
-  subd_compute_rhs_velbc_dirichlet (*stokes_problem, subd_options);
-  subd_compute_rhs_velbc_neumann (*stokes_problem, subd_options);
-  subd_compute_weakzone (*stokes_problem, subd_options);
-
-  /* reset function of viscosity */
-  subd_viscosity_set_function (*stokes_problem, subd_options);
-
-  /* about amr */
-  {
-    rhea_stokes_problem_set_solver_amr (*stokes_problem, p4est, discr_options);
-    /* perform initial AMR */
-    if (p4est != NULL && discr_options != NULL) {
-      rhea_stokes_problem_init_amr (*stokes_problem, p4est, discr_options);
-
-      /* retrieve adapted mesh */
-      *ymir_mesh = rhea_stokes_problem_get_ymir_mesh (*stokes_problem);
-      *press_elem = rhea_stokes_problem_get_press_elem (*stokes_problem);
-    }
-  }
-
-  /* set up Stokes solver */
-  rhea_stokes_problem_setup_solver (*stokes_problem);
-
-//  /*if solve for Hessian forward use this*/
-//  {
-//    ymir_vec_t *rhs_vel_press = rhea_velocity_pressure_new (*ymir_mesh, *press_elem);
-//    subd_adjoint_rhs_hessian_forward (rhs_vel_press, *stokes_problem, subd_options);
-//    rhea_stokes_problem_set_weakform_rhs_vel_press (*stokes_problem, rhs_vel_press);
-//    rhea_velocity_pressure_destroy (rhs_vel_press);
-//  }
-
-    /* write vtk of problem input */
-  if (vtk_write_input_path != NULL) {
-    subd_write_input_basic (*stokes_problem, temp_options,
-                            vtk_write_input_path);
-  }
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
-
-/********************************************************************************************
- * Cleans up Stokes problem and mesh.
- ********************************************************************************************/
-void
-adjoint_problem_destroy (adjoint_problem_t *adjoint_problem)
-{
-  ymir_vec_t *usol, *vsol, *Husol, *Hvsol, *sol_vel_press;
-
-  usol = adjoint_problem->usol;
-  vsol = adjoint_problem->vsol;
-  Husol = adjoint_problem->Husol;
-  Hvsol = adjoint_problem->Hvsol;
-  sol_vel_press = adjoint_problem->sol_vel_press;
-  if (usol != NULL)
-    ymir_vec_destroy (usol);
-  if (vsol != NULL)
-    ymir_vec_destroy (vsol);
-  if (Husol != NULL)
-    ymir_vec_destroy (Husol);
-  if (Hvsol != NULL)
-    ymir_vec_destroy (Hvsol);
-  if (sol_vel_press != NULL)
-    ymir_vec_destroy (sol_vel_press);
-}
-
-void
-adjoint_clear_all (rhea_stokes_problem_t *stokes_problem,
-                      adjoint_problem_t *adjoint_problem,
-                         p4est_t *p4est,
-                         ymir_mesh_t *ymir_mesh,
-                         ymir_pressure_elem_t *press_elem,
-                         rhea_temperature_options_t *temp_options,
-                         rhea_viscosity_options_t *visc_options,
-                         rhea_weakzone_options_t *weak_options,
-                         rhea_topography_options_t *topo_options,
-                         rhea_plate_options_t *plate_options,
-                         rhea_discretization_options_t *discr_options)
-{
-  const char         *this_fn_name = "subd_setup_clear_all";
-  ymir_vec_t         *visc_TI_svisc;
-
-  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
-
-  /* destroy anisotropic viscosity */
-  {
-    ymir_stokes_op_t    *stokes_op;
-    ymir_vec_t          *visc_TI_svisc;
-
-    stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
-    visc_TI_svisc = stokes_op->stress_op->coeff_TI_svisc;
-
-    if (visc_TI_svisc != NULL) {
-      rhea_viscosity_destroy (visc_TI_svisc);
-    }
-  }
-
-//  adjoint_problem_destroy (adjoint_problem);
-  example_share_stokes_destroy (stokes_problem, temp_options, plate_options, weak_options,
-                                visc_options);
-
-  /* destroy mesh */
-  example_share_mesh_destroy (ymir_mesh, press_elem, p4est, topo_options,
-                              discr_options);
-
-  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
-}
-
 /**************************************************************************************************
  * runs stokes solver.
  *************************************************************************************************/
@@ -232,6 +71,47 @@ subd_run_solver (ymir_vec_t *sol_vel_press,
     rhea_velocity_destroy (sol_vel);
   }
 
+  RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
+
+void
+adjoint_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
+                   rhea_newton_problem_t *newton_problem,
+                   p4est_t *p4est,
+                   ymir_mesh_t *ymir_mesh,
+                   ymir_pressure_elem_t *press_elem,
+                   rhea_temperature_options_t *temp_options,
+                   rhea_viscosity_options_t *visc_options,
+                   rhea_weakzone_options_t *weak_options,
+                   rhea_topography_options_t *topo_options,
+                   rhea_plate_options_t *plate_options,
+                   rhea_discretization_options_t *discr_options)
+{
+  const char         *this_fn_name = "adjoint_setup_clear_all";
+  ymir_vec_t         *visc_TI_svisc;
+
+  RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
+
+  /* destroy anisotropic viscosity */
+  {
+    ymir_stokes_op_t    *stokes_op;
+    ymir_vec_t          *visc_TI_svisc;
+
+    stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
+    visc_TI_svisc = stokes_op->stress_op->coeff_TI_svisc;
+
+    if (visc_TI_svisc != NULL) {
+      rhea_viscosity_destroy (visc_TI_svisc);
+    }
+  }
+
+  adjoint_problem_destroy (newton_problem);
+  example_share_stokes_destroy (stokes_problem, temp_options, plate_options, weak_options,
+                                visc_options);
+
+  /* destroy mesh */
+  example_share_mesh_destroy (ymir_mesh, press_elem, p4est, topo_options,
+                              discr_options);
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }
 

@@ -3,7 +3,7 @@
  * Cartesian domain.
 */
 
-
+#include <rhea.h>
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
@@ -133,6 +133,7 @@ main (int argc, char **argv)
                               &subd_weak_options, &subd_surf_options,
                               &subd_velbc_options, &subd_test_options,
                               &subd_adjoint_options);
+
 
   /*
    * Setup Mesh

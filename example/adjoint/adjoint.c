@@ -89,12 +89,14 @@ main (int argc, char **argv)
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
   ymir_pressure_elem_t  *press_elem;
+
   /* Stokes */
   rhea_stokes_problem_t *stokes_problem;
-  ymir_vec_t         *sol_vel_press;
 
-  adjoint_problem_t   *adjoint_problem;
+  /* Newton & adjoint */
+  ymir_vec_t            *solution;
   rhea_newton_problem_t *newton_problem;
+  adjoint_problem_t     *adjoint_problem;
 
   /*
    * Initialize Libraries
@@ -179,39 +181,43 @@ main (int argc, char **argv)
                       &domain_options, &temp_options, &weak_options,
                       &visc_options, &subd_options);
 
-
   /*
    * Solve Adjonit Problem
    */
 
-  /* initialize solution vector */
-  sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
 
-  adjoint_problem = RHEA_ALLOC (adjoint_problem_t, 1);
-  adjoint_setup_adjoint_problem (adjoint_problem, stokes_problem, p4est, ymir_mesh, press_elem,
+  adjoint_problem = adjoint_problem_new (stokes_problem, p4est, ymir_mesh, press_elem,
                           &discr_options, &temp_options, &subd_options, vtk_write_input_path,
                           solver_iter_max, solver_rel_tol);
 
   adjoint_setup_newton (&newton_problem, adjoint_problem);
-  newton_options.status_verbosity = 2;
-  rhea_newton_solve (&sol_vel_press, newton_problem, &newton_options);
+//  adjoint_stokes_update (&stokes_problem, p4est, &ymir_mesh, &press_elem,
+//                        &discr_options, &temp_options, &subd_options,
+//                        vtk_write_input_path);
 
-//  rhea_stokes_problem_set_velocity_pressure (stokes_problem, sol_vel_press);
+  newton_options.status_verbosity = 1;
+  newton_options.nonzero_initial_guess = 1;
+  rhea_newton_problem_set_check_gradient (1, newton_problem);
+
+  /* initialize solution vector */
+  solution = ymir_vec_new_meshfree (1);
+
+  rhea_newton_solve (&solution, newton_problem, &newton_options);
+
+//  rhea_stokes_problem_set_velocity_pressure (stokes_problem, adjoint_problem->sol_vel_press);
 //  subd_vtk_write (stokes_problem, &subd_options);
 //  subd_txt_io (stokes_problem, &subd_options);
 
   /* destroy */
-  rhea_velocity_pressure_destroy (sol_vel_press);
-
+  ymir_vec_destroy (solution);
    /*
     * Finalize
     */
-
   /* destroy Stokes problem and mesh */
-  adjoint_clear_all (stokes_problem, adjoint_problem, p4est, ymir_mesh, press_elem,
+  adjoint_setup_clear_all (stokes_problem, newton_problem,
+                        p4est, ymir_mesh, press_elem,
                         &temp_options, &visc_options, &weak_options,
                         &topo_options, &plate_options, &discr_options);
-
   /* destroy options */
   ymir_options_global_destroy ();
 

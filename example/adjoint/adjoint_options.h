@@ -236,9 +236,9 @@ subd_velbc_nonzero_dir_t;
 typedef enum
 {
   SUBD_VELBC_NEU_ZERO,
+  SUBD_VELBC_NEU_VEC,
   SUBD_VELBC_NEU_SINE,
   SUBD_VELBC_NEU_READ,
-  SUBD_VELBC_NEU_VEC,
 }
 subd_velbc_nonzero_neu_t;
 
@@ -396,7 +396,7 @@ typedef struct subd_options
   subd_velbc_options_t  * velbc_options;
   subd_test_options_t   * test_options;
   subd_adjoint_options_t * adjoint_options;
-  ymir_vec_t              *velo;
+  void                  *data;
 }
 subd_options_t;
 
