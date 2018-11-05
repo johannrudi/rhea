@@ -344,11 +344,11 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
-  if (msol->meshfree->e[0][0] == solution->meshfree->e[0][0]) {
-    return;
-  }
+//  if (msol->meshfree->e[0][0] == solution->meshfree->e[0][0]) {
+//    return;
+//  }
 
-  ymir_vec_copy (solution, msol);
+//  ymir_vec_copy (solution, msol);
 
   subd_options->visc_options->visc_lith = solution->meshfree->e[0][0]; /*TODO a function: get visc para*/
   RHEA_GLOBAL_PRODUCTIONF ("visc_lith=%12f\n", subd_options->visc_options->visc_lith);
