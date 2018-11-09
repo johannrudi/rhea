@@ -49,7 +49,8 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
 //exit clearly here
     ymir_vec_copy (solution, sol_vec); //problem is here
 RHEA_GLOBAL_PRODUCTIONF ("sol_vec=%f\n", sol_vec->meshfree->e[0][0]);
-    ymir_vec_set_random (dir_vec);
+//    ymir_vec_set_random (dir_vec);
+    ymir_vec_set_value (dir_vec, 1.0);
 RHEA_GLOBAL_PRODUCTIONF ("dir_vec=%f\n", dir_vec->meshfree->e[0][0]);
     ymir_vec_multiply_in (sol_vec, dir_vec);
 RHEA_GLOBAL_PRODUCTIONF ("Now dir_vec=%f\n", dir_vec->meshfree->e[0][0]);
@@ -66,8 +67,8 @@ RHEA_GLOBAL_PRODUCTIONF ("sol_vec=%f\n", sol_vec->meshfree->e[0][0]);
   obj_val = rhea_newton_problem_evaluate_objective (sol_vec, nl_problem);
 RHEA_GLOBAL_PRODUCTIONF ("obj_val=%.12e\n", obj_val);
 
-//  for (n = 2; n <= 10; n += 2) {
-  for (n = 2; n <= 6; n += 2) {
+  for (n = 2; n <= 10; n += 2) {
+//  for (n = 2; n <= 6; n += 2) {
     const double        eps = pow (10.0, (double) -n);
 
     ymir_vec_copy (sol_vec, perturb_vec);
@@ -133,18 +134,25 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
 
   /* create work vectors */
   sol_vec = solution;
-  dir_vec = ymir_vec_template (step_vec);
-  perturb_vec = ymir_vec_template (step_vec);
-  neg_grad_vec = ymir_vec_template (neg_gradient_vec);
-  H_dir_ref = ymir_vec_template (neg_gradient_vec);
-  H_dir_chk = ymir_vec_template (neg_gradient_vec);
+  dir_vec = ymir_vec_new_meshfree (1);
+  perturb_vec = ymir_vec_new_meshfree (1);
+  neg_grad_vec = ymir_vec_new_meshfree (1);
+  H_dir_ref = ymir_vec_new_meshfree (1);
+  H_dir_chk = ymir_vec_new_meshfree (1);
+//  dir_vec = ymir_vec_template (step_vec);
+//  perturb_vec = ymir_vec_template (step_vec);
+//  neg_grad_vec = ymir_vec_template (neg_gradient_vec);
+//  H_dir_ref = ymir_vec_template (neg_gradient_vec);
+//  H_dir_chk = ymir_vec_template (neg_gradient_vec);
 
   /* set direction vector (scale similarly as solution vector) */
-  ymir_vec_set_random (dir_vec);
+//  ymir_vec_set_random (dir_vec);
+  ymir_vec_set_value (dir_vec, 1.0);
   ymir_vec_multiply_in (sol_vec, dir_vec);
 
   /* compute reference Hessian-vector apply */
-  rhea_newton_problem_apply_hessian (H_dir_ref, dir_vec, nl_problem);
+//  rhea_newton_problem_apply_hessian (H_dir_ref, dir_vec, nl_problem);
+  ymir_vec_set_value (H_dir_ref, 1.0);
   norm_ref = ymir_vec_norm (H_dir_ref);
 
   /* setup finite difference Hessian */

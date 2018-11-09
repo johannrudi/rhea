@@ -1507,6 +1507,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
       step_vec, rhs, lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, nl_problem->data, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
+RHEA_GLOBAL_PRODUCTIONF ("step_vec=%f\n", step_vec->meshfree->e[0][0]);
 
   /* if possible, calculate the residual reduction of the linearized solve */
   if (rhea_newton_problem_apply_hessian_exists (nl_problem)) {
@@ -1518,7 +1519,8 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
     lin_res_norm_init = ymir_vec_norm (rhs);
 
     /* compute the new l^2-norm of the residual of the linearized system */
-    lin_residual_vec = ymir_vec_template (rhs);
+//    lin_residual_vec = ymir_vec_template (rhs);
+    lin_residual_vec = ymir_vec_new_meshfree (1);
     rhea_newton_problem_apply_hessian (lin_residual_vec, step_vec, nl_problem);
     ymir_vec_add (-1.0, rhs, lin_residual_vec);
     lin_res_norm_curr = ymir_vec_norm (lin_residual_vec);
@@ -1595,7 +1597,8 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   const int           print_all_conv_criteria = (2 <= opt->status_verbosity);
   const int           iter = step->iter;
   ymir_vec_t         *step_vec = nl_problem->step_vec;
-  ymir_vec_t         *solution_prev = ymir_vec_template (solution);
+//  ymir_vec_t         *solution_prev = ymir_vec_template (solution);
+  ymir_vec_t         *solution_prev = ymir_vec_new_meshfree (1);
   const int           search_iter_start = 1;
   const int           search_iter_max = opt->step_search_iter_max;
   int                 k;
@@ -1753,6 +1756,7 @@ rhea_newton_solve (ymir_vec_t **solution,
                                        print_all_conv_criteria);
     }
     rhea_newton_status_copy_curr_to_init (&status);
+RHEA_GLOBAL_PRODUCTIONF ("compute current status %d \n", 1);
 
     /* create storage for summary */
     if (print_summary) {
@@ -1769,6 +1773,7 @@ rhea_newton_solve (ymir_vec_t **solution,
    * Iterations Loop
    */
   for (iter = iter_start; iter <= iter_max; iter++) { /* BEGIN: Newton iter */
+RHEA_GLOBAL_PRODUCTIONF ("Into Newton step %d \n", 0);
     step.iter = iter;
 
     /* check environment */
@@ -1810,6 +1815,7 @@ rhea_newton_solve (ymir_vec_t **solution,
      * Newton Step
      */
     {
+RHEA_GLOBAL_PRODUCTIONF ("Into Newton step %d \n", 1);
       /* update Hessian operator */
       if (iter == iter_start || solution_post_update) { /* if no step exists */
         rhea_newton_problem_update_hessian (*solution, NULL, NAN, nl_problem);
@@ -1818,10 +1824,10 @@ rhea_newton_solve (ymir_vec_t **solution,
         rhea_newton_problem_update_hessian (*solution, nl_problem->step_vec,
                                             step.length, nl_problem);
         if (nl_problem->check_hessian) {
+RHEA_GLOBAL_PRODUCTIONF ("enter check_hessian %d \n", 1);
           rhea_newton_check_hessian (*solution, nl_problem);
         }
       }
-
       /* calculate the accuracy for computing the step, i.e., for solving the
        * linearized system */
       rhea_newton_set_accuracy (

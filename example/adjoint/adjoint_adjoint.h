@@ -48,7 +48,7 @@ adjoint_problem_t;
   * essential stokes and clear functions
   */
 void
-adjoint_stokes_update (rhea_stokes_problem_t **stokes_problem,
+adjoint_stokes_update_init (rhea_stokes_problem_t **stokes_problem,
                           p4est_t     *p4est,
                           ymir_mesh_t **ymir_mesh,
                           ymir_pressure_elem_t **press_elem,
@@ -76,6 +76,15 @@ adjoint_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     rhea_temperature_options_t *temp_options,
                     subd_options_t *subd_options,
                     const char *vtk_write_input_path);
+
+void
+adjoint_run_solver (ymir_vec_t *usol,
+                    ymir_vec_t *sol_vel_press,
+                    ymir_mesh_t *ymir_mesh,
+                    ymir_pressure_elem_t *press_elem,
+                    rhea_stokes_problem_t *stokes_problem,
+                    const int nonzero_initial_guess,
+                    const int iter_max, const double rel_tol);
 
 void
 adjoint_problem_destroy (rhea_newton_problem_t *newton_problem);

@@ -39,7 +39,7 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
 }
 
 void
-adjoint_stokes_update (rhea_stokes_problem_t **stokes_problem,
+adjoint_stokes_update_init (rhea_stokes_problem_t **stokes_problem,
                           p4est_t     *p4est,
                           ymir_mesh_t **ymir_mesh,
                           ymir_pressure_elem_t **press_elem,
@@ -54,11 +54,14 @@ adjoint_stokes_update (rhea_stokes_problem_t **stokes_problem,
 
   /*call back to recompute rhs_vel,
    * rhs_velbc_nonzero_dir, rhs_velbc_nonzero_neumann, weakzone*/
-  subd_compute_rhs_vel (*stokes_problem, subd_options);
-  subd_compute_rhs_velbc_dirichlet (*stokes_problem, subd_options);
-  subd_compute_rhs_velbc_neumann (*stokes_problem, subd_options);
-  subd_compute_weakzone (*stokes_problem, subd_options);
 
+  subd_options->rhs_type = SUBD_RHS_DENSITY;
+  subd_compute_rhs_vel (*stokes_problem, subd_options);
+
+//  subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_ZERO;
+//  subd_compute_rhs_velbc_neumann (*stokes_problem, subd_options);
+
+  subd_compute_weakzone (*stokes_problem, subd_options);
   /* reset function of viscosity */
   subd_viscosity_set_function (*stokes_problem, subd_options);
 
@@ -85,6 +88,22 @@ adjoint_stokes_update (rhea_stokes_problem_t **stokes_problem,
   }
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
+}
+
+void
+adjoint_run_solver (ymir_vec_t *usol,
+                    ymir_vec_t *sol_vel_press,
+                    ymir_mesh_t *ymir_mesh,
+                    ymir_pressure_elem_t *press_elem,
+                    rhea_stokes_problem_t *stokes_problem,
+                    const int nonzero_initial_guess,
+                    const int iter_max, const double rel_tol)
+{
+  ymir_vec_set_zero (sol_vel_press);
+  subd_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
+                   nonzero_initial_guess, iter_max, rel_tol);
+
+  ymir_upvec_get_u (sol_vel_press, usol, YMIR_COPY);
 }
 
 /********************************************************************************************
@@ -120,17 +139,14 @@ adjoint_data_init (ymir_vec_t *solution,
   solution->meshfree->e[0][0] = subd_options->visc_options->visc_lith; /*TODO a function: set visc parameters*/
   ymir_vec_copy (solution, adjoint->msol);
 RHEA_GLOBAL_PRODUCTIONF ("msol=%f\n", adjoint->msol->meshfree->e[0][0]);
-  adjoint_stokes_update (&stokes_problem, p4est, &ymir_mesh, &press_elem,
-                        discr_options, temp_options, subd_options,
-                        vtk_write_input_path);
 
-  subd_options->rhs_type = SUBD_RHS_DENSITY;
-  subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_ZERO;
+  adjoint_stokes_update_init (&stokes_problem, p4est, &ymir_mesh, &press_elem,
+                              discr_options, temp_options, subd_options,
+                              vtk_write_input_path);
+
   /* solve Stokes problem*/
-  subd_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
-                   solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
-
-  ymir_upvec_get_u (sol_vel_press, usol, YMIR_COPY);
+  adjoint_run_solver (usol, sol_vel_press, ymir_mesh, press_elem, stokes_problem,
+                      solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
 
   {
     char  path[BUFSIZ];
@@ -139,7 +155,6 @@ RHEA_GLOBAL_PRODUCTIONF ("msol=%f\n", adjoint->msol->meshfree->e[0][0]);
       ymir_vtk_write (ymir_mesh, path,
                       usol, "usol",
                       NULL);
-
   }
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
@@ -214,22 +229,26 @@ adjoint_neg_gradient_from_velo (ymir_vec_t *neg_gradient,
   ymir_dvec_t *vec_e = ymir_vec_template (dotprod);
   ymir_dvec_t *vec_mass = ymir_vec_template (dotprod);
   ymir_dvec_t *dotprod_mass = ymir_vec_template (dotprod);
+  ymir_dvec_t *visc_grad = ymir_vec_template (dotprod);
   ymir_dvec_t *stencil_visc = ymir_vec_template (dotprod);
 
   /*TODO multiply with d_eta/d_m for different m */
-  adjoint_strainrate_dotprod (dotprod, usol, vsol);
+  ymir_vec_set_value (visc_grad, 1.0);
   adjoint_stencil_visc (stencil_visc, subd_opt);
 //  ymir_vec_set_value (stencil_visc, 1.0);
+  ymir_vec_multiply_in (stencil_visc, visc_grad);
+  ymir_vec_scale (2.0, visc_grad);
 
+  adjoint_strainrate_dotprod (dotprod, usol, vsol);
   ymir_mass_apply (dotprod, dotprod_mass);
-  neg_gradient->meshfree->e[0][0] = ymir_vec_innerprod (stencil_visc, dotprod_mass);
+  neg_gradient->meshfree->e[0][0] = ymir_vec_innerprod (visc_grad, dotprod_mass);
 
 //  ymir_vec_set_value (vec_e, 1.0);
 //  ymir_mass_apply (vec_e, vec_mass);
 //  ymir_vec_multiply_in (stencil_visc, dotprod);
 //  neg_gradient->meshfree->e[0][0] = ymir_vec_innerprod (dotprod, vec_mass);
 
-  ymir_vec_scale (-2.0, neg_gradient);
+  ymir_vec_scale (-1.0, neg_gradient);
 
   ymir_vec_destroy (dotprod);
   ymir_vec_destroy (dotprod_mass);
@@ -237,6 +256,7 @@ adjoint_neg_gradient_from_velo (ymir_vec_t *neg_gradient,
   ymir_vec_destroy (vec_e);
   ymir_vec_destroy (vec_mass);
   ymir_vec_destroy (stencil_visc);
+  ymir_vec_destroy (visc_grad);
 }
 
 void
@@ -264,11 +284,10 @@ adjoint_compute_negative_gradient (ymir_vec_t *neg_gradient,
   int solver_nonzero_initial_guess = 0;
   ymir_vec_set_zero (sol_vel_press);
 
-  subd_options->rhs_type = SUBD_RHS_ADJOINT_NONE;
+//  subd_options->rhs_type = SUBD_RHS_ADJOINT_NONE;
+
   subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_VEC;
-
   subd_options->data = usol;
-
   subd_compute_rhs_velbc_neumann (stokes_problem, subd_options);
 
   rhs_vel_press = rhea_stokes_problem_get_rhs_vel_press (stokes_problem);
@@ -285,9 +304,8 @@ adjoint_compute_negative_gradient (ymir_vec_t *neg_gradient,
       0);
 
   /* solve Stokes problem*/
-  subd_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
+  adjoint_run_solver (vsol, sol_vel_press, ymir_mesh, press_elem, stokes_problem,
                    solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
-  ymir_upvec_get_u (sol_vel_press, vsol, YMIR_COPY);
 
   {
     char  path[BUFSIZ];
@@ -334,6 +352,7 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
   ymir_stokes_op_t *stokes_op;
   ymir_vec_t      *coeff;
   ymir_vec_t      *msol = adjoint_problem->msol;
+  ymir_vec_t      *usol = adjoint_problem->usol;
   ymir_vec_t *rhs_vel;
   ymir_vec_t *rhs_vel_press;
 
@@ -347,12 +366,12 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
 //  if (msol->meshfree->e[0][0] == solution->meshfree->e[0][0]) {
 //    return;
 //  }
-
 //  ymir_vec_copy (solution, msol);
 
   subd_options->visc_options->visc_lith = solution->meshfree->e[0][0]; /*TODO a function: get visc para*/
   RHEA_GLOBAL_PRODUCTIONF ("visc_lith=%12f\n", subd_options->visc_options->visc_lith);
   subd_viscosity_set_function (stokes_problem, subd_options);
+
   rhea_stokes_problem_compute_coefficient (stokes_problem, 0 /* !init */);
   coeff = rhea_stokes_problem_get_coeff (stokes_problem);
   stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
@@ -360,10 +379,11 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
   ymir_stress_op_set_coeff_scal (stress_op, coeff);
 
   subd_options->rhs_type = SUBD_RHS_DENSITY;
-  subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_ZERO;
   subd_compute_rhs_vel (stokes_problem, subd_options);
-  subd_compute_rhs_velbc_dirichlet (stokes_problem, subd_options);
-  subd_compute_rhs_velbc_neumann (stokes_problem, subd_options);
+
+//  subd_compute_rhs_velbc_dirichlet (stokes_problem, subd_options);
+//  subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_ZERO;
+//  subd_compute_rhs_velbc_neumann (stokes_problem, subd_options);
 
   rhs_vel_press = rhea_stokes_problem_get_rhs_vel_press (stokes_problem);
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
@@ -377,11 +397,8 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
       0);
 
   /* solve Stokes problem*/
-  ymir_vec_set_zero (sol_vel_press);
-  subd_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
-                   solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
-
-  ymir_upvec_get_u (sol_vel_press, adjoint_problem->usol, YMIR_COPY);
+  adjoint_run_solver (usol, sol_vel_press, ymir_mesh, press_elem, stokes_problem,
+                     solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
 }
 
 int
@@ -411,14 +428,12 @@ adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_gradient,
   {
     adjoint_set_rhs_hessian_forward (adjoint_problem);
 
-    subd_options->rhs_type = SUBD_RHS_ADJOINT_NONE;
-    subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_ZERO;
+//    subd_options->rhs_type = SUBD_RHS_ADJOINT_NONE;
+//    subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_ZERO;
 
     /* solve Stokes problem*/
-    subd_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
+    adjoint_run_solver (Husol, sol_vel_press, ymir_mesh, press_elem, stokes_problem,
                      solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
-
-    ymir_upvec_get_u (sol_vel_press, Husol, YMIR_COPY);
   }
 
   {
@@ -426,11 +441,11 @@ adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_gradient,
     ymir_vec_t    **rhs_vel_neumann;
     ymir_stokes_op_t  *stokes_op;
 
-    subd_options->rhs_type = SUBD_RHS_ADJOINT_NONE;
+//    subd_options->rhs_type = SUBD_RHS_ADJOINT_NONE;
+//    subd_compute_rhs_vel (stokes_problem, subd_options);
+
     subd_options->velbc_options->velbc_nonzero_neu = SUBD_VELBC_NEU_VEC;
     subd_options->data = Husol;
-
-    subd_compute_rhs_vel (stokes_problem, subd_options);
     subd_compute_rhs_velbc_neumann (stokes_problem, subd_options);
 
     rhs_vel_press = rhea_stokes_problem_get_rhs_vel_press (stokes_problem);
@@ -447,10 +462,8 @@ adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_gradient,
       0);
 
     /* solve Stokes problem*/
-    subd_run_solver (sol_vel_press, ymir_mesh, press_elem, stokes_problem,
-                   solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
-
-    ymir_upvec_get_u (sol_vel_press, Hvsol, YMIR_COPY);
+    adjoint_run_solver (Hvsol, sol_vel_press, ymir_mesh, press_elem, stokes_problem,
+                       solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
   }
 
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
@@ -573,8 +586,8 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
         *newton_problem);
 
     rhea_newton_problem_set_conv_criterion_fn (
-        RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
-//        RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+//        RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
+        RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
         adjoint_evaluate_objective,
         adjoint_compute_gradient_norm,
         0 /* no multi-component norms */, *newton_problem);
@@ -694,6 +707,7 @@ adjoint_set_rhs_hessian_forward (adjoint_problem_t *adjoint_problem)
   ymir_vec_t            *stencil_visc = rhea_viscosity_new (ymir_mesh);
   ymir_stokes_op_t      *stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
   ymir_stress_op_t      *stress_op;
+  ymir_vel_dir_t        *vel_dir = rhea_stokes_problem_get_vel_dir (stokes_problem);
 
   ymir_vec_t            *rhs_vel = rhea_velocity_new (ymir_mesh);
 
@@ -704,8 +718,10 @@ adjoint_set_rhs_hessian_forward (adjoint_problem_t *adjoint_problem)
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
   adjoint_stencil_visc (stencil_visc, subd_opt);
   ymir_vec_multiply_in (stencil_visc, viscosity);
+  ymir_vec_scale (2.0, viscosity); // coeff
 
-  stress_op = stokes_op->stress_op;
+//  stress_op = stokes_op->stress_op;
+  stress_op = ymir_stress_op_new (viscosity, vel_dir, NULL, NULL, NULL);
   ymir_stress_pc_apply_stress_op (usol, rhs_vel, stress_op, 0, 0);
   ymir_vec_scale (-1.0, rhs_vel);
 
@@ -713,6 +729,7 @@ adjoint_set_rhs_hessian_forward (adjoint_problem_t *adjoint_problem)
   ymir_upvec_set_u (rhs_vel_press, rhs_vel, YMIR_SET);
   rhea_stokes_problem_set_rhs_vel_press (stokes_problem, rhs_vel_press);
 
+  ymir_stress_op_destroy (stress_op);
   rhea_viscosity_destroy (stencil_visc);
   rhea_viscosity_destroy (viscosity);
   rhea_velocity_destroy (rhs_vel);
@@ -729,22 +746,23 @@ adjoint_hessian_from_velo (ymir_vec_t *step,
 {
   ymir_mesh_t *ymir_mesh = usol->mesh;
   ymir_vec_t *dotprod = ymir_dvec_new(ymir_mesh, 1, YMIR_GAUSS_NODE);
+  ymir_dvec_t *dotprod_mass = ymir_vec_template (dotprod);
   ymir_dvec_t *vec_e = ymir_vec_template (dotprod);
   ymir_dvec_t *vec_mass = ymir_vec_template (dotprod);
   ymir_vec_t *stencil_visc = ymir_vec_template (viscosity);
 
-  adjoint_strainrate_dotprod (dotprod, usol, Hvsol);
   adjoint_stencil_visc (stencil_visc, subd_opt);
   ymir_vec_multiply_in (stencil_visc, viscosity);
-  ymir_vec_multiply_in (viscosity, dotprod);
-  ymir_vec_scale (2.0, dotprod);
+  ymir_vec_scale (2.0, viscosity);
 
-  ymir_vec_set_value (vec_e, 1.0);
-  ymir_mass_apply (vec_e, vec_mass);
+  adjoint_strainrate_dotprod (dotprod, usol, Hvsol);
+  ymir_mass_apply (dotprod, dotprod_mass);
 
-  step->meshfree->e[0][0] = ymir_vec_innerprod (dotprod, vec_mass);
+  step->meshfree->e[0][0] = ymir_vec_innerprod (viscosity, dotprod_mass);
 
   ymir_vec_destroy (dotprod);
+  ymir_vec_destroy (dotprod_mass);
+
   ymir_vec_destroy (vec_e);
   ymir_vec_destroy (vec_mass);
   ymir_vec_destroy (stencil_visc);
