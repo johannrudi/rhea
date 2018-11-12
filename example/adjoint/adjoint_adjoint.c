@@ -348,8 +348,9 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
   ymir_mesh_t   *ymir_mesh = adjoint_problem->ymir_mesh;
   ymir_pressure_elem_t *press_elem = adjoint_problem->press_elem;
   subd_options_t  *subd_options = adjoint_problem->subd_options;
-  ymir_stress_op_t *stress_op;
   ymir_stokes_op_t *stokes_op;
+  ymir_stress_op_t *stress_op;
+  ymir_stokes_op_t *stokes_pc;
   ymir_vec_t      *coeff;
   ymir_vec_t      *msol = adjoint_problem->msol;
   ymir_vec_t      *usol = adjoint_problem->usol;
@@ -369,7 +370,7 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
 //  ymir_vec_copy (solution, msol);
 
   subd_options->visc_options->visc_lith = solution->meshfree->e[0][0]; /*TODO a function: get visc para*/
-  RHEA_GLOBAL_PRODUCTIONF ("visc_lith=%12f\n", subd_options->visc_options->visc_lith);
+  RHEA_GLOBAL_PRODUCTIONF ("visc_lith=%.12f\n", subd_options->visc_options->visc_lith);
   subd_viscosity_set_function (stokes_problem, subd_options);
 
   rhea_stokes_problem_compute_coefficient (stokes_problem, 0 /* !init */);
@@ -396,9 +397,19 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
       stokes_op,
       0);
 
+  stokes_pc = rhea_stokes_problem_get_stokes_pc (stokes_problem);
+  ymir_stokes_pc_recompute (stokes_pc);
+
   /* solve Stokes problem*/
   adjoint_run_solver (usol, sol_vel_press, ymir_mesh, press_elem, stokes_problem,
                      solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
+}
+
+void
+adjoint_apply_hessian_fn (ymir_vec_t *hessian_vec, ymir_vec_t *dir_vec,
+                         rhea_newton_problem_t *newton_problem)
+{
+    ymir_vec_set_value (hessian_vec, 1.0);
 }
 
 int
@@ -466,7 +477,8 @@ adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_gradient,
                        solver_nonzero_initial_guess, solver_iter_max, solver_rel_tol);
   }
 
-  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+//  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+  ymir_vec_set_value (viscosity, 1.0);
   adjoint_hessian_from_velo (step, usol, Hvsol, viscosity, subd_options);
   ymir_vec_reciprocal (step);
   ymir_vec_multiply_in (neg_gradient, step);
@@ -592,8 +604,8 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
         adjoint_compute_gradient_norm,
         0 /* no multi-component norms */, *newton_problem);
 
-//    rhea_newton_problem_set_apply_hessian_fn (
-//        adjoint_apply_hessian_fn, *newton_problem);
+    rhea_newton_problem_set_apply_hessian_fn (
+        adjoint_apply_hessian_fn, *newton_problem);
 
     rhea_newton_problem_set_update_fn (
         adjoint_update_operator_fn,
@@ -715,7 +727,8 @@ adjoint_set_rhs_hessian_forward (adjoint_problem_t *adjoint_problem)
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
-  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+//  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+  ymir_vec_set_value (viscosity, 1.0);
   adjoint_stencil_visc (stencil_visc, subd_opt);
   ymir_vec_multiply_in (stencil_visc, viscosity);
   ymir_vec_scale (2.0, viscosity); // coeff

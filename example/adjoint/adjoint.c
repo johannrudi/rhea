@@ -197,8 +197,8 @@ main (int argc, char **argv)
 
   newton_options.status_verbosity = 1;
   newton_options.nonzero_initial_guess = 1;
-//  rhea_newton_problem_set_check_gradient (1, newton_problem);
-  rhea_newton_problem_set_check_hessian (1, newton_problem);
+  rhea_newton_problem_set_check_gradient (1, newton_problem);
+//  rhea_newton_problem_set_check_hessian (1, newton_problem);
 
   /* initialize solution vector */
   solution = ymir_vec_new_meshfree (1);

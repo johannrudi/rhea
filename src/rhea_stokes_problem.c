@@ -3318,6 +3318,11 @@ rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)
   return stokes_problem->stokes_op;
 }
 
+ymir_stokes_pc_t *
+rhea_stokes_problem_get_stokes_pc (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->stokes_pc;
+}// XI
 /******************************************************************************
  * I/O
  *****************************************************************************/
