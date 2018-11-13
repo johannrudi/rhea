@@ -896,7 +896,6 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
   /* evaluate objective functional */
   if (compute_obj) {
     obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem);
-  RHEA_GLOBAL_PRODUCTIONF ("check_gradient: compute_objective %d\n", 1);
   }
 
   /* compute gradient norm */
@@ -907,7 +906,6 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
     /* compute (negative) gradient */
     rhea_newton_problem_compute_neg_gradient (neg_gradient, solution,
                                               nl_problem);
-  RHEA_GLOBAL_PRODUCTIONF ("check_gradient: compute_gradient %d\n", 1);
     if (neg_gradient_updated != NULL) {
       *neg_gradient_updated = 1;
     }
@@ -1757,7 +1755,6 @@ rhea_newton_solve (ymir_vec_t **solution,
                                        print_all_conv_criteria);
     }
     rhea_newton_status_copy_curr_to_init (&status);
-RHEA_GLOBAL_PRODUCTIONF ("compute current status %d \n", 1);
 
     /* create storage for summary */
     if (print_summary) {
@@ -1816,18 +1813,15 @@ RHEA_GLOBAL_PRODUCTIONF ("Into Newton step %d \n", 0);
      * Newton Step
      */
     {
-RHEA_GLOBAL_PRODUCTIONF ("Into Newton step %d \n", 1);
       /* update Hessian operator */
       if (iter == iter_start || solution_post_update) { /* if no step exists */
-//        rhea_newton_problem_update_hessian (*solution, NULL, NAN, nl_problem);
-RHEA_GLOBAL_PRODUCTIONF ("enter check_hessian %d \n", 0);
+        rhea_newton_problem_update_hessian (*solution, NULL, NAN, nl_problem);
 //          rhea_newton_check_hessian (*solution, nl_problem);
       }
       else { /* if step does exist */
         rhea_newton_problem_update_hessian (*solution, nl_problem->step_vec,
                                             step.length, nl_problem);
         if (nl_problem->check_hessian) {
-RHEA_GLOBAL_PRODUCTIONF ("enter check_hessian %d \n", 1);
           rhea_newton_check_hessian (*solution, nl_problem);
         }
       }
