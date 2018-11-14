@@ -1,0 +1,15 @@
+#! /bin/sh
+#########################################
+# Generates tags to lookup functions, etc. of the rhea code and its submodules.
+#########################################
+# Load tags in Vim by adding the line to `~/.vimrc`
+#   set tags=./tags;,tags;
+# in order to
+# - first search in directory of current file and above till `/`
+# - then search in curren working directory and above till `/`.
+# Alternatively, to stop search in your home directory, use
+#   set tags=./tags;$HOME,tags;$HOME
+#
+# Now, use tags in Vi with the `:tag` command.  
+#########################################
+ctags ./src/*.[ch]* ymir/src/*.[ch]* fet/src/*.[ch]* mangll/src/*.[ch]* p4est/src/*.[ch]* sc/src/*.[ch]*
