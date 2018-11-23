@@ -187,17 +187,17 @@ main (int argc, char **argv)
   /* initialize solution vector */
   solution = ymir_vec_new_meshfree (1); //TODO: a function from options, number of m, initialize m and set value
 
-//TODO: add the number of solution to create adjoint_problem->msol
-  adjoint_problem = adjoint_problem_new (stokes_problem, p4est, ymir_mesh, press_elem,
+  adjoint_problem = adjoint_problem_new (solution, stokes_problem,
+                          p4est, ymir_mesh, press_elem,
                           &discr_options, &temp_options, &subd_options, vtk_write_input_path,
-                          solver_iter_max, solver_rel_tol); //TODO, put solution in argument
+                          solver_iter_max, solver_rel_tol);
 
   adjoint_setup_newton (&newton_problem, adjoint_problem);
 
-  newton_options.status_verbosity = 1;
+  newton_options.status_verbosity = 2;
   newton_options.nonzero_initial_guess = 1;
-  rhea_newton_problem_set_check_gradient (1, newton_problem);
-//  rhea_newton_problem_set_check_hessian (1, newton_problem);
+  rhea_newton_problem_set_check_gradient (0, newton_problem);
+  rhea_newton_problem_set_check_hessian (1, newton_problem);
 
   rhea_newton_solve (&solution, newton_problem, &newton_options);
 

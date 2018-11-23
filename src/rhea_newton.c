@@ -1505,7 +1505,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
       step_vec, rhs, lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, nl_problem->data, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
-RHEA_GLOBAL_PRODUCTIONF ("step_vec=%f\n", step_vec->meshfree->e[0][0]);
+RHEA_GLOBAL_PRODUCTIONF ("step_vec=%.12e\n", step_vec->meshfree->e[0][0]);
 
   /* if possible, calculate the residual reduction of the linearized solve */
   if (rhea_newton_problem_apply_hessian_exists (nl_problem)) {
@@ -1515,21 +1515,27 @@ RHEA_GLOBAL_PRODUCTIONF ("step_vec=%f\n", step_vec->meshfree->e[0][0]);
 
     /* compute the inital l^2-norm of the residual of the linearized system */
     lin_res_norm_init = ymir_vec_norm (rhs);
+RHEA_GLOBAL_PRODUCTIONF ("lin_res_norm_ini=%.12e\n", lin_res_norm_init);
 
     /* compute the new l^2-norm of the residual of the linearized system */
-//    lin_residual_vec = ymir_vec_template (rhs);
-    lin_residual_vec = ymir_vec_new_meshfree (1);
+    lin_residual_vec = ymir_vec_template (rhs);
+RHEA_GLOBAL_PRODUCTIONF ("Here%d\n", 0);
     rhea_newton_problem_apply_hessian (lin_residual_vec, step_vec, nl_problem);
+RHEA_GLOBAL_PRODUCTIONF ("Here%d\n", 1);
+RHEA_GLOBAL_PRODUCTIONF ("lin_residual_vec=%.12e\n", lin_residual_vec->meshfree->e[0][0]);
     ymir_vec_add (-1.0, rhs, lin_residual_vec);
     lin_res_norm_curr = ymir_vec_norm (lin_residual_vec);
+RHEA_GLOBAL_PRODUCTIONF ("lin_res_norm_curr=%.12e\n", lin_res_norm_curr);
     ymir_vec_destroy (lin_residual_vec);
 
     /* calculate linear residual reduction */
     lin_res_norm_reduction = rhea_newton_calculate_reduction (
         lin_res_norm_init, lin_res_norm_curr);
+RHEA_GLOBAL_PRODUCTIONF ("lin_res_norm_reduction=%.12e\n", lin_res_norm_reduction);
 
     /* calculate convergence of the linear solver `rtol^(1/#iter)` */
     lin_conv = exp ( log (lin_res_norm_reduction) / ((double) lin_iter_count) );
+RHEA_GLOBAL_PRODUCTIONF ("lin_conv=%.12e\n", lin_conv);
   }
   else { /* if actual linear reduction cannot be calculated */
     lin_res_norm_reduction = -1.0;
@@ -1595,8 +1601,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   const int           print_all_conv_criteria = (2 <= opt->status_verbosity);
   const int           iter = step->iter;
   ymir_vec_t         *step_vec = nl_problem->step_vec;
-//  ymir_vec_t         *solution_prev = ymir_vec_template (solution);
-  ymir_vec_t         *solution_prev = ymir_vec_new_meshfree (1);
+  ymir_vec_t         *solution_prev = ymir_vec_template (solution);
   const int           search_iter_start = 1;
   const int           search_iter_max = opt->step_search_iter_max;
   int                 k;
@@ -1771,7 +1776,6 @@ rhea_newton_solve (ymir_vec_t **solution,
    * Iterations Loop
    */
   for (iter = iter_start; iter <= iter_max; iter++) { /* BEGIN: Newton iter */
-RHEA_GLOBAL_PRODUCTIONF ("Into Newton step %d \n", 0);
     step.iter = iter;
 
     /* check environment */

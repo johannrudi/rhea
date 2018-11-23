@@ -70,6 +70,7 @@ if [ 1 -le "$is_opt" ]; then
   CXXFLAGS="-g -O3 -qopenmp -xCORE-AVX2 -axMIC-AVX512 -fimf-precision=high -prec-div -prec-sqrt -Wall -w2" \
   CPPFLAGS="-I${TACC_VALGRIND_INC}" \
   LDFLAGS="-xCORE-AVX2 -axMIC-AVX512" \
+  --enable-debug \
   --enable-mpi \
   --enable-openmp="-qopenmp" \
   --with-fet="$code_dir/fet" \

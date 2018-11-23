@@ -20,6 +20,7 @@
 typedef struct adjoint_problem
 {
  ymir_vec_t           *msol;
+ ymir_vec_t           *hessian;
 
  ymir_vec_t           *sol_vel_press;
  ymir_vec_t           *usol;
@@ -48,16 +49,6 @@ adjoint_problem_t;
   * essential stokes and clear functions
   */
 void
-adjoint_stokes_update_init (rhea_stokes_problem_t **stokes_problem,
-                          p4est_t     *p4est,
-                          ymir_mesh_t **ymir_mesh,
-                          ymir_pressure_elem_t **press_elem,
-                          rhea_discretization_options_t *discr_options,
-                          rhea_temperature_options_t *temp_options,
-                          subd_options_t *subd_options,
-                          const char *vtk_write_input_path);
-
-void
 adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
                     ymir_mesh_t **ymir_mesh,
                     ymir_pressure_elem_t **press_elem,
@@ -66,6 +57,21 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
                     rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
                     subd_options_t *subd_options);
+
+
+void
+adjoint_stokes_forward_callback (rhea_stokes_problem_t *stokes_problem,
+                                subd_options_t *subd_options);
+
+void
+adjoint_stokes_update_init (rhea_stokes_problem_t *stokes_problem,
+                          p4est_t     *p4est,
+                          ymir_mesh_t *ymir_mesh,
+                          ymir_pressure_elem_t *press_elem,
+                          rhea_discretization_options_t *discr_options,
+                          rhea_temperature_options_t *temp_options,
+                          subd_options_t *subd_options,
+                          const char *vtk_write_input_path);
 
 void
 adjoint_setup_stokes (rhea_stokes_problem_t **stokes_problem,
@@ -114,7 +120,8 @@ adjoint_evaluate_objective (ymir_vec_t *solution,
                           void *data);
 
 adjoint_problem_t *
-adjoint_problem_new (rhea_stokes_problem_t *stokes_problem,
+adjoint_problem_new (ymir_vec_t *solution,
+                     rhea_stokes_problem_t *stokes_problem,
                      p4est_t *p4est, ymir_mesh_t *ymir_mesh,
                      ymir_pressure_elem_t *press_elem,
                      rhea_discretization_options_t *discr_options,
