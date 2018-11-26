@@ -157,7 +157,8 @@ main (int argc, char **argv)
                             &newton_options);
 
   /*process subduction options */
-  subduction_process_options (&subd_options, &domain_options, &subd_para_options,
+  subduction_process_options (&subd_options, &domain_options, &visc_options,
+                              &subd_para_options,
                               &subd_temp_options, &subd_visc_options,
                               &subd_weak_options, &subd_surf_options,
                               &subd_velbc_options, &subd_test_options,
@@ -185,7 +186,8 @@ main (int argc, char **argv)
    * Solve Adjonit Problem
    */
   /* initialize solution vector */
-  solution = ymir_vec_new_meshfree (1); //TODO: a function from options, number of m, initialize m and set value
+  int       n_components = subd_options.adjoint_options->n_components;
+  solution = ymir_vec_new_meshfree (n_components);
 
   adjoint_problem = adjoint_problem_new (solution, stokes_problem,
                           p4est, ymir_mesh, press_elem,

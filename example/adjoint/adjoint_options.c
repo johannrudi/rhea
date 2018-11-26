@@ -116,6 +116,8 @@ int                     test_manufactured;
 int                     test_stress_op;
 int                     test_stress_comp;
 
+int                     adjoint_visc_n_components;
+int                     adjoint_visc_type;
 int                     adjoint_stencil_visc_type;
 int                     adjoint_stencil_visc_custom_type;
 double                  adjoint_stencil_visc_value;
@@ -280,7 +282,7 @@ subduction_add_options (ymir_options_t * opt)
     "0: isotropy, 1: transversely isotropy",
   YMIR_OPTIONS_I, "viscosity-type",'\0',
     &(visc_type),SUBD_VISC_RHEA,
-    "0: isotropy, 1: transversely isotropy",
+    "0: rhea, 1: custom",
   YMIR_OPTIONS_I, "custom-viscosity",'\0',
     &(visc_custom),SUBD_VISC_CUSTOM_LAYERS,
     "1: layers, 2: layers-coupling",
@@ -353,6 +355,14 @@ subduction_add_options (ymir_options_t * opt)
     &test_stress_comp, SUBD_TEST_MANUFACTURED_NONE,
     "the input for velocity and pressure field for manufactured solution test",
 
+  YMIR_OPTIONS_I, "adjoint-visc-n-components", '\0',
+    &adjoint_visc_n_components, 1,
+    "the number of unknown parameters in the inversion",
+
+  YMIR_OPTIONS_I, "adjoint-visc-type", '\0',
+    &adjoint_visc_type, SUBD_ADJOINT_VISC_PRE,
+    "which viscosity parameter in adjoint problem, 0: prefactor; 1: activation energy",
+
   YMIR_OPTIONS_I, "adjoint-stencil-visc-type", '\0',
     &adjoint_stencil_visc_type, SUBD_ADJOINT_STENCIL_VISC_CUSTOM,
     "stencil of viscosity in adjoint problem, 0: rhea; 1: custom",
@@ -373,6 +383,7 @@ subduction_add_options (ymir_options_t * opt)
 void
 subduction_process_options (subd_options_t *subd_options,
                             rhea_domain_options_t  *domain_options,
+                            rhea_viscosity_options_t  *rhea_visc_options,
                             subd_para_options_t  *para_options,
                             subd_temp_options_t  *temp_options,
                             subd_visc_options_t  *visc_options,
@@ -484,6 +495,8 @@ subduction_process_options (subd_options_t *subd_options,
   test_options->test_manufactured = (subd_test_manufactured_t) test_manufactured;
   test_options->test_stress_comp = (subd_test_manufactured_t) test_stress_comp;
 
+  adjoint_options->n_components = adjoint_visc_n_components;
+  adjoint_options->visc_type = (subd_adjoint_visc_type_t) adjoint_visc_type;
   stencil_options.type = (subd_adjoint_stencil_visc_type_t) adjoint_stencil_visc_type;
   stencil_options.custom_type = (subd_adjoint_stencil_visc_custom_t) adjoint_stencil_visc_custom_type;
   stencil_options.value = adjoint_stencil_visc_value;
@@ -501,6 +514,7 @@ subduction_process_options (subd_options_t *subd_options,
   subd_options->adjoint_options = adjoint_options;
 
   subd_options->domain_options = domain_options;
+  subd_options->rhea_visc_options = rhea_visc_options;
 }
 
 

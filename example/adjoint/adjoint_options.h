@@ -357,6 +357,13 @@ subd_test_options_t;
 
 typedef enum
 {
+  SUBD_ADJOINT_VISC_PRE,
+  SUBD_ADJOINT_VISC_E
+}
+subd_adjoint_visc_type_t;
+
+typedef enum
+{
   SUBD_ADJOINT_STENCIL_VISC_RHEA,
   SUBD_ADJOINT_STENCIL_VISC_CUSTOM
 }
@@ -379,6 +386,8 @@ subd_adjoint_stencil_options_t;
 
 typedef struct subd_adjoint_options
 {
+  int           n_components;
+  subd_adjoint_visc_type_t visc_type;
   subd_adjoint_stencil_options_t    *stencil_options;
 }
 subd_adjoint_options_t;
@@ -388,6 +397,7 @@ typedef struct subd_options
 {
   subd_rhs_type_t    rhs_type;
   rhea_domain_options_t   * domain_options;
+  rhea_viscosity_options_t   * rhea_visc_options;
   subd_para_options_t   *para_options;
   subd_temp_options_t   * temp_options;
   subd_visc_options_t   * visc_options;
@@ -406,6 +416,7 @@ subduction_add_options (ymir_options_t * opt);
 void
 subduction_process_options (subd_options_t *subd_options,
                               rhea_domain_options_t *domain_options,
+                              rhea_viscosity_options_t  *rhea_visc_options,
                               subd_para_options_t *para_options,
                               subd_temp_options_t *temp_options,
                               subd_visc_options_t *visc_options,

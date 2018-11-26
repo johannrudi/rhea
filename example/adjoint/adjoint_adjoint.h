@@ -45,6 +45,8 @@ typedef struct adjoint_problem
 }
 adjoint_problem_t;
 
+
+
  /*
   * essential stokes and clear functions
   */
@@ -74,6 +76,15 @@ adjoint_stokes_update_init (rhea_stokes_problem_t *stokes_problem,
                           const char *vtk_write_input_path);
 
 void
+adjoint_stokes_update_forward (rhea_stokes_problem_t *stokes_problem,
+                              subd_options_t *subd_options);
+
+void
+adjoint_stokes_update_adjoint (ymir_vec_t *usol,
+                              rhea_stokes_problem_t *stokes_problem,
+                              subd_options_t *subd_options);
+
+void
 adjoint_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     p4est_t     *p4est,
                     ymir_mesh_t **ymir_mesh,
@@ -89,7 +100,6 @@ adjoint_run_solver (ymir_vec_t *usol,
                     ymir_mesh_t *ymir_mesh,
                     ymir_pressure_elem_t *press_elem,
                     rhea_stokes_problem_t *stokes_problem,
-                    const int nonzero_initial_guess,
                     const int iter_max, const double rel_tol);
 
 void
@@ -98,6 +108,11 @@ adjoint_problem_destroy (rhea_newton_problem_t *newton_problem);
 /*
  * Newton callback functions
  */
+
+void
+adjoint_data_sol_init (ymir_vec_t *solution, ymir_vec_t *msol,
+                            subd_options_t *subd_option);
+
 void
 adjoint_data_init (ymir_vec_t *solution,
                          void *data);
