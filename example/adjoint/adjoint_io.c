@@ -194,7 +194,7 @@ subd_txt_io (rhea_stokes_problem_t *stokes_problem, subd_options_t *subd_options
     rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
 //    gradient = subd_postp_adjoint_gradient (edotsym0, edotsym1, temperature, viscosity);
-     adjoint_stencil_visc (visc_stencil, subd_options);
+     adjoint_setup_stencil (visc_stencil, subd_options);
      ymir_vec_multiply_in (visc_stencil,viscosity);
     gradient = subd_adjoint_gradient (edotsym0, edotsym1, temperature, viscosity);
 

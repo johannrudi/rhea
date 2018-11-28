@@ -164,7 +164,6 @@ main (int argc, char **argv)
                               &subd_velbc_options, &subd_test_options,
                               &subd_adjoint_options);
 
-
   /*
    * Setup Mesh
    */
@@ -199,7 +198,7 @@ main (int argc, char **argv)
   newton_options.status_verbosity = 2;
   newton_options.nonzero_initial_guess = 1;
   rhea_newton_problem_set_check_gradient (0, newton_problem);
-  rhea_newton_problem_set_check_hessian (1, newton_problem);
+  rhea_newton_problem_set_check_hessian (0, newton_problem);
 
   rhea_newton_solve (&solution, newton_problem, &newton_options);
 

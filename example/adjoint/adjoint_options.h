@@ -357,37 +357,31 @@ subd_test_options_t;
 
 typedef enum
 {
-  SUBD_ADJOINT_VISC_PRE,
-  SUBD_ADJOINT_VISC_E
+  SUBD_ADJOINT_VISC_PRE = 1,
+  SUBD_ADJOINT_VISC_E = 2
 }
-subd_adjoint_visc_type_t;
+subd_adjoint_visc_parameter_t;
 
 typedef enum
 {
-  SUBD_ADJOINT_STENCIL_VISC_RHEA,
-  SUBD_ADJOINT_STENCIL_VISC_CUSTOM
+  SUBD_ADJOINT_STENCIL_VISC_RHEA_UM = 0,
+  SUBD_ADJOINT_STENCIL_VISC_RHEA_LM = 1,
+  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_UM = 10,
+  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_LM = 11
 }
-subd_adjoint_stencil_visc_type_t;
-
-typedef enum
-{
-  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_UM,
-  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_LM
-}
-subd_adjoint_stencil_visc_custom_t;
+subd_adjoint_stencil_field_t;
 
 typedef struct subd_adjoint_stencil_options
 {
-  subd_adjoint_stencil_visc_type_t         type;
-  subd_adjoint_stencil_visc_custom_t  custom_type;
-  double                              value;
+  subd_adjoint_stencil_field_t  field;
+  double                        value;
 }
 subd_adjoint_stencil_options_t;
 
 typedef struct subd_adjoint_options
 {
   int           n_components;
-  subd_adjoint_visc_type_t visc_type;
+  subd_adjoint_visc_parameter_t visc_parameter;
   subd_adjoint_stencil_options_t    *stencil_options;
 }
 subd_adjoint_options_t;

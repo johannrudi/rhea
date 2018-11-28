@@ -28,8 +28,6 @@ typedef struct adjoint_problem
  ymir_vec_t           *Husol;
  ymir_vec_t           *Hvsol;
 
- // initial viscosity, use parameter or ymir_vec_t visc?
-
  rhea_stokes_problem_t  *stokes_problem;
  p4est_t                *p4est;
  ymir_mesh_t            *ymir_mesh;
@@ -45,11 +43,9 @@ typedef struct adjoint_problem
 }
 adjoint_problem_t;
 
-
-
- /*
-  * essential stokes and clear functions
-  */
+/*
+ * called in main, setup adjoint and newton problem
+ */
 void
 adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
                     ymir_mesh_t **ymir_mesh,
@@ -59,80 +55,6 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
                     rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
                     subd_options_t *subd_options);
-
-
-void
-adjoint_stokes_forward_callback (rhea_stokes_problem_t *stokes_problem,
-                                subd_options_t *subd_options);
-
-void
-adjoint_stokes_update_init (rhea_stokes_problem_t *stokes_problem,
-                          p4est_t     *p4est,
-                          ymir_mesh_t *ymir_mesh,
-                          ymir_pressure_elem_t *press_elem,
-                          rhea_discretization_options_t *discr_options,
-                          rhea_temperature_options_t *temp_options,
-                          subd_options_t *subd_options,
-                          const char *vtk_write_input_path);
-
-void
-adjoint_stokes_update_forward (rhea_stokes_problem_t *stokes_problem,
-                              subd_options_t *subd_options);
-
-void
-adjoint_stokes_update_adjoint (ymir_vec_t *usol,
-                              rhea_stokes_problem_t *stokes_problem,
-                              subd_options_t *subd_options);
-
-void
-adjoint_setup_stokes (rhea_stokes_problem_t **stokes_problem,
-                    p4est_t     *p4est,
-                    ymir_mesh_t **ymir_mesh,
-                    ymir_pressure_elem_t **press_elem,
-                    rhea_discretization_options_t *discr_options,
-                    rhea_temperature_options_t *temp_options,
-                    subd_options_t *subd_options,
-                    const char *vtk_write_input_path);
-
-void
-adjoint_run_solver (ymir_vec_t *usol,
-                    ymir_vec_t *sol_vel_press,
-                    ymir_mesh_t *ymir_mesh,
-                    ymir_pressure_elem_t *press_elem,
-                    rhea_stokes_problem_t *stokes_problem,
-                    const int iter_max, const double rel_tol);
-
-void
-adjoint_problem_destroy (rhea_newton_problem_t *newton_problem);
-
-/*
- * Newton callback functions
- */
-
-void
-adjoint_data_sol_init (ymir_vec_t *solution, ymir_vec_t *msol,
-                            subd_options_t *subd_option);
-
-void
-adjoint_data_init (ymir_vec_t *solution,
-                         void *data);
-
-void
-adjoint_gradient_from_velo (ymir_vec_t *neg_gradient,
-                  ymir_vec_t *usol, ymir_vec_t *vsol);
-
-void
-adjoint_compute_negative_gradient (ymir_vec_t *neg_gradient,
-                                   ymir_vec_t *solution, void *data);
-
-
-double
-adjoint_compute_gradient_norm (ymir_vec_t *neg_gradient,
-                                    void *data, double *norm);
-
-double
-adjoint_evaluate_objective (ymir_vec_t *solution,
-                          void *data);
 
 adjoint_problem_t *
 adjoint_problem_new (ymir_vec_t *solution,
@@ -147,28 +69,125 @@ adjoint_problem_new (ymir_vec_t *solution,
                      double  solver_rel_tol);
 
 void
+adjoint_problem_destroy (rhea_newton_problem_t *newton_problem);
+
+void
 adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
                       adjoint_problem_t *adjoint_problem);
 
+
+/********************************************
+ * user defined function used in rhea_newton
+ ********************************************/
 void
-adjoint_stencil_visc  (ymir_vec_t * stencil_visc,
+adjoint_setup_stencil  (ymir_vec_t * stencil,
                          subd_options_t * subd_options);
 
 void
-adjoint_set_rhs_hessian_forward (adjoint_problem_t *adjoint_problem);
+adjoint_compute_visc_grad_m (ymir_vec_t  *visc_grad,
+                         rhea_stokes_problem_t *stokes_problem,
+                         subd_options_t  *subd_options);
+
+void
+adjoint_run_solver (ymir_vec_t *usol, adjoint_problem_t *adjoint_problem);
+
+void
+adjoint_stokes_update_init (rhea_stokes_problem_t *stokes_problem,
+                          p4est_t     *p4est,
+                          ymir_mesh_t *ymir_mesh,
+                          ymir_pressure_elem_t *press_elem,
+                          rhea_discretization_options_t *discr_options,
+                          rhea_temperature_options_t *temp_options,
+                          subd_options_t *subd_options);
+
+void
+adjoint_solve_init (adjoint_problem_t *adjoint_problem);
+
+/******************* newton function ***********************************/
+void
+adjoint_data_init (ymir_vec_t *solution,
+                         void *data);
+
+void
+adjoint_stokes_update_forward (rhea_stokes_problem_t *stokes_problem,
+                              subd_options_t *subd_options);
+
+void
+adjoint_solve_forward (adjoint_problem_t *adjoint_problem);
+
+/******************* newton function ***********************************/
+void
+adjoint_update_operator_fn (ymir_vec_t *solution, void *data);
+
+/******************* newton function ***********************************/
+double
+adjoint_evaluate_objective (ymir_vec_t *solution,
+                          void *data);
+
+void
+adjoint_stokes_update_adjoint (ymir_vec_t *usol,
+                              rhea_stokes_problem_t *stokes_problem,
+                              subd_options_t *subd_options);
+
+void
+adjoint_solve_adjoint (adjoint_problem_t *adjoint_problem);
 
 void
 adjoint_neg_gradient_from_velo (ymir_vec_t *neg_gradient,
                           ymir_vec_t *usol, ymir_vec_t *vsol,
+                          rhea_stokes_problem_t *stokes_problem,
                           subd_options_t *subd_opt);
 
+/******************* newton function ***********************************/
+void
+adjoint_compute_negative_gradient (ymir_vec_t *neg_gradient,
+                                   ymir_vec_t *solution, void *data);
+
+/******************* newton function ***********************************/
 double
-subd_adjoint_gradient (ymir_vec_t *edot0, ymir_vec_t *edot1,
-                            ymir_vec_t *temp, ymir_vec_t *visc);
+adjoint_compute_gradient_norm (ymir_vec_t *neg_gradient,
+                                    void *data, double *norm);
+
+void
+adjoint_stokes_update_hessian_forward (adjoint_problem_t *adjoint_problem);
+
+void
+adjoint_solve_hessian_forward (adjoint_problem_t *adjoint_problem);
+
+void
+adjoint_stokes_update_hessian_adjoint (ymir_vec_t *Husol,
+                                      rhea_stokes_problem_t *stokes_problem,
+                                      subd_options_t  *subd_options);
+
+void
+adjoint_solve_hessian_adjoint (adjoint_problem_t *adjoint_problem);
 
 void
 adjoint_hessian_from_velo (ymir_vec_t *step,
                         ymir_vec_t *usol, ymir_vec_t *Hvsol,
-                        ymir_vec_t *viscoisty, subd_options_t *subd_opt);
+                        rhea_stokes_problem_t *rhea_stokes_problem,
+                        subd_options_t *subd_opt);
+
+/******************* newton function ***********************************/
+int
+adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_gradient,
+                                const int lin_iter_max, const double lin_res_norm_rtol,
+                                const int nonzero_initial_guess, void *data,
+                                int *lin_iter_count);
+
+/******************* newton function ***********************************/
+void
+adjoint_apply_hessian_fn (ymir_vec_t *hessian_vec, ymir_vec_t *dir_vec,
+                         void *data);
+
+/******************* newton function ***********************************/
+void
+adjoint_update_hessian_fn (ymir_vec_t *solution, ymir_vec_t *step,
+                          const double step_length, void *data);
+
+
+double
+subd_adjoint_gradient (ymir_vec_t *edot0, ymir_vec_t *edot1,
+                            ymir_vec_t *temp, ymir_vec_t *visc);
 
 #endif

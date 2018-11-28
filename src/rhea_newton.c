@@ -1505,7 +1505,6 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
       step_vec, rhs, lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, nl_problem->data, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
-RHEA_GLOBAL_PRODUCTIONF ("step_vec=%.12e\n", step_vec->meshfree->e[0][0]);
 
   /* if possible, calculate the residual reduction of the linearized solve */
   if (rhea_newton_problem_apply_hessian_exists (nl_problem)) {
@@ -1515,27 +1514,20 @@ RHEA_GLOBAL_PRODUCTIONF ("step_vec=%.12e\n", step_vec->meshfree->e[0][0]);
 
     /* compute the inital l^2-norm of the residual of the linearized system */
     lin_res_norm_init = ymir_vec_norm (rhs);
-RHEA_GLOBAL_PRODUCTIONF ("lin_res_norm_ini=%.12e\n", lin_res_norm_init);
 
     /* compute the new l^2-norm of the residual of the linearized system */
     lin_residual_vec = ymir_vec_template (rhs);
-RHEA_GLOBAL_PRODUCTIONF ("Here%d\n", 0);
     rhea_newton_problem_apply_hessian (lin_residual_vec, step_vec, nl_problem);
-RHEA_GLOBAL_PRODUCTIONF ("Here%d\n", 1);
-RHEA_GLOBAL_PRODUCTIONF ("lin_residual_vec=%.12e\n", lin_residual_vec->meshfree->e[0][0]);
     ymir_vec_add (-1.0, rhs, lin_residual_vec);
     lin_res_norm_curr = ymir_vec_norm (lin_residual_vec);
-RHEA_GLOBAL_PRODUCTIONF ("lin_res_norm_curr=%.12e\n", lin_res_norm_curr);
     ymir_vec_destroy (lin_residual_vec);
 
     /* calculate linear residual reduction */
     lin_res_norm_reduction = rhea_newton_calculate_reduction (
         lin_res_norm_init, lin_res_norm_curr);
-RHEA_GLOBAL_PRODUCTIONF ("lin_res_norm_reduction=%.12e\n", lin_res_norm_reduction);
 
     /* calculate convergence of the linear solver `rtol^(1/#iter)` */
     lin_conv = exp ( log (lin_res_norm_reduction) / ((double) lin_iter_count) );
-RHEA_GLOBAL_PRODUCTIONF ("lin_conv=%.12e\n", lin_conv);
   }
   else { /* if actual linear reduction cannot be calculated */
     lin_res_norm_reduction = -1.0;
@@ -1820,7 +1812,6 @@ rhea_newton_solve (ymir_vec_t **solution,
       /* update Hessian operator */
       if (iter == iter_start || solution_post_update) { /* if no step exists */
         rhea_newton_problem_update_hessian (*solution, NULL, NAN, nl_problem);
-//          rhea_newton_check_hessian (*solution, nl_problem);
       }
       else { /* if step does exist */
         rhea_newton_problem_update_hessian (*solution, nl_problem->step_vec,

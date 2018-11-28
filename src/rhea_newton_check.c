@@ -45,7 +45,7 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
     ymir_vec_copy (solution, sol_vec); //problem is here
 RHEA_GLOBAL_PRODUCTIONF ("sol_vec=%.12e\n", sol_vec->meshfree->e[0][0]);
 //    ymir_vec_set_random (dir_vec);
-    ymir_vec_set_value (dir_vec, 9.825632642023e-01);
+    ymir_vec_set_value (dir_vec, 1.0);
 
 RHEA_GLOBAL_PRODUCTIONF ("the size of dir_vec is %d\n", sizeof(dir_vec->meshfree->e[0][0]));
 RHEA_GLOBAL_PRODUCTIONF ("dir_vec=%.12e\n", dir_vec->meshfree->e[0][0]);
