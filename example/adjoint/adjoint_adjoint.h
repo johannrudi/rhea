@@ -21,6 +21,8 @@ typedef struct adjoint_problem
 {
  ymir_vec_t           *msol;
  ymir_vec_t           *hessian;
+ ymir_vec_t           *gradient;
+ double               objective;
 
  ymir_vec_t           *sol_vel_press;
  ymir_vec_t           *usol;
@@ -36,10 +38,11 @@ typedef struct adjoint_problem
  rhea_discretization_options_t  *discr_options;
  rhea_temperature_options_t     *temp_options;
  subd_options_t                 *subd_options;
- const char                     *vtk_write_input_path;
 
  int                        solver_iter_max;
  double                     solver_rel_tol;
+
+ FILE     *fp_record;
 }
 adjoint_problem_t;
 
@@ -63,18 +66,18 @@ adjoint_problem_new (ymir_vec_t *solution,
                      ymir_pressure_elem_t *press_elem,
                      rhea_discretization_options_t *discr_options,
                      rhea_temperature_options_t *temp_options,
+                     rhea_newton_options_t *newton_options,
                      subd_options_t *subd_options,
-                     const char *vtk_write_input_path,
                      int     solver_iter_max,
                      double  solver_rel_tol);
-
-void
-adjoint_problem_destroy (rhea_newton_problem_t *newton_problem);
 
 void
 adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
                       adjoint_problem_t *adjoint_problem);
 
+
+void
+adjoint_destroy_newton (rhea_newton_problem_t *newton_problem);
 
 /********************************************
  * user defined function used in rhea_newton
@@ -185,6 +188,9 @@ void
 adjoint_update_hessian_fn (ymir_vec_t *solution, ymir_vec_t *step,
                           const double step_length, void *data);
 
+/******************* newton function ***********************************/
+void
+adjoint_output_prestep (ymir_vec_t *solution, const int iter, void *data);
 
 double
 subd_adjoint_gradient (ymir_vec_t *edot0, ymir_vec_t *edot1,

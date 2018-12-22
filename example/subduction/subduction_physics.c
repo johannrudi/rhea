@@ -167,7 +167,7 @@ subd_poly2_temperature_set_fn (double *temp, double x, double y, double z,
   double              lon, r;
 
   /* compute radius and longitude */
-  lon = y;
+  lon = x;
   r = z;
 
   *temp = subd_temperature_brick_2plates_poly2 (r, lon, subd_options);

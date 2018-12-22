@@ -121,6 +121,9 @@ int                     adjoint_visc_parameter;
 int                     adjoint_stencil_field;
 double                  adjoint_stencil_visc_value;
 subd_adjoint_stencil_options_t stencil_options;
+int                     adjoint_use_exponent;
+char                    *adjoint_vtk_write_solution_path;
+char                    *adjoint_txt_write_record_path;
 
 void
 subduction_add_options (ymir_options_t * opt)
@@ -370,6 +373,18 @@ subduction_add_options (ymir_options_t * opt)
     &adjoint_stencil_visc_value, 1.0,
     "value of viscosity stencil  in adjoint problem",
 
+  YMIR_OPTIONS_I, "adjoint-use-exponent", '\0',
+    &adjoint_use_exponent, 0,
+    "use exponent to represent parameters: m=exp(lamda)",
+
+  YMIR_OPTIONS_S, "adjoint-vtk-write-solution-path", '\0',
+    &adjoint_vtk_write_solution_path, NULL,
+    "vtk output solution",
+
+  YMIR_OPTIONS_S, "adjoint-txt-write-record-path", '\0',
+    &adjoint_txt_write_record_path, NULL,
+    "txt output record",
+
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
@@ -495,6 +510,9 @@ subduction_process_options (subd_options_t *subd_options,
   stencil_options.field = (subd_adjoint_stencil_field_t) adjoint_stencil_field;
   stencil_options.value = adjoint_stencil_visc_value;
   adjoint_options->stencil_options = &stencil_options;
+  adjoint_options->use_exponent = adjoint_use_exponent;
+  adjoint_options->vtk_write_solution_path = adjoint_vtk_write_solution_path;
+  adjoint_options->txt_write_record_path = adjoint_txt_write_record_path;
 
   /* assign subd_options */
   subd_options->rhs_type = (subd_rhs_type_t) rhs_type;

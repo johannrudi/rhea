@@ -30,8 +30,7 @@ subd_run_solver (ymir_vec_t *sol_vel_press,
                     const int iter_max, const double rel_tol);
 
 void
-adjoint_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
-                   rhea_newton_problem_t *newton_problem,
+subd_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                    p4est_t *p4est,
                    ymir_mesh_t *ymir_mesh,
                    ymir_pressure_elem_t *press_elem,

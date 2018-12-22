@@ -1613,13 +1613,11 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
 
   /* initialize step length */
   step->length = opt->step_length_max;
-RHEA_GLOBAL_INFOF ("length_max=%f, search_iter_max=%d\n", opt->step_length_max, search_iter_max);
   /* search for step length */
   for (k = search_iter_start; k <= search_iter_max; k++) {
     /* move solution in step direction */
     ymir_vec_add (step->length, step_vec, solution);
 
-RHEA_GLOBAL_PRODUCTIONF ("iter=%d, solution=%f\n", k, solution->meshfree->e[0][0]);
     /* update the nonlinear operator at new solution */
     rhea_newton_problem_update_operator (solution, nl_problem);
 

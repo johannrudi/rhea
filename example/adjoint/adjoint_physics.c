@@ -167,7 +167,7 @@ subd_poly2_temperature_set_fn (double *temp, double x, double y, double z,
   double              lon, r;
 
   /* compute radius and longitude */
-  lon = y;
+  lon = x;
   r = z;
 
   *temp = subd_temperature_brick_2plates_poly2 (r, lon, subd_options);
@@ -1009,14 +1009,14 @@ subd_layers_coupling_viscosity_elem (double *_sc_restrict visc_elem,
   double              z_mid = subd_options->visc_options->z_lith;
   double              z_slab = subd_options->visc_options->z_slab;
   double              slab_width = subd_options->visc_options->slab_width;
-  double              y_center = 0.5;
+  double              x_center = 0.5;
 
   /* compute viscosity in this element */
   for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
     if (z[nodeid] >= z_mid)  {
       visc_elem[nodeid] = subd_options->visc_options->visc_lith;
     }
-    else if (z[nodeid] >= z_slab && fabs(y[nodeid] - y_center) <= 0.5 * slab_width) {
+    else if (z[nodeid] >= z_slab && fabs(x[nodeid] - x_center) <= 0.5 * slab_width) {
       visc_elem[nodeid] = subd_options->visc_options->visc_lith;
     }
     else {

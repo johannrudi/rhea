@@ -75,8 +75,7 @@ subd_run_solver (ymir_vec_t *sol_vel_press,
 }
 
 void
-adjoint_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
-                   rhea_newton_problem_t *newton_problem,
+subd_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
                    p4est_t *p4est,
                    ymir_mesh_t *ymir_mesh,
                    ymir_pressure_elem_t *press_elem,
@@ -105,7 +104,6 @@ adjoint_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
     }
   }
 
-  adjoint_problem_destroy (newton_problem);
   example_share_stokes_destroy (stokes_problem, temp_options, plate_options, weak_options,
                                 visc_options);
 

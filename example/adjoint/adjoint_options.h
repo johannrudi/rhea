@@ -383,6 +383,11 @@ typedef struct subd_adjoint_options
   int           n_components;
   subd_adjoint_visc_parameter_t visc_parameter;
   subd_adjoint_stencil_options_t    *stencil_options;
+
+  int           use_exponent;
+
+  char          *vtk_write_solution_path;
+  char          *txt_write_record_path;
 }
 subd_adjoint_options_t;
 

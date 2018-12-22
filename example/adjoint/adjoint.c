@@ -190,7 +190,7 @@ main (int argc, char **argv)
 
   adjoint_problem = adjoint_problem_new (solution, stokes_problem,
                           p4est, ymir_mesh, press_elem,
-                          &discr_options, &temp_options, &subd_options, vtk_write_input_path,
+                          &discr_options, &temp_options, &newton_options, &subd_options,
                           solver_iter_max, solver_rel_tol);
 
   adjoint_setup_newton (&newton_problem, adjoint_problem);
@@ -212,10 +212,13 @@ main (int argc, char **argv)
     * Finalize
     */
   /* destroy Stokes problem and mesh */
-  adjoint_setup_clear_all (stokes_problem, newton_problem,
+  subd_setup_clear_all (stokes_problem,
                         p4est, ymir_mesh, press_elem,
                         &temp_options, &visc_options, &weak_options,
                         &topo_options, &plate_options, &discr_options);
+
+  adjoint_destroy_newton (newton_problem);
+
   /* destroy options */
   ymir_options_global_destroy ();
 
