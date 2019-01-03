@@ -117,8 +117,8 @@ int                     test_stress_op;
 int                     test_stress_comp;
 
 int                     adjoint_visc_n_components;
-int                     adjoint_visc_parameter;
-int                     adjoint_stencil_field;
+int                     adjoint_visc_parameters;
+int                     adjoint_stencil_fields;
 double                  adjoint_stencil_visc_value;
 subd_adjoint_stencil_options_t stencil_options;
 int                     adjoint_use_exponent;
@@ -361,12 +361,12 @@ subduction_add_options (ymir_options_t * opt)
     &adjoint_visc_n_components, 1,
     "the number of unknown parameters in the inversion",
 
-  YMIR_OPTIONS_I, "adjoint-visc-parameter", '\0',
-    &adjoint_visc_parameter, SUBD_ADJOINT_VISC_PRE,
+  YMIR_OPTIONS_I, "adjoint-visc-parameters", '\0',
+    &adjoint_visc_parameters, SUBD_ADJOINT_VISC_PRE,
     "which viscosity parameter in adjoint problem, 0: prefactor; 1: activation energy",
 
-  YMIR_OPTIONS_I, "adjoint-stencil-field", '\0',
-    &adjoint_stencil_field, SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_UM,
+  YMIR_OPTIONS_I, "adjoint-stencil-fields", '\0',
+    &adjoint_stencil_fields, SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_UM,
     "stencil viscosity in adjoint problem, 0: rhea-um; 2: rhea-lm; 10: custom-um; 11: custom-lm",
 
   YMIR_OPTIONS_D, "adjoint-stencil-visc-value", '\0',
@@ -506,8 +506,8 @@ subduction_process_options (subd_options_t *subd_options,
   test_options->test_stress_comp = (subd_test_manufactured_t) test_stress_comp;
 
   adjoint_options->n_components = adjoint_visc_n_components;
-  adjoint_options->visc_parameter = (subd_adjoint_visc_parameter_t) adjoint_visc_parameter;
-  stencil_options.field = (subd_adjoint_stencil_field_t) adjoint_stencil_field;
+  adjoint_options->visc_parameters =  adjoint_visc_parameters;
+  stencil_options.fields =  adjoint_stencil_fields;
   stencil_options.value = adjoint_stencil_visc_value;
   adjoint_options->stencil_options = &stencil_options;
   adjoint_options->use_exponent = adjoint_use_exponent;

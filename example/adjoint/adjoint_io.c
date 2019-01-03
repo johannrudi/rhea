@@ -181,6 +181,11 @@ subd_txt_io (rhea_stokes_problem_t *stokes_problem, subd_options_t *subd_options
     ymir_vec_t *edotsym0 = ymir_dvec_new (ymir_mesh, 6, YMIR_GAUSS_NODE);
     ymir_vec_t *edotsym1 = ymir_dvec_new (ymir_mesh, 6, YMIR_GAUSS_NODE);
     double  gradient;
+    subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
+    int n_components = adjoint_options->n_components;
+    int field_nums = adjoint_options->stencil_options->fields;
+    subd_adjoint_stencil_field_t stencil_field;
+
 
     temperature = rhea_stokes_problem_get_temperature (stokes_problem);
     subd_vol_dvec_read (edotsym0, txt_read_edotsym_path);
@@ -194,7 +199,9 @@ subd_txt_io (rhea_stokes_problem_t *stokes_problem, subd_options_t *subd_options
     rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
 //    gradient = subd_postp_adjoint_gradient (edotsym0, edotsym1, temperature, viscosity);
-     adjoint_setup_stencil (visc_stencil, subd_options);
+     int i = 0;
+     stencil_field = adjoint_get_stencil_field (&field_nums, n_components, i);
+     adjoint_setup_stencil (visc_stencil, subd_options, stencil_field);
      ymir_vec_multiply_in (visc_stencil,viscosity);
     gradient = subd_adjoint_gradient (edotsym0, edotsym1, temperature, viscosity);
 

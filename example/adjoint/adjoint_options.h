@@ -364,24 +364,24 @@ subd_adjoint_visc_parameter_t;
 
 typedef enum
 {
-  SUBD_ADJOINT_STENCIL_VISC_RHEA_UM = 0,
-  SUBD_ADJOINT_STENCIL_VISC_RHEA_LM = 1,
-  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_UM = 10,
-  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_LM = 11
+  SUBD_ADJOINT_STENCIL_VISC_RHEA_UM = 1,
+  SUBD_ADJOINT_STENCIL_VISC_RHEA_LM = 2,
+  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_UM = 11,
+  SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_LM = 12
 }
 subd_adjoint_stencil_field_t;
 
 typedef struct subd_adjoint_stencil_options
 {
-  subd_adjoint_stencil_field_t  field;
-  double                        value;
+  int             fields;
+  double          value;
 }
 subd_adjoint_stencil_options_t;
 
 typedef struct subd_adjoint_options
 {
   int           n_components;
-  subd_adjoint_visc_parameter_t visc_parameter;
+  int            visc_parameters;
   subd_adjoint_stencil_options_t    *stencil_options;
 
   int           use_exponent;

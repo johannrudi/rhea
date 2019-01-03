@@ -4,6 +4,7 @@
 # Included non-recursively from toplevel directory.
 
 rhea_adjoint_headers = \
+      example/adjoint/adjoint_math.h \
       example/adjoint/adjoint_options.h \
       example/adjoint/adjoint_physics.h \
       example/adjoint/adjoint_test.h \
@@ -16,6 +17,7 @@ rhea_adjoint_headers = \
       example/adjoint/adjoint_essential.h \
       example/adjoint/adjoint.h
 rhea_adjoint_sources = \
+      example/adjoint/adjoint_math.c \
       example/adjoint/adjoint_options.c \
       example/adjoint/adjoint_physics.c \
       example/adjoint/adjoint_test.c \

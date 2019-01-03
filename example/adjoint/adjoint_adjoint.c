@@ -60,6 +60,7 @@ adjoint_problem_new (ymir_vec_t *solution,
                      double    solver_rel_tol)
 {
   adjoint_problem_t *adjoint_problem = RHEA_ALLOC (adjoint_problem_t, 1);
+  int         i,  n = subd_options->adjoint_options->n_components;
 
   adjoint_problem->stokes_problem = stokes_problem;
   adjoint_problem->p4est = p4est;
@@ -73,14 +74,20 @@ adjoint_problem_new (ymir_vec_t *solution,
   adjoint_problem->solver_rel_tol = solver_rel_tol;
 
   adjoint_problem->msol = ymir_vec_template (solution);
-  adjoint_problem->hessian = ymir_vec_template (solution);
-  adjoint_problem->gradient = ymir_vec_template (solution);
+  adjoint_problem->neg_grad = ymir_vec_template (solution);
+  adjoint_problem->hessian = ymir_vec_new_meshfree ( n *  n);
+
+  adjoint_problem->sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
   adjoint_problem->usol = rhea_velocity_new (ymir_mesh);
   adjoint_problem->vsol = rhea_velocity_new (ymir_mesh);
-  adjoint_problem->Husol = rhea_velocity_new (ymir_mesh);
-  adjoint_problem->Hvsol = rhea_velocity_new (ymir_mesh);
-  adjoint_problem->sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-
+  adjoint_problem->Husol = YMIR_ALLOC (ymir_vec_t *,  n);
+  adjoint_problem->Hvsol = YMIR_ALLOC (ymir_vec_t *,  n);
+  adjoint_problem->coeff = YMIR_ALLOC (ymir_vec_t *,  n);
+  for (i = 0; i <  n; i++)  {
+    adjoint_problem->Husol[i] = rhea_velocity_new (ymir_mesh);
+    adjoint_problem->Hvsol[i] = rhea_velocity_new (ymir_mesh);
+    adjoint_problem->coeff[i] = rhea_viscosity_new (ymir_mesh);
+  }
   subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
   char    *record_path = adjoint_options->txt_write_record_path;
   if (record_path) {
@@ -95,6 +102,7 @@ adjoint_problem_destroy (void *data)
 {
   adjoint_problem_t *adjoint_problem = data;
   FILE  *fp_record = adjoint_problem->fp_record;
+  int    i,  n = adjoint_problem->subd_options->adjoint_options->n_components;
 
   RHEA_ASSERT (adjoint_problem->msol != NULL);
   RHEA_ASSERT (adjoint_problem->usol != NULL);
@@ -124,12 +132,20 @@ adjoint_problem_destroy (void *data)
 
   ymir_vec_destroy (adjoint_problem->msol);
   ymir_vec_destroy (adjoint_problem->hessian);
-  ymir_vec_destroy (adjoint_problem->gradient);
+  ymir_vec_destroy (adjoint_problem->neg_grad);
   rhea_velocity_destroy (adjoint_problem->usol);
   rhea_velocity_destroy (adjoint_problem->vsol);
-  rhea_velocity_destroy (adjoint_problem->Husol);
-  rhea_velocity_destroy (adjoint_problem->Hvsol);
   rhea_velocity_pressure_destroy (adjoint_problem->sol_vel_press);
+
+  for (i = 0; i <  n; i++)  {
+    rhea_velocity_destroy (adjoint_problem->Husol[i]);
+    rhea_velocity_destroy (adjoint_problem->Hvsol[i]);
+    rhea_viscosity_destroy (adjoint_problem->coeff[i]);
+  }
+  YMIR_FREE (adjoint_problem->Husol);
+  YMIR_FREE (adjoint_problem->Hvsol);
+  YMIR_FREE (adjoint_problem->coeff);
+
   RHEA_FREE (adjoint_problem);
 
 }
@@ -147,23 +163,22 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
 
   /*create newton problem */
   {
-    ymir_vec_t    *neg_gradient_vec = ymir_vec_template (sol_vec);
+    ymir_vec_t    *neg_grad_vec = ymir_vec_template (sol_vec);
     ymir_vec_t    *step_vec = ymir_vec_template (sol_vec);
 
     *newton_problem = rhea_newton_problem_new (
-        adjoint_compute_negative_gradient,
+        adjoint_solve_negative_gradient,
         adjoint_solve_hessian_system_fn);
 
     rhea_newton_problem_set_vectors (
-        neg_gradient_vec, step_vec, *newton_problem);
+        neg_grad_vec, step_vec, *newton_problem);
 
     rhea_newton_problem_set_data_fn (
         adjoint_problem, adjoint_data_init, adjoint_problem_destroy,
         *newton_problem);
 
     rhea_newton_problem_set_conv_criterion_fn (
-        RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
-//        RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+        RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM, // or RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
         adjoint_evaluate_objective,
         adjoint_compute_gradient_norm,
         0 /* no multi-component norms */, *newton_problem);
@@ -201,8 +216,23 @@ adjoint_destroy_newton (rhea_newton_problem_t *newton_problem)
 /********************************************************************************************
  * user defined function used in newton solver
  ********************************************************************************************/
-
 /****************helper functions for Stencil***************************/
+subd_adjoint_stencil_field_t
+adjoint_get_stencil_field (int *field_nums, int n_components, int i)
+{
+  int digit, field_indicator;
+  subd_adjoint_stencil_field_t field;
+
+  digit = n_components - i;
+  field_indicator = *field_nums / int_pow (100, digit - 1);
+
+RHEA_GLOBAL_PRODUCTIONF ("TESTTESTTEST: i=%d digit=%d, stencil_indicator=%d, stencil_nums=%d, critical=%d\n", i, digit, field_indicator, *field_nums, int_pow (100, digit - 1));
+  field = (subd_adjoint_stencil_field_t) field_indicator;
+  *field_nums -= field_indicator * int_pow (100, digit - 1);
+
+  return (field);
+}
+
 static void
 subd_adjoint_stencil_visc_rhea_um_elem (double *_sc_restrict visc_elem,
                                             const double *_sc_restrict x,
@@ -297,7 +327,8 @@ subd_adjoint_stencil_visc_custom_layers_um_elem (double *_sc_restrict visc_elem,
 
 void
 adjoint_setup_stencil  (ymir_vec_t *stencil,
-                         subd_options_t *subd_options)
+                        subd_options_t *subd_options,
+                        subd_adjoint_stencil_field_t stencil_field)
 {
   ymir_mesh_t        *mesh = ymir_vec_get_mesh (stencil);
   const ymir_locidx_t  n_elements = ymir_mesh_get_num_elems_loc (mesh);
@@ -310,9 +341,6 @@ adjoint_setup_stencil  (ymir_vec_t *stencil,
   sc_dmatrix_t       *stencil_el_mat;
   double             *x, *y, *z, *tmp_el,*stencil_el_data;
   ymir_locidx_t       elid;
-
-  subd_adjoint_stencil_options_t   *stencil_options = subd_options->adjoint_options->stencil_options;
-  subd_adjoint_stencil_field_t  stencil_field = stencil_options->field;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
@@ -364,6 +392,22 @@ adjoint_setup_stencil  (ymir_vec_t *stencil,
 }
 
 /**************** viscosity gradient **************************************/
+
+subd_adjoint_visc_parameter_t
+adjoint_get_parameter (int *parameter_nums, int n_components, int i)
+{
+  int digit, para_indicator;
+  subd_adjoint_visc_parameter_t parameter;
+
+  digit = n_components - i;
+  para_indicator = *parameter_nums / int_pow (10, digit - 1);
+RHEA_GLOBAL_PRODUCTIONF ("TESTTESTTEST: i=%d digit=%d, para_indicator=%d, parameter_nums=%d, critical=%d\n", i, digit, para_indicator, *parameter_nums, int_pow (10, digit - 1));
+
+  parameter = (subd_adjoint_visc_parameter_t) para_indicator;
+  *parameter_nums -= para_indicator * int_pow (10, digit - 1);
+  return (parameter);
+}
+
 static void
 adjoint_compute_visc_grad_m_prefactor (ymir_vec_t   *visc_grad)
 {
@@ -372,7 +416,7 @@ adjoint_compute_visc_grad_m_prefactor (ymir_vec_t   *visc_grad)
 }
 
 static void
-adjoint_compute_visc_grad_m_prefactor_activation_energy (ymir_vec_t *grad,
+adjoint_compute_visc_grad_m_activation_energy (ymir_vec_t *grad,
                       ymir_vec_t *visc, ymir_vec_t *temp)
 {
   ymir_mesh_t *ymir_mesh = ymir_vec_get_mesh (grad);
@@ -412,12 +456,12 @@ adjoint_compute_visc_grad_m_prefactor_activation_energy (ymir_vec_t *grad,
 void
 adjoint_compute_visc_grad_m (ymir_vec_t  *visc_grad,
                          rhea_stokes_problem_t *stokes_problem,
-                         subd_options_t  *subd_options)
+                         subd_options_t     *subd_options,
+                         subd_adjoint_visc_parameter_t parameter)
 {
   ymir_mesh_t     *ymir_mesh = ymir_vec_get_mesh (visc_grad);
   ymir_vec_t      *visc = rhea_viscosity_new (ymir_mesh);
   ymir_vec_t      *temp;
-  subd_adjoint_visc_parameter_t parameter = subd_options->adjoint_options->visc_parameter;
 
   rhea_stokes_problem_copy_viscosity (visc, stokes_problem);
   temp = rhea_stokes_problem_get_temperature (stokes_problem);
@@ -427,10 +471,10 @@ adjoint_compute_visc_grad_m (ymir_vec_t  *visc_grad,
     adjoint_compute_visc_grad_m_prefactor (visc_grad);
     break;
   case (SUBD_ADJOINT_VISC_E):
-    adjoint_compute_visc_grad_m_prefactor_activation_energy (visc_grad, visc, temp);
+    adjoint_compute_visc_grad_m_activation_energy (visc_grad, visc, temp);
     break;
   default:
-          RHEA_ABORT_NOT_REACHED ();
+    RHEA_ABORT_NOT_REACHED ();
   }
 
   if (subd_options->adjoint_options->use_exponent) {
@@ -467,32 +511,38 @@ adjoint_parameter_init (ymir_vec_t *solution, ymir_vec_t *msol,
                             subd_options_t *subd_options)
 {
   subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
-  subd_adjoint_visc_parameter_t visc_parameter = adjoint_options->visc_parameter;
+  subd_adjoint_visc_parameter_t visc_parameter;
+  int            n = adjoint_options->n_components;
+  int           parameter_nums = adjoint_options->visc_parameters;
   int           use_exponent = adjoint_options->use_exponent;
   double        m_para;
+  int           i;
 
   if (solution == NULL) {
     RHEA_GLOBAL_PRODUCTIONF ("set newton_options.nonzero_initial_guess as %d\n", 1);
     return;
   }
 
-  switch (visc_parameter) {
-  case SUBD_ADJOINT_VISC_PRE:
-    m_para = subd_options->visc_options->visc_lith;
-  break;
-
-  case SUBD_ADJOINT_VISC_E:
-    m_para = subd_options->rhea_visc_options->upper_mantle_arrhenius_activation_energy;
+  for (i = 0; i <  n; i++)  {
+    visc_parameter = adjoint_get_parameter (&parameter_nums,  n, i);
+    switch (visc_parameter) {
+    case SUBD_ADJOINT_VISC_PRE:
+      m_para = subd_options->visc_options->visc_lith;
     break;
 
-  default:
-          RHEA_ABORT_NOT_REACHED ();
+    case SUBD_ADJOINT_VISC_E:
+      m_para = subd_options->rhea_visc_options->upper_mantle_arrhenius_activation_energy;
+      break;
+
+    default:
+      RHEA_ABORT_NOT_REACHED ();
+    }
+    if (!use_exponent)
+      solution->meshfree->e[0][i] = m_para;
+    else
+      solution->meshfree->e[0][i] = log(m_para);
   }
 
-  if (!use_exponent)
-    solution->meshfree->e[0][0] = m_para;
-  else
-    solution->meshfree->e[0][0] = log(m_para);
 }
 
 void
@@ -566,6 +616,7 @@ adjoint_data_init (ymir_vec_t *solution,
   adjoint_parameter_init (solution, msol, subd_options);
 
   adjoint_solve_init (adjoint_problem);
+  adjoint_coeff_update (adjoint_problem);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
@@ -575,28 +626,33 @@ static void
 adjoint_parameter_update (ymir_vec_t *solution, subd_options_t *subd_options)
 {
   subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
-  subd_adjoint_visc_parameter_t visc_parameter = adjoint_options->visc_parameter;
+  subd_adjoint_visc_parameter_t visc_parameter;
+  int            n = adjoint_options->n_components;
+  int           parameter_nums = adjoint_options->visc_parameters;
   int           use_exponent = adjoint_options->use_exponent;
   double        m_para;
+  int           i;
 
-  if (!use_exponent)
-    m_para = solution->meshfree->e[0][0];
-  else
-    m_para = exp(solution->meshfree->e[0][0]);
+  for (i = 0; i <  n; i++)  {
+    if (!use_exponent)
+      m_para = solution->meshfree->e[0][i];
+    else
+      m_para = exp(solution->meshfree->e[0][i]);
 
-  switch (visc_parameter) {
-  case SUBD_ADJOINT_VISC_PRE:
-    subd_options->visc_options->visc_lith = m_para;
-    break;
+    visc_parameter = adjoint_get_parameter (&parameter_nums,  n, i);
+    switch (visc_parameter) {
+    case SUBD_ADJOINT_VISC_PRE:
+      subd_options->visc_options->visc_lith = m_para;
+      break;
 
-  case SUBD_ADJOINT_VISC_E:
-    subd_options->rhea_visc_options->upper_mantle_arrhenius_activation_energy = m_para;
-    break;
+    case SUBD_ADJOINT_VISC_E:
+      subd_options->rhea_visc_options->upper_mantle_arrhenius_activation_energy = m_para;
+      break;
 
-  default:
-    RHEA_ABORT_NOT_REACHED ();
+    default:
+      RHEA_ABORT_NOT_REACHED ();
+    }
   }
-
 }
 
 void
@@ -651,6 +707,37 @@ adjoint_solve_forward (adjoint_problem_t *adjoint_problem)
   adjoint_run_solver (usol, adjoint_problem);
 }
 
+void
+adjoint_coeff_update (adjoint_problem_t *adjoint_problem)
+{
+  ymir_mesh_t *ymir_mesh = adjoint_problem->ymir_mesh;
+  rhea_stokes_problem_t *stokes_problem = adjoint_problem->stokes_problem;
+  subd_options_t  *subd_options = adjoint_problem->subd_options;
+
+  ymir_dvec_t *coeff;
+  ymir_dvec_t *stencil = rhea_viscosity_new (ymir_mesh);
+  subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
+  int  n = adjoint_options->n_components;
+  int parameter_nums = adjoint_options->visc_parameters;
+  subd_adjoint_visc_parameter_t parameter;
+  int field_nums = adjoint_options->stencil_options->fields;
+  subd_adjoint_stencil_field_t stencil_field;
+  int i;
+
+  for (i = 0; i <  n; i++)  {
+    coeff = adjoint_problem->coeff[i];
+    parameter = adjoint_get_parameter (&parameter_nums,  n, i);
+    adjoint_compute_visc_grad_m (coeff, stokes_problem, subd_options, parameter);
+    stencil_field = adjoint_get_stencil_field (&field_nums,  n, i);
+RHEA_GLOBAL_PRODUCTIONF ("i=%d: stencil_field=%d\n", i, (int) stencil_field);
+    adjoint_setup_stencil (stencil, subd_options, stencil_field);
+    ymir_vec_multiply_in (stencil, coeff);
+    ymir_vec_scale (2.0, coeff);
+  }
+
+  rhea_viscosity_destroy (stencil);
+}
+
 /******************* newton function ***********************************/
 void
 adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
@@ -662,6 +749,8 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
 
   adjoint_parameter_update (solution, subd_options);
   adjoint_solve_forward (adjoint_problem);
+
+  adjoint_coeff_update (adjoint_problem);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
@@ -768,43 +857,35 @@ adjoint_strainrate_dotprod (ymir_vec_t *dotprod,
 }
 
 void
-adjoint_neg_gradient_from_velo (ymir_vec_t *neg_gradient,
-                              ymir_vec_t *usol, ymir_vec_t *vsol,
-                              rhea_stokes_problem_t *stokes_problem,
-                              subd_options_t *subd_options)
+adjoint_compute_neg_grad (adjoint_problem_t *adjoint_problem)
 {
+  ymir_vec_t  *usol = adjoint_problem->usol;
+  ymir_vec_t  *vsol = adjoint_problem->vsol;
+  ymir_vec_t  *neg_grad = adjoint_problem->neg_grad;
   ymir_mesh_t *ymir_mesh = usol->mesh;
   ymir_vec_t *dotprod = ymir_dvec_new(ymir_mesh, 1, YMIR_GAUSS_NODE);
   ymir_dvec_t *dotprod_mass = ymir_vec_template (dotprod);
-  ymir_dvec_t *coeff = ymir_vec_template (dotprod);
-  ymir_dvec_t *stencil = ymir_vec_template (dotprod);
+  ymir_vec_t *coeff;
+  int i,  n = adjoint_problem->subd_options->adjoint_options->n_components;
 
-  adjoint_compute_visc_grad_m (coeff, stokes_problem, subd_options);
-  adjoint_setup_stencil (stencil, subd_options);
-  ymir_vec_multiply_in (stencil, coeff);
-  ymir_vec_scale (2.0, coeff);
+  ymir_vec_set_zero (neg_grad);
+  for (i = 0; i <  n; i++)  {
+    coeff = adjoint_problem->coeff[i];
+    adjoint_strainrate_dotprod (dotprod, usol, vsol);
+    ymir_mass_apply (dotprod, dotprod_mass);
+    neg_grad->meshfree->e[0][i] = -1.0 * ymir_vec_innerprod (coeff, dotprod_mass);
+  }
 
-  adjoint_strainrate_dotprod (dotprod, usol, vsol);
-  ymir_mass_apply (dotprod, dotprod_mass);
-  neg_gradient->meshfree->e[0][0] = ymir_vec_innerprod (coeff, dotprod_mass);
-
-  ymir_vec_scale (-1.0, neg_gradient);
-
-  ymir_vec_destroy (stencil);
-  ymir_vec_destroy (coeff);
   ymir_vec_destroy (dotprod);
   ymir_vec_destroy (dotprod_mass);
 }
 
 /******************* newton function ***********************************/
 void
-adjoint_compute_negative_gradient (ymir_vec_t *neg_gradient,
+adjoint_solve_negative_gradient (ymir_vec_t *neg_grad,
                                    ymir_vec_t *solution, void *data)
 {
   adjoint_problem_t *adjoint_problem = data;
-  ymir_vec_t  *usol = adjoint_problem->usol;
-  ymir_vec_t  *vsol = adjoint_problem->vsol;
-  ymir_vec_t  *gradient = adjoint_problem->gradient;
   rhea_stokes_problem_t *stokes_problem = adjoint_problem->stokes_problem;
   subd_options_t *subd_options = adjoint_problem->subd_options;
 
@@ -817,54 +898,48 @@ adjoint_compute_negative_gradient (ymir_vec_t *neg_gradient,
 
   adjoint_solve_adjoint (adjoint_problem);
 
-  ymir_vec_set_zero (neg_gradient);
-  adjoint_neg_gradient_from_velo (neg_gradient, usol, vsol, stokes_problem, subd_options);
-  ymir_vec_copy (neg_gradient, gradient);
-  ymir_vec_scale (-1.0, gradient);
+  adjoint_compute_neg_grad (adjoint_problem);
+  ymir_vec_copy (adjoint_problem->neg_grad, neg_grad);
+RHEA_GLOBAL_PRODUCTIONF ("negative_gradient= %.12e\n", neg_grad->meshfree->e[0][0]);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 /******************* newton function ***********************************/
 double
-adjoint_compute_gradient_norm (ymir_vec_t *neg_gradient,
+adjoint_compute_gradient_norm (ymir_vec_t *neg_grad,
                                void *data, double *norm_comp)
 {
   double            norm;
   adjoint_problem_t *adjoint_problem = data;
 
-  norm = ymir_vec_norm (neg_gradient);
+  norm = ymir_vec_norm (neg_grad);
 
   return (norm);
 }
 
 void
-adjoint_stokes_update_hessian_forward (adjoint_problem_t *adjoint_problem)
+adjoint_stokes_update_hessian_forward (adjoint_problem_t *adjoint_problem, int i)
 {
   subd_options_t        *subd_options = adjoint_problem->subd_options;
   ymir_mesh_t           *ymir_mesh = adjoint_problem->ymir_mesh;
   rhea_stokes_problem_t *stokes_problem = adjoint_problem->stokes_problem;
   ymir_vec_t            *usol = adjoint_problem->usol;
-
+  ymir_vec_t            *coeff;
   ymir_vec_t            *rhs_vel_press;
 
-  ymir_vec_t            *coeff = rhea_viscosity_new (ymir_mesh);
-
-  ymir_vec_t            *stencil = rhea_viscosity_new (ymir_mesh);
   ymir_stokes_op_t      *stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
   ymir_stress_op_t      *stress_op;
   ymir_vel_dir_t        *vel_dir = rhea_stokes_problem_get_vel_dir (stokes_problem);
 
   ymir_vec_t            *rhs_vel = rhea_velocity_new (ymir_mesh);
 
+  subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
+  int  n = adjoint_options->n_components;
+
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
-  adjoint_compute_visc_grad_m (coeff, stokes_problem, subd_options);
-
-  adjoint_setup_stencil (stencil, subd_options);
-  ymir_vec_multiply_in (stencil, coeff);
-  ymir_vec_scale (2.0, coeff);
-
+  coeff = adjoint_problem->coeff[i];
   stress_op = ymir_stress_op_new (coeff, vel_dir, NULL, NULL, NULL);
   ymir_stress_pc_apply_stress_op (usol, rhs_vel, stress_op, 0, 0);
   ymir_vec_scale (-1.0, rhs_vel);
@@ -874,19 +949,17 @@ adjoint_stokes_update_hessian_forward (adjoint_problem_t *adjoint_problem)
   ymir_upvec_set_u (rhs_vel_press, rhs_vel, YMIR_SET);
 
   ymir_stress_op_destroy (stress_op);
-  rhea_viscosity_destroy (stencil);
-  rhea_viscosity_destroy (coeff);
   rhea_velocity_destroy (rhs_vel);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
-adjoint_solve_hessian_forward (adjoint_problem_t *adjoint_problem)
+adjoint_solve_hessian_forward (adjoint_problem_t *adjoint_problem, int i)
 {
-  ymir_vec_t *Husol = adjoint_problem->Husol;
+  ymir_vec_t *Husol = adjoint_problem->Husol[i];
 
-  adjoint_stokes_update_hessian_forward (adjoint_problem);
+  adjoint_stokes_update_hessian_forward (adjoint_problem, i);
 
   adjoint_run_solver (Husol, adjoint_problem);
 }
@@ -922,13 +995,13 @@ adjoint_stokes_update_hessian_adjoint (ymir_vec_t *Husol,
 }
 
 void
-adjoint_solve_hessian_adjoint (adjoint_problem_t *adjoint_problem)
+adjoint_solve_hessian_adjoint (adjoint_problem_t *adjoint_problem, int i)
 {
   rhea_stokes_problem_t *stokes_problem = adjoint_problem->stokes_problem;
   subd_options_t *subd_options = adjoint_problem->subd_options;
 
-  ymir_vec_t *Husol = adjoint_problem->Husol;
-  ymir_vec_t *Hvsol = adjoint_problem->Hvsol;
+  ymir_vec_t *Husol = adjoint_problem->Husol[i];
+  ymir_vec_t *Hvsol = adjoint_problem->Hvsol[i];
 
   adjoint_stokes_update_hessian_adjoint (Husol, stokes_problem, subd_options);
 
@@ -936,39 +1009,66 @@ adjoint_solve_hessian_adjoint (adjoint_problem_t *adjoint_problem)
 }
 
 void
-adjoint_hessian_from_velo (ymir_vec_t *step,
-                        ymir_vec_t *usol, ymir_vec_t *Hvsol,
-                        rhea_stokes_problem_t *stokes_problem,
-                        subd_options_t *subd_options)
+adjoint_compute_hessian (ymir_vec_t *hessian,
+                            adjoint_problem_t *adjoint_problem)
 {
+  ymir_vec_t *usol = adjoint_problem->usol;
   ymir_mesh_t *ymir_mesh = usol->mesh;
 
-  ymir_vec_t  *coeff = rhea_viscosity_new (ymir_mesh);
-  ymir_vec_t  *stencil = ymir_vec_template (coeff);
+  ymir_vec_t  **coeff = adjoint_problem->coeff;
+  ymir_vec_t  **Hvsol = adjoint_problem->Hvsol;
 
-  ymir_vec_t  *dotprod = ymir_dvec_new(ymir_mesh, 1, YMIR_GAUSS_NODE);
-  ymir_dvec_t *dotprod_mass = ymir_vec_template (dotprod);
+  subd_adjoint_options_t *adjoint_options = adjoint_problem->subd_options->adjoint_options;
+  int n = adjoint_options->n_components;
+  ymir_dvec_t *dotprod = ymir_dvec_new(ymir_mesh, 1, YMIR_GAUSS_NODE);
+  ymir_vec_t  **dotprod_mass = YMIR_ALLOC (ymir_vec_t *, n);
 
-  adjoint_compute_visc_grad_m (coeff, stokes_problem, subd_options);
-  ymir_vec_scale (2.0, coeff);
-  adjoint_setup_stencil (stencil, subd_options);
-  ymir_vec_multiply_in (stencil, coeff);
+  int i, j, k = 0;
 
-  adjoint_strainrate_dotprod (dotprod, usol, Hvsol);
-  ymir_mass_apply (dotprod, dotprod_mass);
+  for (j = 0; j < n; j++)  {
+    dotprod_mass[j] = ymir_dvec_new(ymir_mesh, 1, YMIR_GAUSS_NODE);
+    adjoint_strainrate_dotprod (dotprod, usol, Hvsol[j]);
+    ymir_mass_apply (dotprod, dotprod_mass[j]);
+  }
 
-  step->meshfree->e[0][0] = ymir_vec_innerprod (coeff, dotprod_mass);
+  for (i = 0; i < n; i++)  {
+    for (j = 0; j < n; j++) {
+      hessian->meshfree->e[0][k++] = ymir_vec_innerprod (coeff[i], dotprod_mass[j]);
+    }
+  }
 
-  rhea_viscosity_destroy (coeff);
   ymir_vec_destroy (dotprod);
-  ymir_vec_destroy (dotprod_mass);
+  for (i = 0; i < n; i++) {
+    ymir_vec_destroy (dotprod_mass[i]);
+  }
+  YMIR_FREE (dotprod_mass);
+}
 
-  ymir_vec_destroy (stencil);
+void
+adjoint_compute_step (ymir_vec_t *step,
+                        adjoint_problem_t *adjoint_problem)
+{
+  int n = adjoint_problem->subd_options->adjoint_options->n_components;
+  double *hessian_data = adjoint_problem->hessian->meshfree->e[0];
+  double *neg_grad_data = adjoint_problem->neg_grad->meshfree->e[0];
+  double *step_data = step->meshfree->e[0];
+  double **hessian_matrix;
+  int k = 0;
+
+  hessian_matrix = allocate_square_matrix (n);
+  for (int i = 0; i < n; i++) {
+    for (int j = 0; j < n; j++) {
+      hessian_matrix[i][j] = hessian_data[k++];
+    }
+  }
+
+  solve_x_from_Ax_b (step_data, hessian_matrix, neg_grad_data, n);
+  destroy_square_matrix (hessian_matrix, n);
 }
 
 /******************* newton function ***********************************/
 int
-adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_gradient,
+adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_grad,
                                 const int lin_iter_max, const double lin_res_norm_rtol,
                                 const int nonzero_initial_guess, void *data,
                                 int *lin_iter_count)
@@ -976,21 +1076,18 @@ adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_gradient,
   adjoint_problem_t *adjoint_problem = data;
   rhea_stokes_problem_t *stokes_problem = adjoint_problem->stokes_problem;
   subd_options_t *subd_options = adjoint_problem->subd_options;
-  ymir_vec_t *Hvsol = adjoint_problem->Hvsol;
-  ymir_vec_t *usol = adjoint_problem->usol;
   ymir_vec_t *hessian = adjoint_problem->hessian;
+  int n = adjoint_problem->subd_options->adjoint_options->n_components;
 
    /*solve for Hessian forward*/
-  adjoint_solve_hessian_forward (adjoint_problem);
-
-  adjoint_solve_hessian_adjoint (adjoint_problem);
-
+  for (int i = 0; i < n; i++)  {
+    adjoint_solve_hessian_forward (adjoint_problem, i);
+    adjoint_solve_hessian_adjoint (adjoint_problem, i);
+  }
   ymir_vec_set_zero (hessian);
-  adjoint_hessian_from_velo (hessian, usol, Hvsol, stokes_problem, subd_options);
+  adjoint_compute_hessian (hessian, adjoint_problem);
 
-  ymir_vec_copy (hessian, step);
-  ymir_vec_reciprocal (step);
-  ymir_vec_multiply_in (neg_gradient, step);
+  adjoint_compute_step (step, adjoint_problem);
 
   /* return iteraton count and "stopping" reason */
   if (lin_iter_count != NULL) {
@@ -1019,7 +1116,6 @@ adjoint_update_hessian_fn (ymir_vec_t *solution, ymir_vec_t *step,
   adjoint_problem_t   *adjoint_problem = (adjoint_problem_t *) data;
 
   ymir_vec_copy (solution, adjoint_problem->msol);
-
   RHEA_GLOBAL_PRODUCTIONF ("solution = %.12e\n", solution->meshfree->e[0][0]);
 }
 
@@ -1035,7 +1131,7 @@ adjoint_output_prestep (ymir_vec_t *solution, const int iter, void *data)
   const char *solution_path = subd_options->adjoint_options->vtk_write_solution_path;
 
   double      objective = adjoint_problem->objective;
-  ymir_vec_t *gradient = adjoint_problem->gradient;
+  ymir_vec_t *neg_grad = adjoint_problem->neg_grad;
   ymir_vec_t *hessian  = adjoint_problem->hessian;
   FILE *fp = adjoint_problem->fp_record;
   double      m_para;
@@ -1054,12 +1150,12 @@ adjoint_output_prestep (ymir_vec_t *solution, const int iter, void *data)
     }
      if (fp) {
        fprintf (fp, "%4s %16s %16s %16s %16s\n", "iter", "parameter", "objective","gradient", "hessian");
-       fprintf (fp, "%4d %.12e %.12e %.12e %.12e\n", iter, m_para, objective, gradient->meshfree->e[0][0], hessian->meshfree->e[0][0]);
+       fprintf (fp, "%4d %.12e %.12e %.12e %.12e\n", iter, m_para, objective, -1.0 * neg_grad->meshfree->e[0][0], hessian->meshfree->e[0][0]);
      }
   }
   else {
     if (fp) {
-       fprintf (fp, "%4d %.12e %.12e %.12e %.12e\n", iter, m_para, objective, gradient->meshfree->e[0][0], hessian->meshfree->e[0][0]);
+       fprintf (fp, "%4d %.12e %.12e %.12e %.12e\n", iter, m_para, objective, -1.0 * neg_grad->meshfree->e[0][0], hessian->meshfree->e[0][0]);
     }
   }
 
