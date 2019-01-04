@@ -200,7 +200,7 @@ subd_txt_io (rhea_stokes_problem_t *stokes_problem, subd_options_t *subd_options
 
 //    gradient = subd_postp_adjoint_gradient (edotsym0, edotsym1, temperature, viscosity);
      int i = 0;
-     stencil_field = adjoint_get_stencil_field (&field_nums, n_components, i);
+     stencil_field = (subd_adjoint_stencil_field_t) adjoint_get_field (&field_nums, n_components, i);
      adjoint_setup_stencil (visc_stencil, subd_options, stencil_field);
      ymir_vec_multiply_in (visc_stencil,viscosity);
     gradient = subd_adjoint_gradient (edotsym0, edotsym1, temperature, viscosity);

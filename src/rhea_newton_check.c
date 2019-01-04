@@ -42,25 +42,24 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
     ymir_vec_set_random (dir_vec);
   }
   else {
-    ymir_vec_copy (solution, sol_vec); //problem is here
-RHEA_GLOBAL_PRODUCTIONF ("sol_vec=%.12e\n", sol_vec->meshfree->e[0][0]);
+    ymir_vec_copy (solution, sol_vec);
+RHEA_GLOBAL_PRODUCTIONF ("sol_vec=%.12e   %.12e\n", sol_vec->meshfree->e[0][0], sol_vec->meshfree->e[0][1]);
 //    ymir_vec_set_random (dir_vec);
     ymir_vec_set_value (dir_vec, 1.0);
 
-RHEA_GLOBAL_PRODUCTIONF ("the size of dir_vec is %d\n", sizeof(dir_vec->meshfree->e[0][0]));
-RHEA_GLOBAL_PRODUCTIONF ("dir_vec=%.12e\n", dir_vec->meshfree->e[0][0]);
+RHEA_GLOBAL_PRODUCTIONF ("dir_vec=%.12e   %.12e\n", dir_vec->meshfree->e[0][0], dir_vec->meshfree->e[0][1]);
     ymir_vec_multiply_in (sol_vec, dir_vec);
-RHEA_GLOBAL_PRODUCTIONF ("Now dir_vec=%.12e\n", dir_vec->meshfree->e[0][0]);
+RHEA_GLOBAL_PRODUCTIONF ("Now dir_vec=%.12e   %.12e\n", dir_vec->meshfree->e[0][0], dir_vec->meshfree->e[0][1]);
   }
   /* compute reference derivative */
-RHEA_GLOBAL_PRODUCTIONF ("neg_gradient_vec=%.12e\n", neg_gradient_vec->meshfree->e[0][0]);
+RHEA_GLOBAL_PRODUCTIONF ("neg_gradient_vec=%.12e   %.12e\n", neg_gradient_vec->meshfree->e[0][0], neg_gradient_vec->meshfree->e[0][1]);
   grad_dir_ref = ymir_vec_innerprod (neg_gradient_vec, dir_vec);
   grad_dir_ref *= -1.0;
 RHEA_GLOBAL_PRODUCTIONF ("grad_dir_ref=%.12e\n", grad_dir_ref);
 
   /* compare with finite difference derivative */
   rhea_newton_problem_update_operator (sol_vec, nl_problem);
-RHEA_GLOBAL_PRODUCTIONF ("sol_vec=%.12e\n", sol_vec->meshfree->e[0][0]);
+RHEA_GLOBAL_PRODUCTIONF ("sol_vec=%.12e   %.12e\n", sol_vec->meshfree->e[0][0], sol_vec->meshfree->e[0][1]);
   obj_val = rhea_newton_problem_evaluate_objective (sol_vec, nl_problem);
 RHEA_GLOBAL_PRODUCTIONF ("obj_val=%.12e\n", obj_val);
 
@@ -69,11 +68,10 @@ RHEA_GLOBAL_PRODUCTIONF ("obj_val=%.12e\n", obj_val);
     const double        eps = pow (10.0, (double) -n);
 
     ymir_vec_copy (sol_vec, perturb_vec);
-RHEA_GLOBAL_PRODUCTIONF ("dir_vec=%.12e\n", dir_vec->meshfree->e[0][0]);
-RHEA_GLOBAL_PRODUCTIONF ("the size of dir_vec is %d\n", sizeof(dir_vec->meshfree->e[0][0]));
+RHEA_GLOBAL_PRODUCTIONF ("dir_vec=%.12e   %.12e\n", dir_vec->meshfree->e[0][0], dir_vec->meshfree->e[0][1]);
     ymir_vec_add (eps, dir_vec, perturb_vec);
 RHEA_GLOBAL_PRODUCTIONF ("eps=%f\n", eps);
-RHEA_GLOBAL_PRODUCTIONF ("perturb_vec=%.12e\n", perturb_vec->meshfree->e[0][0]);
+RHEA_GLOBAL_PRODUCTIONF ("perturb_vec=%.12e   %.12e\n", perturb_vec->meshfree->e[0][0], perturb_vec->meshfree->e[0][1]);
     rhea_newton_problem_update_operator (perturb_vec, nl_problem);
     perturb_obj_val = rhea_newton_problem_evaluate_objective (perturb_vec,
                                                               nl_problem);

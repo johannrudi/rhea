@@ -152,6 +152,11 @@ inverse_matrix (double **invA, double **A, int n)
 {
   double det;
 
+  if (n == 1) {
+    invA[0][0] = 1.0 / A[0][0];
+    return;
+  }
+
   det = determinant(A, n);
   if (det == 0) {
     fprintf(stderr, "determinant of A matrix is 0!\n");

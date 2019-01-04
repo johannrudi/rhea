@@ -84,8 +84,8 @@ adjoint_destroy_newton (rhea_newton_problem_t *newton_problem);
 /********************************************
  * user defined function used in rhea_newton
  ********************************************/
-subd_adjoint_stencil_field_t
-adjoint_get_stencil_field (int *field_nums, int n_components, int i);
+int
+adjoint_get_field (int *field_nums, int n_components, int i);
 
 void
 adjoint_setup_stencil  (ymir_vec_t * stencil,

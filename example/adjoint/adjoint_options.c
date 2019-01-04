@@ -118,6 +118,7 @@ int                     test_stress_comp;
 
 int                     adjoint_visc_n_components;
 int                     adjoint_visc_parameters;
+int                     adjoint_visc_fields;
 int                     adjoint_stencil_fields;
 double                  adjoint_stencil_visc_value;
 subd_adjoint_stencil_options_t stencil_options;
@@ -365,6 +366,10 @@ subduction_add_options (ymir_options_t * opt)
     &adjoint_visc_parameters, SUBD_ADJOINT_VISC_PRE,
     "which viscosity parameter in adjoint problem, 0: prefactor; 1: activation energy",
 
+  YMIR_OPTIONS_I, "adjoint-visc-fields", '\0',
+    &adjoint_visc_fields, SUBD_ADJOINT_FIELD_VISC_RHEA_UM,
+    "which viscosity field in adjoint problem, 0: rhea-um; 2: rhea-lm; 3: rhea-activation-energy; 10: custom-um; 11: custom-lm",
+
   YMIR_OPTIONS_I, "adjoint-stencil-fields", '\0',
     &adjoint_stencil_fields, SUBD_ADJOINT_STENCIL_VISC_CUSTOM_LAYERS_UM,
     "stencil viscosity in adjoint problem, 0: rhea-um; 2: rhea-lm; 10: custom-um; 11: custom-lm",
@@ -507,6 +512,7 @@ subduction_process_options (subd_options_t *subd_options,
 
   adjoint_options->n_components = adjoint_visc_n_components;
   adjoint_options->visc_parameters =  adjoint_visc_parameters;
+  adjoint_options->visc_fields =  adjoint_visc_fields;
   stencil_options.fields =  adjoint_stencil_fields;
   stencil_options.value = adjoint_stencil_visc_value;
   adjoint_options->stencil_options = &stencil_options;

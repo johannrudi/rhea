@@ -184,7 +184,7 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
         0 /* no multi-component norms */, *newton_problem);
 
     rhea_newton_problem_set_apply_hessian_fn (
-        adjoint_apply_hessian_fn, *newton_problem);
+       /* adjoint_apply_hessian_fn */ NULL, *newton_problem);
 
     rhea_newton_problem_set_update_fn (
         adjoint_update_operator_fn,
@@ -217,8 +217,8 @@ adjoint_destroy_newton (rhea_newton_problem_t *newton_problem)
  * user defined function used in newton solver
  ********************************************************************************************/
 /****************helper functions for Stencil***************************/
-subd_adjoint_stencil_field_t
-adjoint_get_stencil_field (int *field_nums, int n_components, int i)
+int
+adjoint_get_field (int *field_nums, int n_components, int i)
 {
   int digit, field_indicator;
   subd_adjoint_stencil_field_t field;
@@ -511,9 +511,9 @@ adjoint_parameter_init (ymir_vec_t *solution, ymir_vec_t *msol,
                             subd_options_t *subd_options)
 {
   subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
-  subd_adjoint_visc_parameter_t visc_parameter;
+  subd_adjoint_visc_field_t visc_field;
   int            n = adjoint_options->n_components;
-  int           parameter_nums = adjoint_options->visc_parameters;
+  int           field_nums = adjoint_options->visc_fields;
   int           use_exponent = adjoint_options->use_exponent;
   double        m_para;
   int           i;
@@ -524,15 +524,26 @@ adjoint_parameter_init (ymir_vec_t *solution, ymir_vec_t *msol,
   }
 
   for (i = 0; i <  n; i++)  {
-    visc_parameter = adjoint_get_parameter (&parameter_nums,  n, i);
-    switch (visc_parameter) {
-    case SUBD_ADJOINT_VISC_PRE:
-      m_para = subd_options->visc_options->visc_lith;
+    visc_field = (subd_adjoint_visc_field_t ) adjoint_get_field (&field_nums,  n, i);
+    switch (visc_field) {
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM:
+      m_para = subd_options->rhea_visc_options->upper_mantle_scaling;
     break;
 
-    case SUBD_ADJOINT_VISC_E:
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_LM:
+      m_para = subd_options->rhea_visc_options->lower_mantle_scaling;
+    break;
+
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM_E:
       m_para = subd_options->rhea_visc_options->upper_mantle_arrhenius_activation_energy;
       break;
+
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_LM_E:
+      m_para = subd_options->rhea_visc_options->lower_mantle_arrhenius_activation_energy;
+      break;
+
+    case SUBD_ADJOINT_FIELD_VISC_CUSTOM_LAYERS_UM:
+      m_para = subd_options->visc_options->visc_lith;
 
     default:
       RHEA_ABORT_NOT_REACHED ();
@@ -626,9 +637,9 @@ static void
 adjoint_parameter_update (ymir_vec_t *solution, subd_options_t *subd_options)
 {
   subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
-  subd_adjoint_visc_parameter_t visc_parameter;
+  subd_adjoint_visc_field_t visc_field;
   int            n = adjoint_options->n_components;
-  int           parameter_nums = adjoint_options->visc_parameters;
+  int           field_nums = adjoint_options->visc_fields;
   int           use_exponent = adjoint_options->use_exponent;
   double        m_para;
   int           i;
@@ -639,15 +650,26 @@ adjoint_parameter_update (ymir_vec_t *solution, subd_options_t *subd_options)
     else
       m_para = exp(solution->meshfree->e[0][i]);
 
-    visc_parameter = adjoint_get_parameter (&parameter_nums,  n, i);
-    switch (visc_parameter) {
-    case SUBD_ADJOINT_VISC_PRE:
-      subd_options->visc_options->visc_lith = m_para;
-      break;
+    visc_field = (subd_adjoint_visc_field_t ) adjoint_get_field (&field_nums,  n, i);
+    switch (visc_field) {
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM:
+      subd_options->rhea_visc_options->upper_mantle_scaling = m_para;
+    break;
 
-    case SUBD_ADJOINT_VISC_E:
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_LM:
+      subd_options->rhea_visc_options->lower_mantle_scaling = m_para;
+    break;
+
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM_E:
       subd_options->rhea_visc_options->upper_mantle_arrhenius_activation_energy = m_para;
       break;
+
+    case SUBD_ADJOINT_FIELD_VISC_RHEA_LM_E:
+      subd_options->rhea_visc_options->lower_mantle_arrhenius_activation_energy = m_para;
+      break;
+
+    case SUBD_ADJOINT_FIELD_VISC_CUSTOM_LAYERS_UM:
+      subd_options->visc_options->visc_lith = m_para;
 
     default:
       RHEA_ABORT_NOT_REACHED ();
@@ -728,7 +750,7 @@ adjoint_coeff_update (adjoint_problem_t *adjoint_problem)
     coeff = adjoint_problem->coeff[i];
     parameter = adjoint_get_parameter (&parameter_nums,  n, i);
     adjoint_compute_visc_grad_m (coeff, stokes_problem, subd_options, parameter);
-    stencil_field = adjoint_get_stencil_field (&field_nums,  n, i);
+    stencil_field = (subd_adjoint_stencil_field_t) adjoint_get_field (&field_nums,  n, i);
 RHEA_GLOBAL_PRODUCTIONF ("i=%d: stencil_field=%d\n", i, (int) stencil_field);
     adjoint_setup_stencil (stencil, subd_options, stencil_field);
     ymir_vec_multiply_in (stencil, coeff);
@@ -888,6 +910,7 @@ adjoint_solve_negative_gradient (ymir_vec_t *neg_grad,
   adjoint_problem_t *adjoint_problem = data;
   rhea_stokes_problem_t *stokes_problem = adjoint_problem->stokes_problem;
   subd_options_t *subd_options = adjoint_problem->subd_options;
+  int n = subd_options->adjoint_options->n_components;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
@@ -900,7 +923,10 @@ adjoint_solve_negative_gradient (ymir_vec_t *neg_grad,
 
   adjoint_compute_neg_grad (adjoint_problem);
   ymir_vec_copy (adjoint_problem->neg_grad, neg_grad);
-RHEA_GLOBAL_PRODUCTIONF ("negative_gradient= %.12e\n", neg_grad->meshfree->e[0][0]);
+
+  for (int i = 0; i < n; i++) {
+    RHEA_GLOBAL_PRODUCTIONF ("negative_gradient%d = %.12e\n", i, neg_grad->meshfree->e[0][i]);
+  }
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
@@ -935,9 +961,6 @@ adjoint_stokes_update_hessian_forward (adjoint_problem_t *adjoint_problem, int i
   ymir_vec_t            *rhs_vel = rhea_velocity_new (ymir_mesh);
 
   subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
-  int  n = adjoint_options->n_components;
-
-  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
   coeff = adjoint_problem->coeff[i];
   stress_op = ymir_stress_op_new (coeff, vel_dir, NULL, NULL, NULL);
@@ -950,8 +973,6 @@ adjoint_stokes_update_hessian_forward (adjoint_problem_t *adjoint_problem, int i
 
   ymir_stress_op_destroy (stress_op);
   rhea_velocity_destroy (rhs_vel);
-
-  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
@@ -959,9 +980,13 @@ adjoint_solve_hessian_forward (adjoint_problem_t *adjoint_problem, int i)
 {
   ymir_vec_t *Husol = adjoint_problem->Husol[i];
 
-  adjoint_stokes_update_hessian_forward (adjoint_problem, i);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+  RHEA_GLOBAL_PRODUCTIONF ("component_id = %d\n", i);
 
+  adjoint_stokes_update_hessian_forward (adjoint_problem, i);
   adjoint_run_solver (Husol, adjoint_problem);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
@@ -1003,9 +1028,13 @@ adjoint_solve_hessian_adjoint (adjoint_problem_t *adjoint_problem, int i)
   ymir_vec_t *Husol = adjoint_problem->Husol[i];
   ymir_vec_t *Hvsol = adjoint_problem->Hvsol[i];
 
-  adjoint_stokes_update_hessian_adjoint (Husol, stokes_problem, subd_options);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+  RHEA_GLOBAL_PRODUCTIONF ("component_id = %d\n", i);
 
+  adjoint_stokes_update_hessian_adjoint (Husol, stokes_problem, subd_options);
   adjoint_run_solver (Hvsol, adjoint_problem);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
@@ -1014,16 +1043,18 @@ adjoint_compute_hessian (ymir_vec_t *hessian,
 {
   ymir_vec_t *usol = adjoint_problem->usol;
   ymir_mesh_t *ymir_mesh = usol->mesh;
+  subd_adjoint_options_t *adjoint_options = adjoint_problem->subd_options->adjoint_options;
+  int n = adjoint_options->n_components;
 
   ymir_vec_t  **coeff = adjoint_problem->coeff;
   ymir_vec_t  **Hvsol = adjoint_problem->Hvsol;
 
-  subd_adjoint_options_t *adjoint_options = adjoint_problem->subd_options->adjoint_options;
-  int n = adjoint_options->n_components;
   ymir_dvec_t *dotprod = ymir_dvec_new(ymir_mesh, 1, YMIR_GAUSS_NODE);
   ymir_vec_t  **dotprod_mass = YMIR_ALLOC (ymir_vec_t *, n);
 
   int i, j, k = 0;
+
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
   for (j = 0; j < n; j++)  {
     dotprod_mass[j] = ymir_dvec_new(ymir_mesh, 1, YMIR_GAUSS_NODE);
@@ -1033,15 +1064,21 @@ adjoint_compute_hessian (ymir_vec_t *hessian,
 
   for (i = 0; i < n; i++)  {
     for (j = 0; j < n; j++) {
-      hessian->meshfree->e[0][k++] = ymir_vec_innerprod (coeff[i], dotprod_mass[j]);
+      hessian->meshfree->e[0][k] = ymir_vec_innerprod (coeff[i], dotprod_mass[j]);
+      k++;
     }
   }
 
+  for (i = 0; i < n; i++) {
+    RHEA_GLOBAL_PRODUCTIONF ("diagonal hessian%d = %.12e\n", i, hessian->meshfree->e[0][(i+1)*(i+1) - 1]);
+  }
   ymir_vec_destroy (dotprod);
   for (i = 0; i < n; i++) {
     ymir_vec_destroy (dotprod_mass[i]);
   }
   YMIR_FREE (dotprod_mass);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 void
@@ -1055,15 +1092,20 @@ adjoint_compute_step (ymir_vec_t *step,
   double **hessian_matrix;
   int k = 0;
 
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+
   hessian_matrix = allocate_square_matrix (n);
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < n; j++) {
-      hessian_matrix[i][j] = hessian_data[k++];
+      hessian_matrix[i][j] = hessian_data[k];
+      k++;
     }
   }
 
   solve_x_from_Ax_b (step_data, hessian_matrix, neg_grad_data, n);
   destroy_square_matrix (hessian_matrix, n);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 /******************* newton function ***********************************/
@@ -1079,6 +1121,8 @@ adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_grad,
   ymir_vec_t *hessian = adjoint_problem->hessian;
   int n = adjoint_problem->subd_options->adjoint_options->n_components;
 
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+
    /*solve for Hessian forward*/
   for (int i = 0; i < n; i++)  {
     adjoint_solve_hessian_forward (adjoint_problem, i);
@@ -1093,6 +1137,8 @@ adjoint_solve_hessian_system_fn (ymir_vec_t *step, ymir_vec_t *neg_grad,
   if (lin_iter_count != NULL) {
     *lin_iter_count = 1;
   }
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 
   return 1;
 }
@@ -1114,9 +1160,18 @@ adjoint_update_hessian_fn (ymir_vec_t *solution, ymir_vec_t *step,
                           const double step_length, void *data)
 {
   adjoint_problem_t   *adjoint_problem = (adjoint_problem_t *) data;
+  int  n = adjoint_problem->subd_options->adjoint_options->n_components;
+  int  use_exponent = adjoint_problem->subd_options->adjoint_options->use_exponent;
+
 
   ymir_vec_copy (solution, adjoint_problem->msol);
-  RHEA_GLOBAL_PRODUCTIONF ("solution = %.12e\n", solution->meshfree->e[0][0]);
+  for (int i = 0; i < n; i++)  {
+    if (use_exponent)
+      RHEA_GLOBAL_PRODUCTIONF ("solution%d = %.12e\n", i, exp(solution->meshfree->e[0][i]));
+    else
+      RHEA_GLOBAL_PRODUCTIONF ("solution%d = %.12e\n", i, solution->meshfree->e[0][i]);
+
+  }
 }
 
 void
@@ -1134,13 +1189,17 @@ adjoint_output_prestep (ymir_vec_t *solution, const int iter, void *data)
   ymir_vec_t *neg_grad = adjoint_problem->neg_grad;
   ymir_vec_t *hessian  = adjoint_problem->hessian;
   FILE *fp = adjoint_problem->fp_record;
-  double      m_para;
   int         use_exponent = subd_options->adjoint_options->use_exponent;
+  int         n = subd_options->adjoint_options->n_components;
+  double      m_para[n];
 
-  if (!use_exponent)
-    m_para = solution->meshfree->e[0][0];
-  else
-    m_para = exp(solution->meshfree->e[0][0]);
+
+  for (int i = 0; i < n; i++) {
+    if (!use_exponent)
+      m_para[i] = solution->meshfree->e[0][i];
+    else
+      m_para[i] = exp(solution->meshfree->e[0][i]);
+  }
 
   if (iter == 0) {
     if (solution_path) {
@@ -1149,13 +1208,13 @@ adjoint_output_prestep (ymir_vec_t *solution, const int iter, void *data)
       subd_vtk_write_solution (ymir_mesh, press_elem, stokes_problem, sol_vel_press);
     }
      if (fp) {
-       fprintf (fp, "%4s %16s %16s %16s %16s\n", "iter", "parameter", "objective","gradient", "hessian");
-       fprintf (fp, "%4d %.12e %.12e %.12e %.12e\n", iter, m_para, objective, -1.0 * neg_grad->meshfree->e[0][0], hessian->meshfree->e[0][0]);
+       fprintf (fp, "%4s %16s %16s %16s %16s %16s %16s %16s %.16s\n", "iter", "parameter1", "parameter2", "parameter3", "objective", "gradient1", "gradient2", "gradient3", "hessian0");
+       fprintf (fp, "%4d %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e\n", iter, m_para[0], m_para[1], m_para[2], objective, -1.0 * neg_grad->meshfree->e[0][0], -1.0 * neg_grad->meshfree->e[0][1], -1.0 * neg_grad->meshfree->e[0][2], hessian->meshfree->e[0][0], hessian->meshfree->e[0][3]);
      }
   }
   else {
     if (fp) {
-       fprintf (fp, "%4d %.12e %.12e %.12e %.12e\n", iter, m_para, objective, -1.0 * neg_grad->meshfree->e[0][0], hessian->meshfree->e[0][0]);
+       fprintf (fp, "%4d %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e\n", iter, m_para[0], m_para[1], m_para[2], objective, -1.0 * neg_grad->meshfree->e[0][0], -1.0 * neg_grad->meshfree->e[0][1], -1.0 * neg_grad->meshfree->e[0][2], hessian->meshfree->e[0][0], hessian->meshfree->e[0][3]);
     }
   }
 
