@@ -3419,6 +3419,9 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
   rhea_velocity_pressure_destroy (rhs_vel_press);
   rhea_velocity_pressure_destroy (vel_press_nspfree);
 
+  /* communicate shared node values */
+  ymir_vec_share_owned (residual_vel_press);
+
   /* get the velocity component of the residual */
   residual_vel = rhea_velocity_new (ymir_mesh);
   rhea_velocity_pressure_copy_components (residual_vel, NULL,
