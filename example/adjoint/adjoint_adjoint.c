@@ -267,80 +267,6 @@ subd_adjoint_stencil_visc_rhea_um_elem (double *_sc_restrict visc_elem,
 }
 
 static void
-subd_adjoint_stencil_visc_rhea_um_left_elem (double *_sc_restrict visc_elem,
-                                            const double *_sc_restrict x,
-                                            const double *_sc_restrict y,
-                                            const double *_sc_restrict z,
-                                            const int n_nodes,
-                                            const int *Vmask,
-                                            subd_options_t *subd_options)
-{
-  int                 nodeid;
-  double              value = subd_options->adjoint_options->stencil_options->value;
-  int                 m;
-  rhea_domain_options_t  *domain_options = subd_options->domain_options;
-  int                 is_in_upper_mantle;
-
-  /* set flag if location is in lower or upper mantle */
-  is_in_upper_mantle = rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask,
-                                    domain_options);
-
-  /* compute viscosity in this element */
-  if (is_in_upper_mantle) {
-    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-      if (x[nodeid] <= 0.5)
-        visc_elem[nodeid] = value;
-      else
-        visc_elem[nodeid] = .0;
-    }
-  }
-  else
-    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-        visc_elem[nodeid] = .0;
-    }
-
-    /* check viscosity for `nan`, `inf`, and positivity */
-    RHEA_ASSERT (isfinite (visc_elem[nodeid]));
-}
-
-static void
-subd_adjoint_stencil_visc_rhea_um_right_elem (double *_sc_restrict visc_elem,
-                                            const double *_sc_restrict x,
-                                            const double *_sc_restrict y,
-                                            const double *_sc_restrict z,
-                                            const int n_nodes,
-                                            const int *Vmask,
-                                            subd_options_t *subd_options)
-{
-  int                 nodeid;
-  double              value = subd_options->adjoint_options->stencil_options->value;
-  int                 m;
-  rhea_domain_options_t  *domain_options = subd_options->domain_options;
-  int                 is_in_upper_mantle;
-
-  /* set flag if location is in lower or upper mantle */
-  is_in_upper_mantle = rhea_domain_elem_is_in_upper_mantle (x, y, z, Vmask,
-                                    domain_options);
-
-  /* compute viscosity in this element */
-  if (is_in_upper_mantle) {
-    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-      if (x[nodeid] > 0.5)
-        visc_elem[nodeid] = value;
-      else
-        visc_elem[nodeid] = .0;
-    }
-  }
-  else
-    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-        visc_elem[nodeid] = .0;
-    }
-
-    /* check viscosity for `nan`, `inf`, and positivity */
-    RHEA_ASSERT (isfinite (visc_elem[nodeid]));
-}
-
-static void
 subd_adjoint_stencil_visc_rhea_lm_elem (double *_sc_restrict visc_elem,
                                             const double *_sc_restrict x,
                                             const double *_sc_restrict y,
@@ -434,16 +360,6 @@ adjoint_setup_stencil  (ymir_vec_t *stencil,
     switch (stencil_field) {
       case SUBD_ADJOINT_STENCIL_VISC_RHEA_UM:
         subd_adjoint_stencil_visc_rhea_um_elem (stencil_el_data, x, y, z, n_nodes_per_el,
-                                          Vmask, subd_options);
-      break;
-
-      case SUBD_ADJOINT_STENCIL_VISC_RHEA_UM_LEFT:
-        subd_adjoint_stencil_visc_rhea_um_left_elem (stencil_el_data, x, y, z, n_nodes_per_el,
-                                          Vmask, subd_options);
-      break;
-
-      case SUBD_ADJOINT_STENCIL_VISC_RHEA_UM_RIGHT:
-        subd_adjoint_stencil_visc_rhea_um_right_elem (stencil_el_data, x, y, z, n_nodes_per_el,
                                           Vmask, subd_options);
       break;
 
@@ -614,14 +530,6 @@ adjoint_parameter_init (ymir_vec_t *solution, ymir_vec_t *msol,
       m_para = subd_options->rhea_visc_options->upper_mantle_scaling;
     break;
 
-    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM_LEFT:
-      m_para = subd_options->rhea_visc_options->upper_mantle_scaling_left;
-    break;
-
-    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM_RIGHT:
-      m_para = subd_options->rhea_visc_options->upper_mantle_scaling_right;
-    break;
-
     case SUBD_ADJOINT_FIELD_VISC_RHEA_LM:
       m_para = subd_options->rhea_visc_options->lower_mantle_scaling;
     break;
@@ -746,14 +654,6 @@ adjoint_parameter_update (ymir_vec_t *solution, subd_options_t *subd_options)
     switch (visc_field) {
     case SUBD_ADJOINT_FIELD_VISC_RHEA_UM:
       subd_options->rhea_visc_options->upper_mantle_scaling = m_para;
-    break;
-
-    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM_LEFT:
-      subd_options->rhea_visc_options->upper_mantle_scaling_left = m_para;
-    break;
-
-    case SUBD_ADJOINT_FIELD_VISC_RHEA_UM_RIGHT:
-      subd_options->rhea_visc_options->upper_mantle_scaling_right = m_para;
     break;
 
     case SUBD_ADJOINT_FIELD_VISC_RHEA_LM:

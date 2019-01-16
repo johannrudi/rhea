@@ -85,8 +85,6 @@ typedef struct rhea_viscosity_options
 
   /* scaling factor */
   double              upper_mantle_scaling;
-  double              upper_mantle_scaling_left; //XI TODO
-  double              upper_mantle_scaling_right; //XI TODO
   double              lower_mantle_scaling;
 
   /* activation energy in Arrhenius relationship */
