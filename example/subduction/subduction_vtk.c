@@ -45,11 +45,12 @@ void subduction_add_vtk_options (ymir_options_t * opt)
 void
 subd_write_input_basic (rhea_stokes_problem_t *stokes_problem,
                        rhea_temperature_options_t *temp_options,
+                       rhea_viscosity_options_t *visc_options,
                        const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "subd_write_input_basic";
   ymir_mesh_t        *ymir_mesh;
-  ymir_vec_t         *background_temp, *viscosity;
+  ymir_vec_t         *background_temp, *viscosity, *bounds_marker;
   ymir_vec_t         *temperature, *weakzone, *rhs_vel;
   char                path[BUFSIZ];
 
@@ -63,7 +64,23 @@ subd_write_input_basic (rhea_stokes_problem_t *stokes_problem,
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
 
   viscosity = rhea_viscosity_new (ymir_mesh);
-  rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+  bounds_marker = rhea_viscosity_new (ymir_mesh);
+  switch (visc_options->type) {
+  case RHEA_VISCOSITY_LINEAR:
+    rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
+    break;
+  case RHEA_VISCOSITY_NONLINEAR:
+    rhea_viscosity_compute_nonlinear_init (viscosity,
+                                           NULL /* nl. Stokes output */,
+                                           bounds_marker,
+                                           NULL /* nl. Stokes output */,
+                                           temperature, weakzone,
+                                           visc_options);
+    break;
+  default: /* unknown viscosity type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
 
   background_temp = rhea_temperature_new (ymir_mesh);
   rhea_temperature_background_compute (background_temp, temp_options);
@@ -72,17 +89,12 @@ subd_write_input_basic (rhea_stokes_problem_t *stokes_problem,
   RHEA_ASSERT (rhs_vel->meshnum == YMIR_VOL_MESH);
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity, NULL,
+                             background_temp, weakzone, viscosity, bounds_marker,
                              rhs_vel);
-//  {
-//     snprintf (path, BUFSIZ, "%s", vtk_write_input_path);
-//     ymir_vtk_write (ymir_mesh, path,
-//                     rhs_vel, "rhs_vel",
-//                     NULL);
-//  }
 
   rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
+  rhea_viscosity_destroy (bounds_marker);
 
   RHEA_GLOBAL_PRODUCTIONF ("Done %s\n", this_fn_name);
 }

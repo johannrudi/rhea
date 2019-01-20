@@ -31,8 +31,11 @@ subd_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     rhea_temperature_options_t *temp_options,
                     rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
+                    rhea_newton_options_t *newton_options,
                     subd_options_t *subd_options,
-                    const char *vtk_write_input_path);
+                    const char *vtk_write_input_path,
+                    const char *bin_solver_path,
+                    const char *vtk_solver_path);
 
 
 void

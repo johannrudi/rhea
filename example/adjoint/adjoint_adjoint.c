@@ -1208,13 +1208,13 @@ adjoint_output_prestep (ymir_vec_t *solution, const int iter, void *data)
       subd_vtk_write_solution (ymir_mesh, press_elem, stokes_problem, sol_vel_press);
     }
      if (fp) {
-       fprintf (fp, "%4s %16s %16s %16s %16s %16s %16s %16s %.16s\n", "iter", "parameter1", "parameter2", "parameter3", "objective", "gradient1", "gradient2", "gradient3", "hessian0");
-       fprintf (fp, "%4d %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e\n", iter, m_para[0], m_para[1], m_para[2], objective, -1.0 * neg_grad->meshfree->e[0][0], -1.0 * neg_grad->meshfree->e[0][1], -1.0 * neg_grad->meshfree->e[0][2], hessian->meshfree->e[0][0], hessian->meshfree->e[0][3]);
+       fprintf (fp, "%4s %16s %16s %16s %16s %16s %16s %16s %.16s %.16s\n", "iter", "parameter1", "parameter2", "objective", "gradient1", "gradient2", "hessian00", "hessian01", "hessian10", "hessian11");
+       fprintf (fp, "%4d %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e\n", iter, m_para[0], m_para[1], objective, -1.0 * neg_grad->meshfree->e[0][0], -1.0 * neg_grad->meshfree->e[0][1], hessian->meshfree->e[0][0], hessian->meshfree->e[0][1], hessian->meshfree->e[0][2],hessian->meshfree->e[0][3]);
      }
   }
   else {
     if (fp) {
-       fprintf (fp, "%4d %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e\n", iter, m_para[0], m_para[1], m_para[2], objective, -1.0 * neg_grad->meshfree->e[0][0], -1.0 * neg_grad->meshfree->e[0][1], -1.0 * neg_grad->meshfree->e[0][2], hessian->meshfree->e[0][0], hessian->meshfree->e[0][3]);
+       fprintf (fp, "%4d %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e %.12e\n", iter, m_para[0], m_para[1], objective, -1.0 * neg_grad->meshfree->e[0][0], -1.0 * neg_grad->meshfree->e[0][1], hessian->meshfree->e[0][0], hessian->meshfree->e[0][1], hessian->meshfree->e[0][2],hessian->meshfree->e[0][3]);
     }
   }
 
