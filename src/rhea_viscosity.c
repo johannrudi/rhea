@@ -114,7 +114,6 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     &(rhea_viscosity_upper_mantle_scaling),
     RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING,
     "UM scaling factor for viscosity",
-
   YMIR_OPTIONS_D, "upper-mantle-arrhenius-activation-energy", '\0',
     &(rhea_viscosity_upper_mantle_arrhenius_activation_energy),
     RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY,
