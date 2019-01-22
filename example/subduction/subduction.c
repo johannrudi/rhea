@@ -60,7 +60,10 @@ main (int argc, char **argv)
   int                 solver_iter_max;
   double              solver_rel_tol;
 
+  char               *bin_solver_path;
   char               *vtk_write_input_path;
+  char               *vtk_solver_path;
+
   /* mesh */
   p4est_t            *p4est;
   ymir_mesh_t        *ymir_mesh;
@@ -92,9 +95,18 @@ main (int argc, char **argv)
     &solver_rel_tol, 1.0e-6,
     "Relative tolerance for Stokes solver",
 
+  /* binary file output */
+  YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
+    &(bin_solver_path), NULL,
+    "Bin file path for solver internals (e.g., iterations of Newton's method)",
+
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
     &(vtk_write_input_path), NULL,
     "File path for vtk files for the input of the Stokes problem",
+
+  YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
+    &(vtk_solver_path), NULL,
+    "VTK file path for solver internals (e.g., iterations of Newton's method)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -134,7 +146,6 @@ main (int argc, char **argv)
                               &subd_velbc_options, &subd_test_options,
                               &subd_adjoint_options);
 
-
   /*
    * Setup Mesh
    */
@@ -146,7 +157,8 @@ main (int argc, char **argv)
    */
   subd_setup_stokes (&stokes_problem, p4est, &ymir_mesh, &press_elem,
                       &discr_options, &domain_options, &temp_options, &weak_options,
-                      &visc_options, &subd_options, vtk_write_input_path);
+                      &visc_options, &newton_options, &subd_options, vtk_write_input_path,
+                      bin_solver_path, vtk_solver_path);
 
   /*
    * Solve Stokes Problem

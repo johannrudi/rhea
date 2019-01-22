@@ -24,6 +24,7 @@ subd_write_input (ymir_mesh_t *ymir_mesh,
 void
 subd_write_input_basic (rhea_stokes_problem_t *stokes_problem,
                        rhea_temperature_options_t *temp_options,
+                       rhea_viscosity_options_t *visc_options,
                        const char *vtk_write_input_path);
 
 

@@ -1763,6 +1763,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient_fn (
       rhs_vel_press,              /* output: right-hand side */
       rhs_vel,                    /* input: volume forcing */
       NULL,                       /* input: Neumann forcing */
+//TODO Neumann
       rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
       stokes_problem_nl->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
@@ -2510,6 +2511,7 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
         stokes_problem_nl->rhs_vel_nonzero_dirichlet,
         stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn_data);
   }
+  //TODO: add nonzero Neumann B.C.
   stokes_problem_nl->rhs_vel_press = rhea_velocity_pressure_new (
       ymir_mesh, press_elem);
 

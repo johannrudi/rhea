@@ -20,7 +20,6 @@
 #include <rhea_newton.h>
 #include <rhea_vis.h>
 #include <rhea_vtk.h>
-#include <rhea_amr.h>
 
 /**
  * Begin the initialization of a program powered by rhea.  Should be followed

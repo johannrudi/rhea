@@ -58,8 +58,6 @@ double              rhea_viscosity_min = RHEA_VISCOSITY_DEFAULT_MIN;
 double              rhea_viscosity_max = RHEA_VISCOSITY_DEFAULT_MAX;
 double              rhea_viscosity_upper_mantle_scaling =
   RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING;
-double              rhea_viscosity_upper_mantle_scaling_left; //XI TODO
-double              rhea_viscosity_upper_mantle_scaling_right; //XI TODO
 double              rhea_viscosity_upper_mantle_arrhenius_activation_energy =
   RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY;
 double              rhea_viscosity_lower_mantle_scaling =
@@ -116,15 +114,6 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
     &(rhea_viscosity_upper_mantle_scaling),
     RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING,
     "UM scaling factor for viscosity",
-  YMIR_OPTIONS_D, "upper-mantle-scaling-left", '\0',
-    &(rhea_viscosity_upper_mantle_scaling_left),
-    RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING,
-    "UM scaling factor for viscosity",
-  YMIR_OPTIONS_D, "upper-mantle-scaling-right", '\0',
-    &(rhea_viscosity_upper_mantle_scaling_right),
-    RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING,
-    "UM scaling factor for viscosity",
-
   YMIR_OPTIONS_D, "upper-mantle-arrhenius-activation-energy", '\0',
     &(rhea_viscosity_upper_mantle_arrhenius_activation_energy),
     RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY,
@@ -196,8 +185,6 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
 
   /* store linear viscosity options */
   opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
-  opt->upper_mantle_scaling_left = rhea_viscosity_upper_mantle_scaling_left;
-  opt->upper_mantle_scaling_right = rhea_viscosity_upper_mantle_scaling_right;
   opt->upper_mantle_arrhenius_activation_energy =
     rhea_viscosity_upper_mantle_arrhenius_activation_energy;
   if (0.0 < rhea_viscosity_lower_mantle_scaling) {
@@ -619,14 +606,6 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     /* compute viscosity */
     rhea_viscosity_linear_model (&visc_elem[nodeid], &bd, temp, weak, opt,
                                  is_in_upper_mantle, restrict_to_bounds);
-
-    if (is_in_upper_mantle) {
-      if (x[nodeid] <= 0.5) {
-        visc_elem[nodeid] *= (opt->upper_mantle_scaling_left/opt->upper_mantle_scaling);
-      }
-      else
-        visc_elem[nodeid] *= (opt->upper_mantle_scaling_right/opt->upper_mantle_scaling);
-    }
 
     /* update viscosity by applying a smooth transition close to the LM-UM
      * interface (via a convex combination) */

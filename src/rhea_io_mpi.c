@@ -144,10 +144,10 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
       if (file_path_bin != NULL) {
         rhea_io_std_write_double (file_path_bin, values_all, total_size);
       }
-//      n_entries = (int) total_size; //XI
+      n_entries = (int) total_size;
     }
   }
-RHEA_GLOBAL_PRODUCTIONF("n_entries=%d, total_size=%d\n", n_entries, (int) total_size);
+
   /* broadcast values to all processors */
   if (n_entries <= 0) { /* if #entries is not known */
     n_entries = (int) total_size;
