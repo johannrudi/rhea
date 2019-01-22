@@ -401,22 +401,23 @@ rhea_discretization_X_fn_identity_topo (mangll_tag_t tag, mangll_locidx_t np,
 {
   rhea_topography_options_t *topo_options = data;
   rhea_domain_options_t     *domain_options = topo_options->domain_options;
-//  const double        radius_min = domain_options->radius_min;
-//  const double        radius_max = domain_options->radius_max;
-//  const double        radius_diff = radius_max - radius_min;
-  const double        z_max = domain_options->z_max; //XI
+  const double        z_min = domain_options->z_min;
+  const double        z_max = domain_options->z_max;
+  const double        z_diff = z_max - z_min;
   double              radius, displ, scaling;
   mangll_locidx_t     il;
 
   rhea_discretization_X_fn_identity (tag, np, EX, EY, EZ, X, Y, Z, NULL);
 
+  /* scale each node such that
+   *   z <- z + displ * (z - z_min)/(z_max - z_min) */
   for (il = 0; il < np; ++il) {
-//    radius = rhea_domain_compute_radius (X[il], Y[il], Z[il], domain_options); //XI
-    displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
-                                               Z[il], topo_options);
-//    scaling = 1.0 + displ/radius_max * (radius - radius_min) / radius_diff;
-    scaling = 1.0 + displ / z_max; //XI TODO: check with Johann, this distributes displ more evenly at elements with the same z-column than that of previous. It is assumed that z_min = 0.
-    Z[il] *= scaling;
+    if (0.0 < Z[il]) {
+      displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
+                                                 Z[il], topo_options);
+      scaling = 1.0 + displ * (Z[il] - z_min)/z_diff / Z[il];
+      Z[il] *= scaling;
+    }
   }
 }
 
@@ -440,15 +441,18 @@ rhea_discretization_X_fn_shell_topo (mangll_tag_t tag, mangll_locidx_t np,
   rhea_discretization_X_fn_shell (tag, np, EX, EY, EZ, X, Y, Z,
                                   domain_options);
 
+  /* scale each node such that
+   *   radius <- radius + displ * (radius - radius_min)/(radius_max - radius_min) */
   for (il = 0; il < np; ++il) {
     radius = rhea_domain_compute_radius (X[il], Y[il], Z[il], domain_options);
-    displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
-                                               Z[il], topo_options);
-//    scaling = 1.0 + displ/radius_max * (radius - radius_min) / radius_diff; //XI
-    scaling = 1.0 + displ/radius * (radius - radius_min) / radius_diff; //XI TODO: check with Johann. I change displ/radius_max to displ/radius. This distributes displ more evenly on element along r-direction which I believe is better for computation.
-    X[il] *= scaling;
-    Y[il] *= scaling;
-    Z[il] *= scaling;
+    if (0.0 < radius) {
+      displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
+                                                 Z[il], topo_options);
+      scaling = 1.0 + displ * (radius - radius_min)/radius_diff / radius;
+      X[il] *= scaling;
+      Y[il] *= scaling;
+      Z[il] *= scaling;
+    }
   }
 }
 
@@ -474,15 +478,18 @@ rhea_discretization_X_fn_box_spherical_topo (mangll_tag_t tag,
   rhea_discretization_X_fn_box_spherical (tag, np, EX, EY, EZ, X, Y, Z,
                                           domain_options);
 
+  /* scale each node such that
+   *   radius <- radius + displ * (radius - radius_min)/(radius_max - radius_min) */
   for (il = 0; il < np; ++il) {
     radius = rhea_domain_compute_radius (X[il], Y[il], Z[il], domain_options);
-    displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
-                                               Z[il], topo_options);
-//    scaling = 1.0 + displ/radius_max * (radius - radius_min) / radius_diff; //XI
-    scaling = 1.0 + displ/radius * (radius - radius_min) / radius_diff; //XI TODO: same with above subroutine.
-    X[il] *= scaling;
-    Y[il] *= scaling;
-    Z[il] *= scaling;
+    if (0.0 < radius) {
+      displ = rhea_topography_displacement_node (NULL /* label */, X[il], Y[il],
+                                                 Z[il], topo_options);
+      scaling = 1.0 + displ * (radius - radius_min)/radius_diff / radius;
+      X[il] *= scaling;
+      Y[il] *= scaling;
+      Z[il] *= scaling;
+    }
   }
 }
 
