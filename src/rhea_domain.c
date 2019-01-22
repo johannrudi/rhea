@@ -908,21 +908,16 @@ rhea_domain_project_to_surface (double *x, double *y, double *z,
   const double        radius_max = opt->radius_max;
   double              radius;
 
-  /* compute radius */
-//  radius = rhea_domain_compute_radius (*x, *y, *z, opt); //XI
-
   /* map coordinates onto surface parallel to radius */
   switch (opt->shape) {
   case RHEA_DOMAIN_CUBE:
   case RHEA_DOMAIN_BOX:
-//    *z *= radius_max / radius;  //XI
-    *z = opt->z_max; //XI TODO double check with Johann. what is the point of computing radius for BOX? Also, only after this modification can I get right answer using rhea_topography_displacement_node
+    *z = opt->z_max;
     break;
   case RHEA_DOMAIN_SHELL:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    /* compute radius */
-    radius = rhea_domain_compute_radius (*x, *y, *z, opt); //XI
+    radius = rhea_domain_compute_radius (*x, *y, *z, opt);
     *x *= radius_max / radius;
     *y *= radius_max / radius;
     *z *= radius_max / radius;
