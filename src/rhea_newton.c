@@ -912,7 +912,6 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
     if (nl_problem->check_gradient) {
       rhea_newton_check_gradient (solution, nl_problem);
     }
-
     /* compute norm of gradient */
     if (0 < n_components) {
       grad_norm_comp = RHEA_ALLOC (double, n_components);
@@ -1614,7 +1613,6 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
 
   /* initialize step length */
   step->length = opt->step_length_max;
-
   /* search for step length */
   for (k = search_iter_start; k <= search_iter_max; k++) {
     /* move solution in step direction */
@@ -1764,7 +1762,6 @@ rhea_newton_solve (ymir_vec_t **solution,
       }
     }
   }
-
   /*
    * Iterations Loop
    */
@@ -1821,7 +1818,6 @@ rhea_newton_solve (ymir_vec_t **solution,
           rhea_newton_check_hessian (*solution, nl_problem);
         }
       }
-
       /* calculate the accuracy for computing the step, i.e., for solving the
        * linearized system */
       rhea_newton_set_accuracy (
@@ -1852,7 +1848,6 @@ rhea_newton_solve (ymir_vec_t **solution,
       rhea_newton_compute_step (
           /* out: */ &step,
           /* in:  */ nl_problem, opt);
-
       /* perform line search to get the step length (updates the solution and
        * the nonlinear operator) */
       rhea_newton_search_step_length (

@@ -16,6 +16,7 @@
 #include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
 #include <ymir_stokes_op.h>
+#include <ymir_stokes_pc.h>
 
 /* types of linearization */
 typedef enum
@@ -141,6 +142,9 @@ ymir_vec_t         *rhea_stokes_problem_get_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem);
 void                rhea_stokes_problem_remove_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem);
+void                rhea_stokes_problem_set_rhs_vel_press (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    ymir_vec_t *rhs_vel_press); //XI
 
 rhea_domain_options_t      *rhea_stokes_problem_get_domain_options (
                                     rhea_stokes_problem_t *stokes_problem);
@@ -175,12 +179,23 @@ void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 
+ymir_vec_t        *rhea_stokes_problem_get_coeff (
+                                  rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_weakzone (
                                     rhea_stokes_problem_t *stokes_problem);
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_press (
+                                    rhea_stokes_problem_t *stokes_problem);//XI
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_surf_neumann (
+                                    rhea_stokes_problem_t *stokes_problem); //XI
+ymir_vec_t         **rhea_stokes_problem_get_rhs_vel_neumann (
+                                    rhea_stokes_problem_t *stokes_problem); //XI
+ymir_vel_dir_t *
+rhea_stokes_problem_get_vel_dir (
+                             rhea_stokes_problem_t *stokes_problem); //XI
 
 void                rhea_stokes_prbolem_set_weakzone_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
@@ -198,9 +213,15 @@ void                rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_nz_dir_compute_fn_t fn,
                                     void *data);
+void                rhea_stokes_prbolem_set_rhs_vel_neumann_compute_fn (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_velocity_rhs_neumann_compute_fn_t fn,
+                                    void *data); //XI
 
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
                                     rhea_stokes_problem_t *stokes_problem);
+ymir_stokes_pc_t   *rhea_stokes_problem_get_stokes_pc (
+                                    rhea_stokes_problem_t *stokes_problem); //XI
 
 /******************************************************************************
  * I/O

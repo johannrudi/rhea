@@ -121,6 +121,10 @@ typedef void      (*rhea_velocity_rhs_nz_dir_compute_fn_t) (
                                         ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                         void *data);
 
+typedef void      (*rhea_velocity_rhs_neumann_compute_fn_t) (
+                                        ymir_vec_t **rhs_vel_neumann,
+                                        void *data); //XI
+
 void                rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel,
                                               ymir_vec_t *temperature,
                                               void *data);
