@@ -404,7 +404,7 @@ rhea_discretization_X_fn_identity_topo (mangll_tag_t tag, mangll_locidx_t np,
   const double        z_min = domain_options->z_min;
   const double        z_max = domain_options->z_max;
   const double        z_diff = z_max - z_min;
-  double              radius, displ, scaling;
+  double              displ, scaling;
   mangll_locidx_t     il;
 
   rhea_discretization_X_fn_identity (tag, np, EX, EY, EZ, X, Y, Z, NULL);
