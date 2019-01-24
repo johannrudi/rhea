@@ -56,8 +56,7 @@ rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options,
                                     rhea_weakzone_options_t *weak_options,
-                                    rhea_viscosity_options_t *visc_options,
-                                    void *solver_options);
+                                    rhea_viscosity_options_t *visc_options);
 
 void                rhea_stokes_problem_destroy (
                                     rhea_stokes_problem_t *stokes_problem);

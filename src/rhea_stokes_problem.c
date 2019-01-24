@@ -50,6 +50,8 @@ int                 rhea_stokes_problem_nonlinear_lin_aniso_check =
 int                 rhea_stokes_problem_nonlinear_lin_aniso_pc =
                       RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LIN_ANISO_PC;
 
+rhea_newton_options_t rhea_stokes_problem_newton_options;
+
 void
 rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
 {
@@ -89,6 +91,7 @@ rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
 
   /* add sub-options */
   rhea_stokes_problem_amr_add_options (opt);
+  rhea_newton_add_options (&rhea_stokes_problem_newton_options, opt);
 
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
@@ -665,8 +668,7 @@ rhea_stokes_problem_linear_new (ymir_mesh_t *ymir_mesh,
                                 rhea_temperature_options_t *temp_options,
                                 rhea_plate_options_t *plate_options,
                                 rhea_weakzone_options_t *weak_options,
-                                rhea_viscosity_options_t *visc_options,
-                                void *solver_options)
+                                rhea_viscosity_options_t *visc_options)
 {
   rhea_stokes_problem_t *stokes_problem_lin;
 
@@ -2635,8 +2637,7 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
                                    rhea_temperature_options_t *temp_options,
                                    rhea_plate_options_t *plate_options,
                                    rhea_weakzone_options_t *weak_options,
-                                   rhea_viscosity_options_t *visc_options,
-                                   void *solver_options)
+                                   rhea_viscosity_options_t *visc_options)
 {
   rhea_stokes_problem_t *stokes_problem_nl;
 
@@ -2659,7 +2660,7 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
   stokes_problem_nl->linearization_type =
     (rhea_stokes_problem_nonlinear_linearization_t)
     rhea_stokes_problem_nonlinear_linearization_type;
-  stokes_problem_nl->newton_options = solver_options;
+  stokes_problem_nl->newton_options = &rhea_stokes_problem_newton_options;
   stokes_problem_nl->norm_type =
     (rhea_stokes_norm_type_t) rhea_stokes_problem_nonlinear_norm_type;
   stokes_problem_nl->norm_op_mass_scaling =
@@ -2796,18 +2797,17 @@ rhea_stokes_problem_new (ymir_mesh_t *ymir_mesh,
                          rhea_domain_options_t *domain_options,
                          rhea_temperature_options_t *temp_options,
                          rhea_weakzone_options_t *weak_options,
-                         rhea_viscosity_options_t *visc_options,
-                         void *solver_options)
+                         rhea_viscosity_options_t *visc_options)
 {
   switch (visc_options->type) {
   case RHEA_VISCOSITY_LINEAR:
     return rhea_stokes_problem_linear_new (
         ymir_mesh, press_elem, temperature, domain_options, temp_options,
-        NULL /* plate_options */, weak_options, visc_options, solver_options);
+        NULL /* plate_options */, weak_options, visc_options);
   case RHEA_VISCOSITY_NONLINEAR:
     return rhea_stokes_problem_nonlinear_new (
         ymir_mesh, press_elem, temperature, domain_options, temp_options,
-        NULL /* plate_options */, weak_options, visc_options, solver_options);
+        NULL /* plate_options */, weak_options, visc_options);
   default: /* not clear which Stokes type to choose */
     RHEA_ABORT_NOT_REACHED ();
   }
