@@ -57,7 +57,6 @@ main (int argc, char **argv)
   rhea_topography_options_t     topo_options;
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
-  rhea_newton_options_t         newton_options;
   /* options local to this program */
   char               *write_vol_coord_file_path_txt;
   char               *write_surf_coord_file_path_txt;
@@ -127,7 +126,7 @@ main (int argc, char **argv)
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options, &plate_options,
                             &weak_options, &topo_options, &visc_options,
-                            &discr_options, &newton_options);
+                            &discr_options);
 
   /*
    * Setup Mesh
@@ -156,7 +155,7 @@ main (int argc, char **argv)
   example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &plate_options,
                             &weak_options, &visc_options,
-                            &newton_options, NULL, NULL,
+                            NULL, NULL,
                             RHEA_MAIN_PERFMON_SETUP_MESH,
                             RHEA_MAIN_PERFMON_SETUP_STOKES, NULL, NULL);
 

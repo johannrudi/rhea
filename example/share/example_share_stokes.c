@@ -10,7 +10,6 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
                           rhea_plate_options_t *plate_options,
                           rhea_weakzone_options_t *weak_options,
                           rhea_viscosity_options_t *visc_options,
-                          rhea_newton_options_t *newton_options,
                           p4est_t *p4est,
                           rhea_discretization_options_t *discr_options,
                           const int performance_monitor_index_mesh,
@@ -21,7 +20,6 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   rhea_domain_options_t *domain_options = visc_options->domain_options;
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (*ymir_mesh);
   ymir_vec_t         *temperature;
-  void               *solver_options;
 
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
@@ -33,23 +31,11 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   temperature = rhea_temperature_new (*ymir_mesh);
   rhea_temperature_compute (temperature, temp_options);
 
-  /* set solver-specific variables */
-  switch (visc_options->type) {
-  case RHEA_VISCOSITY_LINEAR:
-    solver_options = NULL;
-    break;
-  case RHEA_VISCOSITY_NONLINEAR:
-    solver_options = newton_options;
-    break;
-  default: /* unknown viscosity type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
   /* create Stokes problem */
   rhea_performance_monitor_start_barrier (performance_monitor_index_stokes);
   *stokes_problem = rhea_stokes_problem_new (
       *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options, solver_options);
+      weak_options, visc_options);
   rhea_stokes_problem_set_plate_options (*stokes_problem, plate_options);
   rhea_stokes_problem_set_solver_amr (*stokes_problem, p4est, discr_options);
   rhea_stokes_problem_set_solver_bin_output (*stokes_problem, solver_bin_path);
