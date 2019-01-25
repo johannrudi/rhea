@@ -42,7 +42,6 @@ main (int argc, char **argv)
   rhea_topography_options_t     topo_options;
   rhea_plate_options_t     plate_options;
   rhea_discretization_options_t discr_options;
-  rhea_newton_options_t         newton_options;
 
   /* subd options */
   subd_para_options_t     subd_para_options;
@@ -136,8 +135,7 @@ main (int argc, char **argv)
 
   /*process rhea options */
   rhea_process_options_all (&domain_options, &temp_options, &plate_options, &weak_options,
-                            &topo_options, &visc_options, &discr_options,
-                            &newton_options);
+                            &topo_options, &visc_options, &discr_options);
 
   /*process subduction options */
   subduction_process_options (&subd_options, &domain_options, &subd_para_options,
@@ -157,7 +155,7 @@ main (int argc, char **argv)
    */
   subd_setup_stokes (&stokes_problem, p4est, &ymir_mesh, &press_elem,
                       &discr_options, &domain_options, &temp_options, &weak_options,
-                      &visc_options, &newton_options, &subd_options, vtk_write_input_path,
+                      &visc_options, &subd_options, vtk_write_input_path,
                       bin_solver_path, vtk_solver_path);
 
   /*
