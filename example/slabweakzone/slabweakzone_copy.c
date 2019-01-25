@@ -4755,7 +4755,6 @@ main (int argc, char **argv)
   rhea_temperature_options_t    temp_options;
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
-  rhea_newton_options_t         newton_options;
 
   double                  surf_dist;
   double                  visc_trial;
@@ -5191,8 +5190,7 @@ main (int argc, char **argv)
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options,
-                            &visc_options, &discr_options,
-                            &newton_options);
+                            &visc_options, &discr_options);
 
   /* copy rhea domain options into local example domain options */
   slabs_domain_options.x_min = domain_options.x_min;
