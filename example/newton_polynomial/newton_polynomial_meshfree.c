@@ -82,7 +82,7 @@ main (int argc, char **argv)
   /* create options */
   opt = ymir_options_global_new (argv[0] /* program path */);
   rhea_add_options_base (opt);
-  rhea_newton_add_options (opt);
+  rhea_newton_add_options (&newton_options, opt);
 
   /* end program initialization */
   rhea_init_end (opt);
@@ -98,7 +98,6 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_newton_process_options (&newton_options);
 
   /*
    * Setup Problem
