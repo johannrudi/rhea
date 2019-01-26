@@ -1,4 +1,6 @@
-/*
+/** RHEA_NEWTON
+ *
+ * Nonlinear solver using Newton's method.
  */
 
 #ifndef RHEA_NEWTON_H
@@ -194,12 +196,14 @@ rhea_newton_options_t;
 /**
  * Defines options and adds them as sub-options.
  */
-void                rhea_newton_add_options (ymir_options_t * opt_sup);
+void                rhea_newton_add_options (
+                                        rhea_newton_options_t *newton_options,
+                                        ymir_options_t *opt_sup);
 
 /**
- * Processes options and stores them.
+ * Gets global options values.
  */
-void                rhea_newton_process_options (rhea_newton_options_t *opt);
+void                rhea_newton_get_options (rhea_newton_options_t *opt);
 
 /**
  * Sets options to default values.

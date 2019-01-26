@@ -1649,7 +1649,6 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   ymir_vec_t         *temperature;
   ymir_vec_t         *coeff_TI_svisc, *TI_rotate = NULL;
   ymir_vec_t         *rhs_vel_nonzero_dirichlet;
-  void               *solver_options = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
 
@@ -1710,7 +1709,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       ymir_mesh, press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options, solver_options);
+      weak_options, visc_options);
 
   /* set custom function to compute viscosity */
   rhea_stokes_prbolem_set_viscosity_compute_fn (
@@ -1916,7 +1915,6 @@ main (int argc, char **argv)
   rhea_viscosity_options_t      visc_options;
   rhea_topography_options_t     topo_options;
   rhea_discretization_options_t discr_options;
-  rhea_newton_options_t         newton_options;
   /* collide options */
   int                 vel_dir_bc;
   double              flow_scale;
@@ -2130,7 +2128,7 @@ main (int argc, char **argv)
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options, NULL,
                             &weak_options, &topo_options, &visc_options,
-                            &discr_options, &newton_options);
+                            &discr_options);
 
   /*
    * Setup Mesh

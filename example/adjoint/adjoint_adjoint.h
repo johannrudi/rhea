@@ -68,7 +68,6 @@ adjoint_problem_new (ymir_vec_t *solution,
                      ymir_pressure_elem_t *press_elem,
                      rhea_discretization_options_t *discr_options,
                      rhea_temperature_options_t *temp_options,
-                     rhea_newton_options_t *newton_options,
                      subd_options_t *subd_options,
                      int     solver_iter_max,
                      double  solver_rel_tol);

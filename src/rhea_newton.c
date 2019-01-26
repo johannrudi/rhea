@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_newton.h>
 #include <rhea_newton_check.h>
 #include <rhea_base.h>
@@ -155,108 +152,94 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
 #define RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY (0)
 
-/* initialize options */
-int                 rhea_newton_iter_start = RHEA_NEWTON_DEFAULT_ITER_START;
-int                 rhea_newton_iter_max = RHEA_NEWTON_DEFAULT_ITER_MAX;
-double              rhea_newton_rtol = RHEA_NEWTON_DEFAULT_RTOL;
-int                 rhea_newton_lin_iter_max = RHEA_NEWTON_DEFAULT_LIN_ITER_MAX;
-int                 rhea_newton_lin_rtol_init_n_iter =
-                      RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER;
-double              rhea_newton_lin_rtol_init =
-                      RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT;
-double              rhea_newton_lin_rtol_adaptive_exponent =
-                      RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_EXPONENT;
-double              rhea_newton_lin_rtol_adaptive_max =
-                      RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MAX;
-int                 rhea_newton_lin_rtol_adaptive_min_active =
-                      RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_ACTIVE;
-double              rhea_newton_lin_rtol_adaptive_min_threshold =
-                      RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_THRESHOLD;
-int                 rhea_newton_lin_rtol_adaptive_progressive_n_iter =
-                      RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER;
-int                 rhea_newton_step_search_iter_max =
-                      RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX;
-double              rhea_newton_step_length_min =
-                      RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN;
-double              rhea_newton_step_length_max =
-                      RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX;
-double              rhea_newton_step_reduction =
-                      RHEA_NEWTON_DEFAULT_STEP_REDUCTION;
-double              rhea_newton_step_descend_condition_relaxation =
-                      RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION;
-int                 rhea_newton_print_summary =
-                      RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
+/* global options */
+rhea_newton_options_t rhea_newton_options;
 
 void
-rhea_newton_add_options (ymir_options_t * opt_sup)
+rhea_newton_add_options (rhea_newton_options_t *newton_options,
+                         ymir_options_t *opt_sup)
 {
   const char         *opt_prefix = "Newton";
   ymir_options_t     *opt = ymir_options_new ();
+  rhea_newton_options_t  *newton_opt;
+
+  /* set options storage */
+  if (newton_options != NULL) {
+    /* choose provided options */
+    newton_opt = newton_options;
+  }
+  else {
+    /* choose global options */
+    newton_opt = &rhea_newton_options;
+  }
+
+  /* initialize options */
+  rhea_newton_options_set_defaults (newton_opt);
 
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
 
   YMIR_OPTIONS_I, "iter-start", '\0',
-    &(rhea_newton_iter_start), RHEA_NEWTON_DEFAULT_ITER_START,
+    &(newton_opt->iter_start), RHEA_NEWTON_DEFAULT_ITER_START,
     "Start at this iteration number",
   YMIR_OPTIONS_I, "iter-max", '\0',
-    &(rhea_newton_iter_max), RHEA_NEWTON_DEFAULT_ITER_MAX,
+    &(newton_opt->iter_max), RHEA_NEWTON_DEFAULT_ITER_MAX,
     "Maximum number of iterations",
   YMIR_OPTIONS_D, "rtol", '\0',
-    &(rhea_newton_rtol), RHEA_NEWTON_DEFAULT_RTOL,
+    &(newton_opt->rtol), RHEA_NEWTON_DEFAULT_RTOL,
     "Relative tolerance",
 
   YMIR_OPTIONS_I, "lin-iter-max", '\0',
-    &(rhea_newton_lin_iter_max), RHEA_NEWTON_DEFAULT_LIN_ITER_MAX,
+    &(newton_opt->lin_iter_max), RHEA_NEWTON_DEFAULT_LIN_ITER_MAX,
     "Linear sub-solver: Maximum number of iterations",
   YMIR_OPTIONS_I, "lin-rtol-init-n-iter", '\0',
-    &(rhea_newton_lin_rtol_init_n_iter),
+    &(newton_opt->lin_rtol_init_n_iter),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER,
     "Linear sub-solver: Number of iterations using initial relative tolerance",
   YMIR_OPTIONS_D, "lin-rtol-init", '\0',
-    &(rhea_newton_lin_rtol_init), RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT,
+    &(newton_opt->lin_rtol_init), RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT,
     "Linear sub-solver: Initial relative tolerance",
   YMIR_OPTIONS_D, "lin-rtol-adaptive-exponent", '\0',
-    &(rhea_newton_lin_rtol_adaptive_exponent),
+    &(newton_opt->lin_rtol_adaptive_exponent),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_EXPONENT,
     "Linear sub-solver: Exponent for adaptive relative tolerance",
   YMIR_OPTIONS_D, "lin-rtol-adaptive-max", '\0',
-    &(rhea_newton_lin_rtol_adaptive_max),
+    &(newton_opt->lin_rtol_adaptive_max),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MAX,
     "Linear sub-solver: Max relative tolerance",
   YMIR_OPTIONS_I, "lin-rtol-adaptive-min-active", '\0',
-    &(rhea_newton_lin_rtol_adaptive_min_active),
+    &(newton_opt->lin_rtol_adaptive_min_active),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_ACTIVE,
     "Linear sub-solver: Use threshold for min relative tolerance",
   YMIR_OPTIONS_D, "lin-rtol-adaptive-min-threshold", '\0',
-    &(rhea_newton_lin_rtol_adaptive_min_threshold),
+    &(newton_opt->lin_rtol_adaptive_min_threshold),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_THRESHOLD,
     "Linear sub-solver: Min relative tolerance",
   YMIR_OPTIONS_I, "lin-rtol-adaptive-progressive-n-iter", '\0',
-    &(rhea_newton_lin_rtol_adaptive_progressive_n_iter),
+    &(newton_opt->lin_rtol_adaptive_progressive_n_iter),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER,
     "Linear sub-solver: #iter (~ variance) for progressive tightening of rtol",
 
   YMIR_OPTIONS_I, "step-search-iter-max", '\0',
-    &(rhea_newton_step_search_iter_max),
+    &(newton_opt->step_search_iter_max),
     RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX,
     "Line search: Maximum number of step search iterations",
   YMIR_OPTIONS_D, "step-length-min", '\0',
-    &(rhea_newton_step_length_min), RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN,
+    &(newton_opt->step_length_min), RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN,
     "Line search: Minimum allowed step length",
   YMIR_OPTIONS_D, "step-length-max", '\0',
-    &(rhea_newton_step_length_max), RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX,
+    &(newton_opt->step_length_max), RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX,
     "Line search: Maximum step length at start of search (usually 1)",
   YMIR_OPTIONS_D, "step-reduction", '\0',
-    &(rhea_newton_step_reduction), RHEA_NEWTON_DEFAULT_STEP_REDUCTION,
+    &(newton_opt->step_reduction), RHEA_NEWTON_DEFAULT_STEP_REDUCTION,
     "Line search: Reduction factor for step search",
   YMIR_OPTIONS_D, "step-descend-condition-relaxation", '\0',
-    &(rhea_newton_step_descend_condition_relaxation),
+    &(newton_opt->step_descend_condition_relaxation),
     RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION,
     "Line search: Relaxation factor for the descend condition",
 
   YMIR_OPTIONS_I, "print-summary", '\0',
-    &(rhea_newton_print_summary), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY,
+    &(newton_opt->print_summary), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY,
     "Print summary of Newton iterations",
 
   YMIR_OPTIONS_END_OF_LIST);
@@ -268,51 +251,54 @@ rhea_newton_add_options (ymir_options_t * opt_sup)
 }
 
 void
-rhea_newton_process_options (rhea_newton_options_t *opt)
+rhea_newton_get_options (rhea_newton_options_t *opt)
 {
   rhea_newton_options_set_defaults (opt);
 
-  opt->iter_start = rhea_newton_iter_start;
-  opt->iter_max = rhea_newton_iter_max;
-  opt->rtol = rhea_newton_rtol;
+  opt->iter_start = rhea_newton_options.iter_start;
+  opt->iter_max   = rhea_newton_options.iter_max;
+  opt->rtol       = rhea_newton_options.rtol;
 
-  opt->lin_iter_max = rhea_newton_lin_iter_max;
-  opt->lin_rtol_init_n_iter = rhea_newton_lin_rtol_init_n_iter;
-  opt->lin_rtol_init = rhea_newton_lin_rtol_init;
-  opt->lin_rtol_adaptive_exponent = rhea_newton_lin_rtol_adaptive_exponent;
-  opt->lin_rtol_adaptive_max = rhea_newton_lin_rtol_adaptive_max;
-  opt->lin_rtol_adaptive_min_active = rhea_newton_lin_rtol_adaptive_min_active;
+  opt->lin_iter_max                 = rhea_newton_options.lin_iter_max;
+  opt->lin_rtol_init_n_iter         = rhea_newton_options.lin_rtol_init_n_iter;
+  opt->lin_rtol_init                = rhea_newton_options.lin_rtol_init;
+  opt->lin_rtol_adaptive_exponent =
+    rhea_newton_options.lin_rtol_adaptive_exponent;
+  opt->lin_rtol_adaptive_max =
+    rhea_newton_options.lin_rtol_adaptive_max;
+  opt->lin_rtol_adaptive_min_active =
+    rhea_newton_options.lin_rtol_adaptive_min_active;
   opt->lin_rtol_adaptive_min_threshold =
-    rhea_newton_lin_rtol_adaptive_min_threshold;
+    rhea_newton_options.lin_rtol_adaptive_min_threshold;
   opt->lin_rtol_adaptive_progressive_n_iter =
-    rhea_newton_lin_rtol_adaptive_progressive_n_iter;
+    rhea_newton_options.lin_rtol_adaptive_progressive_n_iter;
 
-  opt->step_search_iter_max = rhea_newton_step_search_iter_max;
-  opt->step_length_min = rhea_newton_step_length_min;
-  opt->step_length_max = rhea_newton_step_length_max;
-  opt->step_reduction = rhea_newton_step_reduction;
+  opt->step_search_iter_max = rhea_newton_options.step_search_iter_max;
+  opt->step_length_min      = rhea_newton_options.step_length_min;
+  opt->step_length_max      = rhea_newton_options.step_length_max;
+  opt->step_reduction       = rhea_newton_options.step_reduction;
   opt->step_descend_condition_relaxation =
-    rhea_newton_step_descend_condition_relaxation;
+    rhea_newton_options.step_descend_condition_relaxation;
 
-  opt->print_summary = rhea_newton_print_summary;
+  opt->print_summary = rhea_newton_options.print_summary;
 }
 
 void
 rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
 {
-  opt->nonzero_initial_guess = RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS;
+  opt->nonzero_initial_guess    = RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS;
   opt->abort_failed_step_search = RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH;
 
   opt->iter_start = RHEA_NEWTON_DEFAULT_ITER_START;
-  opt->iter_max = RHEA_NEWTON_DEFAULT_ITER_MAX;
-  opt->rtol = RHEA_NEWTON_DEFAULT_RTOL;
+  opt->iter_max   = RHEA_NEWTON_DEFAULT_ITER_MAX;
+  opt->rtol       = RHEA_NEWTON_DEFAULT_RTOL;
 
-  opt->lin_iter_max = RHEA_NEWTON_DEFAULT_LIN_ITER_MAX;
-  opt->lin_rtol_init_n_iter = RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER;
-  opt->lin_rtol_init = RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT;
+  opt->lin_iter_max           = RHEA_NEWTON_DEFAULT_LIN_ITER_MAX;
+  opt->lin_rtol_init_n_iter   = RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER;
+  opt->lin_rtol_init          = RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT;
   opt->lin_rtol_adaptive_exponent =
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_EXPONENT;
-  opt->lin_rtol_adaptive_max = RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MAX;
+  opt->lin_rtol_adaptive_max  = RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MAX;
   opt->lin_rtol_adaptive_min_active =
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_ACTIVE;
   opt->lin_rtol_adaptive_min_threshold =
@@ -321,14 +307,14 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER;
 
   opt->step_search_iter_max = RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX;
-  opt->step_length_min = RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN;
-  opt->step_length_max = RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX;
-  opt->step_reduction = RHEA_NEWTON_DEFAULT_STEP_REDUCTION;
+  opt->step_length_min      = RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN;
+  opt->step_length_max      = RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX;
+  opt->step_reduction       = RHEA_NEWTON_DEFAULT_STEP_REDUCTION;
   opt->step_descend_condition_relaxation =
     RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION;
 
   opt->status_verbosity = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
-  opt->print_summary = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
+  opt->print_summary    = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
 }
 
 /******************************************************************************

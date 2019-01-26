@@ -4586,7 +4586,6 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   const char         *this_fn_name = "slabs_setup_stokes";
   ymir_vec_t         *temperature;
   ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
-  void               *solver_options = NULL;
   int                 mpirank = ymir_mesh->ma->mpirank;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
@@ -4624,7 +4623,7 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       ymir_mesh, press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options, solver_options);
+      weak_options, visc_options);
 
   /* provide own function to compute weak zones and viscosity */
   switch (slabs_options->buoyancy_type) {
@@ -4733,7 +4732,6 @@ slabs_setup_stokes_surfdist (rhea_stokes_problem_t **stokes_problem,
 //  ymir_vec_t         *temperature, *weakzone;
   ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
   ymir_vec_t         *rhs_vel, *rhs_vel_nonzero_dirichlet = NULL;
-  void               *solver_options = NULL;
   int                 mpirank = ymir_mesh->ma->mpirank;
 
   RHEA_GLOBAL_PRODUCTIONF ("Into %s\n", this_fn_name);
@@ -4769,7 +4767,7 @@ slabs_setup_stokes_surfdist (rhea_stokes_problem_t **stokes_problem,
   //TODO change function arguments as above
 //*stokes_problem = rhea_stokes_problem_new (
 //    temperature, weakzone, rhs_vel, rhs_vel_nonzero_dirichlet,
-//    ymir_mesh, press_elem, domain_options, visc_options, solver_options);
+//    ymir_mesh, press_elem, domain_options, visc_options);
 
   /* add the anisotropic viscosity to the viscous stress operator */
   if (slabs_options->slabs_visc_options->viscosity_anisotropy
@@ -4912,7 +4910,6 @@ main (int argc, char **argv)
   rhea_viscosity_options_t      visc_options;
   rhea_topography_options_t     topo_options;
   rhea_discretization_options_t discr_options;
-  rhea_newton_options_t         newton_options;
 
   double                  *tX, *tY, *tZ;
   slabs_topo_profile_t    topo = {.tZ=NULL};
@@ -5349,7 +5346,7 @@ main (int argc, char **argv)
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options, NULL,
                             &weak_options, &topo_options, &visc_options,
-                            &discr_options, &newton_options);
+                            &discr_options);
 
   /* copy rhea domain options into local example domain options */
   slabs_domain_options.x_min = domain_options.x_min;

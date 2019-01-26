@@ -134,6 +134,7 @@ main (int argc, char **argv)
   subduction_add_txt_options (opt);
 
   rhea_add_options_all (opt);
+  rhea_newton_add_options (&newton_options, opt);
   ymir_options_add_suboptions_solver_stokes (opt);
 
 
@@ -153,8 +154,7 @@ main (int argc, char **argv)
 
   /*process rhea options */
   rhea_process_options_all (&domain_options, &temp_options, &plate_options, &weak_options,
-                            &topo_options, &visc_options, &discr_options,
-                            &newton_options);
+                            &topo_options, &visc_options, &discr_options);
 
   /*process subduction options */
   subduction_process_options (&subd_options, &domain_options, &visc_options,
@@ -190,7 +190,7 @@ main (int argc, char **argv)
 
   adjoint_problem = adjoint_problem_new (solution, stokes_problem,
                           p4est, ymir_mesh, press_elem,
-                          &discr_options, &temp_options, &newton_options, &subd_options,
+                          &discr_options, &temp_options, &subd_options,
                           solver_iter_max, solver_rel_tol);
 
   adjoint_setup_newton (&newton_problem, adjoint_problem);

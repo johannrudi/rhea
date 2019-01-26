@@ -15,7 +15,6 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
 {
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (*ymir_mesh);
   ymir_vec_t         *temperature;
-  void               *solver_options = NULL;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
@@ -31,7 +30,7 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options, solver_options);
+      weak_options, visc_options);
 
 //  subd_compute_weakzone (stokes_problem, subd_options); //see whether it is necessary for different cases
 
@@ -54,7 +53,6 @@ adjoint_problem_new (ymir_vec_t *solution,
                      ymir_pressure_elem_t *press_elem,
                      rhea_discretization_options_t *discr_options,
                      rhea_temperature_options_t *temp_options,
-                     rhea_newton_options_t *newton_options,
                      subd_options_t *subd_options,
                      int       solver_iter_max,
                      double    solver_rel_tol)

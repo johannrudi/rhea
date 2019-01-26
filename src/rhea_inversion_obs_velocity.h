@@ -10,7 +10,8 @@
 /* enumerator for velocity boundray conditions */
 typedef enum
 {
-  RHEA_INVERSION_OBS_VELOCITY_NORMAL,
+  RHEA_INVERSION_OBS_VELOCITY_NONE = -1,
+  RHEA_INVERSION_OBS_VELOCITY_NORMAL = 0,
   RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL,
   RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE,
   RHEA_INVERSION_OBS_VELOCITY_ALL,
@@ -19,12 +20,12 @@ typedef enum
 rhea_inversion_obs_velocity_t;
 
 /**
- * Computes the misfit of tangential velocities at the surface.
+ * Computes the (squared norm of the) misfit of velocities at the surface.
  */
 double              rhea_inversion_obs_velocity_misfit (
                                       ymir_vec_t *vel_fwd_vol,
                                       ymir_vec_t *vel_obs_surf,
-                                      ymir_vec_t *vel_weight_surf,
+                                      ymir_vec_t *weight_surf,
                                       rhea_inversion_obs_velocity_t obs_type,
                                       rhea_domain_options_t *domain_options);
 
@@ -35,7 +36,7 @@ void                rhea_inversion_obs_velocity_adjoint_rhs (
                                       ymir_vec_t *rhs_vel_press,
                                       ymir_vec_t *vel_fwd_vol,
                                       ymir_vec_t *vel_obs_surf,
-                                      ymir_vec_t *vel_weight_surf,
+                                      ymir_vec_t *weight_surf,
                                       rhea_inversion_obs_velocity_t obs_type,
                                       rhea_domain_options_t *domain_options);
 
