@@ -32,6 +32,31 @@ rhea_inversion_obs_velocity_weight_is_valid (ymir_vec_t *vec)
   }
 }
 
+static void
+rhea_inversion_obs_velocity_remove_normal_fn (double *vec,
+                                       double X, double Y, double Z,
+                                       double nx, double ny, double nz,
+                                       ymir_topidx_t face,
+                                       ymir_locidx_t node_id, void *data)
+{
+  double			 vr;
+
+  /* remove the normal component of the face vector */
+  vr = nx * vec[0] + ny * vec[1] + nz * vec[2];
+  vec[0] -= vr * nx;
+  vec[1] -= vr * ny;
+  vec[2] -= vr * nz;
+}
+
+static void
+rhea_inversion_obs_velocity_remove_normal (ymir_vec_t * xyz)
+{
+  RHEA_ASSERT (ymir_vec_is_cvec (xyz));
+  RHEA_ASSERT (xyz->ncfields == 3);
+
+  ymir_face_cvec_set_function (xyz, rhea_inversion_obs_velocity_remove_normal_fn, NULL);
+}
+
 double
 rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
                                     ymir_vec_t *vel_obs_surf,
@@ -41,6 +66,7 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
 {
   ymir_vec_t         *vel_fwd_surf =
                         rhea_velocity_surface_new_from_vol (vel_fwd_vol);
+  ymir_vec_t		 *vel_mass_surf;
   double              misfit = NAN;
 
   /* check input */
@@ -77,7 +103,8 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
     break;
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
-    //TODO
+	ymir_vec_add (-1.0, vel_obs_surf, vel_fwd_surf);
+	rhea_inversion_obs_velocity_remove_normal (vel_fwd_surf);
     break;
   case RHEA_INVERSION_OBS_VELOCITY_ALL:
   case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
@@ -89,14 +116,22 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
 
   /* apply weight to difference */
   if (weight_surf != NULL) {
-    //TODO
+	if (1 == weight_surf->ncfields) {
+	  ymir_vec_multiply_in1 (weight_surf, vel_fwd_surf);
+	}
+	else {
+		ymir_vec_multiply_in (weight_surf, vel_fwd_surf);
+	}
   }
 
   /* compute L2-norm */
-  //TODO
+  vel_mass_surf = ymir_vec_template (vel_fwd_surf);
+  ymir_mass_apply (vel_fwd_surf, vel_mass_surf);
+  misfit = ymir_vec_innerprod (vel_fwd_surf, vel_mass_surf);
 
   /* destroy */
   rhea_velocity_surface_destroy (vel_fwd_surf);
+  rhea_velocity_surface_destroy (vel_mass_surf);
 
   /* return misfit value */
   return misfit;
