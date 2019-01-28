@@ -3,6 +3,7 @@
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
 #include <ymir_velocity_vec.h>
+#include <ymir_mass_vec.h>
 
 static int
 rhea_inversion_obs_velocity_weight_check_vec_type (ymir_vec_t *vec)
@@ -49,12 +50,12 @@ rhea_inversion_obs_velocity_remove_normal_fn (double *vec,
 }
 
 static void
-rhea_inversion_obs_velocity_remove_normal (ymir_vec_t * xyz)
+rhea_inversion_obs_velocity_remove_normal (ymir_vec_t * vel_surf)
 {
-  RHEA_ASSERT (ymir_vec_is_cvec (xyz));
-  RHEA_ASSERT (xyz->ncfields == 3);
+  RHEA_ASSERT (rhea_inversion_obs_velocity_weight_check_vec_type (vel_surf));
 
-  ymir_face_cvec_set_function (xyz, rhea_inversion_obs_velocity_remove_normal_fn, NULL);
+  ymir_face_cvec_set_function (
+      vel_surf, rhea_inversion_obs_velocity_remove_normal_fn, NULL);
 }
 
 double
@@ -66,7 +67,6 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
 {
   ymir_vec_t         *vel_fwd_surf =
                         rhea_velocity_surface_new_from_vol (vel_fwd_vol);
-  ymir_vec_t		 *vel_mass_surf;
   double              misfit = NAN;
 
   /* check input */
@@ -103,8 +103,8 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
     break;
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
-	ymir_vec_add (-1.0, vel_obs_surf, vel_fwd_surf);
-	rhea_inversion_obs_velocity_remove_normal (vel_fwd_surf);
+    ymir_vec_add (-1.0, vel_obs_surf, vel_fwd_surf);
+    rhea_inversion_obs_velocity_remove_normal (vel_fwd_surf);
     break;
   case RHEA_INVERSION_OBS_VELOCITY_ALL:
   case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
@@ -116,22 +116,26 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
 
   /* apply weight to difference */
   if (weight_surf != NULL) {
-	if (1 == weight_surf->ncfields) {
-	  ymir_vec_multiply_in1 (weight_surf, vel_fwd_surf);
-	}
-	else {
-		ymir_vec_multiply_in (weight_surf, vel_fwd_surf);
-	}
+    if (1 == weight_surf->ncfields) {
+      ymir_vec_multiply_in1 (weight_surf, vel_fwd_surf);
+    }
+    else {
+      RHEA_ASSERT (3 == weight_surf->ncfields);
+      ymir_vec_multiply_in (weight_surf, vel_fwd_surf);
+    }
   }
 
-  /* compute L2-norm */
-  vel_mass_surf = ymir_vec_template (vel_fwd_surf);
-  ymir_mass_apply (vel_fwd_surf, vel_mass_surf);
-  misfit = ymir_vec_innerprod (vel_fwd_surf, vel_mass_surf);
+  /* compute squared L2-norm */
+  {
+    ymir_vec_t		     *vel_fwd_surf_mass = ymir_vec_template (vel_fwd_surf);
+
+    ymir_mass_apply (vel_fwd_surf, vel_fwd_surf_mass);
+    misfit = ymir_vec_innerprod (vel_fwd_surf, vel_fwd_surf_mass);
+    ymir_vec_destroy (vel_fwd_surf_mass);
+  }
 
   /* destroy */
   rhea_velocity_surface_destroy (vel_fwd_surf);
-  rhea_velocity_surface_destroy (vel_mass_surf);
 
   /* return misfit value */
   return misfit;
