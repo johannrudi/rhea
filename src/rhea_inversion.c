@@ -83,6 +83,8 @@ struct rhea_inversion_problem
 static void
 rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
 {
+  //rhea_inversion_problem_t *inv_problem = data;
+
   //TODO
 }
 
@@ -92,6 +94,8 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
                                          const double step_length,
                                          void *data)
 {
+  //rhea_inversion_problem_t *inv_problem = data;
+
   //TODO
 }
 
@@ -100,12 +104,14 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
-  ymir_mesh_t          *ymir_mesh =
-                          rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-  ymir_pressure_elem_t *press_elem =
-                          rhea_stokes_problem_get_press_elem (stokes_problem);
+  ymir_mesh_t              *ymir_mesh;
+  ymir_pressure_elem_t     *press_elem;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+
+  /* get mesh data */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
   /* create forward and adjoint states */
   inv_problem->forward_vel_press = rhea_velocity_pressure_new (ymir_mesh,
@@ -123,6 +129,9 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   //inv_problem->vel_obs_type
   //inv_problem->vel_obs_surf
   //inv_problem->vel_obs_weight_surf
+
+  /* TODO */
+  rhea_stokes_problem_setup_solver (stokes_problem);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -160,13 +169,14 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
-  ymir_pressure_elem_t   *press_elem;
-  rhea_domain_options_t  *domain_options;
+  ymir_pressure_elem_t     *press_elem;
+  rhea_domain_options_t    *domain_options;
   double              obj_val;
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
-
   //TODO is solution unused?
+  //TODO add performance monitoring
+
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /* get mesh data */
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
@@ -201,13 +211,81 @@ rhea_inversion_newton_compute_negative_gradient_fn (
                                             ymir_vec_t *neg_gradient,
                                             ymir_vec_t *solution, void *data)
 {
+  rhea_inversion_problem_t *inv_problem = data;
+  rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t              *ymir_mesh;
+  ymir_pressure_elem_t     *press_elem;
+  ymir_vec_t         *forward_vel_press = inv_problem->forward_vel_press;
+  ymir_vec_t         *adjoint_vel_press = inv_problem->adjoint_vel_press;
+  ymir_vec_t         *rhs_vel_mass;
+  ymir_vec_t         *rhs_vel_press;
+  int                 stokes_nonzero_inital_guess;
+  int                 stokes_iter_max;
+  double              stokes_rel_tol;
+
+  //TODO add performance monitoring
+  //TODO is solution unused?
+
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+
+  /* get mesh data */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+  /* update Stokes solver for forward problem */
+  rhea_stokes_problem_update_solver (
+      stokes_problem, forward_vel_press,
+      0 /* !override_rhs */, NULL, NULL, NULL, NULL);
+
+  /* solve for forward state */
+  //TODO how to set these:
+  //stokes_nonzero_inital_guess
+  //stokes_iter_max
+  //stokes_rel_tol
+  rhea_stokes_problem_solve (
+      &forward_vel_press, stokes_nonzero_inital_guess, stokes_iter_max,
+      stokes_rel_tol, stokes_problem);
+  inv_problem->forward_vel_press = forward_vel_press;
+
+  /* update Stokes solver for adjoint problem */
+  rhs_vel_mass = rhea_velocity_new (ymir_mesh);
+  rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  rhea_inversion_obs_velocity_adjoint_rhs (
+      rhs_vel_mass, inv_problem->forward_vel, inv_problem->vel_obs_surf,
+      inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
+      rhea_stokes_problem_get_domain_options (stokes_problem));
+  ymir_vec_set_zero (rhs_vel_press);
+  rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
+                                         press_elem);
+  rhea_stokes_problem_update_solver (
+      stokes_problem, forward_vel_press,
+      1 /* override_rhs */, rhs_vel_press, NULL, NULL, NULL);
+  rhea_velocity_destroy (rhs_vel_mass);
+  rhea_velocity_pressure_destroy (rhs_vel_press);
+
+  /* solve for adjoint state */
+  //TODO how to set these:
+  //stokes_nonzero_inital_guess
+  //stokes_iter_max
+  //stokes_rel_tol
+  rhea_stokes_problem_solve_ext (
+      &adjoint_vel_press, stokes_nonzero_inital_guess, stokes_iter_max,
+      stokes_rel_tol, stokes_problem, 1 /* force linear solve */);
+  inv_problem->adjoint_vel_press = adjoint_vel_press;
+
+  /* compute gradient */
   //TODO
+  //inv_problem->newton_neg_gradient_vec
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 static double
 rhea_inversion_newton_compute_gradient_norm_fn (ymir_vec_t *neg_gradient,
                                                 void *data, double *norm_comp)
 {
+  //rhea_inversion_problem_t *inv_problem = data;
+
   //TODO
   return NAN;
 }
@@ -216,6 +294,8 @@ static void
 rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
                                         void *data)
 {
+  //rhea_inversion_problem_t *inv_problem = data;
+
   //TODO
 }
 
@@ -228,6 +308,8 @@ rhea_inversion_newton_solve_hessian_system_fn (
                                             const int nonzero_initial_guess,
                                             void *data, int *lin_iter_count)
 {
+  //rhea_inversion_problem_t *inv_problem = data;
+
   //TODO
   return 0;
 }
@@ -236,6 +318,8 @@ static void
 rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
                                          void *data)
 {
+  //rhea_inversion_problem_t *inv_problem = data;
+
   //TODO
 }
 
