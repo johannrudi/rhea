@@ -3095,12 +3095,32 @@ rhea_stokes_problem_update_solver (rhea_stokes_problem_t *stokes_problem,
 }
 
 void
-rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
-                           const int nonzero_initial_guess,
-                           const int iter_max,
-                           const double rtol,
-                           rhea_stokes_problem_t *stokes_problem)
+rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
+                               const int nonzero_initial_guess,
+                               const int iter_max,
+                               const double rtol,
+                               rhea_stokes_problem_t *stokes_problem,
+                               const int force_linear_solve)
 {
+  /* run only a linear solve */
+  if (force_linear_solve) {
+    switch (stokes_problem->type) {
+    case RHEA_STOKES_PROBLEM_LINEAR:
+      rhea_stokes_problem_linear_solve (sol_vel_press, nonzero_initial_guess,
+                                        iter_max, rtol, stokes_problem);
+      break;
+    case RHEA_STOKES_PROBLEM_NONLINEAR:
+      rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
+          *sol_vel_press, stokes_problem->rhs_vel_press,
+          iter_max, rtol, nonzero_initial_guess, stokes_problem, NULL);
+      break;
+    default: /* unknown Stokes type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+    return;
+  }
+
+  /* run a regular solve */
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
     rhea_stokes_problem_linear_solve (sol_vel_press, nonzero_initial_guess,
@@ -3113,6 +3133,18 @@ rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
   }
+}
+
+void
+rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
+                           const int nonzero_initial_guess,
+                           const int iter_max,
+                           const double rtol,
+                           rhea_stokes_problem_t *stokes_problem)
+{
+  rhea_stokes_problem_solve_ext (
+      sol_vel_press, nonzero_initial_guess, iter_max, rtol, stokes_problem,
+      0 /* force_linear_solve */);
 }
 
 void

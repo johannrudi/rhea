@@ -82,6 +82,20 @@ void                rhea_stokes_problem_setup_solver (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /**
+ * Solves a Stokes problem.
+ */
+void                rhea_stokes_problem_solve (
+                                    ymir_vec_t **sol_vel_press,
+                                    const int nonzero_initial_guess,
+                                    const int iter_max,
+                                    const double rtol,
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/******************************************************************************
+ * Stokes Solver, Extended
+ *****************************************************************************/
+
+/**
  * Updates the solver of a Stokes problem.
  */
 void                rhea_stokes_problem_update_solver (
@@ -96,12 +110,13 @@ void                rhea_stokes_problem_update_solver (
 /**
  * Solves a Stokes problem.
  */
-void                rhea_stokes_problem_solve (
+void                rhea_stokes_problem_solve_ext (
                                     ymir_vec_t **sol_vel_press,
                                     const int nonzero_initial_guess,
                                     const int iter_max,
                                     const double rtol,
-                                    rhea_stokes_problem_t *stokes_problem);
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    const int force_linear_solve);
 
 /**
  * Sets data to enable solver AMR/grid continuation.
