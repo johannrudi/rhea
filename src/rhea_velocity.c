@@ -98,6 +98,32 @@ rhea_velocity_segment_offset_create (ymir_vec_t *vec)
   return segment_offset;
 }
 
+int
+rhea_velocity_is_valid (ymir_vec_t *vec)
+{
+  return sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff);
+}
+
+void
+rhea_velocity_interpolate_from_surface (ymir_vec_t *vel_vol,
+                                        ymir_vec_t *vel_surf,
+                                        const int mass_weighted)
+{
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel_vol));
+  RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_surf));
+  RHEA_ASSERT (rhea_velocity_surface_is_valid (vel_surf));
+
+  /* interpolate */
+  if (mass_weighted) {
+    ymir_mass_apply (vel_surf, vel_vol);
+  }
+  else {
+    ymir_interp_vec (vel_surf, vel_vol);
+  }
+  RHEA_ASSERT (rhea_velocity_is_valid (vel_vol));
+}
+
 MPI_Offset
 rhea_velocity_segment_offset_get (ymir_vec_t *vec)
 {
@@ -132,12 +158,6 @@ rhea_velocity_segment_size_get (ymir_vec_t *vec)
 
   mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
   return (int) (n_fields * n_nodes[mpirank]);
-}
-
-int
-rhea_velocity_is_valid (ymir_vec_t *vec)
-{
-  return sc_dmatrix_is_valid (vec->dataown) && sc_dmatrix_is_valid (vec->coff);
 }
 
 /******************************************************************************

@@ -55,6 +55,14 @@ int                 rhea_velocity_check_vec_type (ymir_vec_t *vec);
 int                 rhea_velocity_is_valid (ymir_vec_t *vec);
 
 /**
+ * Interpolates velocity from surface to volume.
+ */
+void                rhea_velocity_interpolate_from_surface (
+                                                      ymir_vec_t *vel_vol,
+                                                      ymir_vec_t *vel_surf,
+                                                      const int mass_weighted);
+
+/**
  * Gets rank-global offsets or rank-local sizes of a distributed vector for
  *  each MPI-rank
  */
@@ -126,8 +134,8 @@ typedef void      (*rhea_velocity_rhs_neumann_compute_fn_t) (
                                         void *data); //XI
 
 void                rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel,
-                                              ymir_vec_t *temperature,
-                                              void *data);
+                                               ymir_vec_t *temperature,
+                                               void *data);
 
 /******************************************************************************
  * Statistics
