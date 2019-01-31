@@ -1,7 +1,6 @@
 #include <rhea_inversion_obs_velocity.h>
 #include <rhea_base.h>
 #include <rhea_velocity.h>
-#include <rhea_velocity_pressure.h>
 #include <ymir_velocity_vec.h>
 #include <ymir_mass_vec.h>
 
@@ -40,7 +39,7 @@ rhea_inversion_obs_velocity_remove_normal_fn (double *vec,
                                        ymir_topidx_t face,
                                        ymir_locidx_t node_id, void *data)
 {
-  double			 vr;
+  double              vr;
 
   /* remove the normal component of the face vector */
   vr = nx * vec[0] + ny * vec[1] + nz * vec[2];
@@ -58,18 +57,21 @@ rhea_inversion_obs_velocity_remove_normal (ymir_vec_t * vel_surf)
       vel_surf, rhea_inversion_obs_velocity_remove_normal_fn, NULL);
 }
 
-double
-rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
-                                    ymir_vec_t *vel_obs_surf,
-                                    ymir_vec_t *weight_surf,
-                                    rhea_inversion_obs_velocity_t obs_type,
-                                    rhea_domain_options_t *domain_options)
+/**
+ * Compute the misfit of the velocity at the surface:
+ *   ObsOp(vel) - vel_obs
+ */
+static void
+rhea_inversion_obs_velocity_misfit_vec (
+                                  ymir_vec_t *misfit_surf,
+                                  ymir_vec_t *vel_fwd_vol,
+                                  ymir_vec_t *vel_obs_surf,
+                                  ymir_vec_t *weight_surf,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options)
 {
-  ymir_vec_t         *vel_fwd_surf =
-                        rhea_velocity_surface_new_from_vol (vel_fwd_vol);
-  double              misfit = NAN;
-
   /* check input */
+  RHEA_ASSERT (rhea_velocity_surface_check_vec_type (misfit_surf));
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel_fwd_vol));
   RHEA_ASSERT (rhea_velocity_is_valid (vel_fwd_vol));
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_obs_surf));
@@ -78,6 +80,9 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
                rhea_inversion_obs_velocity_weight_check_vec_type (weight_surf));
   RHEA_ASSERT (weight_surf == NULL ||
                rhea_inversion_obs_velocity_weight_is_valid (weight_surf));
+
+  /* project velocity from volume to surface */
+  rhea_velocity_surface_interpolate (misfit_surf, vel_fwd_vol);
 
   /* project out mean rotation */
   switch (obs_type) {
@@ -89,7 +94,7 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
   case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
     RHEA_ASSERT (domain_options != NULL);
     ymir_velocity_vec_project_out_mean_rotation (
-        vel_fwd_surf, domain_options->center,
+        misfit_surf, domain_options->center,
         domain_options->moment_of_inertia_surface, 0 /* !residual_space */);
     break;
   default: /* unknown observation type */
@@ -103,8 +108,8 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
     break;
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
-    ymir_vec_add (-1.0, vel_obs_surf, vel_fwd_surf);
-    rhea_inversion_obs_velocity_remove_normal (vel_fwd_surf);
+    ymir_vec_add (-1.0, vel_obs_surf, misfit_surf);
+    rhea_inversion_obs_velocity_remove_normal (misfit_surf);
     break;
   case RHEA_INVERSION_OBS_VELOCITY_ALL:
   case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
@@ -117,41 +122,58 @@ rhea_inversion_obs_velocity_misfit (ymir_vec_t *vel_fwd_vol,
   /* apply weight to difference */
   if (weight_surf != NULL) {
     if (1 == weight_surf->ncfields) {
-      ymir_vec_multiply_in1 (weight_surf, vel_fwd_surf);
+      ymir_vec_multiply_in1 (weight_surf, misfit_surf);
     }
     else {
       RHEA_ASSERT (3 == weight_surf->ncfields);
-      ymir_vec_multiply_in (weight_surf, vel_fwd_surf);
+      ymir_vec_multiply_in (weight_surf, misfit_surf);
     }
   }
+}
+
+double
+rhea_inversion_obs_velocity_misfit (
+                                  ymir_vec_t *vel_fwd_vol,
+                                  ymir_vec_t *vel_obs_surf,
+                                  ymir_vec_t *weight_surf,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_fwd_vol);
+  ymir_vec_t         *misfit_surf = rhea_velocity_surface_new (ymir_mesh);
+  ymir_vec_t         *misfit_surf_mass = rhea_velocity_surface_new (ymir_mesh);
+  double              misfit_norm_sq;
+
+  /* compute misfit vector */
+  rhea_inversion_obs_velocity_misfit_vec (
+      misfit_surf, vel_fwd_vol, vel_obs_surf, weight_surf, obs_type,
+      domain_options);
 
   /* compute squared L2-norm */
-  {
-    ymir_vec_t		     *vel_fwd_surf_mass = ymir_vec_template (vel_fwd_surf);
-
-    ymir_mass_apply (vel_fwd_surf, vel_fwd_surf_mass);
-    misfit = ymir_vec_innerprod (vel_fwd_surf, vel_fwd_surf_mass);
-    ymir_vec_destroy (vel_fwd_surf_mass);
-  }
+  ymir_mass_apply (misfit_surf, misfit_surf_mass);
+  misfit_norm_sq = ymir_vec_innerprod (misfit_surf, misfit_surf_mass);
 
   /* destroy */
-  rhea_velocity_surface_destroy (vel_fwd_surf);
+  rhea_velocity_surface_destroy (misfit_surf);
+  rhea_velocity_surface_destroy (misfit_surf_mass);
 
-  /* return misfit value */
-  return misfit;
+  /* return squared L2-norm of misfit */
+  return misfit_norm_sq;
 }
 
 void
 rhea_inversion_obs_velocity_adjoint_rhs (
-                                      ymir_vec_t *rhs_vel_press,
-                                      ymir_vec_t *vel_fwd_vol,
-                                      ymir_vec_t *vel_obs_surf,
-                                      ymir_vec_t *weight_surf,
-                                      rhea_inversion_obs_velocity_t obs_type,
-                                      rhea_domain_options_t *domain_options)
+                                  ymir_vec_t *rhs_vel_mass,
+                                  ymir_vec_t *vel_fwd_vol,
+                                  ymir_vec_t *vel_obs_surf,
+                                  ymir_vec_t *weight_surf,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options)
 {
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_fwd_vol);
+  ymir_vec_t         *misfit_surf = rhea_velocity_surface_new (ymir_mesh);
+
   /* check input */
-  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (rhs_vel_press));
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel_fwd_vol));
   RHEA_ASSERT (rhea_velocity_is_valid (vel_fwd_vol));
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_obs_surf));
@@ -161,5 +183,18 @@ rhea_inversion_obs_velocity_adjoint_rhs (
   RHEA_ASSERT (weight_surf == NULL ||
                rhea_inversion_obs_velocity_weight_is_valid (weight_surf));
 
-  //TODO
+  /* compute misfit vector */
+  rhea_inversion_obs_velocity_misfit_vec (
+      misfit_surf, vel_fwd_vol, vel_obs_surf, weight_surf, obs_type,
+      domain_options);
+
+  /* project misfit into volume */
+  rhea_velocity_interpolate_from_surface (rhs_vel_mass, misfit_surf,
+                                          1 /* mass_weighted */);
+
+  /* change sign to obtain the right-hand side */
+  ymir_vec_scale (-1.0, rhs_vel_mass);
+
+  /* destroy */
+  rhea_velocity_surface_destroy (misfit_surf);
 }

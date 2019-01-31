@@ -23,21 +23,21 @@ rhea_inversion_obs_velocity_t;
  * Computes the (squared norm of the) misfit of velocities at the surface.
  */
 double              rhea_inversion_obs_velocity_misfit (
-                                      ymir_vec_t *vel_fwd_vol,
-                                      ymir_vec_t *vel_obs_surf,
-                                      ymir_vec_t *weight_surf,
-                                      rhea_inversion_obs_velocity_t obs_type,
-                                      rhea_domain_options_t *domain_options);
+                                  ymir_vec_t *vel_fwd_vol,
+                                  ymir_vec_t *vel_obs_surf,
+                                  ymir_vec_t *weight_surf,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options);
 
 /**
- * Computes the right-hand side for the adjoint equations..
+ * Computes the right-hand side for the adjoint equations.
  */
 void                rhea_inversion_obs_velocity_adjoint_rhs (
-                                      ymir_vec_t *rhs_vel_press,
-                                      ymir_vec_t *vel_fwd_vol,
-                                      ymir_vec_t *vel_obs_surf,
-                                      ymir_vec_t *weight_surf,
-                                      rhea_inversion_obs_velocity_t obs_type,
-                                      rhea_domain_options_t *domain_options);
+                                  ymir_vec_t *rhs_vel_mass,
+                                  ymir_vec_t *vel_fwd_vol,
+                                  ymir_vec_t *vel_obs_surf,
+                                  ymir_vec_t *weight_surf,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options);
 
 #endif /* RHEA_INVERSION_OBS_VELOCITY_H */
