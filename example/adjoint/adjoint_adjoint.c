@@ -166,6 +166,8 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
 
     *newton_problem = rhea_newton_problem_new (
         adjoint_solve_negative_gradient,
+        adjoint_compute_gradient_norm,
+        0 /* no multi-component norms */,
         adjoint_solve_hessian_system_fn);
 
     rhea_newton_problem_set_vectors (
@@ -175,11 +177,9 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
         adjoint_problem, adjoint_data_init, adjoint_problem_destroy,
         *newton_problem);
 
-    rhea_newton_problem_set_conv_criterion_fn (
-        RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM, // or RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+    rhea_newton_problem_set_evaluate_objective_fn (
         adjoint_evaluate_objective,
-        adjoint_compute_gradient_norm,
-        0 /* no multi-component norms */, *newton_problem);
+        *newton_problem);
 
     rhea_newton_problem_set_apply_hessian_fn (
        /* adjoint_apply_hessian_fn */ NULL, *newton_problem);
@@ -682,7 +682,6 @@ adjoint_stokes_update_forward (rhea_stokes_problem_t *stokes_problem,
   ymir_vec_t      *coeff;
   ymir_stokes_op_t *stokes_op;
   ymir_stress_op_t *stress_op;
-  ymir_stokes_pc_t *stokes_pc;
 
   ymir_vec_t *rhs_vel;
   ymir_vec_t *rhs_vel_press;
@@ -700,17 +699,13 @@ adjoint_stokes_update_forward (rhea_stokes_problem_t *stokes_problem,
 
   rhs_vel_press = rhea_stokes_problem_get_rhs_vel_press (stokes_problem);
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
-  ymir_stokes_pc_construct_rhs (
-      rhs_vel_press, //out and set to stokes
+  rhea_stokes_problem_update_solver (
+      stokes_problem, NULL,
+      1 /* new_rhs */,
+      NULL,
       rhs_vel, //rhs_vel: volume forcing is zero
       NULL, // from forward Stokes
-      NULL, //rhs_vel_nonzero_dirichlet is zero
-      1, //incompressible
-      stokes_op,
-      0);
-
-  stokes_pc = rhea_stokes_problem_get_stokes_pc (stokes_problem);
-  ymir_stokes_pc_recompute (stokes_pc);
+      NULL); //rhs_vel_nonzero_dirichlet is zero
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
