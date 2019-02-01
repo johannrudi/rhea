@@ -219,23 +219,23 @@ ymir_vec_t        **rhea_stokes_problem_get_rhs_vel_nonzero_neumann (
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_neumann_surface (
                                     rhea_stokes_problem_t *stokes_problem);
 
-void                rhea_stokes_prbolem_set_weakzone_compute_fn (
+void                rhea_stokes_problem_set_weakzone_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_weakzone_compute_fn_t fn,
                                     void *data);
-void                rhea_stokes_prbolem_set_viscosity_compute_fn (
+void                rhea_stokes_problem_set_viscosity_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_viscosity_compute_fn_t fn,
                                     void *data);
-void                rhea_stokes_prbolem_set_rhs_vel_compute_fn (
+void                rhea_stokes_problem_set_rhs_vel_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_compute_fn_t fn,
                                     void *data);
-void                rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+void                rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_nz_dir_compute_fn_t fn,
                                     void *data);
-void                rhea_stokes_prbolem_set_rhs_vel_nonzero_neu_compute_fn (
+void                rhea_stokes_problem_set_rhs_vel_nonzero_neu_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_nz_neu_compute_fn_t fn,
                                     void *data);

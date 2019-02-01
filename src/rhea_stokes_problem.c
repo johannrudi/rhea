@@ -261,7 +261,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
     stokes_problem->weakzone_compute_fn = NULL;
     stokes_problem->weakzone_compute_fn_data = NULL;
   }
-  rhea_stokes_prbolem_set_viscosity_compute_fn (
+  rhea_stokes_problem_set_viscosity_compute_fn (
       stokes_problem, rhea_viscosity_compute, visc_options);
   stokes_problem->rhs_vel_compute_fn = rhea_velocity_rhs_compute;
   stokes_problem->rhs_vel_compute_fn_data = temp_options;
@@ -3401,7 +3401,7 @@ rhea_stokes_problem_get_rhs_vel_nonzero_neumann_surface (
 }
 
 void
-rhea_stokes_prbolem_set_weakzone_compute_fn (
+rhea_stokes_problem_set_weakzone_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_weakzone_compute_fn_t fn,
                                     void *data)
@@ -3431,7 +3431,7 @@ rhea_stokes_prbolem_set_weakzone_compute_fn (
 }
 
 void
-rhea_stokes_prbolem_set_viscosity_compute_fn (
+rhea_stokes_problem_set_viscosity_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_viscosity_compute_fn_t fn,
                                     void *data)
@@ -3445,7 +3445,7 @@ rhea_stokes_prbolem_set_viscosity_compute_fn (
 }
 
 void
-rhea_stokes_prbolem_set_rhs_vel_compute_fn (
+rhea_stokes_problem_set_rhs_vel_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_compute_fn_t fn,
                                     void *data)
@@ -3466,7 +3466,7 @@ rhea_stokes_prbolem_set_rhs_vel_compute_fn (
 }
 
 void
-rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_nz_dir_compute_fn_t fn,
                                     void *data)
@@ -3497,7 +3497,7 @@ rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
 }
 
 void
-rhea_stokes_prbolem_set_rhs_vel_nonzero_neu_compute_fn (
+rhea_stokes_problem_set_rhs_vel_nonzero_neu_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_nz_neu_compute_fn_t fn,
                                     void *data)
