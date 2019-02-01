@@ -356,6 +356,8 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
 
     newton_problem = rhea_newton_problem_new (
         rhea_inversion_newton_compute_negative_gradient_fn,
+        rhea_inversion_newton_compute_gradient_norm_fn,
+        grad_norm_n_components,
         rhea_inversion_newton_solve_hessian_system_fn);
     inv_problem->newton_problem = newton_problem;
 
@@ -368,17 +370,14 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
         inv_problem,
         rhea_inversion_newton_create_solver_data_fn,
         rhea_inversion_newton_clear_solver_data_fn, newton_problem);
-    rhea_newton_problem_set_conv_criterion_fn (
-        RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM,//TODO
-        rhea_inversion_newton_evaluate_objective_fn,
-        rhea_inversion_newton_compute_gradient_norm_fn,
-        grad_norm_n_components, newton_problem);
+    rhea_newton_problem_set_evaluate_objective_fn (
+        rhea_inversion_newton_evaluate_objective_fn, newton_problem);
     rhea_newton_problem_set_apply_hessian_fn (
         rhea_inversion_newton_apply_hessian_fn, newton_problem);
     rhea_newton_problem_set_update_fn (
         rhea_inversion_newton_update_operator_fn,
         rhea_inversion_newton_update_hessian_fn,
-        NULL/*rhea_inversion_newton_modify_hessian_system_fn*/, newton_problem);
+        NULL /*rhea_inversion_newton_modify_hessian_system_fn*/, newton_problem);
   //rhea_newton_problem_set_setup_poststep_fn (
   //    rhea_inversion_newton_amr_fn, newton_problem);
     rhea_newton_problem_set_output_fn (
