@@ -145,17 +145,16 @@ main (int argc, char **argv)
 
     nl_problem = rhea_newton_problem_new (
         newton_polynomial_compute_negative_gradient,
+        newton_polynomial_compute_gradient_norm,
+        0 /* no multi-component norms */,
         newton_polynomial_solve_hessian_system);
     rhea_newton_problem_set_vectors (
         neg_gradient_vec, step_vec, nl_problem);
     rhea_newton_problem_set_data_fn (
         poly_problem, newton_polynomial_data_init, NULL /* no clear fnc. */,
         nl_problem);
-    rhea_newton_problem_set_conv_criterion_fn (
-        RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
-        newton_polynomial_evaluate_objective,
-        newton_polynomial_compute_gradient_norm,
-        0 /* no multi-component norms */, nl_problem);
+    rhea_newton_problem_set_evaluate_objective_fn (
+        newton_polynomial_evaluate_objective, nl_problem);
     rhea_newton_problem_set_apply_hessian_fn (
         newton_polynomial_apply_hessian, nl_problem);
     rhea_newton_problem_set_update_fn (
