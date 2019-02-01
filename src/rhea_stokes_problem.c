@@ -2754,6 +2754,8 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
 
     newton_problem = rhea_newton_problem_new (
         rhea_stokes_problem_nonlinear_compute_negative_gradient_fn,
+        rhea_stokes_problem_nonlinear_compute_gradient_norm_fn,
+        grad_norm_n_components,
         rhea_stokes_problem_nonlinear_solve_hessian_system_fn);
     stokes_problem_nl->newton_problem = newton_problem;
 
@@ -2768,11 +2770,6 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
         stokes_problem_nl,
         rhea_stokes_problem_nonlinear_create_solver_data_fn,
         NULL /* keep solver data for postprocessing */, newton_problem);
-    rhea_newton_problem_set_conv_criterion_fn (
-        RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM,
-        NULL /* objective functional is not provided */,
-        rhea_stokes_problem_nonlinear_compute_gradient_norm_fn,
-        grad_norm_n_components, newton_problem);
     rhea_newton_problem_set_apply_hessian_fn (
         rhea_stokes_problem_nonlinear_apply_hessian_fn, newton_problem);
     rhea_newton_problem_set_update_fn (
