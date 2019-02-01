@@ -5,8 +5,6 @@
 /* Newton status */
 typedef struct rhea_newton_status
 {
-  rhea_newton_conv_criterion_t  conv_criterion;
-
   /* objective value at (initial, previous, and current) iteration */
   double              obj_init;
   double              obj_prev;
@@ -64,7 +62,6 @@ struct rhea_newton_problem
   ymir_vec_t         *step_vec;
 
   /* callback functions for Newton algorithm */
-  rhea_newton_conv_criterion_t                conv_criterion;
   rhea_newton_evaluate_objective_fn_t         evaluate_objective;
   rhea_newton_compute_negative_gradient_fn_t  compute_neg_gradient;
   rhea_newton_compute_norm_of_gradient_fn_t   compute_gradient_norm;
@@ -324,22 +321,26 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
 rhea_newton_problem_t *
 rhea_newton_problem_new (
               rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
+              rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
+              const int grad_norm_multi_components,
               rhea_newton_solve_hessian_system_fn_t solve_hessian_sys)
 {
   rhea_newton_problem_t  *nl_problem = RHEA_ALLOC (rhea_newton_problem_t, 1);
 
   /* check input */
   RHEA_ASSERT (compute_neg_gradient != NULL);
+  RHEA_ASSERT (compute_gradient_norm != NULL);
   RHEA_ASSERT (solve_hessian_sys != NULL);
 
   nl_problem->neg_gradient_vec = NULL;
   nl_problem->step_vec = NULL;
   nl_problem->compute_neg_gradient = compute_neg_gradient;
+  nl_problem->compute_gradient_norm = compute_gradient_norm;
+  nl_problem->grad_norm_multi_components = grad_norm_multi_components;
   nl_problem->solve_hessian_sys = solve_hessian_sys;
 
   rhea_newton_problem_set_data_fn (NULL, NULL, NULL, nl_problem);
-  rhea_newton_problem_set_conv_criterion_fn (RHEA_NEWTON_CONV_CRITERION_NONE,
-                                             NULL, NULL, 0, nl_problem);
+  rhea_newton_problem_set_evaluate_objective_fn (NULL, nl_problem);
   rhea_newton_problem_set_apply_hessian_fn (NULL, nl_problem);
   rhea_newton_problem_set_update_fn (NULL, NULL, NULL, nl_problem);
   rhea_newton_problem_set_setup_poststep_fn (NULL, nl_problem);
@@ -391,34 +392,11 @@ rhea_newton_problem_set_data_fn (
 }
 
 void
-rhea_newton_problem_set_conv_criterion_fn (
-              rhea_newton_conv_criterion_t conv_criterion,
+rhea_newton_problem_set_evaluate_objective_fn (
               rhea_newton_evaluate_objective_fn_t evaluate_objective,
-              rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
-              const int grad_norm_multi_components,
               rhea_newton_problem_t *nl_problem)
 {
-  /* check input */
-#if RHEA_ENABLE_DEBUG
-  switch (conv_criterion) {
-  case RHEA_NEWTON_CONV_CRITERION_NONE:
-    break;
-  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
-    RHEA_ASSERT (evaluate_objective != NULL);
-    break;
-  case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
-    RHEA_ASSERT (compute_gradient_norm != NULL);
-    break;
-  default: /* unknown criterion */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-#endif
-
-  nl_problem->conv_criterion = conv_criterion;
   nl_problem->evaluate_objective = evaluate_objective;
-  nl_problem->compute_gradient_norm = compute_gradient_norm;
-  nl_problem->grad_norm_multi_components = grad_norm_multi_components;
 }
 
 void
@@ -695,15 +673,8 @@ rhea_newton_step_init (rhea_newton_step_t *step)
  */
 static void
 rhea_newton_status_init (rhea_newton_status_t *status,
-                         const rhea_newton_conv_criterion_t conv_criterion,
                          const int grad_norm_multi_components)
 {
-  /* check input */
-  RHEA_ASSERT (conv_criterion != RHEA_NEWTON_CONV_CRITERION_NONE);
-
-  /* init convergence criterion */
-  status->conv_criterion = conv_criterion;
-
   /* init valus pertaining to objective values */
   status->obj_init = NAN;
   status->obj_prev = NAN;
@@ -769,35 +740,37 @@ rhea_newton_status_set_curr (rhea_newton_status_t *status,
                              const double grad_norm,
                              const double *grad_norm_comp)
 {
+  int                 compid;
+
   /* set values pertaining to objective */
-  status->obj_curr = obj;
-
-  if (isfinite (status->obj_prev)) {
-    status->obj_reduction_curr = rhea_newton_calculate_reduction (
-        status->obj_prev, status->obj_curr);
-  }
-  if (isfinite (status->obj_init)) {
-    status->obj_reduction = rhea_newton_calculate_reduction (
-        status->obj_init, status->obj_curr);
-  }
-
-  /* set valus pertaining to gradient norm(s) */
-  status->grad_norm_curr = grad_norm;
-  if (0 < status->grad_norm_multi_components && grad_norm_comp != NULL) {
-    int                 compid;
-
-    for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
-      status->grad_norm_curr_comp[compid] = grad_norm_comp[compid];
+  if (isfinite (obj)) {
+    status->obj_curr = obj;
+    if (isfinite (status->obj_prev)) {
+      status->obj_reduction_curr = rhea_newton_calculate_reduction (
+          status->obj_prev, status->obj_curr);
+    }
+    if (isfinite (status->obj_init)) {
+      status->obj_reduction = rhea_newton_calculate_reduction (
+          status->obj_init, status->obj_curr);
     }
   }
 
-  if (isfinite (status->grad_norm_prev)) {
-    status->grad_norm_reduction_curr = rhea_newton_calculate_reduction (
-        status->grad_norm_prev, status->grad_norm_curr);
-  }
-  if (isfinite (status->grad_norm_init)) {
-    status->grad_norm_reduction = rhea_newton_calculate_reduction (
-        status->grad_norm_init, status->grad_norm_curr);
+  /* set valus pertaining to gradient norm(s) */
+  if (isfinite (grad_norm)) {
+    status->grad_norm_curr = grad_norm;
+    if (0 < status->grad_norm_multi_components && grad_norm_comp != NULL) {
+      for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
+        status->grad_norm_curr_comp[compid] = grad_norm_comp[compid];
+      }
+    }
+    if (isfinite (status->grad_norm_prev)) {
+      status->grad_norm_reduction_curr = rhea_newton_calculate_reduction (
+          status->grad_norm_prev, status->grad_norm_curr);
+    }
+    if (isfinite (status->grad_norm_init)) {
+      status->grad_norm_reduction = rhea_newton_calculate_reduction (
+          status->grad_norm_init, status->grad_norm_curr);
+    }
   }
 }
 
@@ -807,14 +780,14 @@ rhea_newton_status_set_curr (rhea_newton_status_t *status,
 static void
 rhea_newton_status_copy_curr_to_init (rhea_newton_status_t *status)
 {
+  int                 compid;
+
   /* copy values pertaining to objective */
   status->obj_init = status->obj_curr;
 
   /* copy valus pertaining to gradient norm(s) */
   status->grad_norm_init = status->grad_norm_curr;
   if (0 < status->grad_norm_multi_components) {
-    int                 compid;
-
     for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
       status->grad_norm_init_comp[compid] = status->grad_norm_curr_comp[compid];
     }
@@ -827,6 +800,8 @@ rhea_newton_status_copy_curr_to_init (rhea_newton_status_t *status)
 static void
 rhea_newton_status_copy_curr_to_prev (rhea_newton_status_t *status)
 {
+  int                 compid;
+
   /* copy values pertaining to objective */
   status->obj_prev = status->obj_curr;
   status->obj_reduction_prev = status->obj_reduction_curr;
@@ -835,23 +810,31 @@ rhea_newton_status_copy_curr_to_prev (rhea_newton_status_t *status)
   status->grad_norm_prev = status->grad_norm_curr;
   status->grad_norm_reduction_prev = status->grad_norm_reduction_curr;
   if (0 < status->grad_norm_multi_components) {
-    int                 compid;
-
     for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
       status->grad_norm_prev_comp[compid] = status->grad_norm_curr_comp[compid];
     }
   }
 }
 
+/* enumerator for convergence critera */
+typedef enum
+{
+  RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+  RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
+  RHEA_NEWTON_CONV_CRITERION_ALL
+}
+rhea_newton_conv_criterion_t;
+
 /**
  * Computes and sets the current status.
  */
 static void
-rhea_newton_status_compute_curr (rhea_newton_status_t *status,
-                                 int *neg_gradient_updated,
-                                 ymir_vec_t *solution,
-                                 rhea_newton_problem_t *nl_problem,
-                                 const int compute_all)
+rhea_newton_status_compute_curr (
+                            rhea_newton_status_t *status,
+                            int *neg_gradient_updated,
+                            const rhea_newton_conv_criterion_t conv_criterion,
+                            ymir_vec_t *solution,
+                            rhea_newton_problem_t *nl_problem)
 {
   int                 compute_obj = 0;
   int                 compute_grad = 0;
@@ -859,24 +842,22 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
   double              grad_norm = NAN;
   double             *grad_norm_comp = NULL;
 
-  /* check input */
-  RHEA_ASSERT (status->conv_criterion != RHEA_NEWTON_CONV_CRITERION_NONE);
-
   /* set flags, which values should be computed */
-  if (RHEA_NEWTON_CONV_CRITERION_OBJECTIVE == status->conv_criterion ||
-      ( compute_all &&
-        rhea_newton_problem_evaluate_objective_exists (nl_problem) )) {
-    compute_obj = 1;
-  }
-  if (RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM == status->conv_criterion ||
-      RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM == status->conv_criterion ||
-      ( compute_all &&
-        rhea_newton_problem_compute_gradient_norm_exists (nl_problem) )) {
+  switch (conv_criterion) {
+  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+    compute_obj = rhea_newton_problem_evaluate_objective_exists (nl_problem);
+    compute_grad = !compute_obj;
+    break;
+  case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
+    compute_obj = 0;
     compute_grad = 1;
-    RHEA_ASSERT (nl_problem->neg_gradient_vec != NULL);
-  }
-  else if (neg_gradient_updated != NULL) {
-    *neg_gradient_updated = 0;
+    break;
+  case RHEA_NEWTON_CONV_CRITERION_ALL:
+    compute_obj = rhea_newton_problem_evaluate_objective_exists (nl_problem);
+    compute_grad = 1;
+    break;
+  default: /* unknown criterion */
+    RHEA_ABORT_NOT_REACHED ();
   }
 
   /* evaluate objective functional */
@@ -890,6 +871,7 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
     const int           n_components = status->grad_norm_multi_components;
 
     /* compute (negative) gradient */
+    RHEA_ASSERT (nl_problem->neg_gradient_vec != NULL);
     rhea_newton_problem_compute_neg_gradient (neg_gradient, solution,
                                               nl_problem);
     if (neg_gradient_updated != NULL) {
@@ -906,6 +888,14 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
     grad_norm = rhea_newton_problem_compute_gradient_norm (neg_gradient,
                                                            nl_problem,
                                                            grad_norm_comp);
+
+    /* set objective if its evaluation function does not exist */
+    if (!rhea_newton_problem_evaluate_objective_exists (nl_problem)) {
+      obj_val = grad_norm;
+    }
+  }
+  else if (neg_gradient_updated != NULL) {
+    *neg_gradient_updated = 0;
   }
 
   /* set current status */
@@ -919,45 +909,20 @@ rhea_newton_status_compute_curr (rhea_newton_status_t *status,
 }
 
 /**
- * Returns initial value that determines convergence.
- */
-#if 0 //TODO unused yet
-static double
-rhea_newton_status_get_conv_value_init (rhea_newton_status_t *status)
-{
-  double              val;
-
-  switch (status->conv_criterion) {
-  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
-    val = status->obj_init;
-    break;
-  case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
-    val = status->grad_norm_init;
-    break;
-  default: /* unknown criterion */
-    RHEA_ABORT_NOT_REACHED ();
-    val = -1.0;
-  }
-
-  return val;
-}
-#endif
-
-/**
  * Returns previous value that determines convergence.
  */
 static double
-rhea_newton_status_get_conv_value_prev (rhea_newton_status_t *status)
+rhea_newton_status_get_conv_value_prev (
+                            rhea_newton_status_t *status,
+                            const rhea_newton_conv_criterion_t conv_criterion)
 {
   double              val;
 
-  switch (status->conv_criterion) {
+  switch (conv_criterion) {
   case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
     val = status->obj_prev;
     break;
   case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
     val = status->grad_norm_prev;
     break;
   default: /* unknown criterion */
@@ -972,16 +937,17 @@ rhea_newton_status_get_conv_value_prev (rhea_newton_status_t *status)
  * Returns current value that determines convergence.
  */
 static double
-rhea_newton_status_get_conv_value_curr (rhea_newton_status_t *status)
+rhea_newton_status_get_conv_value_curr (
+                            rhea_newton_status_t *status,
+                            const rhea_newton_conv_criterion_t conv_criterion)
 {
   double              val;
 
-  switch (status->conv_criterion) {
+  switch (conv_criterion) {
   case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
     val = status->obj_curr;
     break;
   case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
     val = status->grad_norm_curr;
     break;
   default: /* unknown criterion */
@@ -996,16 +962,17 @@ rhea_newton_status_get_conv_value_curr (rhea_newton_status_t *status)
  * Returns overall reduction of the value that determines convergence.
  */
 static double
-rhea_newton_status_get_reduction (rhea_newton_status_t *status)
+rhea_newton_status_get_reduction (
+                            rhea_newton_status_t *status,
+                            const rhea_newton_conv_criterion_t conv_criterion)
 {
   double              reduction;
 
-  switch (status->conv_criterion) {
+  switch (conv_criterion) {
   case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
     reduction = status->obj_reduction;
     break;
   case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
     reduction = status->grad_norm_reduction;
     break;
   default: /* unknown criterion */
@@ -1016,20 +983,28 @@ rhea_newton_status_get_reduction (rhea_newton_status_t *status)
   return reduction;
 }
 
+static double
+rhea_newton_status_get_grad_reduction (rhea_newton_status_t *status)
+{
+  return rhea_newton_status_get_reduction (
+      status, RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM);
+}
+
 /**
  * Returns previous reduction of the value that determines convergence.
  */
 static double
-rhea_newton_status_get_reduction_prev (rhea_newton_status_t *status)
+rhea_newton_status_get_reduction_prev (
+                            rhea_newton_status_t *status,
+                            const rhea_newton_conv_criterion_t conv_criterion)
 {
   double              reduction;
 
-  switch (status->conv_criterion) {
+  switch (conv_criterion) {
   case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
     reduction = status->obj_reduction_prev;
     break;
   case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
     reduction = status->grad_norm_reduction_prev;
     break;
   default: /* unknown criterion */
@@ -1040,20 +1015,28 @@ rhea_newton_status_get_reduction_prev (rhea_newton_status_t *status)
   return reduction;
 }
 
+static double
+rhea_newton_status_get_grad_reduction_prev (rhea_newton_status_t *status)
+{
+  return rhea_newton_status_get_reduction_prev (
+      status, RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM);
+}
+
 /**
  * Returns current reduction of the value that determines convergence.
  */
 static double
-rhea_newton_status_get_reduction_curr (rhea_newton_status_t *status)
+rhea_newton_status_get_reduction_curr (
+                            rhea_newton_status_t *status,
+                            const rhea_newton_conv_criterion_t conv_criterion)
 {
   double              reduction;
 
-  switch (status->conv_criterion) {
+  switch (conv_criterion) {
   case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
     reduction = status->obj_reduction_curr;
     break;
   case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
     reduction = status->grad_norm_reduction_curr;
     break;
   default: /* unknown criterion */
@@ -1062,6 +1045,13 @@ rhea_newton_status_get_reduction_curr (rhea_newton_status_t *status)
   }
 
   return reduction;
+}
+
+static double
+rhea_newton_status_get_grad_reduction_curr (rhea_newton_status_t *status)
+{
+  return rhea_newton_status_get_reduction_curr (
+      status, RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM);
 }
 
 /**
@@ -1140,26 +1130,13 @@ rhea_newton_status_print_curr_comp (const int n_components,
  */
 static void
 rhea_newton_status_print_curr (rhea_newton_status_t *status,
-                               const int print_all,
+                               const int evaluate_objective_exists,
                                const int iter,
                                const char *func_name)
 {
-  switch (status->conv_criterion) {
-  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+  if (evaluate_objective_exists) {
     rhea_newton_status_print_curr_obj (status->obj_curr, status->obj_reduction,
                                        iter, func_name);
-    if (print_all) { /* if print all convergence values */
-      rhea_newton_status_print_curr_grad (status->grad_norm_curr,
-                                          status->grad_norm_reduction,
-                                          iter, func_name);
-      if (0 < status->grad_norm_multi_components) { /* if print components */
-        rhea_newton_status_print_curr_comp (status->grad_norm_multi_components,
-                                            status->grad_norm_curr_comp,
-                                            iter, func_name);
-      }
-    }
-    break;
-  case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
     rhea_newton_status_print_curr_grad (status->grad_norm_curr,
                                         status->grad_norm_reduction,
                                         iter, func_name);
@@ -1168,13 +1145,8 @@ rhea_newton_status_print_curr (rhea_newton_status_t *status,
                                           status->grad_norm_curr_comp,
                                           iter, func_name);
     }
-    if (print_all) { /* if print all convergence values */
-      rhea_newton_status_print_curr_obj (status->obj_curr,
-                                         status->obj_reduction,
-                                         iter, func_name);
-    }
-    break;
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
+  }
+  else {
     rhea_newton_status_print_curr_res (status->grad_norm_curr,
                                        status->grad_norm_reduction,
                                        iter, func_name);
@@ -1183,14 +1155,10 @@ rhea_newton_status_print_curr (rhea_newton_status_t *status,
                                           status->grad_norm_curr_comp,
                                           iter, func_name);
     }
-    RHEA_ASSERT (!print_all);
-    break;
-  default: /* unknown convergence criterion */
-    RHEA_ABORT_NOT_REACHED ();
   }
 }
 
-/* status summary */
+/* total values of status summary */
 double              rhea_newton_status_summary_obj_reduction = NAN;
 double              rhea_newton_status_summary_grad_norm_reduction = NAN;
 int                 rhea_newton_status_summary_step_search_success = 1;
@@ -1200,60 +1168,33 @@ double              rhea_newton_status_summary_step_length_avg = 0.0;
 int                 rhea_newton_status_summary_lin_iter_count = 0;
 
 /**
- *
+ * Adds current Newton status to a summary table.
  */
 static void
 rhea_newton_status_summary_write (char *summary,
                                   rhea_newton_status_t *status,
-                                  rhea_newton_step_t *step,
-                                  const int print_all)
+                                  const int evaluate_objective_exists,
+                                  rhea_newton_step_t *step)
 {
-  double              obj = NAN;
-  double              obj_reduction = NAN;
-  double              grad_norm = NAN;
-  double              grad_norm_reduction = NAN;
+  double              obj, obj_reduction;
+  double              grad_norm, grad_norm_reduction;
   char                grad_norm_comp[BUFSIZ] = "";
 
   /* retrieve objective functional and gradient norm(s) */
-  switch (status->conv_criterion) {
-  case RHEA_NEWTON_CONV_CRITERION_OBJECTIVE:
+  if (evaluate_objective_exists) {
     obj = status->obj_curr;
     obj_reduction = status->obj_reduction;
-    if (print_all) { /* if print all convergence values */
-      grad_norm = status->grad_norm_curr;
-      grad_norm_reduction = status->grad_norm_reduction;
-      if (0 < status->grad_norm_multi_components) { /* if print components */
-        rhea_newton_status_vals_to_str (
-            grad_norm_comp, status->grad_norm_multi_components,
-            status->grad_norm_curr_comp);
-      }
-    }
-    break;
-  case RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM:
-    grad_norm = status->grad_norm_curr;
-    grad_norm_reduction = status->grad_norm_reduction;
-    if (0 < status->grad_norm_multi_components) { /* if print components */
-      rhea_newton_status_vals_to_str (
-          grad_norm_comp, status->grad_norm_multi_components,
-          status->grad_norm_curr_comp);
-    }
-    if (print_all) { /* if print all convergence values */
-      obj = status->obj_curr;
-      obj_reduction = status->obj_reduction;
-    }
-    break;
-  case RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM:
-    grad_norm = status->grad_norm_curr;
-    grad_norm_reduction = status->grad_norm_reduction;
-    if (0 < status->grad_norm_multi_components) { /* if print components */
-      rhea_newton_status_vals_to_str (
-          grad_norm_comp, status->grad_norm_multi_components,
-          status->grad_norm_curr_comp);
-    }
-    RHEA_ASSERT (!print_all);
-    break;
-  default: /* unknown convergence criterion */
-    RHEA_ABORT_NOT_REACHED ();
+  }
+  else {
+    obj = NAN;
+    obj_reduction = NAN;
+  }
+  grad_norm = status->grad_norm_curr;
+  grad_norm_reduction = status->grad_norm_reduction;
+  if (0 < status->grad_norm_multi_components) { /* if print components */
+    rhea_newton_status_vals_to_str (
+        grad_norm_comp, status->grad_norm_multi_components,
+        status->grad_norm_curr_comp);
   }
 
   /* write status to string */
@@ -1324,7 +1265,8 @@ double
 rhea_newton_problem_get_reduction_curr (rhea_newton_problem_t *nl_problem)
 {
   RHEA_ASSERT (nl_problem->status != NULL);
-  return rhea_newton_status_get_reduction_curr (nl_problem->status);
+  return rhea_newton_status_get_reduction_curr (
+      nl_problem->status, RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM);
 }
 
 /******************************************************************************
@@ -1377,9 +1319,9 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
 
     const double        exponent = opt->lin_rtol_adaptive_exponent;
     const double        reduction_prev =
-      SC_MIN (rhea_newton_status_get_reduction_prev (status), 1.0);
+      SC_MIN (rhea_newton_status_get_grad_reduction_prev (status), 1.0);
     const double        reduction_curr =
-      SC_MIN (rhea_newton_status_get_reduction_curr (status), 1.0);
+      SC_MIN (rhea_newton_status_get_grad_reduction_curr (status), 1.0);
 
     double              lin_rtol_max;
     double              lin_rtol_min, lin_rtol_min_effective;
@@ -1388,8 +1330,8 @@ rhea_newton_set_accuracy (rhea_newton_step_t *step,
     /* check input */
     RHEA_ASSERT (0.0 < opt->lin_rtol_adaptive_max);
     RHEA_ASSERT (opt->lin_rtol_adaptive_max < 1.0);
-    RHEA_ASSERT (0.0 < rhea_newton_status_get_reduction_prev (status));
-    RHEA_ASSERT (0.0 < rhea_newton_status_get_reduction_curr (status));
+    RHEA_ASSERT (0.0 < rhea_newton_status_get_grad_reduction_prev (status));
+    RHEA_ASSERT (0.0 < rhea_newton_status_get_grad_reduction_curr (status));
 
     /* set progressive reduction factor:
      *
@@ -1545,7 +1487,8 @@ rhea_newton_search_step_length_check_descend (
   double              reduction, descend_reduction;
 
   /* compute actual reduction */
-  reduction = rhea_newton_status_get_reduction_curr (status);
+  reduction = rhea_newton_status_get_reduction_curr (
+      status, RHEA_NEWTON_CONV_CRITERION_OBJECTIVE);
   RHEA_ASSERT (0.0 <= reduction);
 
   /* compute required reduction */
@@ -1553,7 +1496,7 @@ rhea_newton_search_step_length_check_descend (
     descend_reduction = 1.0 - relax * (1.0 - lin_res_norm_reduction);
   }
   else { /* if linear reduction is out of bounds */
-    descend_reduction = 1.0;
+    descend_reduction = 1.0 - relax;
   }
 
   /* print */
@@ -1577,7 +1520,6 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
                                 rhea_newton_problem_t *nl_problem,
                                 rhea_newton_options_t *opt)
 {
-  const int           print_all_conv_criteria = (2 <= opt->status_verbosity);
   const int           iter = step->iter;
   ymir_vec_t         *step_vec = nl_problem->step_vec;
   ymir_vec_t         *solution_prev = ymir_vec_template (solution);
@@ -1585,6 +1527,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   const int           search_iter_max = opt->step_search_iter_max;
   int                 k;
   int                 search_success = 0;
+  double              conv_val_prev, conv_val_curr;
   const double        step_length_min = opt->step_length_min;
   const double        step_reduction = opt->step_reduction;
 
@@ -1611,20 +1554,21 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
 
     /* update status */
     rhea_newton_status_compute_curr (status, neg_gradient_updated,
-                                     solution, nl_problem,
-                                     print_all_conv_criteria);
+                                     RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
+                                     solution, nl_problem);
 
     /* check descend condition */
     search_success = rhea_newton_search_step_length_check_descend (
         status, opt, step->lin_res_norm_reduction,
         (search_iter_start == k) /* print only once */, __func__);
 
+    conv_val_prev = rhea_newton_status_get_conv_value_prev (
+        status, RHEA_NEWTON_CONV_CRITERION_OBJECTIVE);
+    conv_val_curr = rhea_newton_status_get_conv_value_curr (
+        status, RHEA_NEWTON_CONV_CRITERION_OBJECTIVE);
     RHEA_GLOBAL_INFOF ("<%s_status trial#=%2i, step_length=%.3e, "
-                       "convergence_criterion=%i, "
                        "current=%.3e, previous=%.3e />\n",
-                       __func__, k, step->length, status->conv_criterion,
-                       rhea_newton_status_get_conv_value_curr (status),
-                       rhea_newton_status_get_conv_value_prev (status));
+                       __func__, k, step->length, conv_val_curr, conv_val_prev);
 
     /* continue or terminate loop */
     if (search_success) { /* terminate if descend condition is satisfied */
@@ -1690,7 +1634,6 @@ rhea_newton_solve (ymir_vec_t **solution,
                    rhea_newton_problem_t *nl_problem,
                    rhea_newton_options_t *opt)
 {
-  const int           print_all_conv_criteria = (2 <= opt->status_verbosity);
   const int           print_summary = opt->print_summary;
   const int           iter_start = opt->iter_start;
   const int           iter_max = opt->iter_max;
@@ -1721,21 +1664,20 @@ rhea_newton_solve (ymir_vec_t **solution,
 
     /* init step & status */
     rhea_newton_step_init (&step);
-    rhea_newton_status_init (&status, nl_problem->conv_criterion,
-                             nl_problem->grad_norm_multi_components);
+    rhea_newton_status_init (&status, nl_problem->grad_norm_multi_components);
     nl_problem->status = &status;
 
     /* initialize solution vector and status */
     if (opt->nonzero_initial_guess) { /* if nonzero initial guess */
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
-                                       *solution, nl_problem,
-                                       print_all_conv_criteria);
+                                       RHEA_NEWTON_CONV_CRITERION_ALL,
+                                       *solution, nl_problem);
     }
     else { /* if zero initial guess */
       ymir_vec_set_zero (*solution);
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
-                                       NULL, nl_problem,
-                                       print_all_conv_criteria);
+                                       RHEA_NEWTON_CONV_CRITERION_ALL,
+                                       NULL, nl_problem);
     }
     rhea_newton_status_copy_curr_to_init (&status);
 
@@ -1764,11 +1706,13 @@ rhea_newton_solve (ymir_vec_t **solution,
      * Pre-Step Output
      */
     {
-      rhea_newton_status_print_curr (&status, print_all_conv_criteria, iter,
-                                     __func__);
+      rhea_newton_status_print_curr (
+          &status, rhea_newton_problem_evaluate_objective_exists (nl_problem),
+          iter, __func__);
       if (print_summary) {
-        rhea_newton_status_summary_write (summary[iter - iter_start], &status,
-                                          &step, print_all_conv_criteria);
+        rhea_newton_status_summary_write (
+            summary[iter - iter_start], &status,
+            rhea_newton_problem_evaluate_objective_exists (nl_problem), &step);
       }
 
       /* call user output function */
@@ -1778,13 +1722,17 @@ rhea_newton_solve (ymir_vec_t **solution,
     /*
      * Check Stopping Criteria
      */
-    if (rhea_newton_status_get_reduction (&status) < rtol) { /* if converged */
+
+    /* stop if converged */
+    if (rhea_newton_status_get_grad_reduction (&status) < rtol) {
       RHEA_GLOBAL_PRODUCTIONF (
           "<%s_stop newton_iter=%i, reason=\"converged to rtol=%.3e\" />\n",
           __func__, iter, rtol);
       break;
     }
-    if (iter_max == iter) { /* if max #iterations reached */
+
+    /* stop if max #iterations reached */
+    if (iter_max == iter) {
       RHEA_GLOBAL_PRODUCTIONF (
           "<%s_stop newton_iter=%i, "
           "reason=\"reached maximum number of iterations=%i\" />\n",
@@ -1796,6 +1744,15 @@ rhea_newton_solve (ymir_vec_t **solution,
      * Newton Step
      */
     {
+      /* compute right-hand side for the step solve */
+      if (!neg_gradient_updated) { /* if (neg.) gradient not yet updated */
+        rhea_newton_problem_compute_neg_gradient (nl_problem->neg_gradient_vec,
+                                                  *solution, nl_problem);
+        if (nl_problem->check_gradient) {
+          rhea_newton_check_gradient (*solution, nl_problem);
+        }
+      }
+
       /* update Hessian operator */
       if (iter == iter_start || solution_post_update) { /* if no step exists */
         rhea_newton_problem_update_hessian (*solution, NULL, NAN, nl_problem);
@@ -1808,23 +1765,8 @@ rhea_newton_solve (ymir_vec_t **solution,
         }
       }
 
-      /* calculate the accuracy for computing the step, i.e., for solving the
-       * linearized system */
-      rhea_newton_set_accuracy (
-          /* out: */ &step,
-          /* in:  */ &status, opt);
-
-      /* compute right-hand side for the step solve */
-      if (!neg_gradient_updated) { /* if (neg.) gradient not yet updated */
-        rhea_newton_problem_compute_neg_gradient (nl_problem->neg_gradient_vec,
-                                                  *solution, nl_problem);
-        if (nl_problem->check_gradient) {
-          rhea_newton_check_gradient (*solution, nl_problem);
-        }
-      }
-
-      /* set up right-hand side for the linear system from the
-       * (negative) gradient  */
+      /* modify the right-hand side of the linear system, which originally is
+       * the previously computed (negative) gradient  */
       if (iter == iter_start && !opt->nonzero_initial_guess) { /* if no sol. */
         rhea_newton_problem_modify_hessian_system (nl_problem->neg_gradient_vec,
                                                    NULL, nl_problem);
@@ -1833,6 +1775,12 @@ rhea_newton_solve (ymir_vec_t **solution,
         rhea_newton_problem_modify_hessian_system (nl_problem->neg_gradient_vec,
                                                    *solution, nl_problem);
       }
+
+      /* calculate the accuracy for computing the step, i.e., for solving the
+       * linearized system */
+      rhea_newton_set_accuracy (
+          /* out: */ &step,
+          /* in:  */ &status, opt);
 
       /* solve the linearized system to get an inexact Newton step */
       rhea_newton_compute_step (
@@ -1882,8 +1830,15 @@ rhea_newton_solve (ymir_vec_t **solution,
           solution, iter, nl_problem);
       if (solution_post_update) {
         rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
-                                         *solution, nl_problem,
-                                         print_all_conv_criteria);
+                                         RHEA_NEWTON_CONV_CRITERION_ALL,
+                                         *solution, nl_problem);
+      }
+
+      if (!neg_gradient_updated) {
+        rhea_newton_status_compute_curr (
+                                      &status, &neg_gradient_updated,
+                                      RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
+                                      *solution, nl_problem);
       }
     }
 

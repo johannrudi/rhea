@@ -30,7 +30,7 @@ typedef void      (*rhea_newton_data_init_fn_t) (ymir_vec_t *solution,
 typedef void      (*rhea_newton_data_clear_fn_t) (void *data);
 
 /**
- * Evaluates the objective functional at the current solution vector.
+ * Evaluates the objective functional.
  *
  * \return              Value of objective functional
  * \param [in] solution Current solution vector (may be NULL)
@@ -40,7 +40,7 @@ typedef double    (*rhea_newton_evaluate_objective_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
 /**
- * Computes the negative gradient at the current solution vector.
+ * Computes the negative gradient of the objective functional.
  *
  * \param [out] neg_gradient  Negative gradient vector
  * \param [in] solution       Current solution vector (may be NULL)
@@ -51,7 +51,7 @@ typedef void      (*rhea_newton_compute_negative_gradient_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
 /**
- * Computes norm of the (negative) gradient vector.
+ * Computes the norm of the gradient.
  *
  * \return                  Norm of the gradient vector
  * \param [in] neg_gradient Negative gradient vector
@@ -74,7 +74,7 @@ typedef void      (*rhea_newton_apply_hessian_fn_t) (
                                             void *data);
 
 /**
- * Inverts the Hessian operator approximatively, i.e., up to a given tolerance.
+ * Applies inexact inverse of the Hessian operator.
  *
  * \return                            Stopping reason
  * \param [out] step                  Result of Hessian application
@@ -95,7 +95,7 @@ typedef int       (*rhea_newton_solve_hessian_system_fn_t) (
                                             int *lin_iter_count);
 
 /**
- * Updates the current solution of the (nonlinear) operator.
+ * Updates the nonlinear operator at the current solution vector.
  *
  * \param [in] solution Current solution vector (may be NULL)
  * \param [in] data     User data
@@ -104,7 +104,7 @@ typedef void      (*rhea_newton_update_operator_fn_t) (
                                             ymir_vec_t *solution, void *data);
 
 /**
- * Updates the current solution of the Hessian operator.
+ * Updates the Hessian operator at the current solution vector.
  *
  * \param [in] solution     Current solution vector (may be NULL)
  * \param [in] step_vec     Recent step vector, which (together with step
@@ -218,21 +218,13 @@ void                rhea_newton_options_set_defaults (
 /* Nonlinear problem (opaque) */
 typedef struct rhea_newton_problem rhea_newton_problem_t;
 
-/* enumerator for convergence critera */
-typedef enum
-{
-  RHEA_NEWTON_CONV_CRITERION_NONE = -1,
-  RHEA_NEWTON_CONV_CRITERION_OBJECTIVE,
-  RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
-  RHEA_NEWTON_CONV_CRITERION_RESIDUAL_NORM
-}
-rhea_newton_conv_criterion_t;
-
 /**
  * Creates a new nonlinear problem.
  */
 rhea_newton_problem_t *rhea_newton_problem_new (
               rhea_newton_compute_negative_gradient_fn_t compute_neg_gradient,
+              rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
+              const int grad_norm_multi_components,
               rhea_newton_solve_hessian_system_fn_t solve_hessian_sys);
 
 /**
@@ -259,13 +251,10 @@ void                rhea_newton_problem_set_data_fn (
               rhea_newton_problem_t *nl_problem);
 
 /**
- * Sets callback functions related to the convergence criterion.
+ * Sets callback function for evaluating the objective functional.
  */
-void                rhea_newton_problem_set_conv_criterion_fn (
-              rhea_newton_conv_criterion_t conv_criterion,
+void                rhea_newton_problem_set_evaluate_objective_fn (
               rhea_newton_evaluate_objective_fn_t evaluate_objective,
-              rhea_newton_compute_norm_of_gradient_fn_t compute_gradient_norm,
-              const int grad_norm_multi_components,
               rhea_newton_problem_t *nl_problem);
 
 /**
