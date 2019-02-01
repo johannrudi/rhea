@@ -825,7 +825,7 @@ adjoint_stokes_update_adjoint (ymir_vec_t *usol,
   subd_compute_rhs_velbc_neumann (stokes_problem, subd_options);
 
   rhs_vel_press = rhea_stokes_problem_get_rhs_vel_press (stokes_problem);
-  rhs_vel_neumann = rhea_stokes_problem_get_rhs_vel_neumann (stokes_problem);
+  rhs_vel_neumann = rhea_stokes_problem_get_rhs_vel_nonzero_neumann (stokes_problem);
   stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
 
   ymir_stokes_pc_construct_rhs (
@@ -999,7 +999,7 @@ adjoint_stokes_update_hessian_adjoint (ymir_vec_t *Husol,
   subd_compute_rhs_velbc_neumann (stokes_problem, subd_options);
 
   rhs_vel_press = rhea_stokes_problem_get_rhs_vel_press (stokes_problem);
-  rhs_vel_neumann = rhea_stokes_problem_get_rhs_vel_neumann (stokes_problem);
+  rhs_vel_neumann = rhea_stokes_problem_get_rhs_vel_nonzero_neumann (stokes_problem);
   stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
 
   ymir_stokes_pc_construct_rhs (

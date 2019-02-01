@@ -621,7 +621,7 @@ subd_vtk_write_neumann (ymir_mesh_t *ymir_mesh,
                                             press_elem);
     ymir_interp_vec (velocity, surf_velocity);
 
-    surf_neumann = rhea_stokes_problem_get_rhs_vel_surf_neumann (stokes_problem);
+    surf_neumann = rhea_stokes_problem_get_rhs_vel_nonzero_neumann_surface (stokes_problem);
 
     {
       char            path[BUFSIZ];

@@ -1712,7 +1712,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
       weak_options, visc_options);
 
   /* set custom function to compute viscosity */
-  rhea_stokes_prbolem_set_viscosity_compute_fn (
+  rhea_stokes_problem_set_viscosity_compute_fn (
       *stokes_problem, collide_viscosity_compute, collide_options);
 
   /* set custom function to compute RHS velocity for nonzero Dirichlet BC's */

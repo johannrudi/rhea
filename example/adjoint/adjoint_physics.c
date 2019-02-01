@@ -921,7 +921,7 @@ subd_compute_weakzone (rhea_stokes_problem_t *stokes_problem,
 
   if (subd_options->weak_options->type != SUBD_WEAK_NONE) {
     RHEA_GLOBAL_PRODUCTIONF ("%s: compute weakzone\n", this_fn_name);
-    rhea_stokes_prbolem_set_weakzone_compute_fn (
+    rhea_stokes_problem_set_weakzone_compute_fn (
            stokes_problem, subd_poly2_weakzone_compute, subd_options);
   }
 }
@@ -1101,7 +1101,7 @@ subd_viscosity_set_function (rhea_stokes_problem_t *stokes_problem,
   const char      *this_fn_name = "subd_viscosity_set_function";
   if (subd_options->visc_options->type != SUBD_VISC_RHEA) {
     RHEA_GLOBAL_PRODUCTIONF ("%s: reset viscosity function\n", this_fn_name);
-    rhea_stokes_prbolem_set_viscosity_compute_fn (
+    rhea_stokes_problem_set_viscosity_compute_fn (
                 stokes_problem,
                 subd_custom_visc,
                 subd_options);
@@ -1189,17 +1189,17 @@ subd_compute_rhs_vel (rhea_stokes_problem_t *stokes_problem,
     RHEA_GLOBAL_PRODUCTIONF ("%s: recompute rhs_vel\n", this_fn_name);
     switch (subd_opt->rhs_type) {
     case SUBD_RHS_DENSITY:
-      rhea_stokes_prbolem_set_rhs_vel_compute_fn (stokes_problem,
+      rhea_stokes_problem_set_rhs_vel_compute_fn (stokes_problem,
                   subd_rhs_full_density, subd_opt);
       break;
 
     case SUBD_RHS_ADJOINT_NONE:
-      rhea_stokes_prbolem_set_rhs_vel_compute_fn (stokes_problem,
+      rhea_stokes_problem_set_rhs_vel_compute_fn (stokes_problem,
                   subd_rhs_adjoint_none, NULL);
       break;
 
     case SUBD_RHS_TEST_MANUFACTURED:
-      rhea_stokes_prbolem_set_rhs_vel_compute_fn (stokes_problem,
+      rhea_stokes_problem_set_rhs_vel_compute_fn (stokes_problem,
                   subd_test_manufactured_rhs, subd_opt);
       break;
 
@@ -1539,12 +1539,12 @@ subd_compute_rhs_velbc_dirichlet (rhea_stokes_problem_t *stokes_problem,
 
   if (subd_options->velbc_options->velbc_nonzero_dir != SUBD_VELBC_DIR_ZERO) {
     RHEA_GLOBAL_PRODUCTIONF ("%s: compute nonzero dirichelt vel_bc\n", this_fn_name);
-    rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+    rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
           stokes_problem, subd_velbc_nonzero_dirichlet, subd_options);
   }
   if (subd_options->test_options->test_manufactured != SUBD_TEST_MANUFACTURED_NONE) {
     RHEA_GLOBAL_PRODUCTIONF ("%s: compute nonzero dirichelt vel_bc for manufactured test\n", this_fn_name);
-      rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+      rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
           stokes_problem, subd_test_manufactured_velbc_dir, subd_options);
   }
 }
@@ -1636,7 +1636,7 @@ subd_compute_rhs_velbc_neumann (rhea_stokes_problem_t *stokes_problem,
 
   if (subd_options->velbc_options->velbc_nonzero_neu != SUBD_VELBC_NEU_ZERO) {
     RHEA_GLOBAL_PRODUCTIONF ("%s: compute nonzero neumann vel_bc\n", this_fn_name);
-      rhea_stokes_prbolem_set_rhs_vel_neumann_compute_fn (
+      rhea_stokes_problem_set_rhs_vel_nonzero_neu_compute_fn (
           stokes_problem, subd_velbc_nonezero_neumann, subd_options);
   }
 }

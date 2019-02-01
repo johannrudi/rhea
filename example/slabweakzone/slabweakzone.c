@@ -4631,25 +4631,25 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
     case TESTNONE:
       break;
     case SLAB:
-      rhea_stokes_prbolem_set_weakzone_compute_fn (
+      rhea_stokes_problem_set_weakzone_compute_fn (
           *stokes_problem, slabs_weakzone_compute, slabs_options);
       break;
     case DRAG:
     case COLLIDE:
       if (slabs_options->slabs_visc_options->viscosity_anisotropy
         == SLABS_VISC_ISOTROPY) {
-        rhea_stokes_prbolem_set_weakzone_compute_fn (
+        rhea_stokes_problem_set_weakzone_compute_fn (
             *stokes_problem, slabs_weakzone_compute, slabs_options);
       }
-      rhea_stokes_prbolem_set_viscosity_compute_fn (
+      rhea_stokes_problem_set_viscosity_compute_fn (
           *stokes_problem, slabs_viscosity_compute, slabs_options);
       break;
     case TEST_MANUFACTURED:
-      rhea_stokes_prbolem_set_viscosity_compute_fn (
+      rhea_stokes_problem_set_viscosity_compute_fn (
           *stokes_problem, slabs_viscosity_compute, slabs_options);
       break;
     case CUSTOM:
-      rhea_stokes_prbolem_set_viscosity_compute_fn (
+      rhea_stokes_problem_set_viscosity_compute_fn (
           *stokes_problem, slabs_viscosity_compute, slabs_options);
       break;
     default:
@@ -4661,7 +4661,7 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
    * don't apply mass now */
   if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
       slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
-    rhea_stokes_prbolem_set_rhs_vel_compute_fn (
+    rhea_stokes_problem_set_rhs_vel_compute_fn (
         *stokes_problem, slabs_test_manufactured_rhs_compute, slabs_options);
   }
 
@@ -4669,11 +4669,11 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   if (domain_options->velocity_bc_type == RHEA_DOMAIN_VELOCITY_BC_USER) {
     if (slabs_options->buoyancy_type == TEST_MANUFACTURED ||
         slabs_options->slabs_test_options->test_manufactured != SLABS_TEST_MANUFACTURED_NONE) {
-      rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+      rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
           *stokes_problem, slabs_test_manufactured_velbc_compute, slabs_options);
     }
     else {
-      rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
+      rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
           *stokes_problem, slabs_vel_nonzero_dirichlet_compute, slabs_options);
     }
   }
