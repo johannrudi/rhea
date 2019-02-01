@@ -104,8 +104,8 @@ void                rhea_stokes_problem_update_solver (
                                     const int override_rhs,
                                     ymir_vec_t *rhs_vel_press,
                                     ymir_vec_t *rhs_vel,
-                                    ymir_vec_t **rhs_vel_face_nonzero_neumann,
-                                    ymir_vec_t *rhs_vel_nonzero_dirichlet);
+                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                                    ymir_vec_t **rhs_vel_face_nonzero_neumann);
 
 /**
  * Solves a Stokes problem.
@@ -201,27 +201,23 @@ void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 
-//TODO this does not seem like a good idea:
 ymir_vec_t         *rhea_stokes_problem_get_coeff (
-                                  rhea_stokes_problem_t *stokes_problem);
+                                    rhea_stokes_problem_t *stokes_problem);//XI
 ymir_vec_t         *rhea_stokes_problem_get_weakzone (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_press (
                                     rhea_stokes_problem_t *stokes_problem);//XI
 void                rhea_stokes_problem_set_rhs_vel_press (
                                     rhea_stokes_problem_t *stokes_problem,
-                                    ymir_vec_t *rhs_vel_press); //XI
+                                    ymir_vec_t *rhs_vel_press);//XI
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel (
                                     rhea_stokes_problem_t *stokes_problem);
-ymir_vec_t        **rhea_stokes_problem_get_rhs_vel_neumann (
-                                    rhea_stokes_problem_t *stokes_problem); //XI
-ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_surf_neumann (
-                                    rhea_stokes_problem_t *stokes_problem); //XI
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                     rhea_stokes_problem_t *stokes_problem);
-
-ymir_vel_dir_t     *rhea_stokes_problem_get_vel_dir (
-                             rhea_stokes_problem_t *stokes_problem); //XI
+ymir_vec_t        **rhea_stokes_problem_get_rhs_vel_nonzero_neumann (
+                                    rhea_stokes_problem_t *stokes_problem);
+ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_nonzero_neumann_surface (
+                                    rhea_stokes_problem_t *stokes_problem);
 
 void                rhea_stokes_prbolem_set_weakzone_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
@@ -235,15 +231,17 @@ void                rhea_stokes_prbolem_set_rhs_vel_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_compute_fn_t fn,
                                     void *data);
-void                rhea_stokes_prbolem_set_rhs_vel_neumann_compute_fn (
-                                    rhea_stokes_problem_t *stokes_problem,
-                                    rhea_velocity_rhs_neumann_compute_fn_t fn,
-                                    void *data); //XI
 void                rhea_stokes_prbolem_set_rhs_vel_nonzero_dir_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_velocity_rhs_nz_dir_compute_fn_t fn,
                                     void *data);
+void                rhea_stokes_prbolem_set_rhs_vel_nonzero_neu_compute_fn (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    rhea_velocity_rhs_nz_neu_compute_fn_t fn,
+                                    void *data);
 
+ymir_vel_dir_t     *rhea_stokes_problem_get_vel_dir (
+                                    rhea_stokes_problem_t *stokes_problem);//XI
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
                                     rhea_stokes_problem_t *stokes_problem);
 
