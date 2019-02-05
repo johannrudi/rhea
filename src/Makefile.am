@@ -31,6 +31,7 @@ librhea_installed_headers = \
         src/rhea_newton_check.h \
         src/rhea_inversion.h \
         src/rhea_inversion_obs_velocity.h \
+        src/rhea_inversion_param.h \
         src/rhea_io_std.h \
         src/rhea_io_mpi.h \
         src/rhea_vtk.h \
@@ -64,6 +65,7 @@ librhea_compiled_sources = \
         src/rhea_newton_check.c \
         src/rhea_inversion.c \
         src/rhea_inversion_obs_velocity.c \
+        src/rhea_inversion_param.c \
         src/rhea_io_std.c \
         src/rhea_io_mpi.c \
         src/rhea_vtk.c \
