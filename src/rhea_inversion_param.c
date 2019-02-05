@@ -358,6 +358,8 @@ struct rhea_inversion_param
   int                *active;
   int                 n_active;
 
+  //TODO add weights?
+
   /* options (not owned) */
   rhea_weakzone_options_t    *weak_options;
   rhea_viscosity_options_t   *visc_options;
@@ -786,4 +788,10 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
           inv_param);
     }
   }
+}
+
+ymir_vec_t *
+rhea_inversion_param_get_vector (rhea_inversion_param_t *inv_param)
+{
+  return inv_param->parameter_vec;
 }

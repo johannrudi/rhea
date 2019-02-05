@@ -85,4 +85,10 @@ void                rhea_inversion_param_pull_from_model (
 void                rhea_inversion_param_push_to_model (
                             rhea_inversion_param_t *inv_param);
 
+/**
+ * Gets the pointer to the parameter vector.
+ */
+ymir_vec_t         *rhea_inversion_param_get_vector (
+                            rhea_inversion_param_t *inv_param);
+
 #endif /* RHEA_INVERSION_PARAM_H */
