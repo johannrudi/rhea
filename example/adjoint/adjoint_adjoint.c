@@ -679,20 +679,14 @@ void
 adjoint_stokes_update_forward (rhea_stokes_problem_t *stokes_problem,
                               subd_options_t *subd_options)
 {
-  ymir_vec_t      *coeff;
-  ymir_stokes_op_t *stokes_op;
-  ymir_stress_op_t *stress_op;
-
   ymir_vec_t *rhs_vel;
   ymir_vec_t *rhs_vel_press;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
-  rhea_stokes_problem_compute_coefficient (stokes_problem, 0 /* !init */);
-  coeff = rhea_stokes_problem_get_coeff (stokes_problem);
-  stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
-  stress_op = stokes_op->stress_op;
-  ymir_stress_op_set_coeff_scal (stress_op, coeff);
+  rhea_stokes_problem_compute_and_update_coefficient (
+      stokes_problem, NULL /* velocity_pressure */, 0 /* !init */);
+  //TODO need velocity_pressure for nonlinear Stokes
 
   subd_options->rhs_type = SUBD_RHS_DENSITY;
   subd_compute_rhs_vel (stokes_problem, subd_options);
