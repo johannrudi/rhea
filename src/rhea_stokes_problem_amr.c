@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_stokes_problem_amr.h>
 #include <rhea_base.h>
 #include <rhea_amr.h>
@@ -1491,7 +1488,8 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   else if (strcmp (type_name, "viscosity_peclet") == 0) {
     flag_fn = rhea_stokes_problem_amr_flag_viscosity_peclet_fn;
     flag_fn_data = amr_data;
-    rhea_stokes_problem_compute_coefficient (stokes_problem, 1 /* nl. init */);
+    rhea_stokes_problem_compute_coefficient (
+        stokes_problem, NULL /* velocity_pressure */, 1 /* nl. init */);
   }
   else { /* unknown type name */
     RHEA_ABORT ("Unknown initial AMR name");

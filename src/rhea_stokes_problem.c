@@ -356,11 +356,9 @@ rhea_stokes_problem_retrieve_velocity (ymir_vec_t *velocity_pressure,
   return vel;
 }
 
-/**
- * Computes viscosity.
- */
 void
 rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
+                                         ymir_vec_t *velocity_pressure,
                                          const int nonlinear_init)
 {
   rhea_viscosity_options_t *visc_options = stokes_problem->visc_options;
@@ -398,6 +396,9 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
           visc_options);
     }
     else {
+      RHEA_ASSERT (velocity_pressure != NULL);
+      rhea_stokes_problem_set_velocity_pressure (
+          stokes_problem, velocity_pressure);
       vel = rhea_stokes_problem_retrieve_velocity (
           stokes_problem->velocity_pressure, stokes_problem);
       stokes_problem->viscosity_compute_fn (
@@ -412,6 +413,37 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
 
   /* transform viscosity to viscous stress coefficient */
   ymir_vec_scale (2.0, coeff);
+}
+
+void
+rhea_stokes_problem_compute_and_update_coefficient (
+                                        rhea_stokes_problem_t *stokes_problem,
+                                        ymir_vec_t *velocity_pressure,
+                                        const int nonlinear_init)
+{
+  /* check input */
+  RHEA_ASSERT (stokes_problem->stokes_op != NULL);
+  RHEA_ASSERT (stokes_problem->visc_options != NULL);
+  RHEA_ASSERT (stokes_problem->coeff != NULL);
+
+  /* compute coefficient */
+  rhea_stokes_problem_compute_coefficient (stokes_problem, velocity_pressure,
+                                           nonlinear_init);
+
+  /* set viscous stress coefficient */
+  {
+    ymir_stress_op_t   *stress_op = stokes_problem->stokes_op->stress_op;
+    rhea_viscosity_options_t *visc_options = stokes_problem->visc_options;
+
+    RHEA_ASSERT (stokes_problem->type == RHEA_STOKES_PROBLEM_LINEAR ||
+                 ymir_stress_op_has_linearized (stress_op));
+    RHEA_ASSERT (ymir_stress_op_get_coeff_type (stress_op) ==
+                 YMIR_STRESS_OP_COEFF_ISOTROPIC_SCAL);
+    RHEA_ASSERT (fabs (ymir_stress_op_get_coeff_shift (stress_op) -
+                       rhea_viscosity_get_visc_shift (visc_options)) < SC_EPS);
+
+    ymir_stress_op_set_coeff_scal (stress_op, stokes_problem->coeff);
+  }
 }
 
 /******************************************************************************
@@ -608,7 +640,8 @@ rhea_stokes_problem_linear_create_solver_data (
   }
 
   /* compute viscosity */
-  rhea_stokes_problem_compute_coefficient (stokes_problem_lin, 0 /* unused */);
+  rhea_stokes_problem_compute_coefficient (stokes_problem_lin,
+                                           NULL /* unused */, 0 /* unused */);
 
   /* create Stokes operator */
   stokes_problem_lin->stokes_op = ymir_stokes_op_new_ext (
@@ -974,23 +1007,8 @@ rhea_stokes_problem_nonlinear_update_operator_fn (ymir_vec_t *solution,
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (solution));
 
   /* compute coefficient */
-  rhea_stokes_problem_set_velocity_pressure (stokes_problem_nl, solution);
-  rhea_stokes_problem_compute_coefficient (stokes_problem_nl, 0 /* !init */);
-
-  /* set viscous stress coefficient */
-  {
-    ymir_stress_op_t   *stress_op = stokes_problem_nl->stokes_op->stress_op;
-    rhea_viscosity_options_t *visc_options = stokes_problem_nl->visc_options;
-
-    RHEA_ASSERT (ymir_stress_op_has_linearized (stress_op));
-    RHEA_ASSERT (ymir_stress_op_get_coeff_type (stress_op) ==
-                 YMIR_STRESS_OP_COEFF_ISOTROPIC_SCAL);
-    RHEA_ASSERT (fabs (ymir_stress_op_get_coeff_shift (stress_op) -
-                       rhea_viscosity_get_visc_shift (visc_options)) < SC_EPS);
-    RHEA_ASSERT (stokes_problem_nl->coeff != NULL);
-
-    ymir_stress_op_set_coeff_scal (stress_op, stokes_problem_nl->coeff);
-  }
+  rhea_stokes_problem_compute_and_update_coefficient (
+      stokes_problem_nl, solution, 0 /* !init */);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -1690,8 +1708,7 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
                rhea_velocity_pressure_check_vec_type (solution));
   RHEA_ASSERT (!nonzero_init_guess ||
                rhea_velocity_pressure_is_valid (solution));
-  rhea_stokes_problem_set_velocity_pressure (stokes_problem_nl, solution);
-  rhea_stokes_problem_compute_coefficient (stokes_problem_nl,
+  rhea_stokes_problem_compute_coefficient (stokes_problem_nl, solution,
                                            !nonzero_init_guess);
 
   /* create Stokes operator */
@@ -3333,13 +3350,6 @@ rhea_stokes_problem_copy_viscosity (ymir_vec_t *viscosity,
   ymir_vec_copy (stokes_problem->coeff, viscosity);
   ymir_vec_scale (0.5, viscosity);
 }
-
-//TODO check wheter this is necessary
-ymir_vec_t *
-rhea_stokes_problem_get_coeff (rhea_stokes_problem_t *stokes_problem)
-{
-  return stokes_problem->coeff;
-}//XI
 
 ymir_vec_t *
 rhea_stokes_problem_get_weakzone (rhea_stokes_problem_t *stokes_problem)

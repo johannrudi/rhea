@@ -96,6 +96,22 @@ void                rhea_stokes_problem_solve (
  *****************************************************************************/
 
 /**
+ * Computes the viscous stress coefficient of a Stokes problem.
+ */
+void                rhea_stokes_problem_compute_coefficient (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    ymir_vec_t *velocity_pressure,
+                                    const int nonlinear_init);
+
+/**
+ * Computes and updates the viscous stress coefficient of a Stokes problem.
+ */
+void                rhea_stokes_problem_compute_and_update_coefficient (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    ymir_vec_t *velocity_pressure,
+                                    const int nonlinear_init);
+
+/**
  * Updates the solver of a Stokes problem.
  */
 void                rhea_stokes_problem_update_solver (
@@ -194,15 +210,10 @@ void                        rhea_stokes_problem_set_viscosity_options (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_viscosity_options_t *visc_options);
 
-void                rhea_stokes_problem_compute_coefficient (
-                                    rhea_stokes_problem_t *stokes_problem,
-                                    const int nonlinear_init);
 void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
 
-ymir_vec_t         *rhea_stokes_problem_get_coeff (
-                                    rhea_stokes_problem_t *stokes_problem);//XI
 ymir_vec_t         *rhea_stokes_problem_get_weakzone (
                                     rhea_stokes_problem_t *stokes_problem);
 ymir_vec_t         *rhea_stokes_problem_get_rhs_vel_press (

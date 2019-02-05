@@ -1,3 +1,8 @@
+/** RHEA_STOKES_PROBLEM_AMR
+ *
+ * Provides the adaptive mesh refinement (AMR) for Stokes problems.
+ */
+
 #ifndef RHEA_STOKES_PROBLEM_AMR_H
 #define RHEA_STOKES_PROBLEM_AMR_H
 
