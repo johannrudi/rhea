@@ -1,5 +1,6 @@
 #include <rhea_inversion.h>
 #include <rhea_base.h>
+#include <rhea_inversion_param.h>
 #include <rhea_inversion_obs_velocity.h>
 #include <rhea_newton.h>
 #include <rhea_velocity.h>
@@ -59,15 +60,18 @@ struct rhea_inversion_problem
   /* Stokes problem (not owned) */
   rhea_stokes_problem_t  *stokes_problem;
 
-  /* forward and adjoint states */
-  ymir_vec_t         *forward_vel_press;
-  ymir_vec_t         *forward_vel;
-  ymir_vec_t         *adjoint_vel_press;
+  /* inversion parameters */
+  rhea_inversion_param_t *inv_param;
 
   /* observations: surface velocity */
   rhea_inversion_obs_velocity_t vel_obs_type;
   ymir_vec_t         *vel_obs_surf;
   ymir_vec_t         *vel_obs_weight_surf;
+
+  /* forward and adjoint states */
+  ymir_vec_t         *forward_vel_press;
+  ymir_vec_t         *forward_vel;
+  ymir_vec_t         *adjoint_vel_press;
 
   /* Newton problem */
   rhea_newton_options_t  *newton_options;
@@ -83,9 +87,38 @@ struct rhea_inversion_problem
 static void
 rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
 {
-  //rhea_inversion_problem_t *inv_problem = data;
+  rhea_inversion_problem_t *inv_problem = data;
+  ymir_vec_t         *parameter_vec;
+  ymir_vec_t         *forward_vel_press = inv_problem->forward_vel_press;
+  int                 stokes_nonzero_inital_guess;
+  int                 stokes_iter_max;
+  double              stokes_rel_tol;
 
-  //TODO
+  /* update inversion parameters */
+  parameter_vec = rhea_inversion_param_get_vector (inv_problem->inv_param);
+  if (solution != parameter_vec) { /* if we need to copy data */
+    ymir_vec_copy (solution, parameter_vec);
+  }
+  rhea_inversion_param_push_to_model (inv_problem->inv_param);
+
+  /* update Stokes coefficient */
+  rhea_stokes_problem_compute_and_update_coefficient (
+      inv_problem->stokes_problem, forward_vel_press, 0 /* !init */);
+
+  /* update Stokes solver for forward problem */
+  rhea_stokes_problem_update_solver (
+      inv_problem->stokes_problem, forward_vel_press,
+      0 /* !override_rhs */, NULL, NULL, NULL, NULL);
+
+  /* solve for forward state */
+  //TODO how to set these:
+  //stokes_nonzero_inital_guess
+  //stokes_iter_max
+  //stokes_rel_tol
+  rhea_stokes_problem_solve (
+      &forward_vel_press, stokes_nonzero_inital_guess, stokes_iter_max,
+      stokes_rel_tol, inv_problem->stokes_problem);
+  inv_problem->forward_vel_press = forward_vel_press;
 }
 
 static void
@@ -215,7 +248,6 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
-  ymir_vec_t         *forward_vel_press = inv_problem->forward_vel_press;
   ymir_vec_t         *adjoint_vel_press = inv_problem->adjoint_vel_press;
   ymir_vec_t         *rhs_vel_mass;
   ymir_vec_t         *rhs_vel_press;
@@ -228,24 +260,14 @@ rhea_inversion_newton_compute_negative_gradient_fn (
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
+  /* Note: Assume that the forward state `inv_problem->forward_vel_press` was
+   *       computed before, during the operator update, and that the velocity
+   *       `inv_problem->forward_vel` was extracted from it during the
+   *       evaluation of the objective functional. */
+
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-
-  /* update Stokes solver for forward problem */
-  rhea_stokes_problem_update_solver (
-      stokes_problem, forward_vel_press,
-      0 /* !override_rhs */, NULL, NULL, NULL, NULL);
-
-  /* solve for forward state */
-  //TODO how to set these:
-  //stokes_nonzero_inital_guess
-  //stokes_iter_max
-  //stokes_rel_tol
-  rhea_stokes_problem_solve (
-      &forward_vel_press, stokes_nonzero_inital_guess, stokes_iter_max,
-      stokes_rel_tol, stokes_problem);
-  inv_problem->forward_vel_press = forward_vel_press;
 
   /* update Stokes solver for adjoint problem */
   rhs_vel_mass = rhea_velocity_new (ymir_mesh);
@@ -258,7 +280,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                          press_elem);
   rhea_stokes_problem_update_solver (
-      stokes_problem, forward_vel_press,
+      stokes_problem, inv_problem->forward_vel_press,
       1 /* override_rhs */, rhs_vel_press, NULL, NULL, NULL);
   rhea_velocity_destroy (rhs_vel_mass);
   rhea_velocity_pressure_destroy (rhs_vel_press);
@@ -331,6 +353,7 @@ rhea_inversion_problem_t *
 rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
 {
   rhea_inversion_problem_t *inv_problem;
+  ymir_vec_t         *parameter_vec;
 
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
@@ -341,13 +364,20 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem = RHEA_ALLOC (rhea_inversion_problem_t, 1);
   inv_problem->stokes_problem = stokes_problem;
 
+  /* create parameters */
+  inv_problem->inv_param = rhea_inversion_param_new (
+      rhea_stokes_problem_get_weakzone_options (stokes_problem),
+      rhea_stokes_problem_get_viscosity_options (stokes_problem),
+      NULL);
+  parameter_vec = rhea_inversion_param_get_vector (inv_problem->inv_param);
+
+  /* create observational data */
+  //TODO
+
   /* initialize Newton problem */
   inv_problem->newton_options = &rhea_inversion_newton_options;
-  //TODO
-  //inv_problem->newton_neg_gradient_vec =
-  //    rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  //inv_problem->newton_step_vec =
-  //    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  inv_problem->newton_neg_gradient_vec = ymir_vec_template (parameter_vec);
+  inv_problem->newton_step_vec = ymir_vec_template (parameter_vec);
 
   /* create Newton problem */
   {
@@ -363,8 +393,7 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
 
     rhea_newton_problem_set_vectors (
         inv_problem->newton_neg_gradient_vec,
-        inv_problem->newton_step_vec,
-        newton_problem);
+        inv_problem->newton_step_vec, newton_problem);
 
     rhea_newton_problem_set_data_fn (
         inv_problem,
@@ -401,9 +430,14 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
   rhea_newton_problem_destroy (inv_problem->newton_problem);
 
   /* destroy vectors */
+  ymir_vec_destroy (inv_problem->newton_neg_gradient_vec);
+  ymir_vec_destroy (inv_problem->newton_step_vec);
+
+  /* destroy parameters */
+  rhea_inversion_param_destroy (inv_problem->inv_param);
+
+  /* destroy observational data */
   //TODO
-  //inv_problem->newton_neg_gradient_vec
-  //inv_problem->newton_step_vec
 
   /* destroy structure */
   RHEA_FREE (inv_problem);
