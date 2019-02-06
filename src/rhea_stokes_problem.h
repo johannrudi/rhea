@@ -251,8 +251,6 @@ void                rhea_stokes_problem_set_rhs_vel_nonzero_neu_compute_fn (
                                     rhea_velocity_rhs_nz_neu_compute_fn_t fn,
                                     void *data);
 
-ymir_vel_dir_t     *rhea_stokes_problem_get_vel_dir (
-                                    rhea_stokes_problem_t *stokes_problem);//XI
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
                                     rhea_stokes_problem_t *stokes_problem);
 

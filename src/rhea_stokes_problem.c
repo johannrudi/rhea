@@ -3547,19 +3547,6 @@ rhea_stokes_problem_set_rhs_vel_nonzero_neu_compute_fn (
   }
 }
 
-//TODO check wheter this is necessary
-ymir_vel_dir_t *
-rhea_stokes_problem_get_vel_dir (
-                             rhea_stokes_problem_t *stokes_problem)
-{
-  if (stokes_problem->vel_dir != NULL) {
-    return stokes_problem->vel_dir;
-  }
-  else {
-    return 0;
-  }
-}//XI
-
 ymir_stokes_op_t *
 rhea_stokes_problem_get_stokes_op (rhea_stokes_problem_t *stokes_problem)
 {
