@@ -93,7 +93,7 @@ subd_adjoint_rhs_hessian_forward (ymir_vec_t *rhs_vel_press,
   ymir_vec_t            *stencil_visc = rhea_viscosity_new (mesh);
   ymir_vec_t            *viscosity = rhea_viscosity_new (mesh);
   ymir_stress_op_t      *stress_op;
-  ymir_vel_dir_t        *vel_dir = rhea_stokes_problem_get_vel_dir (stokes_problem);
+  ymir_vel_dir_t        *vel_dir;
 
   ymir_vec_t            *velo = rhea_velocity_new (mesh);
   ymir_vec_t            *rhs_vel = rhea_velocity_new (mesh);
@@ -106,6 +106,8 @@ subd_adjoint_rhs_hessian_forward (ymir_vec_t *rhs_vel_press,
   subd_adjoint_stencil_visc (stencil_visc, subd_opt);
   ymir_vec_multiply_in (stencil_visc,viscosity);
 
+  vel_dir = rhea_domain_create_velocity_dirichlet_bc (
+      mesh, NULL /* dirscal */, domain_opt);
   stress_op = ymir_stress_op_new (viscosity, vel_dir, NULL, velo, NULL);
   ymir_stress_pc_apply_stress_op (velo, rhs_vel, stress_op, 0, 0);
   ymir_vec_scale (-1.0, rhs_vel);

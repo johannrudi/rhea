@@ -943,13 +943,15 @@ adjoint_stokes_update_hessian_forward (adjoint_problem_t *adjoint_problem, int i
 
   ymir_stokes_op_t      *stokes_op = rhea_stokes_problem_get_stokes_op (stokes_problem);
   ymir_stress_op_t      *stress_op;
-  ymir_vel_dir_t        *vel_dir = rhea_stokes_problem_get_vel_dir (stokes_problem);
+  ymir_vel_dir_t        *vel_dir;
 
   ymir_vec_t            *rhs_vel = rhea_velocity_new (ymir_mesh);
 
   subd_adjoint_options_t *adjoint_options = subd_options->adjoint_options;
 
   coeff = adjoint_problem->coeff[i];
+  vel_dir = rhea_domain_create_velocity_dirichlet_bc (
+      ymir_mesh, NULL /* dirscal */, subd_options->domain_options);
   stress_op = ymir_stress_op_new (coeff, vel_dir, NULL, NULL, NULL);
   ymir_stress_pc_apply_stress_op (usol, rhs_vel, stress_op, 0, 0);
   ymir_vec_scale (-1.0, rhs_vel);
