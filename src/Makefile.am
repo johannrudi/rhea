@@ -19,6 +19,7 @@ librhea_installed_headers = \
         src/rhea_weakzone_label.h \
         src/rhea_topography.h \
         src/rhea_viscosity.h \
+        src/rhea_viscosity_param_derivative.h \
         src/rhea_velocity.h \
         src/rhea_pressure.h \
         src/rhea_velocity_pressure.h \
@@ -53,6 +54,7 @@ librhea_compiled_sources = \
         src/rhea_weakzone.c \
         src/rhea_topography.c \
         src/rhea_viscosity.c \
+        src/rhea_viscosity_param_derivative.c \
         src/rhea_velocity.c \
         src/rhea_pressure.c \
         src/rhea_velocity_pressure.c \
