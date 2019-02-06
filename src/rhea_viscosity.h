@@ -1,4 +1,6 @@
-/*
+/** RHEA_VISCOSITY
+ *
+ * Viscosity modeling mantle convection.
  */
 
 #ifndef RHEA_VISCOSITY_H
@@ -83,7 +85,7 @@ typedef struct rhea_viscosity_options
   double              min;
   double              max;
 
-  /* scaling factor */
+  /* scaling factors */
   double              upper_mantle_scaling;
   double              lower_mantle_scaling;
 
@@ -310,6 +312,14 @@ int                 rhea_viscosity_restrict_min (rhea_viscosity_options_t *opt);
 int                 rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt);
 
 /**
+ * Filters a vector where the max viscosity bound is active, otherwise sets the
+ * values at nodes away from max bound to zero.
+ */
+void                rhea_viscosity_filter_where_max (ymir_vec_t *vec,
+                                                     ymir_vec_t *bounds_marker,
+                                                     const int invert_filter);
+
+/**
  * Returns whether strain rate weakening physics are enabled.
  */
 int                 rhea_viscosity_has_strain_rate_weakening (
@@ -339,7 +349,8 @@ double              rhea_viscosity_get_yield_strength (
  */
 void                rhea_viscosity_filter_where_yielding (
                                                   ymir_vec_t *vec,
-                                                  ymir_vec_t *yielding_marker);
+                                                  ymir_vec_t *yielding_marker,
+                                                  const int invert_filter);
 
 /**
  * Returns whether regularization for the projector of the nonlinear viscosity

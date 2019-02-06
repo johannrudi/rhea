@@ -1,6 +1,3 @@
-/*
- */
-
 #include <rhea_viscosity.h>
 #include <rhea_base.h>
 #include <rhea_temperature.h>
@@ -1804,6 +1801,73 @@ rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt)
   return (isfinite (opt->max) && 0.0 < opt->max);
 }
 
+static void
+rhea_viscosity_filter_where_max_correction_fn (double *filter, double x,
+                                               double y, double z,
+                                               ymir_locidx_t nodeid,
+                                               void *data)
+{
+  const double        active = RHEA_VISCOSITY_BOUNDS_MAX;
+  const double        rtol = 1.0e-1;
+
+  if (fabs (*filter - active) < rtol * fabs (*filter)) {
+    *filter = 1.0;
+  }
+  else {
+    *filter = 0.0;
+  }
+}
+
+void
+rhea_viscosity_filter_where_max (ymir_vec_t *vec,
+                                 ymir_vec_t *bounds_marker,
+                                 const int invert_filter)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (bounds_marker);
+  ymir_vec_t         *filter;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_dvec (bounds_marker));
+  RHEA_ASSERT (bounds_marker->ndfields == 1);
+  RHEA_ASSERT (bounds_marker->node_type == YMIR_GAUSS_NODE);
+
+  /* create filter depending on node type */
+  if (ymir_vec_has_cvec (vec)) {
+    /* create filter for a continuous vector */
+    filter = ymir_cvec_new (ymir_mesh, 1);
+    ymir_interp_vec (bounds_marker, filter);
+    ymir_cvec_set_function (
+        filter, rhea_viscosity_filter_where_max_correction_fn, NULL);
+  }
+  else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GLL_NODE) {
+    /* create filter for a discontinuous GLL vector */
+    filter = ymir_dvec_new (ymir_mesh, 1, YMIR_GLL_NODE);
+    ymir_interp_vec (bounds_marker, filter);
+    ymir_dvec_set_function (
+        filter, rhea_viscosity_filter_where_max_correction_fn, NULL);
+  }
+  else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
+    /* create filter for a discontinuous Gauss vector */
+    filter = ymir_vec_clone (bounds_marker);
+    ymir_dvec_set_function (
+        filter, rhea_viscosity_filter_where_max_correction_fn, NULL);
+  }
+  else { /* vector is not supported */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* invert filter */
+  if (invert_filter) {
+    ymir_vec_scale_shift (-1.0, -1.0, filter);
+  }
+
+  /* apply filter */
+  ymir_vec_multiply_in1 (filter, vec);
+
+  /* destroy */
+  ymir_vec_destroy (filter);
+}
+
 int
 rhea_viscosity_has_strain_rate_weakening (rhea_viscosity_options_t *opt)
 {
@@ -1876,8 +1940,12 @@ rhea_viscosity_filter_where_yielding_correction_fn (double *filter, double x,
 
 void
 rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
-                                      ymir_vec_t *yielding_marker)
+                                      ymir_vec_t *yielding_marker,
+                                      const int invert_filter)
 {
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (yielding_marker);
+  ymir_vec_t         *filter;
+
   /* check input */
   RHEA_ASSERT (ymir_vec_is_dvec (yielding_marker));
   RHEA_ASSERT (yielding_marker->ndfields == 1);
@@ -1885,38 +1953,39 @@ rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
 
   /* filter vector depending on node type */
   if (ymir_vec_has_cvec (vec)) {
-    ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (yielding_marker);
-    ymir_vec_t         *yielding_marker_cvec = ymir_cvec_new (ymir_mesh, 1);
-
-    /* apply filter to continuous vector */
-    ymir_interp_vec (yielding_marker, yielding_marker_cvec);
-    ymir_cvec_set_function (yielding_marker_cvec,
-                            rhea_viscosity_filter_where_yielding_correction_fn,
-                            NULL);
-    ymir_cvec_multiply_in1 (yielding_marker_cvec, vec);
-    ymir_vec_destroy (yielding_marker_cvec);
+    /* create filter for a continuous vector */
+    filter = ymir_cvec_new (ymir_mesh, 1);
+    ymir_interp_vec (yielding_marker, filter);
+    ymir_cvec_set_function (
+        filter, rhea_viscosity_filter_where_yielding_correction_fn, NULL);
   }
   else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GLL_NODE) {
-    ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (yielding_marker);
-    ymir_vec_t         *yielding_marker_gll = ymir_dvec_new (ymir_mesh, 1,
-                                                             YMIR_GLL_NODE);
-
-    /* apply filter to discontinuous GLL vector */
-    ymir_interp_vec (yielding_marker, yielding_marker_gll);
-    ymir_dvec_set_function (yielding_marker_gll,
-                            rhea_viscosity_filter_where_yielding_correction_fn,
-                            NULL);
-    ymir_dvec_multiply_in1 (yielding_marker_gll, vec);
-    ymir_vec_destroy (yielding_marker_gll);
+    /* create filter for a discontinuous GLL vector */
+    filter = ymir_dvec_new (ymir_mesh, 1, YMIR_GLL_NODE);
+    ymir_interp_vec (yielding_marker, filter);
+    ymir_dvec_set_function (
+        filter, rhea_viscosity_filter_where_yielding_correction_fn, NULL);
   }
   else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
-    /* apply filter to discontinuous Gauss vector */
-    RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
-    ymir_dvec_multiply_in1 (yielding_marker, vec);
+    /* create filter for a discontinuous Gauss vector */
+    filter = ymir_vec_clone (yielding_marker);
+    ymir_dvec_set_function (
+        filter, rhea_viscosity_filter_where_yielding_correction_fn, NULL);
   }
   else { /* vector is not supported */
     RHEA_ABORT_NOT_REACHED ();
   }
+
+  /* invert filter */
+  if (invert_filter) {
+    ymir_vec_scale_shift (-1.0, -1.0, filter);
+  }
+
+  /* apply filter */
+  ymir_vec_multiply_in1 (filter, vec);
+
+  /* destroy */
+  ymir_vec_destroy (filter);
 }
 
 int
