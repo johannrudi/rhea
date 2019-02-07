@@ -310,10 +310,10 @@ static double
 rhea_inversion_newton_compute_gradient_norm_fn (ymir_vec_t *neg_gradient,
                                                 void *data, double *norm_comp)
 {
-  //rhea_inversion_problem_t *inv_problem = data;
+  rhea_inversion_problem_t *inv_problem = data;
 
-  //TODO
-  return NAN;
+  return rhea_inversion_param_compute_gradient_norm (
+      inv_problem->newton_neg_gradient_vec, inv_problem->inv_param);
 }
 
 static void
