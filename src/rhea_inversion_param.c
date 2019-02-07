@@ -1,6 +1,8 @@
 #include <rhea_inversion_param.h>
 #include <rhea_base.h>
+#include <rhea_viscosity_param_derivative.h>
 #include <rhea_weakzone_label.h>
+#include <ymir_stress_pc.h>
 
 /******************************************************************************
  * Options
@@ -360,14 +362,16 @@ struct rhea_inversion_param
 
   //TODO add weights?
 
+  /* Stokes problem (not owned) */
+  rhea_stokes_problem_t  *stokes_problem;
+
   /* options (not owned) */
-  rhea_weakzone_options_t    *weak_options;
-  rhea_viscosity_options_t   *visc_options;
+  rhea_weakzone_options_t  *weak_options;
+  rhea_viscosity_options_t *visc_options;
 };
 
 rhea_inversion_param_t *
-rhea_inversion_param_new (rhea_weakzone_options_t *weak_options,
-                          rhea_viscosity_options_t *visc_options,
+rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
                           rhea_inversion_param_options_t *inv_param_options)
 {
   rhea_inversion_param_options_t *inv_param_opt;
@@ -387,8 +391,11 @@ rhea_inversion_param_new (rhea_weakzone_options_t *weak_options,
   inv_param = RHEA_ALLOC (rhea_inversion_param_t, 1);
   inv_param->n_parameters = RHEA_INVERSION_PARAM_N;
   inv_param->parameter_vec = ymir_vec_new_meshfree (inv_param->n_parameters);
-  inv_param->weak_options = weak_options;
-  inv_param->visc_options = visc_options;
+  inv_param->stokes_problem = stokes_problem;
+  inv_param->weak_options =
+    rhea_stokes_problem_get_weakzone_options (stokes_problem);
+  inv_param->visc_options =
+    rhea_stokes_problem_get_viscosity_options (stokes_problem);
 
   /* determine active parameters */
   inv_param->active =
@@ -789,6 +796,159 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
     }
   }
 }
+
+static rhea_viscosity_param_derivative_t
+rhea_inversion_param_get_derivative_type (
+                                    const rhea_inversion_param_idx_t param_idx)
+{
+  switch (param_idx) {
+  case RHEA_INVERSION_PARAM_VISC_MIN:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_MIN;
+  case RHEA_INVERSION_PARAM_VISC_MAX:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_MAX;
+  case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_SCALING;
+  case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_SCALING;
+  case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_ACTIVATION_ENERGY;
+  case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_ACTIVATION_ENERGY;
+  case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_STRESS_EXPONENT;
+  case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_YIELD_STRENGTH;
+
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS;
+//case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB:
+//case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE:
+//case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE:
+
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST;
+//case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB:
+//case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE:
+//case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE:
+
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR;
+//case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB:
+//case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE:
+//case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE:
+
+//case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB:
+//case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_RIDGE:
+//case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_FRACTURE:
+  default: /* unknown derivative type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+void
+rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
+                                       ymir_vec_t *forward_vel_press,
+                                       ymir_vec_t *adjoint_vel_press,
+                                       rhea_inversion_param_t *inv_param)
+{
+  rhea_stokes_problem_t    *stokes_problem = inv_param->stokes_problem;
+  rhea_domain_options_t    *domain_options =
+    rhea_stokes_problem_get_domain_options (stokes_problem);
+  ymir_mesh_t          *ymir_mesh =
+                          rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  ymir_pressure_elem_t *press_elem =
+                          rhea_stokes_problem_get_press_elem (stokes_problem);
+  ymir_vec_t         *temperature =
+                        rhea_stokes_problem_get_temperature (stokes_problem);
+  ymir_vec_t         *weakzone =
+                        rhea_stokes_problem_get_weakzone (stokes_problem);
+  ymir_vec_t         *forward_vel, *adjoint_vel, *op_out_vel;
+  ymir_vec_t         *viscosity, *bounds_marker, *yielding_marker;
+  ymir_vel_dir_t     *vel_dir;
+  ymir_stress_op_t   *stress_op;
+
+  ymir_vec_t         *derivative;
+  const int           n_parameters = inv_param->n_parameters;
+  const int          *active = inv_param->active;
+  double             *grad_data = gradient->meshfree->e[0];
+  int                 i;
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_meshfree (gradient));
+  RHEA_ASSERT (gradient->n_meshfree == inv_param->n_parameters);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (adjoint_vel_press));
+
+  /* retrieve forward and adjoint velocities */
+  forward_vel = rhea_velocity_new (ymir_mesh);
+  adjoint_vel = rhea_velocity_new (ymir_mesh);
+  op_out_vel = rhea_velocity_new (ymir_mesh);
+  rhea_velocity_pressure_copy_components (forward_vel, NULL, forward_vel_press,
+                                          press_elem);
+  rhea_velocity_pressure_copy_components (adjoint_vel, NULL, adjoint_vel_press,
+                                          press_elem);
+
+  /* compute viscosity and related fields */
+  viscosity = rhea_viscosity_new (ymir_mesh);
+  bounds_marker = rhea_viscosity_new (ymir_mesh);
+  yielding_marker = rhea_viscosity_new (ymir_mesh);
+  rhea_viscosity_compute (
+      /* out: */ viscosity, NULL, bounds_marker, yielding_marker,
+      /* in:  */ temperature, weakzone, forward_vel, inv_param->visc_options);
+
+  /* init derivative to use as viscous stress coefficient */
+  derivative = rhea_viscosity_new (ymir_mesh);
+  ymir_vec_set_value (derivative, 1.0);
+
+  /* create stress operator */
+  vel_dir = rhea_domain_create_velocity_dirichlet_bc (
+      ymir_mesh, NULL /* dirscal */, domain_options);
+  stress_op = ymir_stress_op_new_ext (
+      derivative, vel_dir,
+      NULL /* Robin BC's */,
+      NULL /* deprecated */,
+      NULL /* deprecated */,
+      domain_options->center, domain_options->moment_of_inertia);
+
+  /* compute gradient entry for each parameter */
+  for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
+    if (active[i]) {
+      /* compute parameter derivative of viscosity */
+      rhea_viscosity_param_derivative (
+          derivative, rhea_inversion_param_get_derivative_type (i),
+          viscosity, bounds_marker, yielding_marker, temperature, weakzone,
+          inv_param->visc_options);
+
+      /* transform to viscous stress coefficient */
+      ymir_vec_scale (2.0, derivative);
+
+      /* set derivative as the coefficient of the viscous stress operator */
+      ymir_stress_op_set_coeff_scal (stress_op, derivative);
+
+      /* apply viscous stress operator to forward velocity */
+      ymir_stress_pc_apply_stress_op (forward_vel, op_out_vel, stress_op,
+                                      0 /* !linearized */, 1 /* dirty */);
+
+      /* compute inner product with adjoint velocity */
+      grad_data[i] = ymir_vec_innerprod (op_out_vel, adjoint_vel);
+    }
+  }
+
+  /* destroy */
+  ymir_stress_op_destroy (stress_op);
+  ymir_vel_dir_destroy (vel_dir);
+  rhea_viscosity_destroy (derivative);
+  rhea_viscosity_destroy (viscosity);
+  rhea_viscosity_destroy (bounds_marker);
+  rhea_viscosity_destroy (yielding_marker);
+  rhea_velocity_destroy (forward_vel);
+  rhea_velocity_destroy (adjoint_vel);
+  rhea_velocity_destroy (op_out_vel);
+}
+
+/******************************************************************************
+ * Data Access
+ *****************************************************************************/
 
 ymir_vec_t *
 rhea_inversion_param_get_vector (rhea_inversion_param_t *inv_param)

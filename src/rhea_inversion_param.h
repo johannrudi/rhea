@@ -6,8 +6,7 @@
 #ifndef RHEA_INVERSION_PARAM_H
 #define RHEA_INVERSION_PARAM_H
 
-#include <rhea_weakzone.h>
-#include <rhea_viscosity.h>
+#include <rhea_stokes_problem.h>
 
 /******************************************************************************
  * Options
@@ -63,8 +62,7 @@ typedef struct rhea_inversion_param rhea_inversion_param_t;
  * Creates a new set of inversion parameters.
  */
 rhea_inversion_param_t *rhea_inversion_param_new (
-                            rhea_weakzone_options_t *weak_options,
-                            rhea_viscosity_options_t *visc_options,
+                            rhea_stokes_problem_t *stokes_problem,
                             rhea_inversion_param_options_t *inv_param_options);
 
 /**
@@ -84,6 +82,19 @@ void                rhea_inversion_param_pull_from_model (
  */
 void                rhea_inversion_param_push_to_model (
                             rhea_inversion_param_t *inv_param);
+
+/**
+ * Computes the gradient vector of the Stokes model w.r.t. model parameters.
+ */
+void                rhea_inversion_param_compute_gradient (
+                            ymir_vec_t *gradient,
+                            ymir_vec_t *forward_vel_press,
+                            ymir_vec_t *adjoint_vel_press,
+                            rhea_inversion_param_t *inv_param);
+
+/******************************************************************************
+ * Data Access
+ *****************************************************************************/
 
 /**
  * Gets the pointer to the parameter vector.
