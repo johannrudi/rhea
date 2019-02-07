@@ -874,8 +874,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
   int                 i;
 
   /* check input */
-  RHEA_ASSERT (ymir_vec_is_meshfree (gradient));
-  RHEA_ASSERT (gradient->n_meshfree == inv_param->n_parameters);
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient, inv_param));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (adjoint_vel_press));
 
@@ -933,6 +932,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
       grad_data[i] = ymir_vec_innerprod (op_out_vel, adjoint_vel);
     }
   }
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient, inv_param));
 
   /* destroy */
   ymir_stress_op_destroy (stress_op);
@@ -946,9 +946,64 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
   rhea_velocity_destroy (op_out_vel);
 }
 
+double
+rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
+                                            rhea_inversion_param_t *inv_param)
+{
+  const int           n_parameters = inv_param->n_parameters;
+  const int          *active = inv_param->active;
+  const double       *grad_data = gradient->meshfree->e[0];
+  double              sum_of_squares = 0.0;
+  int                 i;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient, inv_param));
+
+  /* sum up (squares of) entries of the gradient vector that are active */
+  for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
+    if (active[i]) {
+      sum_of_squares += grad_data[i] * grad_data[i];
+    }
+  }
+
+  /* return l2-norm of active entries of the gradient vector */
+  return sqrt (sum_of_squares);
+}
+
 /******************************************************************************
- * Data Access
+ * Parameter Vector
  *****************************************************************************/
+
+int
+rhea_inversion_param_vec_check_type (ymir_vec_t *vec,
+                                     rhea_inversion_param_t *inv_param)
+{
+  return (
+      ymir_vec_is_meshfree (vec) &&
+      vec->n_meshfree == inv_param->n_parameters &&
+      RHEA_INVERSION_PARAM_N == inv_param->n_parameters
+  );
+}
+
+int
+rhea_inversion_param_vec_is_valid (ymir_vec_t *vec,
+                                   rhea_inversion_param_t *inv_param)
+{
+  const int           n_parameters = inv_param->n_parameters;
+  const int          *active = inv_param->active;
+  const double       *vec_data = vec->meshfree->e[0];
+  int                 i;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (vec, inv_param));
+
+  for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
+    if (active[i] && !isfinite (vec_data[i])) {
+      return 0;
+    }
+  }
+  return 1;
+}
 
 ymir_vec_t *
 rhea_inversion_param_get_vector (rhea_inversion_param_t *inv_param)

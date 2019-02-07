@@ -75,31 +75,52 @@ void                rhea_inversion_param_destroy (
  * Sets the inversion parameters to the values from a model.
  */
 void                rhea_inversion_param_pull_from_model (
-                            rhea_inversion_param_t *inv_param);
+                                            rhea_inversion_param_t *inv_param);
 
 /**
  * Overwrites model parameters with values from the parameter inversion.
  */
 void                rhea_inversion_param_push_to_model (
-                            rhea_inversion_param_t *inv_param);
+                                            rhea_inversion_param_t *inv_param);
 
 /**
  * Computes the gradient vector of the Stokes model w.r.t. model parameters.
  */
 void                rhea_inversion_param_compute_gradient (
-                            ymir_vec_t *gradient,
-                            ymir_vec_t *forward_vel_press,
-                            ymir_vec_t *adjoint_vel_press,
-                            rhea_inversion_param_t *inv_param);
+                                            ymir_vec_t *gradient,
+                                            ymir_vec_t *forward_vel_press,
+                                            ymir_vec_t *adjoint_vel_press,
+                                            rhea_inversion_param_t *inv_param);
+
+/**
+ * Computes the norm of the provided gradient vector.
+ */
+double              rhea_inversion_param_compute_gradient_norm (
+                                            ymir_vec_t *gradient,
+                                            rhea_inversion_param_t *inv_param);
 
 /******************************************************************************
- * Data Access
+ * Parameter Vector
  *****************************************************************************/
+
+/**
+ * Checks whether a vector is of the right type.
+ */
+int                 rhea_inversion_param_vec_check_type (
+                                            ymir_vec_t *vec,
+                                            rhea_inversion_param_t *inv_param);
+
+/**
+ * Checks entries of a vector.
+ */
+int                 rhea_inversion_param_vec_is_valid (
+                                            ymir_vec_t *vec,
+                                            rhea_inversion_param_t *inv_param);
 
 /**
  * Gets the pointer to the parameter vector.
  */
 ymir_vec_t         *rhea_inversion_param_get_vector (
-                            rhea_inversion_param_t *inv_param);
+                                            rhea_inversion_param_t *inv_param);
 
 #endif /* RHEA_INVERSION_PARAM_H */
