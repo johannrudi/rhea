@@ -295,9 +295,13 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       stokes_rel_tol, stokes_problem, 1 /* force linear solve */);
   inv_problem->adjoint_vel_press = adjoint_vel_press;
 
-  /* compute gradient */
-  //TODO
-  //inv_problem->newton_neg_gradient_vec
+  /* compute negative gradient */
+  rhea_inversion_param_compute_gradient (
+      inv_problem->newton_neg_gradient_vec,
+      inv_problem->forward_vel_press,
+      inv_problem->adjoint_vel_press,
+      inv_problem->inv_param);
+  ymir_vec_scale (-1.0, inv_problem->newton_neg_gradient_vec);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -365,10 +369,7 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->stokes_problem = stokes_problem;
 
   /* create parameters */
-  inv_problem->inv_param = rhea_inversion_param_new (
-      rhea_stokes_problem_get_weakzone_options (stokes_problem),
-      rhea_stokes_problem_get_viscosity_options (stokes_problem),
-      NULL);
+  inv_problem->inv_param = rhea_inversion_param_new (stokes_problem, NULL);
   parameter_vec = rhea_inversion_param_get_vector (inv_problem->inv_param);
 
   /* create observational data */
