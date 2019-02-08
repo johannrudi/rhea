@@ -9,6 +9,7 @@ include example/share/Makefile.am
 # examples created by Johann Rudi
 include example/amr/Makefile.am
 include example/basic/Makefile.am
+include example/basic_inversion/Makefile.am
 include example/earth/Makefile.am
 include example/io/Makefile.am
 include example/newton_polynomial/Makefile.am
