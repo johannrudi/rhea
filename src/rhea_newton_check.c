@@ -25,8 +25,8 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   /* exit if check cannot be executed */
   if (!rhea_newton_problem_evaluate_objective_exists (nl_problem)) {
     RHEA_GLOBAL_VERBOSEF_FN_TAG (
-        __func__, "stop_reason=\"Cannot execute because objective functional "
-        "is not provided\"");
+        __func__, "stop_reason=\"%s\"",
+        "Cannot execute because objective functional is not provided");
     return;
   }
 
@@ -109,8 +109,8 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   /* exit if check cannot be executed */
   if (!rhea_newton_problem_apply_hessian_exists (nl_problem)) {
     RHEA_GLOBAL_VERBOSEF_FN_TAG (
-        __func__, "stop_reason=\"Cannot execute because Hessian-apply function "
-        "is not provided\"");
+        __func__, "stop_reason=\"%s\"",
+        "Cannot execute because Hessian-apply function is not provided");
     return;
   }
 
