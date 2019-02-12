@@ -148,6 +148,7 @@ rhea_add_options_all (ymir_options_t *options)
   rhea_viscosity_add_options (options);
   rhea_discretization_add_options (options);
   rhea_stokes_problem_add_options (options);
+  rhea_inversion_add_options (options);
   rhea_io_mpi_add_options (options);
 }
 
