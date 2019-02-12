@@ -302,7 +302,7 @@ void                rhea_viscosity_compute_nonlinear_init_elem (
                                 rhea_viscosity_options_t *opt);
 
 /******************************************************************************
- * Get & Set
+ * Properties
  *****************************************************************************/
 
 /**
@@ -318,6 +318,12 @@ int                 rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt);
 void                rhea_viscosity_filter_where_max (ymir_vec_t *vec,
                                                      ymir_vec_t *bounds_marker,
                                                      const int invert_filter);
+
+/**
+ * Returns whether temperature dependence via Arrhenius relationship is enabled.
+ */
+int                 rhea_viscosity_has_arrhenius (
+                                                rhea_viscosity_options_t *opt);
 
 /**
  * Returns whether strain rate weakening physics are enabled.

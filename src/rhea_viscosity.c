@@ -1786,7 +1786,7 @@ rhea_viscosity_compute_nonlinear_init_elem (
 }
 
 /******************************************************************************
- * Get & Set
+ * Properties
  *****************************************************************************/
 
 int
@@ -1866,6 +1866,12 @@ rhea_viscosity_filter_where_max (ymir_vec_t *vec,
 
   /* destroy */
   ymir_vec_destroy (filter);
+}
+
+int
+rhea_viscosity_has_arrhenius (rhea_viscosity_options_t *opt)
+{
+  return (opt->type_linear == RHEA_VISCOSITY_LINEAR_ARRHENIUS);
 }
 
 int
