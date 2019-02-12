@@ -28,9 +28,27 @@ typedef struct rhea_inversion_problem rhea_inversion_problem_t;
  * Creates/destroys an inverse problem.
  */
 rhea_inversion_problem_t *rhea_inversion_new (
-                            rhea_stokes_problem_t *stokes_problem);
+                                        rhea_stokes_problem_t *stokes_problem);
 
 void                      rhea_inversion_destroy (
-                            rhea_inversion_problem_t *inv_problem);
+                                        rhea_inversion_problem_t *inv_problem);
+
+/******************************************************************************
+ * Inverse Problem Solver
+ *****************************************************************************/
+
+/**
+ * Solves an inverse problem.
+ */
+void                rhea_inversion_solve (
+                                        rhea_inversion_problem_t *inv_problem);
+
+/**
+ * Solves an inverse problem with given velocity observations at the surface.
+ */
+void                rhea_inversion_solve_with_vel_obs (
+                                        rhea_inversion_problem_t *inv_problem,
+                                        ymir_vec_t *vel_obs_surf,
+                                        ymir_vec_t *vel_obs_weight_surf);
 
 #endif /* RHEA_INVERSION_H */
