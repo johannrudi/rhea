@@ -104,6 +104,15 @@ double              rhea_inversion_param_compute_gradient_norm (
  *****************************************************************************/
 
 /**
+ * Creates/destroys a parameter vector.
+ */
+ymir_vec_t         *rhea_inversion_param_vec_new (
+                                            rhea_inversion_param_t *inv_param);
+
+void                rhea_inversion_param_vec_destroy (
+                                            ymir_vec_t *parameter_vec);
+
+/**
  * Checks whether a vector is of the right type.
  */
 int                 rhea_inversion_param_vec_check_type (
