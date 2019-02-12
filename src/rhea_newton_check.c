@@ -22,11 +22,11 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   RHEA_ASSERT (NULL != rhea_newton_problem_get_neg_gradient_vec (nl_problem));
   RHEA_ASSERT (NULL != rhea_newton_problem_get_step_vec (nl_problem));
 
-  /* return if check cannot be executed */
+  /* exit if check cannot be executed */
   if (!rhea_newton_problem_evaluate_objective_exists (nl_problem)) {
-    RHEA_GLOBAL_VERBOSEF (
-        "%s Cannot execute because objective functional is not provided.\n",
-        __func__);
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (
+        __func__, "stop_reason=\"Cannot execute because objective functional "
+        "is not provided\"");
     return;
   }
 
@@ -68,10 +68,10 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
     abs_error = fabs (grad_dir_ref - grad_dir_chk);
     rel_error = abs_error / fabs (grad_dir_ref);
 
-    RHEA_GLOBAL_INFOF ("<%s_result eps=%.1e, error abs=%.1e, rel=%.1e "
-                       "(grad^T*dir ref=%.12e, chk=%.12e) />\n",
-                       __func__, eps, abs_error, rel_error,
-                       grad_dir_ref, grad_dir_chk);
+    RHEA_GLOBAL_INFOF_FN_TAG (
+        __func__,
+        "eps=%.1e, error abs=%.1e, rel=%.1e (grad^T*dir ref=%.12e, chk=%.12e)",
+        eps, abs_error, rel_error, grad_dir_ref, grad_dir_chk);
   }
 
   /* restore */
@@ -106,11 +106,11 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   RHEA_ASSERT (NULL != rhea_newton_problem_get_step_vec (nl_problem));
   RHEA_ASSERT (rhea_newton_problem_compute_neg_gradient_exists (nl_problem));
 
-  /* return if check cannot be executed */
+  /* exit if check cannot be executed */
   if (!rhea_newton_problem_apply_hessian_exists (nl_problem)) {
-    RHEA_GLOBAL_VERBOSEF (
-        "%s Cannot execute because Hessian-apply function is not provided.\n",
-        __func__);
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (
+        __func__, "stop_reason=\"Cannot execute because Hessian-apply function "
+        "is not provided\"");
     return;
   }
 
@@ -156,8 +156,9 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
     abs_error = ymir_vec_norm (H_dir_chk);
     rel_error = abs_error / norm_ref;
 
-    RHEA_GLOBAL_INFOF ("<%s_result eps=%.1e, error abs=%.1e, rel=%.1e />\n",
-                       __func__, eps, abs_error, rel_error);
+    RHEA_GLOBAL_INFOF_FN_TAG (
+        __func__, "eps=%.1e, error abs=%.1e, rel=%.1e",
+        eps, abs_error, rel_error);
   }
 
   /* restore */
