@@ -112,25 +112,35 @@ void                RHEA_GLOBAL_LERRORF (const char *fmt, ...)
 /* global log macros for beginning and end of a function (XML type output) */
 #define RHEA_GLOBAL_VERBOSE_FN_BEGIN(fn)  RHEA_GLOBAL_VERBOSEF ("<%s>\n", fn)
 #define RHEA_GLOBAL_VERBOSE_FN_END(fn)    RHEA_GLOBAL_VERBOSEF ("</%s>\n", fn)
+#define RHEA_GLOBAL_VERBOSE_FN_TAG(fn)    RHEA_GLOBAL_VERBOSEF ("<%s />\n", fn)
 #define RHEA_GLOBAL_INFO_FN_BEGIN(fn)     RHEA_GLOBAL_INFOF ("<%s>\n", fn)
 #define RHEA_GLOBAL_INFO_FN_END(fn)       RHEA_GLOBAL_INFOF ("</%s>\n", fn)
+#define RHEA_GLOBAL_INFO_FN_TAG(fn)       RHEA_GLOBAL_INFOF ("<%s />\n", fn)
 #define RHEA_GLOBAL_PRODUCTION_FN_BEGIN(fn) \
         RHEA_GLOBAL_PRODUCTIONF ("<%s>\n", fn)
 #define RHEA_GLOBAL_PRODUCTION_FN_END(fn) \
         RHEA_GLOBAL_PRODUCTIONF ("</%s>\n", fn)
+#define RHEA_GLOBAL_PRODUCTION_FN_TAG(fn) \
+        RHEA_GLOBAL_PRODUCTIONF ("<%s />\n", fn)
 
 #define RHEA_GLOBAL_VERBOSEF_FN_BEGIN(fn,a,...) \
         RHEA_GLOBAL_VERBOSEF ("<%s "a">\n", fn, __VA_ARGS__)
 #define RHEA_GLOBAL_VERBOSEF_FN_END(fn,a,...) \
         RHEA_GLOBAL_VERBOSEF ("</%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_GLOBAL_VERBOSEF_FN_TAG(fn,a,...) \
+        RHEA_GLOBAL_VERBOSEF ("<%s "a" />\n", fn, __VA_ARGS__)
 #define RHEA_GLOBAL_INFOF_FN_BEGIN(fn,a,...) \
         RHEA_GLOBAL_INFOF ("<%s "a">\n", fn, __VA_ARGS__)
 #define RHEA_GLOBAL_INFOF_FN_END(fn,a,...) \
         RHEA_GLOBAL_INFOF ("</%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_GLOBAL_INFOF_FN_TAG(fn,a,...) \
+        RHEA_GLOBAL_INFOF ("<%s "a" />\n", fn, __VA_ARGS__)
 #define RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN(fn,a,...) \
         RHEA_GLOBAL_PRODUCTIONF ("<%s "a">\n", fn, __VA_ARGS__)
 #define RHEA_GLOBAL_PRODUCTIONF_FN_END(fn,a,...) \
         RHEA_GLOBAL_PRODUCTIONF ("</%s "a">\n", fn, __VA_ARGS__)
+#define RHEA_GLOBAL_PRODUCTIONF_FN_TAG(fn,a,...) \
+        RHEA_GLOBAL_PRODUCTIONF ("<%s "a" />\n", fn, __VA_ARGS__)
 
 /* log macros that are active on every processor */
 #define RHEA_TRACE(s)      RHEA_LOG (SC_LP_TRACE, (s))
