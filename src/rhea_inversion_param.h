@@ -99,6 +99,12 @@ double              rhea_inversion_param_compute_gradient_norm (
                                             ymir_vec_t *gradient,
                                             rhea_inversion_param_t *inv_param);
 
+/**
+ * Prints the active parameters.
+ */
+void                rhea_inversion_param_print (
+                                            rhea_inversion_param_t *inv_param);
+
 /******************************************************************************
  * Parameter Vector
  *****************************************************************************/
@@ -126,10 +132,20 @@ int                 rhea_inversion_param_vec_is_valid (
                                             ymir_vec_t *vec,
                                             rhea_inversion_param_t *inv_param);
 
+/******************************************************************************
+ * Data Access
+ *****************************************************************************/
+
 /**
  * Gets the pointer to the parameter vector.
  */
 ymir_vec_t         *rhea_inversion_param_get_vector (
+                                            rhea_inversion_param_t *inv_param);
+
+/**
+ * Gets the pointer to the activation mask.
+ */
+int                *rhea_inversion_param_get_active (
                                             rhea_inversion_param_t *inv_param);
 
 #endif /* RHEA_INVERSION_PARAM_H */

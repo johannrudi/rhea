@@ -383,7 +383,6 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
 {
   rhea_inversion_param_options_t *inv_param_opt;
   rhea_inversion_param_t         *inv_param;
-  int                 i;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
@@ -414,27 +413,15 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
       inv_param->active);
 
   /* set up parameter vector */
-  {
-    double             *param_data = inv_param->parameter_vec->meshfree->e[0];
-
-    for (i = 0; i < inv_param->n_parameters; i++) {
-      param_data[i] = NAN;
-    }
-  }
+  ymir_vec_set_zero (inv_param->parameter_vec);
   rhea_inversion_param_pull_from_model (inv_param);
 
   /* print summary of active inversion parameters */
   if (inv_param->n_active) {
-    const double       *param_data = inv_param->parameter_vec->meshfree->e[0];
-
     RHEA_GLOBAL_INFO ("========================================\n");
     RHEA_GLOBAL_INFOF ("%s: summary\n", __func__);
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
-    for (i = 0; i < inv_param->n_parameters; i++) {
-      if (inv_param->active[i]) {
-        RHEA_GLOBAL_INFOF ("  param# %3i:  %g\n", i, param_data[i]);
-      }
-    }
+    rhea_inversion_param_print (inv_param);
     RHEA_GLOBAL_INFO ("========================================\n");
   }
 
@@ -941,6 +928,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
       domain_options->center, domain_options->moment_of_inertia);
 
   /* compute gradient entry for each parameter */
+  ymir_vec_set_zero (gradient);
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
       /* compute parameter derivative of viscosity */
@@ -1001,6 +989,26 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
   return sqrt (sum_of_squares);
 }
 
+void
+rhea_inversion_param_print (rhea_inversion_param_t *inv_param)
+{
+  const double       *param_data = inv_param->parameter_vec->meshfree->e[0];
+  const int          *active = inv_param->active;
+  int                 i;
+
+  /* exit if nothing to do */
+  if (!inv_param->n_active) {
+    return;
+  }
+
+  /* print each parameter */
+  for (i = 0; i < inv_param->n_parameters; i++) {
+    if (active[i]) {
+      RHEA_GLOBAL_INFOF ("param# %3i: %g\n", i, param_data[i]);
+    }
+  }
+}
+
 /******************************************************************************
  * Parameter Vector
  *****************************************************************************/
@@ -1048,8 +1056,18 @@ rhea_inversion_param_vec_is_valid (ymir_vec_t *vec,
   return 1;
 }
 
+/******************************************************************************
+ * Data Access
+ *****************************************************************************/
+
 ymir_vec_t *
 rhea_inversion_param_get_vector (rhea_inversion_param_t *inv_param)
 {
   return inv_param->parameter_vec;
+}
+
+int *
+rhea_inversion_param_get_active (rhea_inversion_param_t *inv_param)
+{
+  return inv_param->active;
 }
