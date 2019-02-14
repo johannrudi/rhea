@@ -55,7 +55,7 @@ rhea_viscosity_param_derivative_scal (
                                         1 /* invert_filter */);
 
   /* check output */
-  RHEA_ASSERT (rhea_viscosity_is_valid (derivative));
+  RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
 }
 
 /**
@@ -127,7 +127,7 @@ rhea_viscosity_param_derivative_arrh (
                                         1 /* invert_filter */);
 
   /* check output */
-  RHEA_ASSERT (rhea_viscosity_is_valid (derivative));
+  RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
 }
 
 void
