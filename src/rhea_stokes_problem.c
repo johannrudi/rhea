@@ -794,13 +794,15 @@ rhea_stokes_problem_linear_setup_solver (
 static void
 rhea_stokes_problem_linear_update_solver (
                                     rhea_stokes_problem_t *stokes_problem_lin,
+                                    const int update_coeff,
                                     const int override_rhs,
                                     ymir_vec_t *rhs_vel_press,
                                     ymir_vec_t *rhs_vel,
                                     ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_vec_t **rhs_vel_face_nonzero_neumann)
 {
-  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "override_rhs=%i", override_rhs);
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "update_coeff=%i, override_rhs=%i",
+                                 update_coeff, override_rhs);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
@@ -809,6 +811,8 @@ rhea_stokes_problem_linear_update_solver (
   RHEA_ASSERT (
       rhea_stokes_problem_linear_solver_data_exists (stokes_problem_lin));
   RHEA_ASSERT (stokes_problem_lin->stokes_pc != NULL);
+  RHEA_ASSERT (rhs_vel_press == NULL ||
+               rhea_velocity_pressure_check_vec_type (rhs_vel_press));
   RHEA_ASSERT (rhs_vel == NULL || rhea_velocity_check_vec_type (rhs_vel));
   RHEA_ASSERT (rhs_vel_nonzero_dirichlet == NULL ||
                rhea_velocity_check_vec_type (rhs_vel_nonzero_dirichlet));
@@ -825,15 +829,16 @@ rhea_stokes_problem_linear_update_solver (
     }
   }
 #endif
-  RHEA_ASSERT (rhs_vel_press == NULL ||
-               rhea_velocity_pressure_check_vec_type (rhs_vel_press));
 
-  /* update Stokes coefficient */
-  rhea_stokes_problem_compute_and_update_coefficient (
-      stokes_problem_lin, NULL /* vel_press */, 0 /* !nit */);
+  /* update coefficient */
+  if (update_coeff) {
+    /* update coefficient of Stokes operator */
+    rhea_stokes_problem_compute_and_update_coefficient (
+        stokes_problem_lin, NULL /* vel_press */, 0 /* !nit */);
 
-  /* update Stokes preconditioner */
-  ymir_stokes_pc_recompute (stokes_problem_lin->stokes_pc);
+    /* update Stokes preconditioner */
+    ymir_stokes_pc_recompute (stokes_problem_lin->stokes_pc);
+  }
 
   /* re-construct right-hand side for Stokes system */
   if (override_rhs) {
@@ -847,9 +852,8 @@ rhea_stokes_problem_linear_update_solver (
       ymir_vec_copy (rhs_vel_press, stokes_problem_lin->rhs_vel_press);
     }
     else {
-      rhs_vel_press = stokes_problem_lin->rhs_vel_press;
       ymir_stokes_pc_construct_rhs (
-          rhs_vel_press,                /* output: right-hand side */
+          stokes_problem_lin->rhs_vel_press, /* output: right-hand side */
           rhs_vel,                      /* input: volume forcing */
           rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
           rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
@@ -863,16 +867,16 @@ rhea_stokes_problem_linear_update_solver (
       stokes_problem_lin->rhs_vel_nonzero_dirichlet;
     rhs_vel_face_nonzero_neumann =
       stokes_problem_lin->rhs_vel_face_nonzero_neumann;
-    rhs_vel_press = stokes_problem_lin->rhs_vel_press;
     ymir_stokes_pc_construct_rhs (
-        rhs_vel_press,                /* output: right-hand side */
+        stokes_problem_lin->rhs_vel_press, /* output: right-hand side */
         rhs_vel,                      /* input: volume forcing */
         rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
         rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
         stokes_problem_lin->incompressible,
         stokes_problem_lin->stokes_op, 0 /* !linearized */);
   }
-  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
+  RHEA_ASSERT (
+      rhea_velocity_pressure_is_valid (stokes_problem_lin->rhs_vel_press));
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -2880,6 +2884,7 @@ rhea_stokes_problem_nonlinear_setup_solver (
 static void
 rhea_stokes_problem_nonlinear_update_solver (
                                     rhea_stokes_problem_t *stokes_problem_nl,
+                                    const int update_coeff,
                                     ymir_vec_t *vel_press,
                                     const int override_rhs,
                                     ymir_vec_t *rhs_vel_press,
@@ -2887,8 +2892,9 @@ rhea_stokes_problem_nonlinear_update_solver (
                                     ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_vec_t **rhs_vel_face_nonzero_neumann)
 {
-  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "override_rhs=%i, vel_press=%i",
-                                 override_rhs, (vel_press != NULL));
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+      __func__, "update_coeff=%i, vel_press=%i, override_rhs=%i",
+      update_coeff, (vel_press != NULL), override_rhs);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
@@ -2897,6 +2903,10 @@ rhea_stokes_problem_nonlinear_update_solver (
   RHEA_ASSERT (
       rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem_nl));
   RHEA_ASSERT (stokes_problem_nl->stokes_pc != NULL);
+  RHEA_ASSERT (vel_press == NULL ||
+               rhea_velocity_pressure_check_vec_type (vel_press));
+  RHEA_ASSERT (rhs_vel_press == NULL ||
+               rhea_velocity_pressure_check_vec_type (rhs_vel_press));
   RHEA_ASSERT (rhs_vel == NULL || rhea_velocity_check_vec_type (rhs_vel));
   RHEA_ASSERT (rhs_vel_nonzero_dirichlet == NULL ||
                rhea_velocity_check_vec_type (rhs_vel_nonzero_dirichlet));
@@ -2913,16 +2923,14 @@ rhea_stokes_problem_nonlinear_update_solver (
     }
   }
 #endif
-  RHEA_ASSERT (rhs_vel_press == NULL ||
-               rhea_velocity_pressure_check_vec_type (rhs_vel_press));
 
-  /* update Stokes coefficient */
-  rhea_stokes_problem_compute_and_update_coefficient (
-      stokes_problem_nl, vel_press, (vel_press == NULL) /* is init? */);
+  /* update coefficient */
+  if (update_coeff) {
+    /* update coefficient of Stokes operator */
+    rhea_stokes_problem_compute_and_update_coefficient (
+        stokes_problem_nl, vel_press, (vel_press == NULL) /* is init? */);
 
-  /* update Stokes preconditioner */
-  if (vel_press != NULL) {
-    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (vel_press));
+    /* update Stokes preconditioner */
     rhea_stokes_problem_nonlinear_update_hessian_fn (vel_press, NULL, NAN,
                                                      stokes_problem_nl);
   }
@@ -2939,9 +2947,8 @@ rhea_stokes_problem_nonlinear_update_solver (
       ymir_vec_copy (rhs_vel_press, stokes_problem_nl->rhs_vel_press);
     }
     else {
-      rhs_vel_press = stokes_problem_nl->rhs_vel_press;
       ymir_stokes_pc_construct_rhs (
-          rhs_vel_press,                /* output: right-hand side */
+          stokes_problem_nl->rhs_vel_press, /* output: right-hand side */
           rhs_vel,                      /* input: volume forcing */
           rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
           rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
@@ -2950,21 +2957,21 @@ rhea_stokes_problem_nonlinear_update_solver (
     }
   }
   else {
-    rhs_vel_press = stokes_problem_nl->rhs_vel_press;
     rhs_vel = stokes_problem_nl->rhs_vel;
     rhs_vel_nonzero_dirichlet =
       stokes_problem_nl->rhs_vel_nonzero_dirichlet;
     rhs_vel_face_nonzero_neumann =
       stokes_problem_nl->rhs_vel_face_nonzero_neumann;
     ymir_stokes_pc_construct_rhs (
-        rhs_vel_press,                /* output: right-hand side */
+        stokes_problem_nl->rhs_vel_press, /* output: right-hand side */
         rhs_vel,                      /* input: volume forcing */
         rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
         rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
         stokes_problem_nl->incompressible,
         stokes_problem_nl->stokes_op, 1 /* linearized */);
   }
-  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
+  RHEA_ASSERT (
+      rhea_velocity_pressure_is_valid (stokes_problem_nl->rhs_vel_press));
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -3121,7 +3128,8 @@ rhea_stokes_problem_setup_solver (rhea_stokes_problem_t *stokes_problem)
     if (rhea_stokes_problem_linear_solver_data_exists (stokes_problem) &&
         stokes_problem->stokes_pc != NULL) {
       rhea_stokes_problem_linear_update_solver (
-          stokes_problem, 0 /* !override_rhs */, NULL, NULL, NULL, NULL);
+          stokes_problem, 1 /* update_coeff */,
+          0 /* !override_rhs */, NULL, NULL, NULL, NULL);
     }
     else {
       rhea_stokes_problem_linear_setup_solver (stokes_problem);
@@ -3131,7 +3139,7 @@ rhea_stokes_problem_setup_solver (rhea_stokes_problem_t *stokes_problem)
     if (rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem) &&
         stokes_problem->stokes_pc != NULL) {
       rhea_stokes_problem_nonlinear_update_solver (
-          stokes_problem, NULL /* vel_press */,
+          stokes_problem, 1 /* update_coeff */, NULL /* vel_press */,
           0 /* !override_rhs */, NULL, NULL, NULL, NULL);
     }
     else {
@@ -3145,6 +3153,7 @@ rhea_stokes_problem_setup_solver (rhea_stokes_problem_t *stokes_problem)
 
 void
 rhea_stokes_problem_update_solver (rhea_stokes_problem_t *stokes_problem,
+                                   const int update_coeff,
                                    ymir_vec_t *vel_press,
                                    const int override_rhs,
                                    ymir_vec_t *rhs_vel_press,
@@ -3155,13 +3164,13 @@ rhea_stokes_problem_update_solver (rhea_stokes_problem_t *stokes_problem,
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
     rhea_stokes_problem_linear_update_solver (
-        stokes_problem, override_rhs, rhs_vel_press, rhs_vel,
+        stokes_problem, update_coeff, override_rhs, rhs_vel_press, rhs_vel,
         rhs_vel_nonzero_dirichlet, rhs_vel_face_nonzero_neumann);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     rhea_stokes_problem_nonlinear_update_solver (
-        stokes_problem, vel_press, override_rhs, rhs_vel_press, rhs_vel,
-        rhs_vel_nonzero_dirichlet, rhs_vel_face_nonzero_neumann);
+        stokes_problem, update_coeff, vel_press, override_rhs, rhs_vel_press,
+        rhs_vel, rhs_vel_nonzero_dirichlet, rhs_vel_face_nonzero_neumann);
     break;
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();

@@ -116,6 +116,7 @@ void                rhea_stokes_problem_compute_and_update_coefficient (
  */
 void                rhea_stokes_problem_update_solver (
                                     rhea_stokes_problem_t *stokes_problem,
+                                    const int update_coeff,
                                     ymir_vec_t *vel_press,
                                     const int override_rhs,
                                     ymir_vec_t *rhs_vel_press,
