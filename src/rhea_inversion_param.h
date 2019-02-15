@@ -75,12 +75,14 @@ void                rhea_inversion_param_destroy (
  * Sets the inversion parameters to the values from a model.
  */
 void                rhea_inversion_param_pull_from_model (
+                                            ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param);
 
 /**
  * Overwrites model parameters with values from the parameter inversion.
  */
 void                rhea_inversion_param_push_to_model (
+                                            ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param);
 
 /**
@@ -103,6 +105,7 @@ double              rhea_inversion_param_compute_gradient_norm (
  * Prints the active parameters.
  */
 void                rhea_inversion_param_print (
+                                            ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param);
 
 /******************************************************************************
@@ -115,8 +118,7 @@ void                rhea_inversion_param_print (
 ymir_vec_t         *rhea_inversion_param_vec_new (
                                             rhea_inversion_param_t *inv_param);
 
-void                rhea_inversion_param_vec_destroy (
-                                            ymir_vec_t *parameter_vec);
+void                rhea_inversion_param_vec_destroy (ymir_vec_t *vec);
 
 /**
  * Checks whether a vector is of the right type.
@@ -135,12 +137,6 @@ int                 rhea_inversion_param_vec_is_valid (
 /******************************************************************************
  * Data Access
  *****************************************************************************/
-
-/**
- * Gets the pointer to the parameter vector.
- */
-ymir_vec_t         *rhea_inversion_param_get_vector (
-                                            rhea_inversion_param_t *inv_param);
 
 /**
  * Gets the pointer to the activation mask.

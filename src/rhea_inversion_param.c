@@ -359,13 +359,10 @@ rhea_inversion_param_activation_mask_count (int *active)
 /* inversion parameters */
 struct rhea_inversion_param
 {
-  /* vector containing all inversion parameters */
-  ymir_vec_t         *parameter_vec;
-  int                 n_parameters;
-
   /* activation mask for inversion parameters */
   int                *active;
   int                 n_active;
+  int                 n_parameters;
 
   //TODO add weights?
 
@@ -399,7 +396,6 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
   /* initialize inversion parameters */
   inv_param = RHEA_ALLOC (rhea_inversion_param_t, 1);
   inv_param->n_parameters = RHEA_INVERSION_PARAM_N;
-  inv_param->parameter_vec = rhea_inversion_param_vec_new (inv_param);
   inv_param->stokes_problem = stokes_problem;
   inv_param->weak_options =
     rhea_stokes_problem_get_weakzone_options (stokes_problem);
@@ -412,19 +408,6 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
   inv_param->n_active = rhea_inversion_param_activation_mask_count (
       inv_param->active);
 
-  /* set up parameter vector */
-  ymir_vec_set_zero (inv_param->parameter_vec);
-  rhea_inversion_param_pull_from_model (inv_param);
-
-  /* print summary of active inversion parameters */
-  if (inv_param->n_active) {
-    RHEA_GLOBAL_INFO ("========================================\n");
-    RHEA_GLOBAL_INFOF ("%s: summary\n", __func__);
-    RHEA_GLOBAL_INFO ("----------------------------------------\n");
-    rhea_inversion_param_print (inv_param);
-    RHEA_GLOBAL_INFO ("========================================\n");
-  }
-
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 
   /* return inversion parameters */
@@ -434,7 +417,6 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
 void
 rhea_inversion_param_destroy (rhea_inversion_param_t *inv_param)
 {
-  rhea_inversion_param_vec_destroy (inv_param->parameter_vec);
   rhea_inversion_param_activation_mask_destroy (inv_param->active);
   RHEA_FREE (inv_param);
 }
@@ -443,9 +425,10 @@ static int
 rhea_inversion_param_calculate_inversion_val_if_active_exp (
                                             const double model_val,
                                             const int param_idx,
+                                            ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = inv_param->parameter_vec->meshfree->e[0];
+  double             *param_data = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
     param_data[param_idx] = log (model_val);
@@ -460,9 +443,10 @@ static int
 rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
                                             const double model_val,
                                             const int param_idx,
+                                            ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = inv_param->parameter_vec->meshfree->e[0];
+  double             *param_data = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
     RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
@@ -475,7 +459,8 @@ rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
 }
 
 void
-rhea_inversion_param_pull_from_model (rhea_inversion_param_t *inv_param)
+rhea_inversion_param_pull_from_model (ymir_vec_t *parameter_vec,
+                                      rhea_inversion_param_t *inv_param)
 {
   rhea_weakzone_options_t  *weak_options = inv_param->weak_options;
   rhea_viscosity_options_t *visc_options = inv_param->visc_options;
@@ -483,6 +468,12 @@ rhea_inversion_param_pull_from_model (rhea_inversion_param_t *inv_param)
   int                 offset, i;
 
   RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "n_active=%i", inv_param->n_active);
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
+
+  /* initialize to zero */
+  ymir_vec_set_zero (parameter_vec);
 
   /*
    * Pull from Viscosity Options
@@ -492,35 +483,41 @@ rhea_inversion_param_pull_from_model (rhea_inversion_param_t *inv_param)
    *   bound_p = log (bound)
    */
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
-      visc_options->min, RHEA_INVERSION_PARAM_VISC_MIN, inv_param);
+      visc_options->min, RHEA_INVERSION_PARAM_VISC_MIN,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
-      visc_options->max, RHEA_INVERSION_PARAM_VISC_MAX, inv_param);
+      visc_options->max, RHEA_INVERSION_PARAM_VISC_MAX,
+      parameter_vec, inv_param);
 
   /* pull scaling factors:
    *   scaling_p = log (scaling)
    */
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       visc_options->upper_mantle_scaling,
-      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING, inv_param);
+      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       visc_options->lower_mantle_scaling,
-      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING, inv_param);
+      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING,
+      parameter_vec, inv_param);
 
   /* pull activation energy in Arrhenius relationship:
    *   arrhenius_activation_energy_p = log (arrhenius_activation_energy)
    */
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       visc_options->upper_mantle_arrhenius_activation_energy,
-      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY, inv_param);
+      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       visc_options->lower_mantle_arrhenius_activation_energy,
-      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY, inv_param);
+      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY,
+      parameter_vec, inv_param);
 
   /* pull stress exponent that governs strain rate weakening:
    *   stress_exponent_p = log (stress_exponent - 1)
    */
   if (inv_param->active[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]) {
-    double             *param_data = inv_param->parameter_vec->meshfree->e[0];
+    double             *param_data = parameter_vec->meshfree->e[0];
 
     RHEA_ASSERT (1.0 < visc_options->stress_exponent);
     param_data[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT] =
@@ -532,7 +529,7 @@ rhea_inversion_param_pull_from_model (rhea_inversion_param_t *inv_param)
    */
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       visc_options->yield_strength,
-      RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH, inv_param);
+      RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH, parameter_vec, inv_param);
 
   /*
    * Pull from Weak Zone Options
@@ -543,45 +540,57 @@ rhea_inversion_param_pull_from_model (rhea_inversion_param_t *inv_param)
    */
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness_generic_slab,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness_generic_ridge,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness_generic_fracture,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE,
+      parameter_vec, inv_param);
 
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness_const,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness_const_generic_slab,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness_const_generic_ridge,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp (
       weak_options->thickness_const_generic_fracture,
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE,
+      parameter_vec, inv_param);
 
   /* pull generic max weakening in the interior of weak zones:
    *   weak_factor_interior_p = sqrt (-log (weak_factor_interior))
    */
   rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
       weak_options->weak_factor_interior,
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
       weak_options->weak_factor_interior_generic_slab,
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
       weak_options->weak_factor_interior_generic_ridge,
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
       weak_options->weak_factor_interior_generic_fracture,
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE,
+      parameter_vec, inv_param);
 
   /* check if earth's weak factors are active */
   {
@@ -607,14 +616,14 @@ rhea_inversion_param_pull_from_model (rhea_inversion_param_t *inv_param)
     offset_weak = 0;
     for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_SL; i++) {
       rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
-          weak_earth[offset_weak+i], offset+i, inv_param);
+          weak_earth[offset_weak+i], offset+i, parameter_vec, inv_param);
     }
 
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_RIDGE;
     offset_weak = RHEA_WEAKZONE_LABEL_EARTH_N_SL;
     for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_RI; i++) {
       rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
-          weak_earth[offset_weak+i], offset+i, inv_param);
+          weak_earth[offset_weak+i], offset+i, parameter_vec, inv_param);
     }
 
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_FRACTURE;
@@ -622,18 +631,22 @@ rhea_inversion_param_pull_from_model (rhea_inversion_param_t *inv_param)
                   RHEA_WEAKZONE_LABEL_EARTH_N_RI;
     for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_FZ; i++) {
       rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
-          weak_earth[offset_weak+i], offset+i, inv_param);
+          weak_earth[offset_weak+i], offset+i, parameter_vec, inv_param);
     }
   }
+
+  /* check output */
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
 }
 
 static int
 rhea_inversion_param_calculate_model_val_if_active_exp (
                                             double *model_val,
                                             const int param_idx,
+                                            ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = inv_param->parameter_vec->meshfree->e[0];
+  double             *param_data = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
     *model_val = exp (param_data[param_idx]);
@@ -648,9 +661,10 @@ static int
 rhea_inversion_param_calculate_model_val_if_active_exp2 (
                                             double *model_val,
                                             const int param_idx,
+                                            ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = inv_param->parameter_vec->meshfree->e[0];
+  double             *param_data = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
     *model_val = exp (-param_data[param_idx]*param_data[param_idx]);
@@ -662,7 +676,8 @@ rhea_inversion_param_calculate_model_val_if_active_exp2 (
 }
 
 void
-rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
+rhea_inversion_param_push_to_model (ymir_vec_t *parameter_vec,
+                                    rhea_inversion_param_t *inv_param)
 {
   rhea_weakzone_options_t  *weak_options = inv_param->weak_options;
   rhea_viscosity_options_t *visc_options = inv_param->visc_options;
@@ -675,39 +690,49 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
    * Push to Viscosity Options
    */
 
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+
   /* push lower and upper bounds of the viscosity:
    *   bound = exp (bound_p)
    */
   rhea_inversion_param_calculate_model_val_if_active_exp (
-      &(visc_options->min), RHEA_INVERSION_PARAM_VISC_MIN, inv_param);
+      &(visc_options->min), RHEA_INVERSION_PARAM_VISC_MIN,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
-      &(visc_options->max), RHEA_INVERSION_PARAM_VISC_MAX, inv_param);
+      &(visc_options->max), RHEA_INVERSION_PARAM_VISC_MAX,
+      parameter_vec, inv_param);
 
   /* push scaling factors:
    *   scaling = exp (scaling_p)
    */
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(visc_options->upper_mantle_scaling),
-      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING, inv_param);
+      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(visc_options->lower_mantle_scaling),
-      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING, inv_param);
+      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING,
+      parameter_vec, inv_param);
 
   /* push activation energy in Arrhenius relationship:
    *   arrhenius_activation_energy = exp (arrhenius_activation_energy_p)
    */
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(visc_options->upper_mantle_arrhenius_activation_energy),
-      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY, inv_param);
+      RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(visc_options->lower_mantle_arrhenius_activation_energy),
-      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY, inv_param);
+      RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY,
+      parameter_vec, inv_param);
 
   /* push stress exponent that governs strain rate weakening:
    *   stress_exponent = 1 + exp (stress_exponent_p)
    */
   if (inv_param->active[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]) {
-    double             *param_data = inv_param->parameter_vec->meshfree->e[0];
+    double             *param_data = parameter_vec->meshfree->e[0];
 
     visc_options->stress_exponent =
       1.0 + exp (param_data[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]);
@@ -718,7 +743,7 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
    */
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(visc_options->yield_strength),
-      RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH, inv_param);
+      RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH, parameter_vec, inv_param);
 
   /*
    * Push to Weak Zone Options
@@ -729,45 +754,57 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
    */
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness_generic_slab),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness_generic_ridge),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness_generic_fracture),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE,
+      parameter_vec, inv_param);
 
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness_const),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness_const_generic_slab),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness_const_generic_ridge),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp (
       &(weak_options->thickness_const_generic_fracture),
-      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE,
+      parameter_vec, inv_param);
 
   /* push generic max weakening in the interior of weak zones:
    *   weak_factor_interior = exp (-weak_factor_interior_p^2)
    */
   rhea_inversion_param_calculate_model_val_if_active_exp2 (
       &(weak_options->weak_factor_interior),
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp2 (
       &(weak_options->weak_factor_interior_generic_slab),
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp2 (
       &(weak_options->weak_factor_interior_generic_ridge),
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE,
+      parameter_vec, inv_param);
   rhea_inversion_param_calculate_model_val_if_active_exp2 (
       &(weak_options->weak_factor_interior_generic_fracture),
-      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE, inv_param);
+      RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE,
+      parameter_vec, inv_param);
 
   /* check if earth's weak factors are active */
   {
@@ -793,7 +830,7 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
     for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_SL; i++) {
       rhea_inversion_param_calculate_model_val_if_active_exp2 (
           &(weak_options->weak_factor_interior_earth[offset_weak+i]),
-          offset+i, inv_param);
+          offset+i, parameter_vec, inv_param);
     }
 
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_RIDGE;
@@ -801,7 +838,7 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
     for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_RI; i++) {
       rhea_inversion_param_calculate_model_val_if_active_exp2 (
           &(weak_options->weak_factor_interior_earth[offset_weak+i]),
-          offset+i, inv_param);
+          offset+i, parameter_vec, inv_param);
     }
 
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_FRACTURE;
@@ -810,7 +847,7 @@ rhea_inversion_param_push_to_model (rhea_inversion_param_t *inv_param)
     for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_FZ; i++) {
       rhea_inversion_param_calculate_model_val_if_active_exp2 (
           &(weak_options->weak_factor_interior_earth[offset_weak+i]),
-          offset+i, inv_param);
+          offset+i, parameter_vec, inv_param);
     }
   }
 }
@@ -990,11 +1027,15 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
 }
 
 void
-rhea_inversion_param_print (rhea_inversion_param_t *inv_param)
+rhea_inversion_param_print (ymir_vec_t *parameter_vec,
+                            rhea_inversion_param_t *inv_param)
 {
-  const double       *param_data = inv_param->parameter_vec->meshfree->e[0];
+  const double       *param_data = parameter_vec->meshfree->e[0];
   const int          *active = inv_param->active;
   int                 i;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
 
   /* exit if nothing to do */
   if (!inv_param->n_active) {
@@ -1020,9 +1061,9 @@ rhea_inversion_param_vec_new (rhea_inversion_param_t *inv_param)
 }
 
 void
-rhea_inversion_param_vec_destroy (ymir_vec_t *parameter_vec)
+rhea_inversion_param_vec_destroy (ymir_vec_t *vec)
 {
-  ymir_vec_destroy (parameter_vec);
+  ymir_vec_destroy (vec);
 }
 
 int
@@ -1059,12 +1100,6 @@ rhea_inversion_param_vec_is_valid (ymir_vec_t *vec,
 /******************************************************************************
  * Data Access
  *****************************************************************************/
-
-ymir_vec_t *
-rhea_inversion_param_get_vector (rhea_inversion_param_t *inv_param)
-{
-  return inv_param->parameter_vec;
-}
 
 int *
 rhea_inversion_param_get_active (rhea_inversion_param_t *inv_param)
