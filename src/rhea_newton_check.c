@@ -3,8 +3,132 @@
 
 #include <rhea_newton_check.h>
 #include <rhea_base.h>
+#include <ymir_vec_getset.h>
 
-#define RHEA_NEWTON_CHECK_N_TRIALS (5)
+#define RHEA_NEWTON_CHECK_N_TRIALS (6)
+
+static void
+rhea_newton_check_scale_cvec (ymir_vec_t *scale, ymir_vec_t *source)
+{
+  ymir_face_mesh_t   *face_mesh = ymir_vec_get_face_mesh (source);
+  const ymir_locidx_t n_nodes = face_mesh->Ncn;
+  const int           n_fields = source->ncfields;
+  ymir_locidx_t       nodeid;
+  int                 fieldid;
+
+  for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+    const double       *src = ymir_cvec_index (source, nodeid, 0);
+    double             *scl = ymir_cvec_index (scale, nodeid, 0);
+    double              magn = 0.0;
+
+    for (fieldid = 0; fieldid < n_fields; fieldid++) {
+      magn += src[fieldid] * src[fieldid];
+    }
+    magn = sqrt (magn);
+
+    if (1.0 < magn) {
+      for (fieldid = 0; fieldid < n_fields; fieldid++) {
+        scl[fieldid] *= magn;
+      }
+    }
+  }
+}
+
+static void
+rhea_newton_check_scale_dvec (ymir_vec_t *scale, ymir_vec_t *source)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (source);
+  const ymir_locidx_t n_elements = mesh->cnodes->K;
+  const int           n_nodes = ymir_np (mesh->cnodes->N);
+  const int           n_fields = source->ndfields;
+  ymir_locidx_t       elid;
+  int                 nodeid, fieldid;
+
+  for (elid = 0; elid < n_elements; elid++) {
+    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+      const double       *src = ymir_dvec_index (source, elid, nodeid, 0);
+      double             *scl = ymir_dvec_index (scale, elid, nodeid, 0);
+      double              magn = 0.0;
+
+      for (fieldid = 0; fieldid < n_fields; fieldid++) {
+        magn += src[fieldid] * src[fieldid];
+      }
+      magn = sqrt (magn);
+
+      if (1.0 < magn) {
+        for (fieldid = 0; fieldid < n_fields; fieldid++) {
+          scl[fieldid] *= magn;
+        }
+      }
+    }
+  }
+}
+
+static void
+rhea_newton_check_scale_evec (ymir_vec_t *scale, ymir_vec_t *source)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (source);
+  const ymir_locidx_t n_elements = mesh->cnodes->K;
+  const int           n_nodes = source->nefields;
+  ymir_locidx_t       elid;
+  int                 nodeid;
+  double              magn;
+
+  for (elid = 0; elid < n_elements; elid++) {
+    const double       *src = ymir_evec_index (source, elid, 0);
+    double             *scl = ymir_evec_index (scale, elid, 0);
+
+    for (nodeid = 0; nodeid < n_nodes; nodeid++) {
+      magn = fabs (src[nodeid]);
+      if (1.0 < magn) {
+        scl[nodeid] *= magn;
+      }
+    }
+  }
+}
+
+static void
+rhea_newton_check_scale_meshfree (ymir_vec_t *scale, ymir_vec_t *source)
+{
+  const int           n_entries = source->n_meshfree;
+  int                 n;
+  const double       *src = source->meshfree->e[0];
+  double             *scl = scale->meshfree->e[0];
+  double              magn;
+
+  for (n = 0; n < n_entries; n++) {
+    magn = fabs (src[n]);
+    if (1.0 < magn) {
+      scl[n] *= magn;
+    }
+  }
+}
+
+static void
+rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec)
+{
+  /* set to random values in [0,1] */
+  ymir_vec_set_random (dir_vec);
+
+  /* exit if no solution vector given */
+  if (sol_vec == NULL) {
+    return;
+  }
+
+  /* scale w.r.t. magnitude of solution vector */
+  if (sol_vec->ncfields) {
+    rhea_newton_check_scale_cvec (dir_vec, sol_vec);
+  }
+  if (sol_vec->ndfields) {
+    rhea_newton_check_scale_dvec (dir_vec, sol_vec);
+  }
+  if (sol_vec->nefields) {
+    rhea_newton_check_scale_evec (dir_vec, sol_vec);
+  }
+  if (sol_vec->n_meshfree) {
+    rhea_newton_check_scale_meshfree (dir_vec, sol_vec);
+  }
+}
 
 void
 rhea_newton_check_gradient (ymir_vec_t *solution,
@@ -20,7 +144,7 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   double              abs_error, rel_error;
   sc_dmatrix_t       *result = sc_dmatrix_new (RHEA_NEWTON_CHECK_N_TRIALS, 5);
   const int           exp_incr = 2;
-  const int           exp_min = 2;
+  const int           exp_min = 0;
   int                 n;
 
   /* check input */
@@ -42,15 +166,14 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   dir_vec = ymir_vec_template (step_vec);
   perturb_vec = ymir_vec_template (step_vec);
 
-  /* set position and direction vectors (possibly adjust scale of direction) */
+  /* set position and direction vectors */
   if (solution == NULL) {
     ymir_vec_set_zero (sol_vec);
-    ymir_vec_set_random (dir_vec);
+    rhea_newton_check_set_dir_vec (dir_vec, NULL);
   }
   else {
     ymir_vec_copy (solution, sol_vec);
-    ymir_vec_set_random (dir_vec);
-    ymir_vec_multiply_in (sol_vec, dir_vec);
+    rhea_newton_check_set_dir_vec (dir_vec, sol_vec);
   }
 
   /* compute reference derivative */
@@ -148,9 +271,8 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   H_dir_ref = ymir_vec_template (neg_gradient_vec);
   H_dir_chk = ymir_vec_template (neg_gradient_vec);
 
-  /* set direction vector (scale similarly as solution vector) */
-  ymir_vec_set_random (dir_vec);
-  ymir_vec_multiply_in (sol_vec, dir_vec);
+  /* set direction vector */
+  rhea_newton_check_set_dir_vec (dir_vec, sol_vec);
 
   /* compute reference Hessian-vector apply */
   rhea_newton_problem_apply_hessian (H_dir_ref, dir_vec, nl_problem);
