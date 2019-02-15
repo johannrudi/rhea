@@ -140,6 +140,61 @@ rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
  * Callback Functions for Newton Solver
  *****************************************************************************/
 
+/**
+ * Updates inversion parameters in the Stokes model.
+ */
+static void
+rhea_inversion_update_param (ymir_vec_t *solution,
+                             rhea_inversion_param_t *inv_param)
+{
+  const int           solution_exists = (solution != NULL);
+  ymir_vec_t         *parameter_vec;
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_vec_t         *parameter_vec_prev;
+  const int          *active = rhea_inversion_param_get_active (inv_param);
+  double             *param_data, *param_data_prev;
+  int                 i;
+#endif
+
+  /* get parameter vector */
+#ifdef RHEA_ENABLE_DEBUG
+  parameter_vec_prev = rhea_inversion_param_vec_new (inv_param);
+  rhea_inversion_param_pull_from_model (parameter_vec_prev, inv_param);
+#endif
+
+  /* get parameter vector */
+  if (solution_exists) { /* if parameters are given */
+    parameter_vec = solution;
+  }
+  else { /* use zeros as parameters */
+    parameter_vec = rhea_inversion_param_vec_new (inv_param);
+    ymir_vec_set_zero (parameter_vec);
+  }
+
+  /* update parameters in Stokes model */
+  rhea_inversion_param_push_to_model (parameter_vec, inv_param);
+
+  /* print previous and new parameters */
+#ifdef RHEA_ENABLE_DEBUG
+  param_data_prev = parameter_vec_prev->meshfree->e[0];
+  param_data = parameter_vec->meshfree->e[0];
+  RHEA_GLOBAL_INFO ("========================================\n");
+  for (i = 0; i < parameter_vec->n_meshfree; i++) {
+    if (active[i]) {
+      RHEA_GLOBAL_VERBOSEF ("param# %3i: %.15e -> %.15e\n", i,
+                            param_data_prev[i], param_data[i]);
+    }
+  }
+  RHEA_GLOBAL_INFO ("========================================\n");
+  rhea_inversion_param_vec_destroy (parameter_vec_prev);
+#endif
+
+  /* destroy */
+  if (!solution_exists) {
+    rhea_inversion_param_vec_destroy (parameter_vec);
+  }
+}
+
 static void
 rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
 {
@@ -148,7 +203,6 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
-  ymir_vec_t         *parameter_vec;
   const int           stokes_nonzero_inital_guess = 0;
   const int           stokes_iter_max = rhea_inversion_forward_solver_iter_max;
   const double        stokes_rtol = rhea_inversion_forward_solver_rtol;
@@ -192,11 +246,7 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   inv_problem->forward_vel = rhea_velocity_new (ymir_mesh);
 
   /* update inversion parameters */
-  parameter_vec = rhea_inversion_param_get_vector (inv_param);
-  if (solution != NULL && solution != parameter_vec) { /* if copy params */
-    ymir_vec_copy (solution, parameter_vec);
-  }
-  rhea_inversion_param_push_to_model (inv_param);
+  rhea_inversion_update_param (solution, inv_param);
 
   /* set up Stokes solver for forward problem */
   rhea_stokes_problem_setup_solver (stokes_problem);
@@ -263,39 +313,7 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
                rhea_inversion_param_vec_is_valid (solution, inv_param));
 
   /* update inversion parameters */
-  {
-    ymir_vec_t         *parameter_vec;
-#ifdef RHEA_ENABLE_DEBUG
-    const int          *active = rhea_inversion_param_get_active (inv_param);
-    ymir_vec_t         *parameter_vec_prev;
-    double             *param_data, *param_data_prev;
-    int                 i;
-#endif
-
-    parameter_vec = rhea_inversion_param_get_vector (inv_param);
-#ifdef RHEA_ENABLE_DEBUG
-    parameter_vec_prev = ymir_vec_clone (parameter_vec);
-#endif
-    if (solution != NULL && solution != parameter_vec) { /* if copy params */
-      ymir_vec_copy (solution, parameter_vec);
-    }
-    rhea_inversion_param_push_to_model (inv_param);
-
-    /* print previous and new parameters */
-#ifdef RHEA_ENABLE_DEBUG
-    param_data = parameter_vec->meshfree->e[0];
-    param_data_prev = parameter_vec_prev->meshfree->e[0];
-    RHEA_GLOBAL_INFO ("========================================\n");
-    for (i = 0; i < parameter_vec->n_meshfree; i++) {
-      if (active[i]) {
-        RHEA_GLOBAL_VERBOSEF ("param# %3i: %.15e -> %.15e\n", i,
-                              param_data_prev[i], param_data[i]);
-      }
-    }
-    RHEA_GLOBAL_INFO ("========================================\n");
-    ymir_vec_destroy (parameter_vec_prev);
-#endif
-  }
+  rhea_inversion_update_param (solution, inv_param);
 
   /* update Stokes solver for forward problem */
   rhea_stokes_problem_update_solver (
@@ -534,7 +552,7 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
   RHEA_GLOBAL_INFO ("========================================\n");
   RHEA_GLOBAL_INFO ("Inversion parameters\n");
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
-  rhea_inversion_param_print (inv_problem->inv_param);
+  rhea_inversion_param_print (solution, inv_problem->inv_param);
   RHEA_GLOBAL_INFO ("========================================\n");
 
   //TODO
@@ -550,7 +568,6 @@ rhea_inversion_problem_t *
 rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
 {
   rhea_inversion_problem_t *inv_problem;
-  ymir_vec_t         *parameter_vec;
 
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
@@ -571,12 +588,13 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->inv_param_options = &rhea_inversion_param_options;
   inv_problem->inv_param = rhea_inversion_param_new (
       stokes_problem, inv_problem->inv_param_options);
-  parameter_vec = rhea_inversion_param_get_vector (inv_problem->inv_param);
 
   /* initialize Newton problem */
   inv_problem->newton_options = &rhea_inversion_newton_options;
-  inv_problem->newton_neg_gradient_vec = ymir_vec_template (parameter_vec);
-  inv_problem->newton_step_vec = ymir_vec_template (parameter_vec);
+  inv_problem->newton_neg_gradient_vec =
+    rhea_inversion_param_vec_new (inv_problem->inv_param);
+  inv_problem->newton_step_vec =
+    rhea_inversion_param_vec_new (inv_problem->inv_param);
 
   /* create Newton problem */
   {
@@ -634,8 +652,8 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
   rhea_newton_problem_destroy (inv_problem->newton_problem);
 
   /* destroy vectors */
-  ymir_vec_destroy (inv_problem->newton_neg_gradient_vec);
-  ymir_vec_destroy (inv_problem->newton_step_vec);
+  rhea_inversion_param_vec_destroy (inv_problem->newton_neg_gradient_vec);
+  rhea_inversion_param_vec_destroy (inv_problem->newton_step_vec);
 
   /* destroy parameters */
   rhea_inversion_param_destroy (inv_problem->inv_param);
@@ -651,39 +669,58 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
  *****************************************************************************/
 
 void
-rhea_inversion_solve (rhea_inversion_problem_t *inv_problem)
+rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
+                      const int nonzero_initial_guess)
 {
+  rhea_inversion_param_t *inv_param = inv_problem->inv_param;
   rhea_newton_options_t *newton_options = inv_problem->newton_options;
   rhea_newton_problem_t *newton_problem = inv_problem->newton_problem;
-  ymir_vec_t         *parameter_vec =
-    rhea_inversion_param_get_vector (inv_problem->inv_param);
+  ymir_vec_t         *sol_parameter_vec;
 
-  RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
+  RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "nonzero_initial_guess=%i",
+                                    nonzero_initial_guess);
+
+  /* create vector for inversion parameters */
+  sol_parameter_vec = rhea_inversion_param_vec_new (inv_param);
+  if (nonzero_initial_guess) {
+    rhea_inversion_param_pull_from_model (sol_parameter_vec, inv_param);
+  }
 
   /* run Newton solver */
-  newton_options->nonzero_initial_guess = 1;
-  rhea_newton_solve (&parameter_vec, newton_problem, newton_options);
-  RHEA_ASSERT (parameter_vec ==
-               rhea_inversion_param_get_vector (inv_problem->inv_param));
+  newton_options->nonzero_initial_guess = nonzero_initial_guess;
+  rhea_newton_solve (&sol_parameter_vec, newton_problem, newton_options);
+
+  /* destroy */
+  rhea_inversion_param_vec_destroy (sol_parameter_vec);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
 
 void
 rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
+                                   const int nonzero_initial_guess,
                                    ymir_vec_t *vel_obs_surf,
                                    ymir_vec_t *vel_obs_weight_surf)
 {
-  ymir_vec_t         *parameter_vec =
-    rhea_inversion_param_get_vector (inv_problem->inv_param);
 #ifdef RHEA_ENABLE_DEBUG
   ymir_mesh_t        *ymir_mesh;
 #endif
 
-  RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
+  RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "nonzero_initial_guess=%i",
+                                    nonzero_initial_guess);
 
   /* create solver data */
-  rhea_inversion_newton_create_solver_data_fn (parameter_vec, inv_problem);
+  if (nonzero_initial_guess) {
+    rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+    ymir_vec_t         *param_vec = rhea_inversion_param_vec_new (inv_param);
+
+    rhea_inversion_param_pull_from_model (param_vec, inv_param);
+    rhea_inversion_newton_create_solver_data_fn (param_vec, inv_problem);
+    rhea_inversion_param_vec_destroy (param_vec);
+  }
+  else {
+    rhea_inversion_newton_create_solver_data_fn (NULL, inv_problem);
+  }
 
   /* check input */
 #ifdef RHEA_ENABLE_DEBUG
@@ -702,7 +739,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   }
 
   /* run solver */
-  rhea_inversion_solve (inv_problem);
+  rhea_inversion_solve (inv_problem, nonzero_initial_guess);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
