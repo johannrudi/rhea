@@ -180,6 +180,8 @@ typedef struct rhea_newton_options
   double              lin_rtol_adaptive_min_threshold;
   int                 lin_rtol_adaptive_progressive_n_iter;
 
+  int                 lin_monitor_reduction;
+
   /* options for line search */
   int                 step_search_iter_max;
   double              step_length_min;

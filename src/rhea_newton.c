@@ -138,6 +138,7 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_ACTIVE (1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_THRESHOLD (0.1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER (0)
+#define RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION (0)
 #define RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX (12)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN (1.0e-5)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX (1.0)
@@ -216,6 +217,10 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     &(newton_opt->lin_rtol_adaptive_progressive_n_iter),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER,
     "Linear sub-solver: #iter (~ variance) for progressive tightening of rtol",
+  YMIR_OPTIONS_B, "lin-monitor-reduction", '\0',
+    &(newton_opt->lin_monitor_reduction),
+    RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION,
+    "Linear sub-solver: Monitor residual reduction of each linearized solve",
 
   YMIR_OPTIONS_I, "step-search-iter-max", '\0',
     &(newton_opt->step_search_iter_max),
@@ -235,7 +240,7 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION,
     "Line search: Relaxation factor for the descend condition",
 
-  YMIR_OPTIONS_I, "print-summary", '\0',
+  YMIR_OPTIONS_B, "print-summary", '\0',
     &(newton_opt->print_summary), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY,
     "Print summary of Newton iterations",
 
@@ -680,17 +685,17 @@ rhea_newton_problem_output_prestep (ymir_vec_t *solution,
 static void
 rhea_newton_step_init (rhea_newton_step_t *step)
 {
-  step->length = -1.0;
+  step->length = 0.0;
 
-  step->search_success = -1;
-  step->search_iter_count = -1;
+  step->search_success = 0;
+  step->search_iter_count = 0;
 
   step->iter = -1;
 
-  step->lin_res_norm_rtol = -1.0;
-  step->lin_res_norm_reduction = -1.0;
-  step->lin_iter_count = -1;
-  step->lin_convergence = -1.0;
+  step->lin_res_norm_rtol = NAN;
+  step->lin_res_norm_reduction = NAN;
+  step->lin_iter_count = 0;
+  step->lin_convergence = NAN;
 }
 
 /******************************************************************************
@@ -1087,27 +1092,26 @@ rhea_newton_status_get_grad_reduction_curr (rhea_newton_status_t *status)
  * Writes an array of double values into a string.
  */
 static void
-rhea_newton_status_vals_to_str (char *string,
+rhea_newton_status_vals_to_str (char string[BUFSIZ],
                                 const int n_values,
                                 const double *value)
 {
-  char                arr2str[BUFSIZ] = "";
-  char               *pos = arr2str;
-  const char         *end = arr2str + sizeof (arr2str);
+  char               *pos = string;
+  const char         *end = string + BUFSIZ;
   int                 k;
 
   /* check input */
   RHEA_ASSERT (0 < n_values);
   RHEA_ASSERT (value != NULL);
 
+  /* initialize empty string */
+  snprintf (string, BUFSIZ, "");
+
   /* write array of values to string */
   pos += snprintf (pos, end - pos, "%.3e", value[0]);
   for (k = 1; k < n_values; k++) {
     pos += snprintf (pos, end - pos, ", %.3e", value[k]);
   }
-
-  /* copy result */
-  memcpy (string, arr2str, BUFSIZ * sizeof (char));
 }
 
 /**
@@ -1117,12 +1121,11 @@ static void
 rhea_newton_status_print_curr_obj (const double value, const double reduction,
                                    const int iter, const char *func_name)
 {
-  char                func_name_ext[BUFSIZ];
+  char                func_tag[BUFSIZ];
 
-  snprintf (func_name_ext, BUFSIZ, "%s_status", func_name);
+  snprintf (func_tag, BUFSIZ, "%s_status", func_name);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_name_ext,
-      "newton_iter=%i, objective_functional=%.3e, reduction=%.3e",
+      func_tag, "newton_iter=%i, objective_functional=%.3e, reduction=%.3e",
       iter, value, reduction);
 }
 
@@ -1130,11 +1133,11 @@ static void
 rhea_newton_status_print_curr_grad (const double value, const double reduction,
                                     const int iter, const char *func_name)
 {
-  char                func_name_ext[BUFSIZ];
+  char                func_tag[BUFSIZ];
 
-  snprintf (func_name_ext, BUFSIZ, "%s_status", func_name);
+  snprintf (func_tag, BUFSIZ, "%s_status", func_name);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_name_ext, "newton_iter=%i, gradient_norm=%.3e, reduction=%.3e",
+      func_tag, "newton_iter=%i, gradient_norm=%.3e, reduction=%.3e",
       iter, value, reduction);
 }
 
@@ -1142,11 +1145,11 @@ static void
 rhea_newton_status_print_curr_res (const double value, const double reduction,
                                    const int iter, const char *func_name)
 {
-  char                func_name_ext[BUFSIZ];
+  char                func_tag[BUFSIZ];
 
-  snprintf (func_name_ext, BUFSIZ, "%s_status", func_name);
+  snprintf (func_tag, BUFSIZ, "%s_status", func_name);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_name_ext, "newton_iter=%i, residual_norm=%.3e, reduction=%.3e",
+      func_tag, "newton_iter=%i, residual_norm=%.3e, reduction=%.3e",
       iter, value, reduction);
 }
 
@@ -1155,13 +1158,13 @@ rhea_newton_status_print_curr_comp (const int n_components,
                                     const double *comp_value,
                                     const int iter, const char *func_name)
 {
-  char                func_name_ext[BUFSIZ];
+  char                func_tag[BUFSIZ];
   char                comp_string[BUFSIZ];
 
-  snprintf (func_name_ext, BUFSIZ, "%s_status", func_name);
+  snprintf (func_tag, BUFSIZ, "%s_status", func_name);
   rhea_newton_status_vals_to_str (comp_string, n_components, comp_value);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_name_ext, "newton_iter=%i, component_norms=[%s]",
+      func_tag, "newton_iter=%i, component_norms=[%s]",
       iter, comp_string);
 }
 
@@ -1459,7 +1462,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   const double        lin_res_norm_rtol = step->lin_res_norm_rtol;
   double              lin_res_norm_reduction;
   double              lin_conv;
-  char                func_name_ext[BUFSIZ];
+  char                func_tag_stop[BUFSIZ];
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "newton_iter=%i, lin_iter_max=%i, lin_rtol=%.1e",
@@ -1477,8 +1480,9 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
       nonzero_initial_guess, nl_problem->data, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
 
-  /* if possible, calculate the residual reduction of the linearized solve */
-  if (rhea_newton_problem_apply_hessian_exists (nl_problem)) {
+  /* calculate the residual reduction of the linearized solve */
+  if (opt->lin_monitor_reduction &&
+      rhea_newton_problem_apply_hessian_exists (nl_problem)) {
     ymir_vec_t         *lin_residual_vec;
     double              lin_res_norm_init;
     double              lin_res_norm_curr;
@@ -1501,8 +1505,8 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
     lin_conv = exp ( log (lin_res_norm_reduction) / ((double) lin_iter_count) );
   }
   else { /* if actual linear reduction cannot be calculated */
-    lin_res_norm_reduction = -1.0;
-    lin_conv = -1.0;
+    lin_res_norm_reduction = NAN;
+    lin_conv = NAN;
   }
 
   /* set the #iterations used by the linear solver and the residual reduction */
@@ -1510,10 +1514,9 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   step->lin_res_norm_reduction = lin_res_norm_reduction;
   step->lin_convergence = lin_conv;
 
-  snprintf (func_name_ext, BUFSIZ, "%s_stop", __func__);
+  snprintf (func_tag_stop, BUFSIZ, "%s_stop", __func__);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_name_ext,
-      "reason=%i, iterations=%i, "
+      func_tag_stop, "reason=%i, iterations=%i, "
       "residual_reduction=%.1e, lin_rtol=%.1e (prescribed)",
       stop_reason, lin_iter_count, lin_res_norm_reduction, lin_res_norm_rtol);
   RHEA_GLOBAL_INFOF_FN_END (__func__, "newton_iter=%i", iter);
@@ -1536,7 +1539,8 @@ rhea_newton_search_step_length_check_descend (
   RHEA_ASSERT (0.0 <= reduction);
 
   /* compute required reduction */
-  if (0.0 < lin_res_norm_reduction && lin_res_norm_reduction <= 1.0) {
+  if (isfinite (lin_res_norm_reduction) &&
+      0.0 < lin_res_norm_reduction && lin_res_norm_reduction <= 1.0) {
     descend_reduction = 1.0 - relax * (1.0 - lin_res_norm_reduction);
   }
   else { /* if linear reduction is out of bounds */
@@ -1575,13 +1579,18 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   double              conv_val_prev, conv_val_curr;
   const double        step_length_min = opt->step_length_min;
   const double        step_reduction = opt->step_reduction;
-  char                func_name_ext[BUFSIZ];
+  char                func_tag_status[BUFSIZ];
+  char                func_tag_stop[BUFSIZ];
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
   /* check input */
   RHEA_ASSERT (nl_problem->step_vec != NULL);
   RHEA_ASSERT (0 <= step->iter);
+
+  /* set function tags */
+  snprintf (func_tag_status, BUFSIZ, "%s_status", __func__);
+  snprintf (func_tag_stop, BUFSIZ, "%s_stop", __func__);
 
   /* copy previous solution and status */
   ymir_vec_copy (solution, solution_prev);
@@ -1612,59 +1621,45 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
         status, RHEA_NEWTON_CONV_CRITERION_OBJECTIVE);
     conv_val_curr = rhea_newton_status_get_conv_value_curr (
         status, RHEA_NEWTON_CONV_CRITERION_OBJECTIVE);
-    snprintf (func_name_ext, BUFSIZ, "%s_status", __func__);
     RHEA_GLOBAL_INFOF_FN_TAG (
-        func_name_ext,
+        func_tag_status,
         "trial#=%2i, step_length=%.3e, current=%.3e, previous=%.3e",
         k, step->length, conv_val_curr, conv_val_prev);
 
-    /* continue or terminate loop */
-    if (search_success) { /* terminate if descend condition is satisfied */
+    /* terminate search if descend condition is satisfied */
+    if (search_success) {
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          func_tag_stop, "success=%i, step_length=%.3e",
+          search_success, step->length);
       break;
     }
-    else { /* otherwise continue searching */
-      /* reduce step length */
-      step->length *= step_reduction;
-
-      /* stop search if step length became too low */
-      if (step->length < step_length_min) {
-        step->length = 0.0;
-        break;
-      }
-
-      /* put back previous solution to continue loop */
-      if (k < search_iter_max) {
-        ymir_vec_copy (solution_prev, solution);
-      }
+    /* terminate search if max number of search iterations reached */
+    if (k == search_iter_max) {
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          func_tag_stop, "success=%i, step_length=%.3e, "
+          "reason=\"max number of step reductions reached\"",
+          search_success, step->length);
+      break;
     }
-  } /* END: step length search */
+    /* terminate search if step length becomes too low */
+    if ((step->length * step_reduction) < step_length_min) {
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          func_tag_stop, "success=%i, step_length=%.3e, "
+          "reason=\"min step length reached\"",
+          search_success, step->length);
+      break;
+    }
 
-  /* post-processing depending on whether a step length was found */
-  snprintf (func_name_ext, BUFSIZ, "%s_stop", __func__);
-  if (search_success) { /* if search was successful */
-    RHEA_GLOBAL_INFOF_FN_TAG (func_name_ext, "success=%i, step_length=%.3e",
-                              search_success, step->length);
+    /* otherwise continue search loop with reduced step length and after
+     * restoring the previous solution */
+    step->length *= step_reduction;
+    ymir_vec_copy (solution_prev, solution);
   }
-  else { /* if search failed */
-    /* check and print reason */
-    if (0.0 < step->length) {
-      step->length = -1.0;
-      RHEA_GLOBAL_INFOF_FN_TAG (
-          func_name_ext,
-          "success=%i, reason=\"max number of step reductions reached\"",
-          search_success);
-    }
-    else {
-      step->length = 0.0;
-      RHEA_GLOBAL_INFOF_FN_TAG (
-          func_name_ext, "success=%i, reason=\"min step length reached\"",
-          search_success); }
 
-    /* reverse updates of solution and nonlinear operator */
-    if (opt->abort_failed_step_search) {
-      ymir_vec_copy (solution_prev, solution);
-      rhea_newton_problem_update_operator (solution, nl_problem);
-    }
+  /* reverse updates of solution and nonlinear operator */
+  if (!search_success && opt->abort_failed_step_search) {
+    ymir_vec_copy (solution_prev, solution);
+    rhea_newton_problem_update_operator (solution, nl_problem);
   }
 
   /* destroy */
@@ -1692,7 +1687,9 @@ rhea_newton_solve (ymir_vec_t **solution,
   int                 solution_post_update = 0;
   rhea_newton_step_t  step;
   rhea_newton_status_t  status;
-  char                func_name_ext[BUFSIZ];
+  char                func_tag_lin_status[BUFSIZ];
+  char                func_tag_step_status[BUFSIZ];
+  char                func_tag_stop[BUFSIZ];
   char              **summary = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (
@@ -1741,6 +1738,11 @@ rhea_newton_solve (ymir_vec_t **solution,
     }
   }
 
+  /* set function tags */
+  snprintf (func_tag_lin_status, BUFSIZ, "%s_linear_solve_status", __func__);
+  snprintf (func_tag_step_status, BUFSIZ, "%s_step_search_status", __func__);
+  snprintf (func_tag_stop, BUFSIZ, "%s_stop", __func__);
+
   /*
    * Iterations Loop
    */
@@ -1773,18 +1775,16 @@ rhea_newton_solve (ymir_vec_t **solution,
 
     /* stop if converged */
     if (rhea_newton_status_get_grad_reduction (&status) < rtol) {
-      snprintf (func_name_ext, BUFSIZ, "%s_stop", __func__);
       RHEA_GLOBAL_PRODUCTIONF_FN_TAG (
-          func_name_ext, "newton_iter=%i, reason=\"converged to rtol=%.3e\"",
+          func_tag_stop, "newton_iter=%i, reason=\"converged to rtol=%.3e\"",
           iter, rtol);
       break;
     }
 
     /* stop if max #iterations reached */
     if (iter_max == iter) {
-      snprintf (func_name_ext, BUFSIZ, "%s_stop", __func__);
       RHEA_GLOBAL_PRODUCTIONF_FN_TAG (
-          func_name_ext,
+          func_tag_stop,
           "newton_iter=%i, reason=\"reached maximum number of iterations=%i\"",
           iter, iter_max);
       break;
@@ -1848,17 +1848,15 @@ rhea_newton_solve (ymir_vec_t **solution,
      * Post-Step Output
      */
     {
-      snprintf (func_name_ext, BUFSIZ, "%s_linear_solve_status", __func__);
       RHEA_GLOBAL_INFOF_FN_TAG (
-          func_name_ext,
+          func_tag_lin_status,
           "newton_iter=%i, lin_iterations=%i, residual_reduction=%.3e, "
           "lin_rtol=%.3e (prescribed), convergence=%.3e (=rtol^(1/#iter))",
           iter, step.lin_iter_count, step.lin_res_norm_reduction,
           step.lin_res_norm_rtol, step.lin_convergence);
 
-      snprintf (func_name_ext, BUFSIZ, "%s_step_search_status", __func__);
       RHEA_GLOBAL_INFOF_FN_TAG (
-          func_name_ext, "newton_iter=%i, success=%i, step_length=%g",
+          func_tag_step_status, "newton_iter=%i, success=%i, step_length=%g",
           iter, step.search_success, step.length);
     }
 
@@ -1866,9 +1864,8 @@ rhea_newton_solve (ymir_vec_t **solution,
      * Abort Check
      */
     if (!step.search_success && opt->abort_failed_step_search) {
-      snprintf (func_name_ext, BUFSIZ, "%s_stop", __func__);
       RHEA_GLOBAL_PRODUCTIONF_FN_TAG (
-          func_name_ext, "newton_iter=%i, reason=\"failed step length search\"",
+          func_tag_stop, "newton_iter=%i, reason=\"failed step length search\"",
           iter);
       break;
     }
