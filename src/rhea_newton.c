@@ -912,7 +912,7 @@ rhea_newton_status_compute_curr (
       *neg_gradient_updated = 1;
     }
     if (nl_problem->check_gradient) {
-      rhea_newton_check_gradient (solution, nl_problem);
+      rhea_newton_check_gradient (solution, neg_gradient, nl_problem);
     }
 
     /* compute norm of gradient */
@@ -1799,7 +1799,8 @@ rhea_newton_solve (ymir_vec_t **solution,
         rhea_newton_problem_compute_neg_gradient (nl_problem->neg_gradient_vec,
                                                   *solution, nl_problem);
         if (nl_problem->check_gradient) {
-          rhea_newton_check_gradient (*solution, nl_problem);
+          rhea_newton_check_gradient (*solution, nl_problem->neg_gradient_vec,
+                                      nl_problem);
         }
       }
 
@@ -1811,7 +1812,8 @@ rhea_newton_solve (ymir_vec_t **solution,
         rhea_newton_problem_update_hessian (*solution, nl_problem->step_vec,
                                             step.length, nl_problem);
         if (nl_problem->check_hessian) {
-          rhea_newton_check_hessian (*solution, nl_problem);
+          rhea_newton_check_hessian (*solution, nl_problem->neg_gradient_vec,
+                                     nl_problem);
         }
       }
 

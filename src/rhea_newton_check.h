@@ -12,6 +12,7 @@
  */
 void                rhea_newton_check_gradient (
                                             ymir_vec_t *solution,
+                                            ymir_vec_t *neg_gradient,
                                             rhea_newton_problem_t *nl_problem);
 
 /**
@@ -20,6 +21,7 @@ void                rhea_newton_check_gradient (
  */
 void                rhea_newton_check_hessian (
                                             ymir_vec_t *solution,
+                                            ymir_vec_t *neg_gradient,
                                             rhea_newton_problem_t *nl_problem);
 
 #endif /* RHEA_NEWTON_CHECK_H */
