@@ -12,16 +12,26 @@
 
 /* default options */
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
+#define RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX (1)
+#define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX (1)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_RTOL (1.0e-6)
+#define RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_ITER_MAX (100)
+#define RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL (1.0e-6)
+#define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX (100)
+#define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_HESSIAN (0)
 
 /* initialize options */
 int                 rhea_inversion_vel_obs_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE;
+int                 rhea_inversion_first_order_hessian_approx =
+                      RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX;
+int                 rhea_inversion_assemble_hessian_matrix =
+                      RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX;
 int                 rhea_inversion_forward_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX;
 double              rhea_inversion_forward_solver_rtol =
@@ -30,6 +40,14 @@ int                 rhea_inversion_adjoint_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_ITER_MAX;
 double              rhea_inversion_adjoint_solver_rtol =
                       RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_RTOL;
+int                 rhea_inversion_incremental_forward_solver_iter_max =
+                      RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_ITER_MAX;
+double              rhea_inversion_incremental_forward_solver_rtol =
+                      RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL;
+int                 rhea_inversion_incremental_adjoint_solver_iter_max =
+                      RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX;
+double              rhea_inversion_incremental_adjoint_solver_rtol =
+                      RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL;
 int                 rhea_inversion_check_gradient =
                       RHEA_INVERSION_DEFAULT_CHECK_GRADIENT;
 int                 rhea_inversion_check_hessian =
@@ -52,7 +70,17 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_vel_obs_type), RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE,
     "Type of velocity observations at the surface",
 
-  /* inner solver (i.e., forward/adjoint) options */
+  /* outer solver options (inversion) */
+  YMIR_OPTIONS_B, "first-order-hessian-approximation", '\0',
+    &(rhea_inversion_first_order_hessian_approx),
+    RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX,
+    "1st-oder (or Gauss-Newton) approx. of the Hessian drops higher derivatives",
+  YMIR_OPTIONS_B, "assemble-hessian-matrix", '\0',
+    &(rhea_inversion_assemble_hessian_matrix),
+    RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX,
+    "Toggle assembly of the Hessian matrix",
+
+  /* inner solver options (i.e., forward/adjoint) */
   YMIR_OPTIONS_I, "forward-solver-iter-max", '\0',
     &(rhea_inversion_forward_solver_iter_max),
     RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX,
@@ -69,8 +97,24 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_adjoint_solver_rtol),
     RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_RTOL,
     "Adjoint solver: Relative tolerance for Stokes solver",
+  YMIR_OPTIONS_I, "incremental-forward-solver-iter-max", '\0',
+    &(rhea_inversion_incremental_forward_solver_iter_max),
+    RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_ITER_MAX,
+    "Incremental forward solver: Maximum number of iterations for Stokes solver",
+  YMIR_OPTIONS_D, "incremental-forward-solver-rtol", '\0',
+    &(rhea_inversion_incremental_forward_solver_rtol),
+    RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL,
+    "Incremental forward solver: Relative tolerance for Stokes solver",
+  YMIR_OPTIONS_I, "incremental-adjoint-solver-iter-max", '\0',
+    &(rhea_inversion_incremental_adjoint_solver_iter_max),
+    RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX,
+    "Incremental adjoint solver: Maximum number of iterations for Stokes solver",
+  YMIR_OPTIONS_D, "incremental-adjoint-solver-rtol", '\0',
+    &(rhea_inversion_incremental_adjoint_solver_rtol),
+    RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL,
+    "Incremental adjoint solver: Relative tolerance for Stokes solver",
 
-  /* outer solver (inversion) options */
+  /* derivative checks */
   YMIR_OPTIONS_B, "check-gradient", '\0',
     &(rhea_inversion_check_gradient), RHEA_INVERSION_DEFAULT_CHECK_GRADIENT,
     "Check the gradient during Newton iterations",
@@ -112,8 +156,14 @@ struct rhea_inversion_problem
 
   /* forward and adjoint states */
   ymir_vec_t         *forward_vel_press;
-  ymir_vec_t         *forward_vel;
   ymir_vec_t         *adjoint_vel_press;
+
+  /* incremental forward and adjoint states */
+  ymir_vec_t         *incremental_forward_vel_press;
+  ymir_vec_t         *incremental_adjoint_vel_press;
+
+  /* assembled Hessian matrix */
+  sc_dmatrix_t       *hessian_matrix;
 
   /* Newton problem */
   rhea_newton_options_t  *newton_options;
@@ -130,7 +180,8 @@ rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
 
   fwd_adj_states_exist = (inv_problem->forward_vel_press != NULL &&
                           inv_problem->adjoint_vel_press != NULL &&
-                          inv_problem->forward_vel != NULL);
+                          inv_problem->incremental_forward_vel_press != NULL &&
+                          inv_problem->incremental_adjoint_vel_press != NULL);
   vel_obs_exist = (inv_problem->vel_obs_surf != NULL);
 
   return (fwd_adj_states_exist && vel_obs_exist);
@@ -156,7 +207,7 @@ rhea_inversion_update_param (ymir_vec_t *solution,
   int                 i;
 #endif
 
-  /* get parameter vector */
+  /* get parameters before update */
 #ifdef RHEA_ENABLE_DEBUG
   parameter_vec_prev = rhea_inversion_param_vec_new (inv_param);
   rhea_inversion_param_pull_from_model (parameter_vec_prev, inv_param);
@@ -166,7 +217,7 @@ rhea_inversion_update_param (ymir_vec_t *solution,
   if (solution_exists) { /* if parameters are given */
     parameter_vec = solution;
   }
-  else { /* use zeros as parameters */
+  else { /* otherwise use zeros as parameters */
     parameter_vec = rhea_inversion_param_vec_new (inv_param);
     ymir_vec_set_zero (parameter_vec);
   }
@@ -178,14 +229,16 @@ rhea_inversion_update_param (ymir_vec_t *solution,
 #ifdef RHEA_ENABLE_DEBUG
   param_data_prev = parameter_vec_prev->meshfree->e[0];
   param_data = parameter_vec->meshfree->e[0];
-  RHEA_GLOBAL_INFO ("========================================\n");
-  for (i = 0; i < parameter_vec->n_meshfree; i++) {
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
     if (active[i]) {
       RHEA_GLOBAL_VERBOSEF ("param# %3i: %.15e -> %.15e\n", i,
                             param_data_prev[i], param_data[i]);
     }
   }
-  RHEA_GLOBAL_INFO ("========================================\n");
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
   rhea_inversion_param_vec_destroy (parameter_vec_prev);
 #endif
 
@@ -221,7 +274,8 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
                rhea_inversion_param_vec_is_valid (solution, inv_param));
   RHEA_ASSERT (inv_problem->forward_vel_press == NULL);
   RHEA_ASSERT (inv_problem->adjoint_vel_press == NULL);
-  RHEA_ASSERT (inv_problem->forward_vel == NULL);
+  RHEA_ASSERT (inv_problem->incremental_forward_vel_press == NULL);
+  RHEA_ASSERT (inv_problem->incremental_adjoint_vel_press == NULL);
   RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
   RHEA_ASSERT (inv_problem->vel_obs_weight_surf == NULL);
 
@@ -238,12 +292,22 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   ymir_vec_set_value (inv_problem->vel_obs_surf, NAN);
   ymir_vec_set_value (inv_problem->vel_obs_weight_surf, 1.0);
 
-  /* create forward and adjoint states */
-  inv_problem->forward_vel_press = rhea_velocity_pressure_new (ymir_mesh,
-                                                               press_elem);
-  inv_problem->adjoint_vel_press = rhea_velocity_pressure_new (ymir_mesh,
-                                                               press_elem);
-  inv_problem->forward_vel = rhea_velocity_new (ymir_mesh);
+  /* create (forward/adjoint) state variables */
+  inv_problem->forward_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  inv_problem->adjoint_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  inv_problem->incremental_forward_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  inv_problem->incremental_adjoint_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  /* create Hessian matrix */
+  if (rhea_inversion_assemble_hessian_matrix) {
+    const int           n = rhea_inversion_param_get_n_active (inv_param);
+
+    inv_problem->hessian_matrix = sc_dmatrix_new (n, n);
+  }
 
   /* update inversion parameters */
   rhea_inversion_update_param (solution, inv_param);
@@ -269,15 +333,24 @@ rhea_inversion_newton_clear_solver_data_fn (void *data)
   /* check input */
   RHEA_ASSERT (inv_problem->forward_vel_press != NULL);
   RHEA_ASSERT (inv_problem->adjoint_vel_press != NULL);
-  RHEA_ASSERT (inv_problem->forward_vel != NULL);
+  RHEA_ASSERT (inv_problem->incremental_forward_vel_press != NULL);
+  RHEA_ASSERT (inv_problem->incremental_adjoint_vel_press != NULL);
 
-  /* destroy forward and adjoint states */
+  /* destroy (forward/adjoint) state variables */
   rhea_velocity_pressure_destroy (inv_problem->forward_vel_press);
   rhea_velocity_pressure_destroy (inv_problem->adjoint_vel_press);
-  rhea_velocity_destroy (inv_problem->forward_vel);
   inv_problem->forward_vel_press = NULL;
   inv_problem->adjoint_vel_press = NULL;
-  inv_problem->forward_vel = NULL;
+  rhea_velocity_pressure_destroy (inv_problem->incremental_forward_vel_press);
+  rhea_velocity_pressure_destroy (inv_problem->incremental_adjoint_vel_press);
+  inv_problem->incremental_forward_vel_press = NULL;
+  inv_problem->incremental_adjoint_vel_press = NULL;
+
+  /* destroy Hessian matrix */
+  if (inv_problem->hessian_matrix != NULL) {
+    sc_dmatrix_destroy (inv_problem->hessian_matrix);
+    inv_problem->hessian_matrix = NULL;
+  }
 
   /* destroy observational data */
   if (inv_problem->vel_obs_surf != NULL) {
@@ -298,7 +371,7 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
-  const int           stokes_nonzero_inital_guess = 1;
+  const int           stokes_nonzero_inital_guess = 0; //TODO 1?
   const int           stokes_iter_max = rhea_inversion_forward_solver_iter_max;
   const double        stokes_rtol = rhea_inversion_forward_solver_rtol;
 
@@ -317,7 +390,7 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
 
   /* update Stokes solver for forward problem */
   rhea_stokes_problem_update_solver (
-      stokes_problem, 1 /* update_coeff*/, inv_problem->forward_vel_press,
+      stokes_problem, 1 /* update_coeff */, inv_problem->forward_vel_press,
       0 /* !override_rhs */, NULL, NULL, NULL, NULL);
 
   /* solve for forward state */
@@ -328,19 +401,109 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
+static void         rhea_inversion_newton_apply_hessian (
+                                        ymir_vec_t *param_vec_out,
+                                        ymir_vec_t *param_vec_in,
+                                        rhea_inversion_problem_t *inv_problem,
+                                        const int first_order_approx);
+
 static void
 rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
                                          ymir_vec_t *step_vec,
                                          const double step_length,
                                          void *data)
 {
-  //rhea_inversion_problem_t *inv_problem = data;
+  rhea_inversion_problem_t *inv_problem = data;
+  rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
+  ymir_vec_t         *param_vec_in;
+  ymir_vec_t         *param_vec_out;
+  sc_dmatrix_t       *param_vec_reduced;
+  sc_dmatrix_t       *hessian_mat = inv_problem->hessian_matrix;
+  const int           n_parameters =
+                        rhea_inversion_param_get_n_parameters (inv_param);
+  const int          *active = rhea_inversion_param_get_active (inv_param);
+  int                 i, row, col;
 
   //TODO add performance monitoring
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+      __func__, "first_order_approx=%i, assemble_matrix=%i",
+      rhea_inversion_first_order_hessian_approx,
+      rhea_inversion_assemble_hessian_matrix);
 
-  //TODO
+  /* check input */
+  RHEA_ASSERT (!rhea_inversion_assemble_hessian_matrix ||
+               inv_problem->hessian_matrix != NULL);
+
+  /* exit if nothing to do */
+  if (!rhea_inversion_assemble_hessian_matrix) {
+    RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+    return;
+  }
+
+  /* check input */
+  RHEA_ASSERT (hessian_mat->m == rhea_inversion_param_get_n_active (inv_param));
+  RHEA_ASSERT (hessian_mat->n == rhea_inversion_param_get_n_active (inv_param));
+
+  /* create work vectors */
+  param_vec_in = rhea_inversion_param_vec_new (inv_param);
+  param_vec_out = rhea_inversion_param_vec_new (inv_param);
+
+  /* assemble Hessian matrix */
+  row = 0;
+  col = 0;
+  for (i = 0; i < n_parameters; i++) { /* loop over all parameters */
+    if (active[i]) {
+      /* set unit vector */
+      ymir_vec_set_zero (param_vec_in);
+      param_vec_in->meshfree->e[0][i] = 1.0;
+
+      /* apply unit vector to Hessian */
+      rhea_inversion_newton_apply_hessian (
+          param_vec_out, param_vec_in, inv_problem,
+          rhea_inversion_first_order_hessian_approx);
+      rhea_inversion_param_vec_is_valid (param_vec_out, inv_param);
+
+      /* fill one column of the Hessian matrix */
+      param_vec_reduced = rhea_inversion_param_vec_reduced_new (param_vec_out,
+                                                                inv_param);
+      RHEA_ASSERT (param_vec_reduced->m == hessian_mat->m);
+      RHEA_ASSERT (param_vec_reduced->n == 1);
+      RHEA_ASSERT (col < hessian_mat->n);
+      for (row = 0; row < param_vec_reduced->m; row++) {
+        hessian_mat->e[row][col] = param_vec_reduced->e[row][0];
+      }
+      rhea_inversion_param_vec_reduced_destroy (param_vec_reduced);
+
+      /* increment column index of matrix */
+      col++;
+    }
+  }
+
+  /* print Hessian */
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  for (row = 0; row < hessian_mat->m; row++) {
+    char                line[BUFSIZ] = "";
+    char               *pos = line;
+    const char         *end = line + BUFSIZ;
+
+    for (col = 0; col < hessian_mat->n; col++) {
+      pos += snprintf (pos, end - pos, "  %+.6e", hessian_mat->e[row][col]);
+    }
+    RHEA_GLOBAL_VERBOSEF ("%s\n", line);
+  }
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+#endif
+
+  /* check output */
+  sc_dmatrix_is_valid (hessian_mat);
+
+  /* destroy */
+  rhea_inversion_param_vec_destroy (param_vec_in);
+  rhea_inversion_param_vec_destroy (param_vec_out);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -350,8 +513,9 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
-  rhea_domain_options_t    *domain_options;
+  ymir_vec_t         *vel;
   double              obj_val;
 
   //TODO add performance monitoring
@@ -359,23 +523,23 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /* get mesh data */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-  domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
 
   /* retrieve velocity of the forward state */
+  vel = rhea_velocity_new (ymir_mesh);
   rhea_velocity_pressure_copy_components (
-      inv_problem->forward_vel, NULL, inv_problem->forward_vel_press,
-      press_elem);
-  rhea_stokes_problem_velocity_boundary_set_zero (
-      inv_problem->forward_vel, inv_problem->stokes_problem);
-  RHEA_ASSERT (rhea_velocity_is_valid (inv_problem->forward_vel));
+      vel, NULL, inv_problem->forward_vel_press, press_elem);
+  rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+  RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
   /* compute misfit term, e.g., (squared norm of the) observation data misfit */
   obj_val = rhea_inversion_obs_velocity_misfit (
-      inv_problem->forward_vel, inv_problem->vel_obs_surf,
-      inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
-      domain_options);
+      vel, inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
+      inv_problem->vel_obs_type,
+      rhea_stokes_problem_get_domain_options (stokes_problem));
   obj_val *= 0.5;
+  rhea_velocity_destroy (vel);
 
   /* compute & add prior term */
   //TODO
@@ -397,9 +561,9 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
   ymir_vec_t         *adjoint_vel_press = inv_problem->adjoint_vel_press;
-  ymir_vec_t         *rhs_vel_mass;
-  ymir_vec_t         *rhs_vel_press;
-  const int           stokes_nonzero_inital_guess = 0;
+  ymir_vec_t         *vel;
+  ymir_vec_t         *rhs_vel_mass, *rhs_vel_press;
+  const int           stokes_nonzero_inital_guess = 0; //TODO 1?
   const int           stokes_iter_max = rhea_inversion_adjoint_solver_iter_max;
   const double        stokes_rtol = rhea_inversion_adjoint_solver_rtol;
 
@@ -412,31 +576,41 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   RHEA_ASSERT (solution == NULL ||
                rhea_inversion_param_vec_check_type (solution, inv_param));
 
-  /* Note: Assume that the forward state `inv_problem->forward_vel_press` was
-   *       computed before, during the operator update, and that the velocity
-   *       `inv_problem->forward_vel` was extracted from it during the
-   *       evaluation of the objective functional. */
-
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
-  /* set Stokes right-hand side for adjoint problem */
+  /* create work variables */
+  vel = rhea_velocity_new (ymir_mesh);
   rhs_vel_mass = rhea_velocity_new (ymir_mesh);
   rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  /* Note: Assume that the forward state `inv_problem->forward_vel_press` was
+   *       computed before, during the operator update. */
+
+  /* retrieve velocity of the forward state */
+  rhea_velocity_pressure_copy_components (
+      vel, NULL, inv_problem->forward_vel_press, press_elem);
+  rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+  RHEA_ASSERT (rhea_velocity_is_valid (vel));
+
+  /* set Stokes right-hand side for the adjoint problem */
   rhea_inversion_obs_velocity_adjoint_rhs (
-      rhs_vel_mass, inv_problem->forward_vel, inv_problem->vel_obs_surf,
+      rhs_vel_mass, vel, inv_problem->vel_obs_surf,
       inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
       rhea_stokes_problem_get_domain_options (stokes_problem));
   ymir_vec_set_zero (rhs_vel_press);
   rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                          press_elem);
-  rhea_velocity_destroy (rhs_vel_mass);
 
   /* update Stokes solver for adjoint problem */
   rhea_stokes_problem_update_solver (
-      stokes_problem, 0 /* update_coeff*/, inv_problem->forward_vel_press,
+      stokes_problem, 0 /* update_coeff */, inv_problem->forward_vel_press,
       1 /* override_rhs */, rhs_vel_press, NULL, NULL, NULL);
+
+  /* destroy */
+  rhea_velocity_destroy (vel);
+  rhea_velocity_destroy (rhs_vel_mass);
   rhea_velocity_pressure_destroy (rhs_vel_press);
 
   /* solve for adjoint state */
@@ -445,10 +619,21 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       stokes_rtol, stokes_problem, 1 /* force linear solve */);
   inv_problem->adjoint_vel_press = adjoint_vel_press;
 
-  /* compute negative gradient */
+  /* compute the (positive) gradient */
   rhea_inversion_param_compute_gradient (
       neg_gradient, inv_problem->forward_vel_press,
       inv_problem->adjoint_vel_press, inv_param);
+
+  /* print gradient */
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  rhea_inversion_param_print (neg_gradient, inv_param);
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+#endif
+
+  /* flip the sign of the (positive) gradient */
   ymir_vec_scale (-1.0, neg_gradient);
 
   /* check output */
@@ -478,25 +663,169 @@ rhea_inversion_newton_compute_gradient_norm_fn (ymir_vec_t *neg_gradient,
 }
 
 static void
+rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
+                                     ymir_vec_t *param_vec_in,
+                                     rhea_inversion_problem_t *inv_problem,
+                                     const int first_order_approx)
+{
+  rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
+  rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t              *ymir_mesh;
+  ymir_pressure_elem_t     *press_elem;
+  ymir_vec_t         *vel;
+  ymir_vec_t         *rhs_vel_mass, *rhs_vel_press;
+
+  /* get mesh data */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+  /* create work variables */
+  vel = rhea_velocity_new (ymir_mesh);
+  rhs_vel_mass = rhea_velocity_new (ymir_mesh);
+  rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  { /* BEGIN: incremental forward */
+    ymir_vec_t         *incr_forward_vel_press =
+                          inv_problem->incremental_forward_vel_press;
+    const int           stokes_nonzero_inital_guess = 0; //TODO 1?
+    const int           stokes_iter_max =
+                          rhea_inversion_incremental_forward_solver_iter_max;
+    const double        stokes_rtol =
+                          rhea_inversion_incremental_forward_solver_rtol;
+
+    /* set Stokes right-hand side for the incremental forward problem */
+    rhea_inversion_param_incremental_forward_rhs (
+        rhs_vel_mass, param_vec_in, inv_problem->forward_vel_press, inv_param);
+    ymir_vec_set_zero (rhs_vel_press);
+    rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
+                                           press_elem);
+
+    /* update Stokes solver for incremental forward problem */
+    rhea_stokes_problem_update_solver (
+        stokes_problem, 0 /* update_coeff */, inv_problem->forward_vel_press,
+        1 /* override_rhs */, rhs_vel_press, NULL, NULL, NULL);
+
+    /* solve for incremental forward state */
+    rhea_stokes_problem_solve_ext (
+        &incr_forward_vel_press, stokes_nonzero_inital_guess, stokes_iter_max,
+        stokes_rtol, stokes_problem, 1 /* force linear solve */);
+    inv_problem->incremental_forward_vel_press = incr_forward_vel_press;
+  } /* END: incremental forward */
+
+  { /* BEGIN: incremental adjoint */
+    ymir_vec_t         *incr_adjoint_vel_press =
+                          inv_problem->incremental_adjoint_vel_press;
+    const int           stokes_nonzero_inital_guess = 0; //TODO 1?
+    const int           stokes_iter_max =
+                          rhea_inversion_incremental_adjoint_solver_iter_max;
+    const double        stokes_rtol =
+                          rhea_inversion_incremental_adjoint_solver_rtol;
+
+    /* retrieve velocity of the incremental forward state */
+    rhea_velocity_pressure_copy_components (
+        vel, NULL, inv_problem->incremental_forward_vel_press, press_elem);
+    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    RHEA_ASSERT (rhea_velocity_is_valid (vel));
+
+    /* set momentum component of Stokes right-hand side */
+    rhea_inversion_obs_velocity_incremental_adjoint_rhs (
+        rhs_vel_mass, vel, inv_problem->vel_obs_type,
+        rhea_stokes_problem_get_domain_options (stokes_problem));
+
+    /* add 2nd-order terms to right-hand side */
+    if (!first_order_approx) { /* if full Hessian */
+      /* retrieve velocity of the adjont state */
+      rhea_velocity_pressure_copy_components (
+          vel, NULL, inv_problem->adjoint_vel_press, press_elem);
+      rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+      RHEA_ASSERT (rhea_velocity_is_valid (vel));
+
+      RHEA_ABORT_NOT_REACHED (); //TODO
+    }
+
+    /* set Stokes right-hand side for incremental adjoint problem */
+    ymir_vec_set_zero (rhs_vel_press);
+    rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
+                                           press_elem);
+
+    /* update Stokes solver for incremental adjoint problem */
+    rhea_stokes_problem_update_solver (
+        stokes_problem, 0 /* update_coeff */, inv_problem->forward_vel_press,
+        1 /* override_rhs */, rhs_vel_press, NULL, NULL, NULL);
+
+    /* solve for incremental adjoint state */
+    rhea_stokes_problem_solve_ext (
+        &incr_adjoint_vel_press, stokes_nonzero_inital_guess, stokes_iter_max,
+        stokes_rtol, stokes_problem, 1 /* force linear solve */);
+    inv_problem->incremental_adjoint_vel_press = incr_adjoint_vel_press;
+  } /* END: incremental adjoint */
+
+  /* destroy */
+  rhea_velocity_destroy (vel);
+  rhea_velocity_destroy (rhs_vel_mass);
+  rhea_velocity_pressure_destroy (rhs_vel_press);
+
+  /* compute the Hessian application */
+  if (!first_order_approx) { /* if full Hessian */
+    rhea_inversion_param_apply_hessian (
+        param_vec_out, param_vec_in,
+        inv_problem->forward_vel_press,
+        inv_problem->adjoint_vel_press,
+        inv_problem->incremental_forward_vel_press,
+        inv_problem->incremental_adjoint_vel_press, inv_param);
+  }
+  else {
+    rhea_inversion_param_apply_hessian (
+        param_vec_out, param_vec_in,
+        inv_problem->forward_vel_press, NULL /* adjoint */,
+        NULL /* incr. forward */, inv_problem->incremental_adjoint_vel_press,
+        inv_param);
+  }
+}
+
+static void
 rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
                                         void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
-#ifdef RHEA_ENABLE_DEBUG
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
-#endif
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+      __func__, "first_order_approx=%i, assemble_matrix=%i",
+      rhea_inversion_first_order_hessian_approx,
+      rhea_inversion_assemble_hessian_matrix);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (out, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (in, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (in, inv_param));
+  RHEA_ASSERT (!rhea_inversion_assemble_hessian_matrix ||
+               inv_problem->hessian_matrix != NULL);
 
-  //TODO
-  ymir_vec_copy (in, out);
+  /* apply the Hessian */
+  if (!rhea_inversion_assemble_hessian_matrix) { /* if call apply function */
+    rhea_inversion_newton_apply_hessian (
+        out, in, inv_problem, rhea_inversion_first_order_hessian_approx);
+  }
+  else { /* otherwise use assembled Hessian matrix */
+    const sc_dmatrix_t *hessian_mat = inv_problem->hessian_matrix;
+    sc_dmatrix_t       *in_reduced, *out_reduced;
 
-  /* check output */
+    /* create reduced parameter vectors */
+    in_reduced = rhea_inversion_param_vec_reduced_new (in, inv_param);
+    out_reduced = rhea_inversion_param_vec_reduced_new (out, inv_param);
+
+    /* run matrix-vector multiply; copy entries to output */
+    sc_dmatrix_vector (SC_NO_TRANS, SC_NO_TRANS, SC_NO_TRANS,
+                       1.0 /* factor for in vec */, hessian_mat, in_reduced,
+                       0.0 /* factor for out vec */, out_reduced);
+    ymir_vec_set_zero (out);
+    rhea_inversion_param_vec_reduced_copy (out, out_reduced, inv_param);
+
+    /* destroy */
+    rhea_inversion_param_vec_reduced_destroy (in_reduced);
+    rhea_inversion_param_vec_reduced_destroy (out_reduced);
+  }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (out, inv_param));
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
@@ -512,30 +841,55 @@ rhea_inversion_newton_solve_hessian_system_fn (
                                             void *data, int *lin_iter_count)
 {
   rhea_inversion_problem_t *inv_problem = data;
-#ifdef RHEA_ENABLE_DEBUG
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
-#endif
-  int                 stop_reason = 1; //TODO
+  int                 itn, stop_reason;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
-      __func__, "lin_iter_max=%i, lin_rtol=%.1e, nonzero_init_guess=%i",
-      lin_iter_max, lin_res_norm_rtol, nonzero_initial_guess);
+      __func__, "lin_iter_max=%i, lin_rtol=%.1e, nonzero_init_guess=%i, "
+      "assemble_matrix=%i", lin_iter_max, lin_res_norm_rtol,
+      nonzero_initial_guess, rhea_inversion_assemble_hessian_matrix);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (step, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (neg_gradient, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (neg_gradient, inv_param));
+  RHEA_ASSERT (!rhea_inversion_assemble_hessian_matrix ||
+               inv_problem->hessian_matrix != NULL);
 
-  //TODO
-  ymir_vec_set_zero (step);
+  /* (approximately) invert the Hessian */
+  if (!rhea_inversion_assemble_hessian_matrix) { /* if matrix not assembled */
+    RHEA_ABORT_NOT_REACHED (); //TODO implement non-assembled case
+    stop_reason = 1;
+    itn = 0;
+  }
+  else { /* if Hessian matrix is assembled */
+    const sc_dmatrix_t *hessian_mat = inv_problem->hessian_matrix;
+    sc_dmatrix_t       *neg_grad_reduced, *step_reduced;
 
+    /* create reduced parameter vectors */
+    neg_grad_reduced = rhea_inversion_param_vec_reduced_new (neg_gradient,
+                                                             inv_param);
+    step_reduced = rhea_inversion_param_vec_reduced_new (step, inv_param);
+
+    /* run direct solver; copy entries to output */
+    sc_dmatrix_ldivide (SC_NO_TRANS, hessian_mat, neg_grad_reduced,
+                        step_reduced);
+    ymir_vec_set_zero (step);
+    rhea_inversion_param_vec_reduced_copy (step, step_reduced, inv_param);
+    stop_reason = 1;
+    itn = 1;
+
+    /* destroy */
+    rhea_inversion_param_vec_reduced_destroy (neg_grad_reduced);
+    rhea_inversion_param_vec_reduced_destroy (step_reduced);
+  }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (step, inv_param));
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 
   /* return iteraton count and "stopping" reason */
   if (lin_iter_count != NULL) {
-    *lin_iter_count = 0; //TODO
+    *lin_iter_count = itn;
   }
   return stop_reason;
 }
@@ -581,8 +935,10 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->vel_obs_surf = NULL;
   inv_problem->vel_obs_weight_surf = NULL;
   inv_problem->forward_vel_press = NULL;
-  inv_problem->forward_vel = NULL;
   inv_problem->adjoint_vel_press = NULL;
+  inv_problem->incremental_forward_vel_press = NULL;
+  inv_problem->incremental_adjoint_vel_press = NULL;
+  inv_problem->hessian_matrix = NULL;
 
   /* create parameters */
   inv_problem->inv_param_options = &rhea_inversion_param_options;
@@ -702,10 +1058,6 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                    ymir_vec_t *vel_obs_surf,
                                    ymir_vec_t *vel_obs_weight_surf)
 {
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh_t        *ymir_mesh;
-#endif
-
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "nonzero_initial_guess=%i",
                                     nonzero_initial_guess);
 
@@ -724,17 +1076,19 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
   /* check input */
 #ifdef RHEA_ENABLE_DEBUG
-  ymir_mesh = ymir_vec_get_mesh (inv_problem->vel_obs_surf);
   RHEA_ASSERT (vel_obs_surf != NULL);
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_obs_surf));
-  RHEA_ASSERT (ymir_vec_get_mesh (vel_obs_surf) == ymir_mesh);
+  RHEA_ASSERT (ymir_vec_get_mesh (vel_obs_surf) ==
+               ymir_vec_get_mesh (inv_problem->vel_obs_surf));
   RHEA_ASSERT (vel_obs_weight_surf == NULL ||
-               ymir_vec_get_mesh (vel_obs_weight_surf) == ymir_mesh);
+               ymir_vec_get_mesh (vel_obs_weight_surf) ==
+               ymir_vec_get_mesh (inv_problem->vel_obs_surf));
 #endif
 
   /* override observational data */
   ymir_vec_copy (vel_obs_surf, inv_problem->vel_obs_surf);
   if (vel_obs_weight_surf != NULL) {
+    RHEA_ASSERT (inv_problem->vel_obs_weight_surf != NULL);
     ymir_vec_copy (vel_obs_weight_surf, inv_problem->vel_obs_weight_surf);
   }
 
