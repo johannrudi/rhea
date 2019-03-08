@@ -2892,9 +2892,11 @@ rhea_stokes_problem_nonlinear_update_solver (
                                     ymir_vec_t *rhs_vel_nonzero_dirichlet,
                                     ymir_vec_t **rhs_vel_face_nonzero_neumann)
 {
+  const int           vel_press_exists = (vel_press != NULL);
+
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
       __func__, "update_coeff=%i, vel_press=%i, override_rhs=%i",
-      update_coeff, (vel_press != NULL), override_rhs);
+      update_coeff, vel_press_exists, override_rhs);
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
@@ -2903,8 +2905,6 @@ rhea_stokes_problem_nonlinear_update_solver (
   RHEA_ASSERT (
       rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem_nl));
   RHEA_ASSERT (stokes_problem_nl->stokes_pc != NULL);
-  RHEA_ASSERT (vel_press == NULL ||
-               rhea_velocity_pressure_check_vec_type (vel_press));
   RHEA_ASSERT (rhs_vel_press == NULL ||
                rhea_velocity_pressure_check_vec_type (rhs_vel_press));
   RHEA_ASSERT (rhs_vel == NULL || rhea_velocity_check_vec_type (rhs_vel));
@@ -2926,9 +2926,12 @@ rhea_stokes_problem_nonlinear_update_solver (
 
   /* update coefficient */
   if (update_coeff) {
+    RHEA_ASSERT (!vel_press_exists ||
+                 rhea_velocity_pressure_check_vec_type (vel_press));
+
     /* update coefficient of Stokes operator */
     rhea_stokes_problem_compute_and_update_coefficient (
-        stokes_problem_nl, vel_press, (vel_press == NULL) /* is init? */);
+        stokes_problem_nl, vel_press, vel_press_exists /* is init? */);
 
     /* update Stokes preconditioner */
     rhea_stokes_problem_nonlinear_update_hessian_fn (vel_press, NULL, NAN,
