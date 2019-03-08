@@ -161,27 +161,26 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
   /* create work vectors */
-  sol_vec = ymir_vec_template (rhea_newton_problem_get_step_vec (nl_problem));
+  if (solution == NULL) {
+    sol_vec = ymir_vec_template (rhea_newton_problem_get_step_vec (nl_problem));
+    ymir_vec_set_zero (sol_vec);
+  }
+  else {
+    sol_vec = ymir_vec_template (solution);
+    ymir_vec_copy (solution, sol_vec);
+  }
   dir_vec = ymir_vec_template (sol_vec);
   perturb_vec = ymir_vec_template (sol_vec);
 
-  /* set position and direction vectors */
-  if (solution == NULL) {
-    ymir_vec_set_zero (sol_vec);
-    rhea_newton_check_set_dir_vec (dir_vec, NULL);
-  }
-  else {
-    ymir_vec_copy (solution, sol_vec);
-    rhea_newton_check_set_dir_vec (dir_vec, sol_vec);
-  }
+  /* set direction vector */
+  rhea_newton_check_set_dir_vec (dir_vec, solution);
 
   /* compute the reference directional derivative */
   grad_dir_ref = ymir_vec_innerprod (neg_gradient, dir_vec);
   grad_dir_ref *= -1.0;
 
   /* set up the finite difference derivative */
-  rhea_newton_problem_update_operator (sol_vec, nl_problem);
-  obj_val = rhea_newton_problem_evaluate_objective (sol_vec, nl_problem);
+  obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem);
 
   /* compare reference with finite difference derivative */
   for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
@@ -306,7 +305,7 @@ rhea_newton_check_hessian_compute_error (double *abs_error,
     RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
     for (i = 0; i < n_entries; i++) {
       if (isfinite (rf[i]) && isfinite (fd[i]) &&
-          (DBL_MIN < rf[i] || DBL_MIN < fd[i])) {
+          (DBL_MIN < fabs (rf[i]) || DBL_MIN < fabs (fd[i]))) {
         diff_sq = (rf[i] - fd[i]) * (rf[i] - fd[i]);
         abs_err_sq += diff_sq;
         if (SC_EPS*SC_EPS * diff_sq < (rf[i]*rf[i])) {
