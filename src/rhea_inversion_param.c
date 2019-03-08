@@ -428,10 +428,10 @@ rhea_inversion_param_calculate_inversion_val_if_active_exp (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = parameter_vec->meshfree->e[0];
+  double             *param = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
-    param_data[param_idx] = log (model_val);
+    param[param_idx] = log (model_val);
     return 1;
   }
   else {
@@ -446,11 +446,11 @@ rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = parameter_vec->meshfree->e[0];
+  double             *param = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
     RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
-    param_data[param_idx] = sqrt (-log (model_val));
+    param[param_idx] = sqrt (-log (model_val));
     return 1;
   }
   else {
@@ -517,10 +517,10 @@ rhea_inversion_param_pull_from_model (ymir_vec_t *parameter_vec,
    *   stress_exponent_p = log (stress_exponent - 1)
    */
   if (inv_param->active[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]) {
-    double             *param_data = parameter_vec->meshfree->e[0];
+    double             *param = parameter_vec->meshfree->e[0];
 
     RHEA_ASSERT (1.0 < visc_options->stress_exponent);
-    param_data[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT] =
+    param[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT] =
       log (visc_options->stress_exponent - 1.0);
   }
 
@@ -646,10 +646,10 @@ rhea_inversion_param_calculate_model_val_if_active_exp (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = parameter_vec->meshfree->e[0];
+  double             *param = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
-    *model_val = exp (param_data[param_idx]);
+    *model_val = exp (param[param_idx]);
     return 1;
   }
   else {
@@ -664,10 +664,10 @@ rhea_inversion_param_calculate_model_val_if_active_exp2 (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param_data = parameter_vec->meshfree->e[0];
+  double             *param = parameter_vec->meshfree->e[0];
 
   if (inv_param->active[param_idx]) {
-    *model_val = exp (-param_data[param_idx]*param_data[param_idx]);
+    *model_val = exp (-param[param_idx]*param[param_idx]);
     return 1;
   }
   else {
@@ -732,10 +732,10 @@ rhea_inversion_param_push_to_model (ymir_vec_t *parameter_vec,
    *   stress_exponent = 1 + exp (stress_exponent_p)
    */
   if (inv_param->active[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]) {
-    double             *param_data = parameter_vec->meshfree->e[0];
+    double             *param = parameter_vec->meshfree->e[0];
 
     visc_options->stress_exponent =
-      1.0 + exp (param_data[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]);
+      1.0 + exp (param[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]);
   }
 
   /* push yield strength:
@@ -925,7 +925,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
   ymir_vec_t         *derivative;
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
-  double             *grad_data = gradient->meshfree->e[0];
+  double             *grad = gradient->meshfree->e[0];
   int                 i;
 
   /* check input */
@@ -985,10 +985,13 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
                                       0 /* !linearized */, 1 /* dirty */);
 
       /* compute inner product with adjoint velocity */
-      grad_data[i] = ymir_vec_innerprod (op_out_vel, adjoint_vel);
+      grad[i] = ymir_vec_innerprod (op_out_vel, adjoint_vel);
     }
   }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient, inv_param));
+
+  /* compute & add prior term */
+  //TODO
 
   /* destroy */
   ymir_stress_op_destroy (stress_op);
@@ -1008,7 +1011,7 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
 {
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
-  const double       *grad_data = gradient->meshfree->e[0];
+  const double       *grad = gradient->meshfree->e[0];
   double              sum_of_squares = 0.0;
   int                 i;
 
@@ -1018,7 +1021,7 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
   /* sum up (squares of) entries of the gradient vector that are active */
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
-      sum_of_squares += grad_data[i] * grad_data[i];
+      sum_of_squares += grad[i] * grad[i];
     }
   }
 
@@ -1027,10 +1030,152 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
 }
 
 void
+rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
+                                              ymir_vec_t *gradient_direction,
+                                              ymir_vec_t *forward_vel_press,
+                                              rhea_inversion_param_t *inv_param)
+{
+  rhea_stokes_problem_t    *stokes_problem = inv_param->stokes_problem;
+  rhea_domain_options_t    *domain_options =
+    rhea_stokes_problem_get_domain_options (stokes_problem);
+  ymir_mesh_t          *ymir_mesh =
+                          rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  ymir_pressure_elem_t *press_elem =
+                          rhea_stokes_problem_get_press_elem (stokes_problem);
+  ymir_vec_t         *temperature =
+                        rhea_stokes_problem_get_temperature (stokes_problem);
+  ymir_vec_t         *weakzone =
+                        rhea_stokes_problem_get_weakzone (stokes_problem);
+  ymir_vec_t         *forward_vel, *op_out_vel;
+  ymir_vec_t         *viscosity, *bounds_marker, *yielding_marker;
+  ymir_vel_dir_t     *vel_dir;
+  ymir_stress_op_t   *stress_op;
+
+  ymir_vec_t         *derivative;
+  const int           n_parameters = inv_param->n_parameters;
+  const int          *active = inv_param->active;
+  double             *grad_dir = gradient_direction->meshfree->e[0];
+  int                 i;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (rhs_vel_mass));
+  RHEA_ASSERT (
+      rhea_inversion_param_vec_check_type (gradient_direction, inv_param));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
+
+  /* retrieve forward velocity */
+  forward_vel = rhea_velocity_new (ymir_mesh);
+  op_out_vel = rhea_velocity_new (ymir_mesh);
+  rhea_velocity_pressure_copy_components (forward_vel, NULL, forward_vel_press,
+                                          press_elem);
+
+  /* compute viscosity and related fields */
+  viscosity = rhea_viscosity_new (ymir_mesh);
+  bounds_marker = rhea_viscosity_new (ymir_mesh);
+  yielding_marker = rhea_viscosity_new (ymir_mesh);
+  rhea_viscosity_compute (
+      /* out: */ viscosity, NULL, bounds_marker, yielding_marker,
+      /* in:  */ temperature, weakzone, forward_vel, inv_param->visc_options);
+
+  /* init derivative to use as viscous stress coefficient */
+  derivative = rhea_viscosity_new (ymir_mesh);
+  ymir_vec_set_value (derivative, 1.0);
+
+  /* create stress operator */
+  vel_dir = rhea_domain_create_velocity_dirichlet_bc (
+      ymir_mesh, NULL /* dirscal */, domain_options);
+  stress_op = ymir_stress_op_new_ext (
+      derivative, vel_dir,
+      NULL /* Robin BC's */,
+      NULL /* deprecated */,
+      NULL /* deprecated */,
+      domain_options->center, domain_options->moment_of_inertia);
+
+  /* add gradient w.r.t. each parameter */
+  ymir_vec_set_zero (rhs_vel_mass);
+  for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
+    if (active[i] && DBL_MIN < fabs (grad_dir[i])) {
+      /* compute parameter derivative of viscosity */
+      rhea_viscosity_param_derivative (
+          derivative, rhea_inversion_param_get_derivative_type (i),
+          viscosity, bounds_marker, yielding_marker, temperature, weakzone,
+          inv_param->visc_options);
+
+      /* transform to viscous stress coefficient */
+      ymir_vec_scale (2.0, derivative);
+
+      /* set derivative as the coefficient of the viscous stress operator */
+      ymir_stress_op_set_coeff_scal (stress_op, derivative);
+
+      /* apply viscous stress operator to forward velocity */
+      ymir_stress_pc_apply_stress_op (forward_vel, op_out_vel, stress_op,
+                                      0 /* !linearized */, 1 /* dirty */);
+
+      /* scale and add gradient to right-hand side */
+      ymir_vec_add (-grad_dir[i], op_out_vel, rhs_vel_mass);
+    }
+  }
+  RHEA_ASSERT (rhea_velocity_is_valid (rhs_vel_mass));
+
+  /* destroy */
+  ymir_stress_op_destroy (stress_op);
+  ymir_vel_dir_destroy (vel_dir);
+  rhea_viscosity_destroy (derivative);
+  rhea_viscosity_destroy (viscosity);
+  rhea_viscosity_destroy (bounds_marker);
+  rhea_viscosity_destroy (yielding_marker);
+  rhea_velocity_destroy (forward_vel);
+  rhea_velocity_destroy (op_out_vel);
+}
+
+void
+rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
+                                    ymir_vec_t *param_vec_in,
+                                    ymir_vec_t *forward_vel_press,
+                                    ymir_vec_t *adjoint_vel_press,
+                                    ymir_vec_t *incr_forward_vel_press,
+                                    ymir_vec_t *incr_adjoint_vel_press,
+                                    rhea_inversion_param_t *inv_param)
+{
+  const int           first_order_approx = (adjoint_vel_press == NULL);
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (param_vec_out, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (param_vec_in, inv_param));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
+  RHEA_ASSERT (
+      rhea_velocity_pressure_check_vec_type (incr_adjoint_vel_press));
+
+  /*
+   * First-Order Derivative Terms (aka. Gauss-Newton Hessian)
+   */
+
+  /* init output with parameter gradient function using incr. adj. vel. */
+  rhea_inversion_param_compute_gradient (param_vec_out, forward_vel_press,
+                                         incr_adjoint_vel_press, inv_param);
+
+  /* compute & add prior term */
+  //TODO
+
+  /*
+   * Second-Order Derivative Terms
+   */
+
+  if (!first_order_approx) { /* if full Hessian */
+    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (adjoint_vel_press));
+    RHEA_ASSERT (
+        rhea_velocity_pressure_check_vec_type (incr_forward_vel_press));
+
+    //TODO
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+void
 rhea_inversion_param_print (ymir_vec_t *parameter_vec,
                             rhea_inversion_param_t *inv_param)
 {
-  const double       *param_data = parameter_vec->meshfree->e[0];
+  const double       *param = parameter_vec->meshfree->e[0];
   const int          *active = inv_param->active;
   int                 i;
 
@@ -1045,7 +1190,7 @@ rhea_inversion_param_print (ymir_vec_t *parameter_vec,
   /* print each parameter */
   for (i = 0; i < inv_param->n_parameters; i++) {
     if (active[i]) {
-      RHEA_GLOBAL_INFOF ("param# %3i: %g\n", i, param_data[i]);
+      RHEA_GLOBAL_INFOF ("param# %3i: %g\n", i, param[i]);
     }
   }
 }
@@ -1083,23 +1228,101 @@ rhea_inversion_param_vec_is_valid (ymir_vec_t *vec,
 {
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
-  const double       *vec_data = vec->meshfree->e[0];
+  const double       *v = vec->meshfree->e[0];
   int                 i;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (vec, inv_param));
 
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
-    if (active[i] && !isfinite (vec_data[i])) {
+    if (active[i] && !isfinite (v[i])) {
       return 0;
     }
   }
   return 1;
 }
 
+sc_dmatrix_t *
+rhea_inversion_param_vec_reduced_new (ymir_vec_t *vec,
+                                      rhea_inversion_param_t *inv_param)
+{
+  const int           n_parameters = inv_param->n_parameters;
+  const int           n_active = inv_param->n_active;
+  const int          *active = inv_param->active;
+  sc_dmatrix_t       *vec_reduced;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (vec, inv_param));
+
+  /* create reduced parameter vector */
+  vec_reduced = sc_dmatrix_new (n_active, 1);
+
+  /* fill entries */
+  {
+    const double       *v = vec->meshfree->e[0];
+    double             *r = vec_reduced->e[0];
+    int                 i, row;
+
+    row = 0;
+    for (i = 0; i < n_parameters; i++) { /* loop over all parameters */
+      if (active[i]) {
+        r[row] = v[i];
+        row++;
+      }
+    }
+  }
+
+  return vec_reduced;
+}
+
+void
+rhea_inversion_param_vec_reduced_destroy (sc_dmatrix_t *vec_reduced)
+{
+  sc_dmatrix_destroy (vec_reduced);
+}
+
+void
+rhea_inversion_param_vec_reduced_copy (ymir_vec_t *vec,
+                                       sc_dmatrix_t *vec_reduced,
+                                       rhea_inversion_param_t *inv_param)
+{
+  const int           n_parameters = inv_param->n_parameters;
+  const int           n_active = inv_param->n_active;
+  const int          *active = inv_param->active;
+  const double       *r = vec_reduced->e[0];
+  double             *v = vec->meshfree->e[0];
+  int                 i, row;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (vec, inv_param));
+  RHEA_ASSERT (vec_reduced->m == n_active);
+  RHEA_ASSERT (vec_reduced->n == 1);
+
+  /* fill entries */
+  row = 0;
+  for (i = 0; i < n_parameters; i++) { /* loop over all parameters */
+    if (active[i]) {
+      v[i] = r[row];
+      row++;
+    }
+  }
+}
+
 /******************************************************************************
  * Data Access
  *****************************************************************************/
+
+int
+rhea_inversion_param_get_n_parameters (rhea_inversion_param_t *inv_param)
+{
+  return inv_param->n_parameters;
+}
+
+int
+rhea_inversion_param_get_n_active (rhea_inversion_param_t *inv_param)
+{
+  return inv_param->n_active;
+}
 
 int *
 rhea_inversion_param_get_active (rhea_inversion_param_t *inv_param)

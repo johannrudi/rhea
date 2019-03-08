@@ -102,6 +102,27 @@ double              rhea_inversion_param_compute_gradient_norm (
                                             rhea_inversion_param_t *inv_param);
 
 /**
+ * Computes the right-hand side for incremental forward equations.
+ */
+void                rhea_inversion_param_incremental_forward_rhs (
+                                            ymir_vec_t *rhs_vel_mass,
+                                            ymir_vec_t *gradient_direction,
+                                            ymir_vec_t *forward_vel_press,
+                                            rhea_inversion_param_t *inv_param);
+
+/**
+ * Applies the Hessian of the inverse problem to a parameter vector.
+ */
+void                rhea_inversion_param_apply_hessian (
+                                            ymir_vec_t *param_vec_out,
+                                            ymir_vec_t *param_vec_in,
+                                            ymir_vec_t *forward_vel_press,
+                                            ymir_vec_t *adjoint_vel_press,
+                                            ymir_vec_t *incr_forward_vel_press,
+                                            ymir_vec_t *incr_adjoint_vel_press,
+                                            rhea_inversion_param_t *inv_param);
+
+/**
  * Prints the active parameters.
  */
 void                rhea_inversion_param_print (
@@ -134,9 +155,40 @@ int                 rhea_inversion_param_vec_is_valid (
                                             ymir_vec_t *vec,
                                             rhea_inversion_param_t *inv_param);
 
+/**
+ * Creates/destroys a reduced parameter vector, where only the active entries
+ * are copied from the full parameter vector in the input argument.
+ */
+sc_dmatrix_t       *rhea_inversion_param_vec_reduced_new (
+                                            ymir_vec_t *vec,
+                                            rhea_inversion_param_t *inv_param);
+
+void                rhea_inversion_param_vec_reduced_destroy (
+                                            sc_dmatrix_t *vec_reduced);
+
+/**
+ * Copy entries from a reduced to a full parameter vector.
+ */
+void                rhea_inversion_param_vec_reduced_copy (
+                                            ymir_vec_t *vec,
+                                            sc_dmatrix_t *vec_reduced,
+                                            rhea_inversion_param_t *inv_param);
+
 /******************************************************************************
  * Data Access
  *****************************************************************************/
+
+/**
+ * Returns the number of parameters.
+ */
+int                 rhea_inversion_param_get_n_parameters (
+                                            rhea_inversion_param_t *inv_param);
+
+/**
+ * Returns the number of active parameters.
+ */
+int                 rhea_inversion_param_get_n_active (
+                                            rhea_inversion_param_t *inv_param);
 
 /**
  * Gets the pointer to the activation mask.
