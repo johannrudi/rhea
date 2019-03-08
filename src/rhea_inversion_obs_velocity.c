@@ -74,8 +74,10 @@ rhea_inversion_obs_velocity_misfit_vec (
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (misfit_surf));
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel_fwd_vol));
   RHEA_ASSERT (rhea_velocity_is_valid (vel_fwd_vol));
-  RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_obs_surf));
-  RHEA_ASSERT (rhea_velocity_surface_is_valid (vel_obs_surf));
+  RHEA_ASSERT (vel_obs_surf == NULL ||
+               rhea_velocity_surface_check_vec_type (vel_obs_surf));
+  RHEA_ASSERT (vel_obs_surf == NULL ||
+               rhea_velocity_surface_is_valid (vel_obs_surf));
   RHEA_ASSERT (weight_surf == NULL ||
                rhea_inversion_obs_velocity_weight_check_vec_type (weight_surf));
   RHEA_ASSERT (weight_surf == NULL ||
@@ -102,21 +104,23 @@ rhea_inversion_obs_velocity_misfit_vec (
   }
 
   /* compute difference between forward and observed velocities */
-  switch (obs_type) {
-  case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    break;
-  case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
-  case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
-    ymir_vec_add (-1.0, vel_obs_surf, misfit_surf);
-    rhea_inversion_obs_velocity_remove_normal (misfit_surf);
-    break;
-  case RHEA_INVERSION_OBS_VELOCITY_ALL:
-  case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    break;
-  default: /* unknown observation type */
-    RHEA_ABORT_NOT_REACHED ();
+  if (vel_obs_surf != NULL) {
+    switch (obs_type) {
+    case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
+      RHEA_ABORT_NOT_REACHED (); //TODO
+      break;
+    case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
+    case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
+      ymir_vec_add (-1.0, vel_obs_surf, misfit_surf);
+      rhea_inversion_obs_velocity_remove_normal (misfit_surf);
+      break;
+    case RHEA_INVERSION_OBS_VELOCITY_ALL:
+    case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
+      RHEA_ABORT_NOT_REACHED (); //TODO
+      break;
+    default: /* unknown observation type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
   }
 
   /* apply weight to difference */
@@ -170,10 +174,11 @@ rhea_inversion_obs_velocity_adjoint_rhs (
                                   const rhea_inversion_obs_velocity_t obs_type,
                                   rhea_domain_options_t *domain_options)
 {
-  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_fwd_vol);
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (rhs_vel_mass);
   ymir_vec_t         *misfit_surf = rhea_velocity_surface_new (ymir_mesh);
 
   /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (rhs_vel_mass));
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel_fwd_vol));
   RHEA_ASSERT (rhea_velocity_is_valid (vel_fwd_vol));
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_obs_surf));
@@ -185,8 +190,8 @@ rhea_inversion_obs_velocity_adjoint_rhs (
 
   /* compute misfit vector */
   rhea_inversion_obs_velocity_misfit_vec (
-      misfit_surf, vel_fwd_vol, vel_obs_surf, weight_surf, obs_type,
-      domain_options);
+      misfit_surf, vel_fwd_vol, vel_obs_surf, weight_surf,
+      obs_type, domain_options);
 
   /* project misfit into volume */
   rhea_velocity_interpolate_from_surface (rhs_vel_mass, misfit_surf,
@@ -197,4 +202,36 @@ rhea_inversion_obs_velocity_adjoint_rhs (
 
   /* destroy */
   rhea_velocity_surface_destroy (misfit_surf);
+}
+
+void
+rhea_inversion_obs_velocity_incremental_adjoint_rhs (
+                                  ymir_vec_t *rhs_vel_mass,
+                                  ymir_vec_t *vel_incrfwd_vol,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (rhs_vel_mass);
+  ymir_vec_t         *vel_incrfwd_surf = rhea_velocity_surface_new (ymir_mesh);
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (rhs_vel_mass));
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel_incrfwd_vol));
+  RHEA_ASSERT (rhea_velocity_is_valid (vel_incrfwd_vol));
+
+  /* compute misfit vector */
+  rhea_inversion_obs_velocity_misfit_vec (
+      vel_incrfwd_surf, vel_incrfwd_vol,
+      NULL /* vel_obs_surf */, NULL /* weight_surf */,
+      obs_type, domain_options);
+
+  /* project misfit into volume */
+  rhea_velocity_interpolate_from_surface (rhs_vel_mass, vel_incrfwd_surf,
+                                          1 /* mass_weighted */);
+
+  /* change sign to obtain the right-hand side */
+  ymir_vec_scale (-1.0, rhs_vel_mass);
+
+  /* destroy */
+  rhea_velocity_surface_destroy (vel_incrfwd_surf);
 }

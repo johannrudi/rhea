@@ -30,13 +30,22 @@ double              rhea_inversion_obs_velocity_misfit (
                                   rhea_domain_options_t *domain_options);
 
 /**
- * Computes the right-hand side for the adjoint equations.
+ * Computes the right-hand side for adjoint equations.
  */
 void                rhea_inversion_obs_velocity_adjoint_rhs (
                                   ymir_vec_t *rhs_vel_mass,
                                   ymir_vec_t *vel_fwd_vol,
                                   ymir_vec_t *vel_obs_surf,
                                   ymir_vec_t *weight_surf,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options);
+
+/**
+ * Computes the right-hand side (component) for incremental adjoint equations.
+ */
+void                rhea_inversion_obs_velocity_incremental_adjoint_rhs (
+                                  ymir_vec_t *rhs_vel_mass,
+                                  ymir_vec_t *vel_incrfwd_vol,
                                   const rhea_inversion_obs_velocity_t obs_type,
                                   rhea_domain_options_t *domain_options);
 
