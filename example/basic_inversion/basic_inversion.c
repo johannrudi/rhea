@@ -35,6 +35,45 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 };
 
 /******************************************************************************
+ * Inverse Problem
+ *****************************************************************************/
+
+static void
+basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
+                                    ymir_vec_t *sol_vel_press,
+                                    rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_mesh_t          *ymir_mesh;
+  ymir_pressure_elem_t *press_elem;
+  ymir_vec_t         *vel_sol;
+  ymir_vec_t         *vel_obs_surf;
+  ymir_vec_t         *vel_obs_weight_surf = NULL;
+
+  /* get mesh data */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+  /* generate synthetic velocity observations from previous Stokes solve */
+  vel_sol = rhea_velocity_new (ymir_mesh);
+  rhea_velocity_pressure_copy_components (vel_sol, NULL, sol_vel_press,
+                                          press_elem);
+  rhea_stokes_problem_velocity_boundary_set_zero (vel_sol, stokes_problem);
+  RHEA_ASSERT (rhea_velocity_is_valid (vel_sol));
+
+  /* project velocity from volume to surface */
+  vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
+  rhea_velocity_surface_interpolate (vel_obs_surf, vel_sol);
+
+  /* run solver */
+  rhea_inversion_solve_with_vel_obs (inv_problem, 0 /* zero initial guess */,
+                                     vel_obs_surf, vel_obs_weight_surf);
+
+  /* destroy */
+  rhea_velocity_destroy (vel_sol);
+  rhea_velocity_surface_destroy (vel_obs_surf);
+}
+
+/******************************************************************************
  * Main Program
  *****************************************************************************/
 
@@ -69,7 +108,8 @@ main (int argc, char **argv)
   ymir_mesh_t        *ymir_mesh;
   ymir_pressure_elem_t  *press_elem;
   /* Stokes */
-  rhea_stokes_problem_t *stokes_problem;
+  rhea_stokes_problem_t    *stokes_problem;
+  rhea_inversion_problem_t *inv_problem;
   ymir_vec_t         *sol_vel_press;
   int                 nonzero_inital_guess;
 
@@ -90,10 +130,10 @@ main (int argc, char **argv)
 
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
-    &solver_iter_max, 100,
+    &(solver_iter_max), 100,
     "Maximum number of iterations for Stokes solver",
   YMIR_OPTIONS_D, "solver-rel-tol", '\0',
-    &solver_rel_tol, 1.0e-6,
+    &(solver_rel_tol), 1.0e-6,
     "Relative tolerance for Stokes solver",
 
   /* binary file output */
@@ -186,6 +226,15 @@ main (int argc, char **argv)
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
                                     stokes_problem);
+
+  /*
+   * Solve Inverse Problem
+   */
+
+  inv_problem = rhea_inversion_new (stokes_problem);
+  basic_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
+                                      stokes_problem);
+  rhea_inversion_destroy (inv_problem);
 
   /*
    * Clear Stokes Problem & Mesh
