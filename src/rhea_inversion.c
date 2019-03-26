@@ -1074,6 +1074,9 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
 
   /* create Newton problem */
   {
+    ymir_mesh_t        *ymir_mesh =
+                          rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+    sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
     const int           grad_norm_n_components = 0;//TODO
     rhea_newton_problem_t *newton_problem;
 
@@ -1107,6 +1110,8 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
     rhea_newton_problem_set_checks (
         rhea_inversion_check_gradient, rhea_inversion_check_hessian,
         newton_problem);
+    rhea_newton_problem_set_mpicomm (
+        mpicomm, newton_problem);
   }
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
