@@ -185,6 +185,9 @@ ymir_vec_t         *rhea_stokes_problem_get_velocity_pressure (
 void                rhea_stokes_problem_remove_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem);
 
+int                 rhea_stokes_problem_is_nonlinear (
+                                    rhea_stokes_problem_t *stokes_problem);
+
 rhea_domain_options_t      *rhea_stokes_problem_get_domain_options (
                                     rhea_stokes_problem_t *stokes_problem);
 void                        rhea_stokes_problem_set_domain_options (
