@@ -312,9 +312,13 @@ int                 rhea_viscosity_restrict_min (rhea_viscosity_options_t *opt);
 int                 rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt);
 
 /**
- * Filters a vector where the max viscosity bound is active, otherwise sets the
- * values at nodes away from max bound to zero.
+ * Filters a vector where the min/max viscosity bound is active, otherwise sets
+ * the values at nodes away from min/max bound to zero.
  */
+void                rhea_viscosity_filter_where_min (ymir_vec_t *vec,
+                                                     ymir_vec_t *bounds_marker,
+                                                     const int invert_filter);
+
 void                rhea_viscosity_filter_where_max (ymir_vec_t *vec,
                                                      ymir_vec_t *bounds_marker,
                                                      const int invert_filter);
