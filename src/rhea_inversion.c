@@ -497,10 +497,13 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   /* update inversion parameters */
   rhea_inversion_update_param (solution, inv_param);
 
-  /* update Stokes solver for forward problem */
+  /* update Stokes solver for forward problem
+   * Note: The Stokes coefficient needs only to be updated for linear Stokes,
+   *       since the nonlinear solver will re-compute the coefficient later. */
   RHEA_ASSERT (!inv_problem->forward_is_outdated);
   rhea_stokes_problem_update_solver (
-      stokes_problem, 1 /* update Stokes coefficient */,
+      stokes_problem,
+      !rhea_stokes_problem_is_nonlinear (stokes_problem) /* update if lin. */,
       inv_problem->forward_vel_press /* velocity-pressure for coeff update */,
       0 /* !override_rhs */, NULL, NULL, NULL, NULL);
 
@@ -706,18 +709,28 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
   RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
-  /* set Stokes right-hand side for the adjoint problem */
+  /* set the right-hand side of the momentum eq. for the adjoint problem */
   rhea_inversion_obs_velocity_adjoint_rhs (
       rhs_vel_mass, vel, inv_problem->vel_obs_surf,
       inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
       rhea_stokes_problem_get_domain_options (stokes_problem));
+
+  /* enforce Dirichlet BC's on right-hand side */
+  rhea_stokes_problem_velocity_boundary_set_zero (rhs_vel_mass,
+                                                  stokes_problem);
+
+  /* set Stokes right-hand side for the adjoint problem */
   ymir_vec_set_zero (rhs_vel_press);
   rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                          press_elem);
 
-  /* update Stokes right-hand side for adjoint problem */
+  /* update Stokes solver for adjoint problem
+   * Note: The Stokes coefficient is updated only for nonlinear Stokes, since
+   *       the coefficient depends on the forward velocity. */
   rhea_stokes_problem_update_solver (
-      stokes_problem, 0 /* !update coeff */, NULL /* since no coeff update */,
+      stokes_problem,
+      rhea_stokes_problem_is_nonlinear (stokes_problem) /* update if nl. */,
+      inv_problem->forward_vel_press /* velocity-pressure for coeff update */,
       1 /* override_rhs */, rhs_vel_press, NULL, NULL, NULL);
 
   /* destroy */
@@ -736,7 +749,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   /* print gradient */
 #ifdef RHEA_ENABLE_DEBUG
   RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("Inversion gradient\n");
   RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
   rhea_inversion_param_print (neg_gradient, inv_param);
   RHEA_GLOBAL_VERBOSE ("========================================\n");
@@ -798,10 +811,16 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
   rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
 
   { /* BEGIN: incremental forward */
-    /* set Stokes right-hand side for the incremental forward problem */
+    /* set right-hand side of the momentum eq. for the incr. forward problem */
     RHEA_ASSERT (!inv_problem->forward_is_outdated);
     rhea_inversion_param_incremental_forward_rhs (
         rhs_vel_mass, param_vec_in, inv_problem->forward_vel_press, inv_param);
+
+    /* enforce Dirichlet BC's on right-hand side */
+    rhea_stokes_problem_velocity_boundary_set_zero (rhs_vel_mass,
+                                                    stokes_problem);
+
+    /* set Stokes right-hand side for the incremental forward problem */
     ymir_vec_set_zero (rhs_vel_press);
     rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                            press_elem);
@@ -822,7 +841,7 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
     rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
-    /* set momentum component of Stokes right-hand side */
+    /* set right-hand side of the momentum eq. for the incr. adjoint problem */
     rhea_inversion_obs_velocity_incremental_adjoint_rhs (
         rhs_vel_mass, vel, inv_problem->vel_obs_type,
         rhea_stokes_problem_get_domain_options (stokes_problem));
@@ -838,6 +857,10 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
 
       RHEA_ABORT_NOT_REACHED (); //TODO
     }
+
+    /* enforce Dirichlet BC's on right-hand side */
+    rhea_stokes_problem_velocity_boundary_set_zero (rhs_vel_mass,
+                                                    stokes_problem);
 
     /* set Stokes right-hand side for incremental adjoint problem */
     ymir_vec_set_zero (rhs_vel_press);
