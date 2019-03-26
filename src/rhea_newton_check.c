@@ -113,6 +113,16 @@ rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec,
   /* set to random values in [0,1] */
   ymir_vec_set_random (dir_vec);
 
+  /* communicate values in case of meshfree vectors */
+  if (dir_vec->n_meshfree && mpicomm != MPI_COMM_NULL) {
+    ymir_vec_meshfree_sync (dir_vec, 0 /* mpirank_master */, mpicomm);
+  }
+  else if (dir_vec->n_meshfree) {
+    RHEA_GLOBAL_INFOF (
+        "%s: Warning: meshfree direction is not equal across mpiranks; "
+        "provide MPI communicator to Newton problem.\n", __func__);
+  }
+
   /* exit if no solution vector given */
   if (sol_vec == NULL) {
     return;
@@ -129,14 +139,6 @@ rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec,
     rhea_newton_check_scale_evec (dir_vec, sol_vec);
   }
   if (sol_vec->n_meshfree) {
-    if (mpicomm != MPI_COMM_NULL) {
-      ymir_vec_meshfree_sync (dir_vec, 0 /* mpirank_master */, mpicomm);
-    }
-    else {
-      RHEA_GLOBAL_INFOF (
-          "%s: Warning: meshfree direction is not equal across mpiranks; "
-          "provide MPI communicator to Newton problem.\n", __func__);
-    }
     rhea_newton_check_scale_meshfree (dir_vec, sol_vec);
   }
 }
