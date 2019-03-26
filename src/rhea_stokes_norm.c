@@ -137,8 +137,8 @@ rhea_stokes_norm_Hminus1_L2_innerprod (double *innerprod_vel,
 
   /* compute L^2 inner product of pressure */
   if (innerprod_press != NULL) {
-    rhea_stokes_norm_L2_primal_innerprod (NULL, innerprod_press,
-                                          arg_left, arg_right, press_elem);
+    rhea_stokes_norm_L2_dual_innerprod (NULL, innerprod_press,
+                                        arg_left, arg_right, press_elem);
   }
 
   /* destroy */
@@ -155,8 +155,13 @@ rhea_stokes_norm_innerprod (double *innerprod_vel,
                             ymir_Hminus1_norm_op_t *norm_op,
                             ymir_pressure_elem_t *press_elem)
 {
+  /* check input */
   RHEA_ASSERT (innerprod_vel != NULL);
   RHEA_ASSERT (innerprod_press != NULL);
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (arg_left));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (arg_right));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (arg_left));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (arg_right));
 
   switch (norm_type) {
   case RHEA_STOKES_NORM_L2_VEC_SP:
@@ -184,6 +189,10 @@ rhea_stokes_norm_innerprod (double *innerprod_vel,
   default: /* unknown norm type */
     RHEA_ABORT_NOT_REACHED ();
   }
+
+  /* check output */
+  RHEA_ASSERT (isfinite (*innerprod_vel));
+  RHEA_ASSERT (isfinite (*innerprod_press));
 }
 
 double
@@ -195,6 +204,7 @@ rhea_stokes_norm_compute (double *norm_vel,
                           ymir_pressure_elem_t *press_elem)
 {
   double              ip_vel, ip_press;
+  double              norm_vel_press;
 
   /* compute inner product */
   rhea_stokes_norm_innerprod (&ip_vel, &ip_press, vec, vec,
@@ -207,5 +217,12 @@ rhea_stokes_norm_compute (double *norm_vel,
   if (norm_press != NULL) {
     *norm_press = sqrt (ip_press);
   }
-  return sqrt (ip_vel + ip_press);
+  norm_vel_press = sqrt (ip_vel + ip_press);
+
+  /* check output */
+  RHEA_ASSERT (norm_vel == NULL || isfinite (*norm_vel));
+  RHEA_ASSERT (norm_press == NULL || isfinite (*norm_press));
+  RHEA_ASSERT (isfinite (norm_vel_press));
+
+  return norm_vel_press;
 }
