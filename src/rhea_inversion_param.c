@@ -432,6 +432,7 @@ rhea_inversion_param_calculate_inversion_val_if_active_exp (
 
   if (inv_param->active[param_idx]) {
     param[param_idx] = log (model_val);
+    RHEA_ASSERT (isfinite (param[param_idx]));
     return 1;
   }
   else {
@@ -451,6 +452,7 @@ rhea_inversion_param_calculate_inversion_val_if_active_exp2 (
   if (inv_param->active[param_idx]) {
     RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
     param[param_idx] = sqrt (-log (model_val));
+    RHEA_ASSERT (isfinite (param[param_idx]));
     return 1;
   }
   else {
@@ -522,6 +524,7 @@ rhea_inversion_param_pull_from_model (ymir_vec_t *parameter_vec,
     RHEA_ASSERT (1.0 < visc_options->stress_exponent);
     param[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT] =
       log (visc_options->stress_exponent - 1.0);
+    RHEA_ASSERT (isfinite (param[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]));
   }
 
   /* pull yield strength:
@@ -650,6 +653,7 @@ rhea_inversion_param_calculate_model_val_if_active_exp (
 
   if (inv_param->active[param_idx]) {
     *model_val = exp (param[param_idx]);
+    RHEA_ASSERT (isfinite (*model_val));
     return 1;
   }
   else {
@@ -668,6 +672,7 @@ rhea_inversion_param_calculate_model_val_if_active_exp2 (
 
   if (inv_param->active[param_idx]) {
     *model_val = exp (-param[param_idx]*param[param_idx]);
+    RHEA_ASSERT (isfinite (*model_val));
     return 1;
   }
   else {
@@ -736,6 +741,7 @@ rhea_inversion_param_push_to_model (ymir_vec_t *parameter_vec,
 
     visc_options->stress_exponent =
       1.0 + exp (param[RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT]);
+    RHEA_ASSERT (isfinite (visc_options->stress_exponent));
   }
 
   /* push yield strength:
@@ -972,7 +978,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
       rhea_viscosity_param_derivative (
           derivative, rhea_inversion_param_get_derivative_type (i),
           viscosity, bounds_marker, yielding_marker, temperature, weakzone,
-          inv_param->visc_options);
+          forward_vel, inv_param->visc_options);
 
       /* transform to viscous stress coefficient */
       ymir_vec_scale (2.0, derivative);
@@ -1099,7 +1105,7 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
       rhea_viscosity_param_derivative (
           derivative, rhea_inversion_param_get_derivative_type (i),
           viscosity, bounds_marker, yielding_marker, temperature, weakzone,
-          inv_param->visc_options);
+          forward_vel, inv_param->visc_options);
 
       /* transform to viscous stress coefficient */
       ymir_vec_scale (2.0, derivative);
