@@ -893,10 +893,12 @@ rhea_newton_status_compute_curr (
   default: /* unknown criterion */
     RHEA_ABORT_NOT_REACHED ();
   }
+  RHEA_ASSERT (compute_obj || compute_grad);
 
   /* evaluate objective functional */
   if (compute_obj) {
     obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem);
+    RHEA_ASSERT (isfinite (obj_val));
   }
 
   /* compute gradient norm */
@@ -922,6 +924,8 @@ rhea_newton_status_compute_curr (
     grad_norm = rhea_newton_problem_compute_gradient_norm (neg_gradient,
                                                            nl_problem,
                                                            grad_norm_comp);
+    RHEA_ASSERT (isfinite (grad_norm));
+    RHEA_ASSERT (0.0 <= grad_norm);
 
     /* set objective if its evaluation function does not exist */
     if (!rhea_newton_problem_evaluate_objective_exists (nl_problem)) {
@@ -933,7 +937,6 @@ rhea_newton_status_compute_curr (
   }
 
   /* set current status */
-  RHEA_ASSERT (isfinite (obj_val) || isfinite (grad_norm));
   rhea_newton_status_set_curr (status, obj_val, grad_norm, grad_norm_comp);
 
   /* destroy */
@@ -1201,20 +1204,78 @@ rhea_newton_status_print_curr (rhea_newton_status_t *status,
   }
 }
 
-/* total values of status summary */
-double              rhea_newton_status_summary_obj_reduction = NAN;
-double              rhea_newton_status_summary_grad_norm_reduction = NAN;
-int                 rhea_newton_status_summary_step_search_success = 1;
-int                 rhea_newton_status_summary_step_search_iter_count = 0;
-int                 rhea_newton_status_summary_step_below_unit_count = 0;
-double              rhea_newton_status_summary_step_length_avg = 0.0;
-int                 rhea_newton_status_summary_lin_iter_count = 0;
+/* status summary */
+typedef struct rhea_newton_status_summary
+{
+  char              **iteration_stats;
+  int                 iteration_length;
+  int                 iteration_current_idx;
+  double              total_obj_reduction;
+  double              total_grad_norm_reduction;
+  int                 total_step_search_success;
+  int                 total_step_search_iter_count;
+  int                 total_step_below_unit_count;
+  double              total_step_length_avg;
+  int                 total_lin_iter_count;
+}
+rhea_newton_status_summary_t;
 
 /**
- * Adds current Newton status to a summary table.
+ * Creates an object to store statistics of a Newton solve.
+ */
+static rhea_newton_status_summary_t *
+rhea_newton_status_summary_new (const int max_num_iterations)
+{
+  rhea_newton_status_summary_t *summary;
+  int                 k;
+
+  /* create summary */
+  summary = RHEA_ALLOC (rhea_newton_status_summary_t, 1);
+
+  /* create storage for iterations */
+  summary->iteration_stats = RHEA_ALLOC (char *, max_num_iterations);
+  for (k = 0; k < max_num_iterations; k++) {
+    summary->iteration_stats[k] = RHEA_ALLOC (char, BUFSIZ);
+  }
+  summary->iteration_length = max_num_iterations;
+  summary->iteration_current_idx = 0;
+
+  /* initialize totals */
+  summary->total_obj_reduction = NAN;
+  summary->total_grad_norm_reduction = NAN;
+  summary->total_step_search_success = 1;
+  summary->total_step_search_iter_count = 0;
+  summary->total_step_below_unit_count = 0;
+  summary->total_step_length_avg = 0.0;
+  summary->total_lin_iter_count = 0;
+
+  /* return summary */
+  return summary;
+}
+
+/**
+ * Destroys an object to store statistics of a Newton solve.
  */
 static void
-rhea_newton_status_summary_write (char *summary,
+rhea_newton_status_summary_destroy (rhea_newton_status_summary_t *summary)
+{
+  int                 k;
+
+  /* destroy storage for iterations */
+  for (k = 0; k < summary->iteration_length; k++) {
+    RHEA_FREE (summary->iteration_stats[k]);
+  }
+  RHEA_FREE (summary->iteration_stats);
+
+  /* destroy summary */
+  RHEA_FREE (summary);
+}
+
+/**
+ * Adds current Newton status to the statistics summary.
+ */
+static void
+rhea_newton_status_summary_write (rhea_newton_status_summary_t *summary,
                                   rhea_newton_status_t *status,
                                   const int evaluate_objective_exists,
                                   rhea_newton_step_t *step)
@@ -1241,7 +1302,7 @@ rhea_newton_status_summary_write (char *summary,
   }
 
   /* write status to string */
-  snprintf (summary, BUFSIZ,
+  snprintf (summary->iteration_stats[summary->iteration_current_idx], BUFSIZ,
             "%3d ; %.15e, %.15e [%s] ; %i, %2i, %.15f ; %4d, %.3e (%.3e)",
             step->iter,
             obj, grad_norm, grad_norm_comp,
@@ -1251,52 +1312,49 @@ rhea_newton_status_summary_write (char *summary,
             step->lin_iter_count,
             step->lin_res_norm_reduction,
             step->lin_res_norm_rtol);
+  summary->iteration_current_idx++;
 
   /* update summary values */
-  rhea_newton_status_summary_obj_reduction = obj_reduction;
-  rhea_newton_status_summary_grad_norm_reduction = grad_norm_reduction;
-  rhea_newton_status_summary_step_search_success =
-    rhea_newton_status_summary_step_search_success && step->search_success;
-  rhea_newton_status_summary_step_search_iter_count +=
-    SC_MAX (0, step->search_iter_count);
-  rhea_newton_status_summary_step_below_unit_count +=
-    (0 < step->search_iter_count);
-  rhea_newton_status_summary_step_length_avg +=
-    SC_MAX (0.0, step->length);
-  rhea_newton_status_summary_lin_iter_count +=
-    SC_MAX (0, step->lin_iter_count);
+  summary->total_obj_reduction = obj_reduction;
+  summary->total_grad_norm_reduction = grad_norm_reduction;
+  summary->total_step_search_success = summary->total_step_search_success &&
+                                       step->search_success;
+  summary->total_step_search_iter_count += SC_MAX (0, step->search_iter_count);
+  summary->total_step_below_unit_count += (0 < step->search_iter_count);
+  summary->total_step_length_avg += SC_MAX (0.0, step->length);
+  summary->total_lin_iter_count += SC_MAX (0, step->lin_iter_count);
 }
 
 /**
- *
+ * Print statistics summary of a Newton solve.
  */
 static void
-rhea_newton_status_summary_print (char **summary,
-                                  const int length,
-                                  const char *func_name)
+rhea_newton_status_summary_print (rhea_newton_status_summary_t *summary)
 {
+  const int           n_iter = summary->iteration_current_idx - 1;
   int                 k;
 
   /* finalize summary values */
-  rhea_newton_status_summary_step_length_avg /= (length - 1);
+  summary->total_step_length_avg /= (double) n_iter;
 
+  /* print summary */
   RHEA_GLOBAL_INFO ("========================================\n");
-  RHEA_GLOBAL_INFOF ("%s Summary\n", func_name);
+  RHEA_GLOBAL_INFO ("Newton solve summary\n");
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
-  for (k = 0; k < length; k++) {
-    RHEA_GLOBAL_INFOF ("%s\n", summary[k]);
+  for (k = 0; k < summary->iteration_current_idx; k++) {
+    RHEA_GLOBAL_INFOF ("%s\n", summary->iteration_stats[k]);
   }
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   RHEA_GLOBAL_INFOF (
       "%3i ; %.15e, %.15e ; %i, %i, %i, %.15f ; %i\n",
-      length - 1,
-      rhea_newton_status_summary_obj_reduction,
-      rhea_newton_status_summary_grad_norm_reduction,
-      rhea_newton_status_summary_step_search_success,
-      rhea_newton_status_summary_step_search_iter_count,
-      rhea_newton_status_summary_step_below_unit_count,
-      rhea_newton_status_summary_step_length_avg,
-      rhea_newton_status_summary_lin_iter_count);
+      n_iter,
+      summary->total_obj_reduction,
+      summary->total_grad_norm_reduction,
+      summary->total_step_search_success,
+      summary->total_step_search_iter_count,
+      summary->total_step_below_unit_count,
+      summary->total_step_length_avg,
+      summary->total_lin_iter_count);
   RHEA_GLOBAL_INFO ("========================================\n");
 }
 
@@ -1678,19 +1736,19 @@ rhea_newton_solve (ymir_vec_t **solution,
                    rhea_newton_problem_t *nl_problem,
                    rhea_newton_options_t *opt)
 {
-  const int           print_summary = opt->print_summary;
   const int           iter_start = opt->iter_start;
   const int           iter_max = opt->iter_max;
   int                 iter;
   const double        rtol = opt->rtol;
   int                 neg_gradient_updated;
   int                 solution_post_update = 0;
-  rhea_newton_step_t  step;
-  rhea_newton_status_t  status;
+  const int           print_summary = opt->print_summary;
+  rhea_newton_step_t            step;
+  rhea_newton_status_t          status;
+  rhea_newton_status_summary_t *summary = NULL;
   char                func_tag_lin_status[BUFSIZ];
   char                func_tag_step_status[BUFSIZ];
   char                func_tag_stop[BUFSIZ];
-  char              **summary = NULL;
 
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (
       __func__, "iter_start=%i, iter_max=%i, rtol=%.1e, nonzero_init_guess=%i",
@@ -1728,13 +1786,7 @@ rhea_newton_solve (ymir_vec_t **solution,
 
     /* create storage for summary */
     if (print_summary) {
-      const int           length = iter_max - iter_start + 1;
-      int                 k;
-
-      summary = RHEA_ALLOC (char *, length);
-      for (k = 0; k < length; k++) {
-        summary[k] = RHEA_ALLOC (char, BUFSIZ);
-      }
+      summary = rhea_newton_status_summary_new (iter_max - iter_start + 1);
     }
   }
 
@@ -1761,7 +1813,7 @@ rhea_newton_solve (ymir_vec_t **solution,
           iter, __func__);
       if (print_summary) {
         rhea_newton_status_summary_write (
-            summary[iter - iter_start], &status,
+            summary, &status,
             rhea_newton_problem_evaluate_objective_exists (nl_problem), &step);
       }
 
@@ -1909,17 +1961,8 @@ rhea_newton_solve (ymir_vec_t **solution,
 
     /* print summary */
     if (print_summary) {
-      const int           length = iter_max - iter_start + 1;
-      const int           length_print = iter - iter_start + 1;
-      int                 k;
-
-      rhea_newton_status_summary_print (summary, length_print, __func__);
-
-      /* destroy summary */
-      for (k = 0; k < length; k++) {
-        RHEA_FREE (summary[k]);
-      }
-      RHEA_FREE (summary);
+      rhea_newton_status_summary_print (summary);
+      rhea_newton_status_summary_destroy (summary);
     }
   }
 
