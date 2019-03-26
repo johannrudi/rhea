@@ -48,15 +48,14 @@ rhea_inversion_param_add_options (
     &(inv_param_opt->upper_mantle_scaling_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate scaling factor of upper mantle",
-  YMIR_OPTIONS_B, "activate-lower-mantle-scaling", '\0',
-    &(inv_param_opt->lower_mantle_scaling_a),
-    RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate scaling factor of lower mantle",
-
   YMIR_OPTIONS_B, "activate-upper-mantle-arrhenius-activation-energy", '\0',
     &(inv_param_opt->upper_mantle_arrhenius_activation_energy_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate the activation energy in Arrhenius relationship of upper mantle",
+  YMIR_OPTIONS_B, "activate-lower-mantle-scaling", '\0',
+    &(inv_param_opt->lower_mantle_scaling_a),
+    RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
+    "Activate scaling factor of lower mantle",
   YMIR_OPTIONS_B, "activate-lower-mantle-arrhenius-activation-energy", '\0',
     &(inv_param_opt->lower_mantle_arrhenius_activation_energy_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
@@ -1234,17 +1233,79 @@ rhea_inversion_param_vec_is_valid (ymir_vec_t *vec,
 {
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
-  const double       *v = vec->meshfree->e[0];
+  double             *v = vec->meshfree->e[0];
   int                 i;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (vec, inv_param));
 
+  /* inspect processor-local values */
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i] && !isfinite (v[i])) {
       return 0;
     }
   }
+
+  /* inspect values across processors (using a ring topology) */
+  {
+    ymir_mesh_t        *ymir_mesh =
+      rhea_stokes_problem_get_ymir_mesh (inv_param->stokes_problem);
+    sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+    const int           mpisize = ymir_mesh_get_MPI_Comm_size (ymir_mesh);
+    const int           mpirank = ymir_mesh_get_MPI_Comm_rank (ymir_mesh);
+    int                 mpiret;
+    int                 mpirank_prev, mpirank_next;
+    const int           THIS_MPI_TAG = 1;
+    sc_MPI_Request      request_recv, request_send;
+    sc_MPI_Status       status;
+    double             *v_prev;
+
+    /* return success if nothing to do */
+    if (mpisize <= 1) {
+      return 1;
+    }
+
+    /* set previous and next rank neighbors */
+    mpirank_prev = mpirank - 1;
+    mpirank_next = mpirank + 1;
+    if (0 == mpirank) {
+      mpirank_prev = mpisize - 1;
+    }
+    if (mpirank == mpisize - 1) {
+      mpirank_next = 0;
+    }
+
+    /* receive values from previous neighbor */
+    v_prev = RHEA_ALLOC (double, n_parameters);
+    mpiret = sc_MPI_Irecv (v_prev, n_parameters, sc_MPI_DOUBLE, mpirank_prev,
+                           THIS_MPI_TAG, mpicomm, &request_recv);
+    SC_CHECK_MPI (mpiret);
+
+    /* send values to next neighbor */
+    mpiret = sc_MPI_Isend (v, n_parameters, sc_MPI_DOUBLE, mpirank_next,
+                           THIS_MPI_TAG, mpicomm, &request_send);
+    SC_CHECK_MPI (mpiret);
+
+    /* wait until receive is complete */
+    mpiret = sc_MPI_Waitall (1, &request_recv, &status);
+    SC_CHECK_MPI (mpiret);
+
+    /* compare values of previous neighbor */
+    for (i = 0; i < n_parameters; i++) { /* loop over all (possible) params */
+      const double        rel_err = fabs (v[i] - v_prev[i]) / fabs (v[i]);
+
+      if (active[i] && SC_1000_EPS < rel_err) {
+        return 0;
+      }
+    }
+    RHEA_FREE (v_prev);
+
+    /* wait until send is complete */
+    mpiret = sc_MPI_Waitall (1, &request_send, &status);
+    SC_CHECK_MPI (mpiret);
+  }
+
+  /* return success */
   return 1;
 }
 
