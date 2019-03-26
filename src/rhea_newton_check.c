@@ -107,7 +107,8 @@ rhea_newton_check_scale_meshfree (ymir_vec_t *scale, ymir_vec_t *source)
 }
 
 static void
-rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec)
+rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec,
+                               sc_MPI_Comm mpicomm)
 {
   /* set to random values in [0,1] */
   ymir_vec_set_random (dir_vec);
@@ -128,6 +129,14 @@ rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec)
     rhea_newton_check_scale_evec (dir_vec, sol_vec);
   }
   if (sol_vec->n_meshfree) {
+    if (mpicomm != MPI_COMM_NULL) {
+      ymir_vec_meshfree_sync (dir_vec, 0 /* mpirank_master */, mpicomm);
+    }
+    else {
+      RHEA_GLOBAL_INFOF (
+          "%s: Warning: meshfree direction is not equal across mpiranks; "
+          "provide MPI communicator to Newton problem.\n", __func__);
+    }
     rhea_newton_check_scale_meshfree (dir_vec, sol_vec);
   }
 }
@@ -135,6 +144,7 @@ rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec)
 void
 rhea_newton_check_gradient (ymir_vec_t *solution,
                             ymir_vec_t *neg_gradient,
+                            const int iter,
                             rhea_newton_problem_t *nl_problem)
 {
   ymir_vec_t         *sol_vec, *dir_vec, *perturb_vec;
@@ -158,7 +168,7 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
     return;
   }
 
-  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
   /* create work vectors */
   if (solution == NULL) {
@@ -173,7 +183,8 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   perturb_vec = ymir_vec_template (sol_vec);
 
   /* set direction vector */
-  rhea_newton_check_set_dir_vec (dir_vec, solution);
+  rhea_newton_check_set_dir_vec (dir_vec, solution,
+                                 rhea_newton_problem_get_mpicomm (nl_problem));
 
   /* compute the reference directional derivative */
   grad_dir_ref = ymir_vec_innerprod (neg_gradient, dir_vec);
@@ -209,7 +220,7 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
 
   /* print results */
   RHEA_GLOBAL_INFO ("========================================\n");
-  RHEA_GLOBAL_INFOF ("%s\n", __func__);
+  RHEA_GLOBAL_INFOF ("%s, newton_iter=%i\n", __func__, iter);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
     RHEA_GLOBAL_INFOF (
@@ -226,7 +237,7 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   ymir_vec_destroy (perturb_vec);
   sc_dmatrix_destroy (result);
 
-  RHEA_GLOBAL_INFO_FN_END (__func__);
+  RHEA_GLOBAL_INFOF_FN_END (__func__, "newton_iter=%i", iter);
 }
 
 static void
@@ -336,6 +347,7 @@ rhea_newton_check_hessian_compute_error (double *abs_error,
 void
 rhea_newton_check_hessian (ymir_vec_t *solution,
                            ymir_vec_t *neg_gradient,
+                           const int iter,
                            rhea_newton_problem_t *nl_problem)
 {
   const int           check_gradient =
@@ -361,7 +373,7 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
     return;
   }
 
-  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
   /* create work vectors */
   dir_vec = ymir_vec_template (solution);
@@ -370,7 +382,8 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   hess_dir_fd = ymir_vec_template (neg_gradient);
 
   /* set direction vector */
-  rhea_newton_check_set_dir_vec (dir_vec, solution);
+  rhea_newton_check_set_dir_vec (dir_vec, solution,
+                                 rhea_newton_problem_get_mpicomm (nl_problem));
 
   /* compute the reference directional derivative */
   rhea_newton_problem_apply_hessian (hess_dir_ref, dir_vec, nl_problem);
@@ -406,7 +419,7 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
 
   /* print results */
   RHEA_GLOBAL_INFO ("========================================\n");
-  RHEA_GLOBAL_INFOF ("%s\n", __func__);
+  RHEA_GLOBAL_INFOF ("%s, newton_iter=%i\n", __func__, iter);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
     RHEA_GLOBAL_INFOF (
@@ -422,5 +435,5 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   ymir_vec_destroy (hess_dir_fd);
   sc_dmatrix_destroy (result);
 
-  RHEA_GLOBAL_INFO_FN_END (__func__);
+  RHEA_GLOBAL_INFOF_FN_END (__func__, "newton_iter=%i", iter);
 }

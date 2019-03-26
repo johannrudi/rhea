@@ -312,6 +312,16 @@ void                rhea_newton_problem_set_check_hessian (
                                             rhea_newton_problem_t *nl_problem);
 
 /**
+ * Get/set MPI communicator.
+ */
+sc_MPI_Comm         rhea_newton_problem_get_mpicomm (
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_set_mpicomm (
+                                            sc_MPI_Comm mpicomm,
+                                            rhea_newton_problem_t *nl_problem);
+
+/**
  * Solves a nonlinear problem with inexact Newton--Krylov.
  */
 void                rhea_newton_solve (ymir_vec_t **solution,
