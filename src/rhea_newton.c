@@ -1950,7 +1950,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       if (solution_post_update) {
         rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
                                          RHEA_NEWTON_CONV_CRITERION_ALL,
-                                         *solution, iter, nl_problem);
+                                         *solution, iter+1, nl_problem);
       }
 
       /* compute the gradient norm, if not already performed */
@@ -1958,7 +1958,7 @@ rhea_newton_solve (ymir_vec_t **solution,
         rhea_newton_status_compute_curr (
                                       &status, &neg_gradient_updated,
                                       RHEA_NEWTON_CONV_CRITERION_GRADIENT_NORM,
-                                      *solution, iter, nl_problem);
+                                      *solution, iter+1, nl_problem);
       }
     }
 
