@@ -13,7 +13,8 @@
 /* default options */
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
 #define RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX (1)
-#define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX (1)
+#define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN (1)
+#define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (1)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_ITER_MAX (100)
@@ -30,8 +31,10 @@ int                 rhea_inversion_vel_obs_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE;
 int                 rhea_inversion_first_order_hessian_approx =
                       RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX;
-int                 rhea_inversion_assemble_hessian_matrix =
-                      RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX;
+int                 rhea_inversion_assemble_hessian =
+                      RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN;
+int                 rhea_inversion_assemble_hessian_enforce_symm =
+                      RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM;
 int                 rhea_inversion_forward_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX;
 double              rhea_inversion_forward_solver_rtol =
@@ -75,10 +78,14 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_first_order_hessian_approx),
     RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX,
     "1st-oder (or Gauss-Newton) approx. of the Hessian drops higher derivatives",
-  YMIR_OPTIONS_B, "assemble-hessian-matrix", '\0',
-    &(rhea_inversion_assemble_hessian_matrix),
-    RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX,
+  YMIR_OPTIONS_B, "assemble-hessian", '\0',
+    &(rhea_inversion_assemble_hessian),
+    RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN,
     "Toggle assembly of the Hessian matrix",
+  YMIR_OPTIONS_B, "assemble-hessian-enforce-symmetry", '\0',
+    &(rhea_inversion_assemble_hessian_enforce_symm),
+    RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM,
+    "Enforce symmetry of the assembled Hessian matrix",
 
   /* inner solver options (i.e., forward/adjoint) */
   YMIR_OPTIONS_I, "forward-solver-iter-max", '\0',
@@ -411,7 +418,7 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
     rhea_velocity_pressure_new (ymir_mesh, press_elem);
 
   /* create Hessian matrix */
-  if (rhea_inversion_assemble_hessian_matrix) {
+  if (rhea_inversion_assemble_hessian) {
     const int           n = rhea_inversion_param_get_n_active (inv_param);
 
     RHEA_ASSERT (inv_problem->hessian_matrix == NULL);
@@ -544,14 +551,14 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
       __func__, "first_order_approx=%i, assemble_matrix=%i",
       rhea_inversion_first_order_hessian_approx,
-      rhea_inversion_assemble_hessian_matrix);
+      rhea_inversion_assemble_hessian);
 
   /* check input */
-  RHEA_ASSERT (!rhea_inversion_assemble_hessian_matrix ||
+  RHEA_ASSERT (!rhea_inversion_assemble_hessian ||
                inv_problem->hessian_matrix != NULL);
 
   /* exit if nothing to do */
-  if (!rhea_inversion_assemble_hessian_matrix) {
+  if (!rhea_inversion_assemble_hessian) {
     RHEA_GLOBAL_VERBOSE_FN_END (__func__);
     return;
   }
@@ -593,6 +600,19 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
       /* increment column index of matrix */
       col++;
     }
+  }
+
+  /* enforce symmetry of Hessian matrix */
+  if (rhea_inversion_assemble_hessian_enforce_symm) {
+    sc_dmatrix_t       *hessian_transp;
+
+    hessian_transp = sc_dmatrix_new (hessian_mat->n, hessian_mat->m);
+    sc_dmatrix_transpose (hessian_mat, hessian_transp);
+    RHEA_ASSERT (hessian_mat->m == hessian_mat->n);
+    sc_dmatrix_add (1.0, hessian_transp, hessian_mat);
+    sc_dmatrix_scale (0.5, hessian_mat);
+
+    sc_dmatrix_destroy (hessian_transp);
   }
 
   /* print Hessian */
@@ -909,17 +929,17 @@ rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
       __func__, "first_order_approx=%i, assemble_matrix=%i",
       rhea_inversion_first_order_hessian_approx,
-      rhea_inversion_assemble_hessian_matrix);
+      rhea_inversion_assemble_hessian);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (out, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (in, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (in, inv_param));
-  RHEA_ASSERT (!rhea_inversion_assemble_hessian_matrix ||
+  RHEA_ASSERT (!rhea_inversion_assemble_hessian ||
                inv_problem->hessian_matrix != NULL);
 
   /* apply the Hessian */
-  if (!rhea_inversion_assemble_hessian_matrix) { /* if call apply function */
+  if (!rhea_inversion_assemble_hessian) { /* if call apply function */
     rhea_inversion_newton_apply_hessian (
         out, in, inv_problem, rhea_inversion_first_order_hessian_approx);
   }
@@ -963,17 +983,17 @@ rhea_inversion_newton_solve_hessian_system_fn (
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
       __func__, "lin_iter_max=%i, lin_rtol=%.1e, nonzero_init_guess=%i, "
       "assemble_matrix=%i", lin_iter_max, lin_res_norm_rtol,
-      nonzero_initial_guess, rhea_inversion_assemble_hessian_matrix);
+      nonzero_initial_guess, rhea_inversion_assemble_hessian);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (step, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (neg_gradient, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (neg_gradient, inv_param));
-  RHEA_ASSERT (!rhea_inversion_assemble_hessian_matrix ||
+  RHEA_ASSERT (!rhea_inversion_assemble_hessian ||
                inv_problem->hessian_matrix != NULL);
 
   /* (approximately) invert the Hessian */
-  if (!rhea_inversion_assemble_hessian_matrix) { /* if matrix not assembled */
+  if (!rhea_inversion_assemble_hessian) { /* if matrix not assembled */
     RHEA_ABORT_NOT_REACHED (); //TODO implement non-assembled case
     stop_reason = 1;
     itn = 0;
