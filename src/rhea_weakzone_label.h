@@ -1,4 +1,6 @@
-/*
+/** RHEA_WEAKZONE_LABEL
+ *
+ * Weak zone labels that correspond to specific plate boudaries.
  */
 
 #ifndef RHEA_WEAKZONE_LABEL_H
@@ -154,7 +156,7 @@ rhea_weakzone_label_t;
                                      RHEA_WEAKZONE_LABEL_EARTH_N_RI + \
                                      RHEA_WEAKZONE_LABEL_EARTH_N_FZ)
 
-static int
+static inline int
 rhea_weakzone_label_is_slab (const rhea_weakzone_label_t label)
 {
   int                 is_slab = 0;
@@ -170,7 +172,7 @@ rhea_weakzone_label_is_slab (const rhea_weakzone_label_t label)
   return is_slab;
 }
 
-static int
+static inline int
 rhea_weakzone_label_is_ridge (const rhea_weakzone_label_t label)
 {
   int                 is_ridge = 0;
@@ -186,7 +188,7 @@ rhea_weakzone_label_is_ridge (const rhea_weakzone_label_t label)
   return is_ridge;
 }
 
-static int
+static inline int
 rhea_weakzone_label_is_fracture (const rhea_weakzone_label_t label)
 {
   int                 is_fracture = 0;
@@ -205,7 +207,7 @@ rhea_weakzone_label_is_fracture (const rhea_weakzone_label_t label)
 /**
  * Checks whether a label correspond to a weak zone of earth.
  */
-static int
+static inline int
 rhea_weakzone_label_assigned_to_earth (const rhea_weakzone_label_t label)
 {
   return (1000 < label && label < 4000);
@@ -215,7 +217,7 @@ rhea_weakzone_label_assigned_to_earth (const rhea_weakzone_label_t label)
  * Gets the array index in (0:RHEA_WEAKZONE_LABEL_EARTH_N) corresponding to a
  * label for earth.
  */
-static int
+static inline int
 rhea_weakzone_label_earth_get_idx (const rhea_weakzone_label_t label)
 {
   if (1000 < label && label < 2000) { /* if slab */

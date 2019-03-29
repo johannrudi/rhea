@@ -1,4 +1,6 @@
-/*
+/** RHEA_WEAKZONE
+ *
+ * Weak zones to decouple plate boundaries.
  */
 
 #ifndef RHEA_WEAKZONE_H
@@ -19,7 +21,8 @@
 typedef enum
 {
   RHEA_WEAKZONE_NONE = -1,                  /* weak zone does not exist */
-  RHEA_WEAKZONE_DATA_POINTS = 0,            /* points (coordinates) */
+  RHEA_WEAKZONE_DEPTH = 0,                  /* horizontal slab along surface */
+  RHEA_WEAKZONE_DATA_POINTS,                /* points (coordinates) */
   RHEA_WEAKZONE_DATA_POINTS_LABELS,         /* pt's (coord, labels) */
   RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS, /* pt's (coord, labels, factors) */
 }
@@ -31,7 +34,7 @@ typedef struct rhea_weakzone_options
   /* type of weak zone */
   rhea_weakzone_t     type;
 
-  /* parameters for weak zone geometry */
+  /* weak zone geometry */
   double              thickness;
   double              thickness_generic_slab;
   double              thickness_generic_ridge;
@@ -41,7 +44,7 @@ typedef struct rhea_weakzone_options
   double              thickness_const_generic_ridge;
   double              thickness_const_generic_fracture;
 
-  /* parameters for max weakening in the interior of weak zones;
+  /* max weakening in the interior of weak zones;
    * factors correspond to labels in `rhea_weakzone_label.h` */
   double              weak_factor_interior;
   double              weak_factor_interior_generic_slab;
@@ -174,6 +177,14 @@ void                rhea_weakzone_compute (ymir_vec_t *weakzone, void *data);
  */
 void                rhea_weakzone_compute_distance (
                                                 ymir_vec_t *distance,
+                                                rhea_weakzone_options_t *opt);
+
+/**
+ * Computes the (smooth) indicator for weak zones that is 1 inside of weak
+ * zones and goes to zero far away from weak zones.
+ */
+void                rhea_weakzone_compute_indicator (
+                                                ymir_vec_t *indicator,
                                                 rhea_weakzone_options_t *opt);
 
 /******************************************************************************
