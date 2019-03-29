@@ -42,14 +42,14 @@ void                      rhea_inversion_destroy (
  */
 void                rhea_inversion_solve (
                                         rhea_inversion_problem_t *inv_problem,
-                                        const int nonzero_initial_guess);
+                                        const int use_initial_guess);
 
 /**
  * Solves an inverse problem with given velocity observations at the surface.
  */
 void                rhea_inversion_solve_with_vel_obs (
                                         rhea_inversion_problem_t *inv_problem,
-                                        const int nonzero_initial_guess,
+                                        const int use_initial_guess,
                                         ymir_vec_t *vel_obs_surf,
                                         ymir_vec_t *vel_obs_weight_surf);
 

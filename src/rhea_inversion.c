@@ -771,7 +771,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   RHEA_GLOBAL_VERBOSE ("========================================\n");
   RHEA_GLOBAL_VERBOSE ("Inversion gradient\n");
   RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
-  rhea_inversion_param_print (neg_gradient, inv_param);
+  rhea_inversion_param_vec_print (neg_gradient, inv_param);
   RHEA_GLOBAL_VERBOSE ("========================================\n");
 #endif
 
@@ -1040,9 +1040,11 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
 
   /* print active inversion parameters */
   RHEA_GLOBAL_INFO ("========================================\n");
-  RHEA_GLOBAL_INFO ("Inversion parameters\n");
+  RHEA_GLOBAL_INFOF ("Inversion parameters, newton_iter=%i\n", iter);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
-  rhea_inversion_param_print (solution, inv_problem->inv_param);
+  rhea_inversion_param_print (
+      solution, RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM,
+      inv_problem->inv_param);
   RHEA_GLOBAL_INFO ("========================================\n");
 
   //TODO
@@ -1171,24 +1173,27 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
 
 void
 rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
-                      const int nonzero_initial_guess)
+                      const int use_initial_guess)
 {
   rhea_inversion_param_t *inv_param = inv_problem->inv_param;
   rhea_newton_options_t *newton_options = inv_problem->newton_options;
   rhea_newton_problem_t *newton_problem = inv_problem->newton_problem;
   ymir_vec_t         *sol_parameter_vec;
 
-  RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "nonzero_initial_guess=%i",
-                                    nonzero_initial_guess);
+  RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "use_initial_guess=%i",
+                                    use_initial_guess);
 
   /* create vector for inversion parameters */
   sol_parameter_vec = rhea_inversion_param_vec_new (inv_param);
-  if (nonzero_initial_guess) {
+  if (use_initial_guess) {
     rhea_inversion_param_pull_from_model (sol_parameter_vec, inv_param);
+  }
+  else {
+    rhea_inversion_param_set_neutral (sol_parameter_vec, inv_param);
   }
 
   /* run Newton solver */
-  newton_options->nonzero_initial_guess = nonzero_initial_guess;
+  newton_options->nonzero_initial_guess = 1;
   rhea_newton_solve (&sol_parameter_vec, newton_problem, newton_options);
 
   /* destroy */
@@ -1199,25 +1204,26 @@ rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
 
 void
 rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
-                                   const int nonzero_initial_guess,
+                                   const int use_initial_guess,
                                    ymir_vec_t *vel_obs_surf,
                                    ymir_vec_t *vel_obs_weight_surf)
 {
-  RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "nonzero_initial_guess=%i",
-                                    nonzero_initial_guess);
+  rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+  ymir_vec_t         *parameter_vec;
+
+  RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "use_initial_guess=%i",
+                                    use_initial_guess);
 
   /* create solver data */
-  if (nonzero_initial_guess) {
-    rhea_inversion_param_t *inv_param = inv_problem->inv_param;
-    ymir_vec_t         *param_vec = rhea_inversion_param_vec_new (inv_param);
-
-    rhea_inversion_param_pull_from_model (param_vec, inv_param);
-    rhea_inversion_newton_create_solver_data_fn (param_vec, inv_problem);
-    rhea_inversion_param_vec_destroy (param_vec);
+  parameter_vec = rhea_inversion_param_vec_new (inv_param);
+  if (use_initial_guess) {
+    rhea_inversion_param_pull_from_model (parameter_vec, inv_param);
   }
   else {
-    rhea_inversion_newton_create_solver_data_fn (NULL, inv_problem);
+    rhea_inversion_param_set_neutral (parameter_vec, inv_param);
   }
+  rhea_inversion_newton_create_solver_data_fn (parameter_vec, inv_problem);
+  rhea_inversion_param_vec_destroy (parameter_vec);
 
   /* check input */
   RHEA_ASSERT (vel_obs_surf != NULL);
@@ -1236,7 +1242,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   }
 
   /* run solver */
-  rhea_inversion_solve (inv_problem, nonzero_initial_guess);
+  rhea_inversion_solve (inv_problem, use_initial_guess);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
