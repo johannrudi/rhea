@@ -511,9 +511,6 @@ rhea_stokes_problem_linear_create_mesh_data (
   /* create coefficient and vectors related to it */
   if (stokes_problem_lin->weakzone_compute_fn != NULL) {
     stokes_problem_lin->weakzone = rhea_weakzone_new (ymir_mesh);
-    stokes_problem_lin->weakzone_compute_fn (
-        stokes_problem_lin->weakzone,
-        stokes_problem_lin->weakzone_compute_fn_data);
   }
   stokes_problem_lin->coeff = rhea_viscosity_new (ymir_mesh);
 
@@ -639,6 +636,14 @@ rhea_stokes_problem_linear_create_solver_data (
   /* set VTK path for debuggin */
   if (vtk_path != NULL) {
     ymir_vtk_set_debug_path (vtk_path);
+  }
+
+  /* compute weak zone */
+  if (stokes_problem_lin->weakzone_compute_fn != NULL) {
+    RHEA_ASSERT (stokes_problem_lin->weakzone != NULL);
+    stokes_problem_lin->weakzone_compute_fn (
+        stokes_problem_lin->weakzone,
+        stokes_problem_lin->weakzone_compute_fn_data);
   }
 
   /* compute viscosity */
@@ -834,6 +839,14 @@ rhea_stokes_problem_linear_update_solver (
 
   /* update the Stokes coefficient and dependent objects */
   if (update_coeff) {
+    /* compute weak zone */
+    if (stokes_problem_lin->weakzone_compute_fn != NULL) {
+      RHEA_ASSERT (stokes_problem_lin->weakzone != NULL);
+      stokes_problem_lin->weakzone_compute_fn (
+          stokes_problem_lin->weakzone,
+          stokes_problem_lin->weakzone_compute_fn_data);
+    }
+
     /* update coefficient of Stokes operator */
     rhea_stokes_problem_compute_and_update_coefficient (
         stokes_problem_lin, NULL /* vel_press */, 0 /* !init */);
@@ -1712,6 +1725,14 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
     ymir_vtk_set_debug_path (path);
   }
 
+  /* compute weak zone */
+  if (stokes_problem_nl->weakzone_compute_fn != NULL) {
+    RHEA_ASSERT (stokes_problem_nl->weakzone != NULL);
+    stokes_problem_nl->weakzone_compute_fn (
+        stokes_problem_nl->weakzone,
+        stokes_problem_nl->weakzone_compute_fn_data);
+  }
+
   /* set up Stokes operator */
   if (solver_data_exists) {
     /* update Stokes operator */
@@ -2293,7 +2314,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
                                       stokes_problem_nl->visc_options->max);
 
   RHEA_GLOBAL_STATISTICS ("========================================\n");
-  RHEA_GLOBAL_STATISTICS ("Stokes flow statistics\n");
+  RHEA_GLOBAL_STATISTICSF ("Stokes flow statistics, newton_iter=%i\n", iter);
   RHEA_GLOBAL_STATISTICS ("----------------------------------------\n");
 
   /* print velocity statistics */
@@ -2615,9 +2636,6 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
   /* create coefficient and vectors related to it */
   if (stokes_problem_nl->weakzone_compute_fn != NULL) {
     stokes_problem_nl->weakzone = rhea_weakzone_new (ymir_mesh);
-    stokes_problem_nl->weakzone_compute_fn (
-        stokes_problem_nl->weakzone,
-        stokes_problem_nl->weakzone_compute_fn_data);
   }
   stokes_problem_nl->coeff = rhea_viscosity_new (ymir_mesh);
   stokes_problem_nl->bounds_marker = rhea_viscosity_new (ymir_mesh);
@@ -2943,6 +2961,14 @@ rhea_stokes_problem_nonlinear_update_solver (
 
   /* update the Stokes coefficient and dependent objects */
   if (update_coeff) {
+    /* compute weak zone */
+    if (stokes_problem_nl->weakzone_compute_fn != NULL) {
+      RHEA_ASSERT (stokes_problem_nl->weakzone != NULL);
+      stokes_problem_nl->weakzone_compute_fn (
+          stokes_problem_nl->weakzone,
+          stokes_problem_nl->weakzone_compute_fn_data);
+    }
+
     /* update Stokes operator and preconditioner */
     rhea_stokes_problem_nonlinear_update_operator_fn (vel_press,
                                                       stokes_problem_nl);
