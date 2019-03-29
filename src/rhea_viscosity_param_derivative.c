@@ -31,8 +31,6 @@ rhea_viscosity_param_derivative_init (ymir_vec_t *derivative,
 
   /* remove lower viscosity bound */
   if (remove_bound_min) {
-    const double        visc_min = visc_options->min;
-
     switch (visc_options->model) {
     case RHEA_VISCOSITY_MODEL_UWYL:
       RHEA_ASSERT (bounds_marker != NULL);
@@ -41,8 +39,8 @@ rhea_viscosity_param_derivative_init (ymir_vec_t *derivative,
       break;
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-      if (0.0 < visc_min) {
-        ymir_vec_shift (-visc_min, derivative);
+      if (0.0 < visc_options->min) {
+        ymir_vec_shift (-visc_options->min, derivative);
         ymir_vec_bound_min (derivative, 0.0);
       }
       break;
@@ -316,8 +314,7 @@ rhea_viscosity_param_derivative_stress_exp (
  *   deriv = visc
  */
 static void
-rhea_viscosity_param_derivative_yield_strength (
-                                        ymir_vec_t *derivative,
+rhea_viscosity_param_derivative_yield_strength ( ymir_vec_t *derivative,
                                         ymir_vec_t *viscosity,
                                         ymir_vec_t *bounds_marker,
                                         ymir_vec_t *yielding_marker,
@@ -341,6 +338,56 @@ rhea_viscosity_param_derivative_yield_strength (
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
 }
 
+/**
+ * Computes derivative w.r.t. the weak factor in the interior of a weak zone:
+ *   weak_int = exp(-param_weak_int^2)
+ *   weak = 1 - (1 - weak_int) * weak_indicator
+ *   deriv = -2*param_weak_int * weak_indicator * visc/weak
+ */
+static void
+rhea_viscosity_param_derivative_weak_factor_interior (
+                                        ymir_vec_t *derivative,
+                                        ymir_vec_t *viscosity,
+                                        ymir_vec_t *bounds_marker,
+                                        ymir_vec_t *yielding_marker,
+                                        ymir_vec_t *weakzone,
+                                        rhea_weakzone_options_t *weak_options,
+                                        rhea_viscosity_options_t *visc_options)
+{
+  const double        factor_interior = weak_options->weak_factor_interior;
+  const double        param_factor_interior = -sqrt (-log (factor_interior));
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (weakzone);
+  ymir_vec_t         *weak_indicator = rhea_weakzone_new (ymir_mesh);
+
+  /* check input */
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
+  RHEA_ASSERT (0.0 < factor_interior && factor_interior <= 1.0);
+  RHEA_ASSERT (isfinite (param_factor_interior));
+
+  /* init derivative */
+  rhea_viscosity_param_derivative_init (
+      derivative, viscosity, bounds_marker, yielding_marker, visc_options,
+      1 /* remove_bound_min */,
+      0 /* !remove_bound_max */,
+      1 /* remove_yielding */,
+      0 /* !remove_upper_mantle */,
+      1 /* remove_lower_mantle */);
+
+  /* get indicator for weak zones */
+  rhea_weakzone_compute_indicator (weak_indicator, weak_options);
+
+  /* compute derivative */
+  ymir_vec_scale (-2.0 * param_factor_interior, weak_indicator);
+  ymir_vec_multiply_in (weak_indicator, derivative);
+  ymir_vec_divide_in (weakzone, derivative);
+
+  /* destroy */
+  rhea_weakzone_destroy (weak_indicator);
+
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
+}
+
 void
 rhea_viscosity_param_derivative (
                             ymir_vec_t *derivative,
@@ -351,6 +398,7 @@ rhea_viscosity_param_derivative (
                             ymir_vec_t *temperature,
                             ymir_vec_t *weakzone,
                             ymir_vec_t *velocity,
+                            rhea_weakzone_options_t *weak_options,
                             rhea_viscosity_options_t *visc_options)
 {
   switch (derivative_type) {
@@ -430,9 +478,24 @@ rhea_viscosity_param_derivative (
     }
     break;
 
-//case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS:
-//case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST:
-//case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR:
+  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS:
+    RHEA_ABORT_NOT_REACHED (); //TODO
+    break;
+
+  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST:
+    RHEA_ABORT_NOT_REACHED (); //TODO
+    break;
+
+  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR:
+    if (rhea_weakzone_exists (weak_options)) {
+      rhea_viscosity_param_derivative_weak_factor_interior (
+          derivative, viscosity, bounds_marker, yielding_marker, weakzone,
+          weak_options, visc_options);
+    }
+    else {
+      ymir_vec_set_zero (derivative);
+    }
+    break;
 
   default: /* unknown derivative type */
     RHEA_ABORT_NOT_REACHED ();

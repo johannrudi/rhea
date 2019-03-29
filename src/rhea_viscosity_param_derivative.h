@@ -6,6 +6,7 @@
 #ifndef RHEA_VISCOSITY_PARAM_DERIVATIVE_H
 #define RHEA_VISCOSITY_PARAM_DERIVATIVE_H
 
+#include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
 
 /* list of parameters w.r.t. which viscosity derivatives exist */
@@ -38,6 +39,7 @@ void                rhea_viscosity_param_derivative (
                             ymir_vec_t *temperature,
                             ymir_vec_t *weakzone,
                             ymir_vec_t *velocity,
+                            rhea_weakzone_options_t *weak_options,
                             rhea_viscosity_options_t *visc_options);
 
 #endif /* RHEA_VISCOSITY_PARAM_DERIVATIVE_H */
