@@ -114,6 +114,41 @@ void                rhea_inversion_param_set_neutral (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param);
 
+/**
+ * Converts between model values and their corresponding inversion parameters
+ * as well as first derivatives of the parametrization functions.
+ *
+ *   ..._pos ()   For model values that are positive.
+ *   ..._n ()     For stress exponent `n`.
+ *   ..._weak ()  For weak zone factors.
+ */
+double              rhea_inversion_param_convert_to_model_pos (
+                                                  const double inv_param_val);
+double              rhea_inversion_param_convert_to_model_pos_deriv (
+                                                  const double inv_param_val);
+double              rhea_inversion_param_convert_from_model_pos (
+                                                  const double model_val);
+double              rhea_inversion_param_convert_from_model_pos_deriv (
+                                                  const double model_val);
+
+double              rhea_inversion_param_convert_to_model_n (
+                                                  const double inv_param_val);
+double              rhea_inversion_param_convert_to_model_n_deriv (
+                                                  const double inv_param_val);
+double              rhea_inversion_param_convert_from_model_n (
+                                                  const double model_val);
+double              rhea_inversion_param_convert_from_model_n_deriv (
+                                                  const double model_val);
+
+double              rhea_inversion_param_convert_to_model_weak (
+                                                  const double inv_param_val);
+double              rhea_inversion_param_convert_to_model_weak_deriv (
+                                                  const double inv_param_val);
+double              rhea_inversion_param_convert_from_model_weak (
+                                                  const double model_val);
+double              rhea_inversion_param_convert_from_model_weak_deriv (
+                                                  const double model_val);
+
 /******************************************************************************
  * Parameter Related Computations
  *****************************************************************************/

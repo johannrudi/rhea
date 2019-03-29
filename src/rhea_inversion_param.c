@@ -668,6 +668,92 @@ rhea_inversion_param_set_model_vals (ymir_vec_t *parameter_vec,
   }
 }
 
+double
+rhea_inversion_param_convert_to_model_pos (const double inv_param_val)
+{
+  return exp (inv_param_val);
+}
+
+double
+rhea_inversion_param_convert_to_model_pos_deriv (const double inv_param_val)
+{
+  return exp (inv_param_val);
+}
+
+double
+rhea_inversion_param_convert_from_model_pos (const double model_val)
+{
+  RHEA_ASSERT (0.0 <= model_val);
+  if (0.0 < model_val) {
+    return log (model_val);
+  }
+  else {
+    return -DBL_MAX;
+  }
+}
+
+double
+rhea_inversion_param_convert_from_model_pos_deriv (const double model_val)
+{
+  return model_val;
+}
+
+double
+rhea_inversion_param_convert_to_model_n (const double inv_param_val)
+{
+  return 1.0 + exp (inv_param_val);
+}
+
+double
+rhea_inversion_param_convert_to_model_n_deriv (const double inv_param_val)
+{
+  return exp (inv_param_val);
+}
+
+double
+rhea_inversion_param_convert_from_model_n (const double model_val)
+{
+  RHEA_ASSERT (1.0 <= model_val);
+  if (1.0 < model_val) {
+    return log (model_val - 1.0);
+  }
+  else {
+    return -DBL_MAX;
+  }
+}
+
+double
+rhea_inversion_param_convert_from_model_n_deriv (const double model_val)
+{
+  return model_val - 1.0;
+}
+
+double
+rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
+{
+  return exp (-inv_param_val*inv_param_val);
+}
+
+double
+rhea_inversion_param_convert_to_model_weak_deriv (const double inv_param_val)
+{
+  return -2.0*inv_param_val * exp (-inv_param_val*inv_param_val);
+}
+
+double
+rhea_inversion_param_convert_from_model_weak (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
+  return -sqrt (-log (model_val));
+}
+
+double
+rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
+  return 2.0 * sqrt (-log (model_val)) * model_val;
+}
+
 static void
 rhea_inversion_param_convert_model_vals_to_params (
                                             ymir_vec_t *parameter_vec,
@@ -703,26 +789,18 @@ rhea_inversion_param_convert_model_vals_to_params (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE:
-        RHEA_ASSERT (0.0 < param[idx]);
-        param[idx] = log (param[idx]);
+        param[idx] = rhea_inversion_param_convert_from_model_pos (param[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        RHEA_ASSERT (1.0 <= param[idx]);
-        if (1.0 < param[idx]) {
-          param[idx] = log (param[idx] - 1.0);
-        }
-        else {
-          param[idx] = -DBL_MAX;
-        }
+        param[idx] = rhea_inversion_param_convert_from_model_n (param[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE:
-        RHEA_ASSERT (0.0 < param[idx] && param[idx] <= 1.0);
-        param[idx] = - sqrt (-log (param[idx]));
+        param[idx] = rhea_inversion_param_convert_from_model_weak (param[idx]);
         success = 1;
         break;
       default:
@@ -736,8 +814,8 @@ rhea_inversion_param_convert_model_vals_to_params (
                 RHEA_WEAKZONE_LABEL_EARTH_N_RI +
                 RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
         if (offset <= idx && idx < offset + total) {
-          RHEA_ASSERT (0.0 < param[idx] && param[idx] <= 1.0);
-          param[idx] = - sqrt (-log (param[idx]));
+          param[idx] =
+            rhea_inversion_param_convert_from_model_weak (param[idx]);
           success = 1;
         }
       }
@@ -787,18 +865,18 @@ rhea_inversion_param_convert_params_to_model_vals (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE:
-        param[idx] = exp (param[idx]);
+        param[idx] = rhea_inversion_param_convert_to_model_pos (param[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        param[idx] = 1.0 + exp (param[idx]);
+        param[idx] = rhea_inversion_param_convert_to_model_n (param[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE:
-        param[idx] = exp (-param[idx]*param[idx]);
+        param[idx] = rhea_inversion_param_convert_to_model_weak (param[idx]);
         success = 1;
         break;
       default:
@@ -812,7 +890,7 @@ rhea_inversion_param_convert_params_to_model_vals (
                 RHEA_WEAKZONE_LABEL_EARTH_N_RI +
                 RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
         if (offset <= idx && idx < offset + total) {
-          param[idx] = exp (-param[idx]*param[idx]);
+          param[idx] = rhea_inversion_param_convert_to_model_weak (param[idx]);
           success = 1;
         }
       }
@@ -873,7 +951,8 @@ rhea_inversion_param_set_neutral (ymir_vec_t *parameter_vec,
 
   /* set nonzero parameter for weak zone factors */
   {
-    const double        weak_factor_interior_neutral = - sqrt (-log (0.5));
+    const double        weak_factor_interior_neutral =
+      rhea_inversion_param_convert_from_model_weak (0.5);
     int                 offset, total;
 
     idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR;
