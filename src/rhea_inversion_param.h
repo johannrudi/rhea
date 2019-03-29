@@ -52,7 +52,7 @@ void                rhea_inversion_param_add_options (
                               ymir_options_t *opt_sup);
 
 /******************************************************************************
- * Inversion Parameters
+ * Parameters
  *****************************************************************************/
 
 /* inversion parameters (opaque) */
@@ -71,6 +71,28 @@ rhea_inversion_param_t *rhea_inversion_param_new (
 void                rhea_inversion_param_destroy (
                             rhea_inversion_param_t *inv_param);
 
+/* verbosity for paramter output */
+typedef enum
+{
+  RHEA_INVERSION_PARAM_VERBOSE_NONE,
+  RHEA_INVERSION_PARAM_VERBOSE_REAL,
+  RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM,
+  RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM_DIM
+}
+rhea_inversion_param_verbosity_t;
+
+/**
+ * Prints the active parameters with specified verbosity.
+ */
+void                rhea_inversion_param_print (
+                              ymir_vec_t *parameter_vec,
+                              const rhea_inversion_param_verbosity_t verbosity,
+                              rhea_inversion_param_t *inv_param);
+
+/******************************************************************************
+ * Mapping between Parameter Values and Model Values
+ *****************************************************************************/
+
 /**
  * Sets the inversion parameters to the values from a model.
  */
@@ -84,6 +106,17 @@ void                rhea_inversion_param_pull_from_model (
 void                rhea_inversion_param_push_to_model (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param);
+
+/**
+ * Sets the inversion parameters neutral feasible values.
+ */
+void                rhea_inversion_param_set_neutral (
+                                            ymir_vec_t *parameter_vec,
+                                            rhea_inversion_param_t *inv_param);
+
+/******************************************************************************
+ * Parameter Related Computations
+ *****************************************************************************/
 
 /**
  * Computes the gradient vector of the Stokes model w.r.t. model parameters.
@@ -122,13 +155,6 @@ void                rhea_inversion_param_apply_hessian (
                                             ymir_vec_t *incr_adjoint_vel_press,
                                             rhea_inversion_param_t *inv_param);
 
-/**
- * Prints the active parameters.
- */
-void                rhea_inversion_param_print (
-                                            ymir_vec_t *parameter_vec,
-                                            rhea_inversion_param_t *inv_param);
-
 /******************************************************************************
  * Parameter Vector
  *****************************************************************************/
@@ -152,6 +178,13 @@ int                 rhea_inversion_param_vec_check_type (
  * Checks entries of a vector.
  */
 int                 rhea_inversion_param_vec_is_valid (
+                                            ymir_vec_t *vec,
+                                            rhea_inversion_param_t *inv_param);
+
+/**
+ * Prints the active values of a parameter vector.
+ */
+void                rhea_inversion_param_vec_print (
                                             ymir_vec_t *vec,
                                             rhea_inversion_param_t *inv_param);
 
