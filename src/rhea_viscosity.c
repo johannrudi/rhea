@@ -1895,7 +1895,7 @@ rhea_viscosity_filter_where_marker_active (ymir_vec_t *vec,
 
   /* invert filter */
   if (invert_filter) {
-    ymir_vec_scale_shift (-1.0, -1.0, filter);
+    ymir_vec_scale_shift (-1.0, 1.0, filter);
   }
 
   /* apply filter */
