@@ -15,6 +15,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 {
   rhea_domain_options_t      *domain_options;
   rhea_temperature_options_t *temp_options;
+  rhea_weakzone_options_t    *weak_options;
   rhea_viscosity_options_t   *visc_options;
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *temperature, *background_temp;
@@ -35,6 +36,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   /* get options */
   domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
   temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
+  weak_options = rhea_stokes_problem_get_weakzone_options (stokes_problem);
   visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
 
   /* get mesh */
@@ -43,7 +45,6 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   /* get vectors */
   temperature = ymir_vec_clone (
       rhea_stokes_problem_get_temperature (stokes_problem));
-  weakzone = rhea_stokes_problem_get_weakzone (stokes_problem);
   rhs_vel = ymir_vec_clone (
       rhea_stokes_problem_get_rhs_vel (stokes_problem));
 //rhs_vel_nonzero_dirichlet =
@@ -64,6 +65,10 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
     plate_label = NULL;
     plate_vel = NULL;
   }
+
+  /* compute weak zone */
+  weakzone = rhea_weakzone_new (ymir_mesh);
+  rhea_weakzone_compute (weakzone, weak_options);
 
   /* compute viscosity */
   viscosity = rhea_viscosity_new (ymir_mesh);
@@ -111,6 +116,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   /* destroy */
   ymir_vec_destroy (temperature);
   rhea_temperature_destroy (background_temp);
+  rhea_weakzone_destroy (weakzone);
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (bounds_marker);
   ymir_vec_destroy (rhs_vel);
