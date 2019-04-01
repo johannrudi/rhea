@@ -946,30 +946,37 @@ rhea_inversion_param_set_neutral (ymir_vec_t *parameter_vec,
   ymir_vec_set_zero (parameter_vec);
 
   /* set nonzero parameter for yield strength */
-  idx = RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH;
-  if (active[idx]) param[idx] = 0.5 * inv_param->visc_options->yield_strength;
+  {
+    const double        yield_strength =
+      inv_param->visc_options->yield_strength;
+    const double        param_neutral =
+      rhea_inversion_param_convert_from_model_pos (0.5 * yield_strength);
+
+    idx = RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH;
+    if (active[idx]) param[idx] = param_neutral;
+  }
 
   /* set nonzero parameter for weak zone factors */
   {
-    const double        weak_factor_interior_neutral =
+    const double        param_neutral =
       rhea_inversion_param_convert_from_model_weak (0.5);
     int                 offset, total;
 
     idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR;
-    if (active[idx]) param[idx] = weak_factor_interior_neutral;
+    if (active[idx]) param[idx] = param_neutral;
     idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB;
-    if (active[idx]) param[idx] = weak_factor_interior_neutral;
+    if (active[idx]) param[idx] = param_neutral;
     idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE;
-    if (active[idx]) param[idx] = weak_factor_interior_neutral;
+    if (active[idx]) param[idx] = param_neutral;
     idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE;
-    if (active[idx]) param[idx] = weak_factor_interior_neutral;
+    if (active[idx]) param[idx] = param_neutral;
 
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
     total = RHEA_WEAKZONE_LABEL_EARTH_N_SL +
             RHEA_WEAKZONE_LABEL_EARTH_N_RI +
             RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
     for (idx = offset; idx < offset+total; idx++) {
-      if (active[idx]) param[idx] = weak_factor_interior_neutral;
+      if (active[idx]) param[idx] = param_neutral;
     }
   }
 
