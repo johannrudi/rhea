@@ -1242,7 +1242,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   }
 
   /* run solver */
-  rhea_inversion_solve (inv_problem, use_initial_guess);
+  rhea_inversion_solve (inv_problem, 1 /* use_initial_guess */);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
