@@ -19,8 +19,8 @@ typedef struct rhea_inversion_param_options
   int                 min_a;
   int                 max_a;
   int                 upper_mantle_scaling_a;
-  int                 lower_mantle_scaling_a;
   int                 upper_mantle_arrhenius_activation_energy_a;
+  int                 lower_mantle_scaling_a;
   int                 lower_mantle_arrhenius_activation_energy_a;
   int                 stress_exponent_a;
   int                 yield_strength_a;
@@ -41,6 +41,33 @@ typedef struct rhea_inversion_param_options
   int                 weak_factor_interior_earth_slab_a;
   int                 weak_factor_interior_earth_ridge_a;
   int                 weak_factor_interior_earth_fracture_a;
+
+  /* standard deviation of Gaussian prior for viscosity parameters */
+  double              prior_stddev_min;
+  double              prior_stddev_max;
+  double              prior_stddev_upper_mantle_scaling;
+  double              prior_stddev_upper_mantle_arrhenius_activation_energy;
+  double              prior_stddev_lower_mantle_scaling;
+  double              prior_stddev_lower_mantle_arrhenius_activation_energy;
+  double              prior_stddev_stress_exponent;
+  double              prior_stddev_yield_strength;
+
+  /* standard deviation of Gaussian prior for weak zone parameters */
+  double              prior_stddev_thickness;
+  double              prior_stddev_thickness_generic_slab;
+  double              prior_stddev_thickness_generic_ridge;
+  double              prior_stddev_thickness_generic_fracture;
+  double              prior_stddev_thickness_const;
+  double              prior_stddev_thickness_const_generic_slab;
+  double              prior_stddev_thickness_const_generic_ridge;
+  double              prior_stddev_thickness_const_generic_fracture;
+  double              prior_stddev_weak_factor_interior;
+  double              prior_stddev_weak_factor_interior_generic_slab;
+  double              prior_stddev_weak_factor_interior_generic_ridge;
+  double              prior_stddev_weak_factor_interior_generic_fracture;
+  double              prior_stddev_weak_factor_interior_earth_slab;
+  double              prior_stddev_weak_factor_interior_earth_ridge;
+  double              prior_stddev_weak_factor_interior_earth_fracture;
 }
 rhea_inversion_param_options_t;
 
@@ -108,9 +135,9 @@ void                rhea_inversion_param_push_to_model (
                                             rhea_inversion_param_t *inv_param);
 
 /**
- * Sets the inversion parameters neutral feasible values.
+ * Sets the inversion parameters to initial values.
  */
-void                rhea_inversion_param_set_neutral (
+void                rhea_inversion_param_set_initial (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param);
 

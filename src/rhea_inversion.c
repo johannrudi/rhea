@@ -1189,7 +1189,7 @@ rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
     rhea_inversion_param_pull_from_model (sol_parameter_vec, inv_param);
   }
   else {
-    rhea_inversion_param_set_neutral (sol_parameter_vec, inv_param);
+    rhea_inversion_param_set_initial (sol_parameter_vec, inv_param);
   }
 
   /* run Newton solver */
@@ -1220,7 +1220,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
     rhea_inversion_param_pull_from_model (parameter_vec, inv_param);
   }
   else {
-    rhea_inversion_param_set_neutral (parameter_vec, inv_param);
+    rhea_inversion_param_set_initial (parameter_vec, inv_param);
   }
   rhea_inversion_newton_create_solver_data_fn (parameter_vec, inv_problem);
   rhea_inversion_param_vec_destroy (parameter_vec);
