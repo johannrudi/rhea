@@ -41,6 +41,7 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 static void
 basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                     ymir_vec_t *sol_vel_press,
+                                    const double vel_obs_add_noise_stddev,
                                     rhea_stokes_problem_t *stokes_problem)
 {
   ymir_mesh_t          *ymir_mesh;
@@ -65,8 +66,9 @@ basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   rhea_velocity_surface_interpolate (vel_obs_surf, vel_sol);
 
   /* run solver */
-  rhea_inversion_solve_with_vel_obs (inv_problem, 0 /* zero initial guess */,
-                                     vel_obs_surf, vel_obs_weight_surf);
+  rhea_inversion_solve_with_vel_obs (
+      inv_problem, 0 /* no initial guess */,
+      vel_obs_surf, vel_obs_weight_surf, vel_obs_add_noise_stddev);
 
   /* destroy */
   rhea_velocity_destroy (vel_sol);
@@ -99,6 +101,7 @@ main (int argc, char **argv)
   /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
+  double              vel_obs_add_noise_stddev;
   char               *bin_solver_path;
   char               *vtk_input_path;
   char               *vtk_solution_path;
@@ -135,6 +138,11 @@ main (int argc, char **argv)
   YMIR_OPTIONS_D, "solver-rel-tol", '\0',
     &(solver_rel_tol), 1.0e-6,
     "Relative tolerance for Stokes solver",
+
+  /* inversion options */
+  YMIR_OPTIONS_D, "velocity-observations-add-noise-stddev", '\0',
+    &(vel_obs_add_noise_stddev), NAN,
+    "Standard deviation of noise added to manufactured velocity observations",
 
   /* binary file output */
   YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
@@ -233,7 +241,7 @@ main (int argc, char **argv)
 
   inv_problem = rhea_inversion_new (stokes_problem);
   basic_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
-                                      stokes_problem);
+                                      vel_obs_add_noise_stddev, stokes_problem);
   rhea_inversion_destroy (inv_problem);
 
   /*
