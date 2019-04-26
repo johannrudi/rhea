@@ -1240,10 +1240,58 @@ rhea_inversion_param_prior_get_stddev (ymir_vec_t *prior_stddev_vec,
  * Parameter Related Computations
  *****************************************************************************/
 
+double
+rhea_inversion_param_prior (ymir_vec_t *parameter_vec,
+                            rhea_inversion_param_t *inv_param)
+{
+  ymir_vec_t         *prior_misfit = rhea_inversion_param_vec_new (inv_param);
+  ymir_vec_t         *prior_icov = rhea_inversion_param_vec_new (inv_param);
+  const int           n_parameters = inv_param->n_parameters;
+  const int          *active = inv_param->active;
+  const double       *misfit = prior_misfit->meshfree->e[0];
+  const double       *icov = prior_icov->meshfree->e[0];
+  int                 i;
+  double              obj_val = 0.0;
+
+  /* calculate misfit w.r.t. prior mean */
+  if (NULL != parameter_vec) {
+    RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec,
+                                                      inv_param));
+    ymir_vec_copy (parameter_vec, prior_misfit);
+  }
+  else {
+    ymir_vec_set_zero (prior_misfit);
+  }
+  ymir_vec_add (-1.0, inv_param->prior_mean, prior_misfit);
+
+  /* calculate inverse prior covariance */
+  ymir_vec_copy (inv_param->prior_stddev, prior_icov);
+  ymir_vec_multiply_in (inv_param->prior_stddev, prior_icov);
+  ymir_vec_reciprocal (prior_icov);
+
+  /* calculate inner product */
+  for (i = 0; i < n_parameters; i++) {
+    if (active[i]) {
+      RHEA_ASSERT (isfinite (misfit[i]));
+      RHEA_ASSERT (isfinite (icov[i]));
+      obj_val += misfit[i] * icov[i] * misfit[i];
+    }
+  }
+
+  /* destroy */
+  rhea_inversion_param_vec_destroy (prior_misfit);
+  rhea_inversion_param_vec_destroy (prior_icov);
+
+  /* return squared norm of prior */
+  return obj_val;
+}
+
 void
-rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
+rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
+                                       ymir_vec_t *parameter_vec,
                                        ymir_vec_t *forward_vel_press,
                                        ymir_vec_t *adjoint_vel_press,
+                                       const double prior_weight,
                                        rhea_inversion_param_t *inv_param)
 {
   rhea_stokes_problem_t    *stokes_problem = inv_param->stokes_problem;
@@ -1265,11 +1313,13 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
   ymir_vec_t         *derivative;
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
-  double             *grad = gradient->meshfree->e[0];
+  double             *grad = gradient_vec->meshfree->e[0];
   int                 i;
 
   /* check input */
-  RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient_vec, inv_param));
+  RHEA_ASSERT (parameter_vec == NULL ||
+               rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (adjoint_vel_press));
 
@@ -1305,7 +1355,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
       domain_options->center, domain_options->moment_of_inertia);
 
   /* compute gradient entry for each parameter */
-  ymir_vec_set_zero (gradient);
+  ymir_vec_set_zero (gradient_vec);
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
       /* compute parameter derivative of viscosity */
@@ -1328,10 +1378,42 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
       grad[i] = ymir_vec_innerprod (op_out_vel, adjoint_vel);
     }
   }
-  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient_vec, inv_param));
 
   /* compute & add prior term */
-  //TODO
+  if (isfinite (prior_weight) && 0.0 < prior_weight) {
+    ymir_vec_t         *prior_term = rhea_inversion_param_vec_new (inv_param);
+    ymir_vec_t         *prior_icov = rhea_inversion_param_vec_new (inv_param);
+    const double       *prior = prior_term->meshfree->e[0];
+
+    /* calculate misfit w.r.t. prior mean */
+    if (NULL != parameter_vec) {
+      ymir_vec_copy (parameter_vec, prior_term);
+    }
+    else {
+      ymir_vec_set_zero (prior_term);
+    }
+    ymir_vec_add (-1.0, inv_param->prior_mean, prior_term);
+
+    /* apply inverse prior covariance */
+    ymir_vec_copy (inv_param->prior_stddev, prior_icov);
+    ymir_vec_multiply_in (inv_param->prior_stddev, prior_icov);
+    ymir_vec_reciprocal (prior_icov);
+    ymir_vec_multiply_in (prior_icov, prior_term);
+
+    /* add prior term */
+    for (i = 0; i < n_parameters; i++) {
+      if (active[i]) {
+        RHEA_ASSERT (isfinite (prior[i]));
+        grad[i] += prior_weight * prior[i];
+      }
+    }
+
+    /* destroy */
+    rhea_inversion_param_vec_destroy (prior_term);
+    rhea_inversion_param_vec_destroy (prior_icov);
+  }
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient_vec, inv_param));
 
   /* destroy */
   ymir_stress_op_destroy (stress_op);
@@ -1346,17 +1428,17 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient,
 }
 
 double
-rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
+rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient_vec,
                                             rhea_inversion_param_t *inv_param)
 {
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
-  const double       *grad = gradient->meshfree->e[0];
+  const double       *grad = gradient_vec->meshfree->e[0];
   double              sum_of_squares = 0.0;
   int                 i;
 
   /* check input */
-  RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient_vec, inv_param));
 
   /* sum up (squares of) entries of the gradient vector that are active */
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
@@ -1366,7 +1448,7 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient,
   }
 
   /* return l2-norm of active entries of the gradient vector */
-  return sqrt (sum_of_squares);
+  return sqrt (sum_of_squares / (double) inv_param->n_active);
 }
 
 void
@@ -1475,6 +1557,7 @@ rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
                                     ymir_vec_t *adjoint_vel_press,
                                     ymir_vec_t *incr_forward_vel_press,
                                     ymir_vec_t *incr_adjoint_vel_press,
+                                    const double prior_weight,
                                     rhea_inversion_param_t *inv_param)
 {
   const int           first_order_approx = (adjoint_vel_press == NULL);
@@ -1491,11 +1574,42 @@ rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
    */
 
   /* init output with parameter gradient function using incr. adj. vel. */
-  rhea_inversion_param_compute_gradient (param_vec_out, forward_vel_press,
-                                         incr_adjoint_vel_press, inv_param);
+  rhea_inversion_param_compute_gradient (param_vec_out, param_vec_in,
+                                         forward_vel_press,
+                                         incr_adjoint_vel_press,
+                                         NAN /* no prior term */, inv_param);
 
   /* compute & add prior term */
-  //TODO
+  if (isfinite (prior_weight) && 0.0 < prior_weight) {
+    ymir_vec_t         *prior_term = rhea_inversion_param_vec_new (inv_param);
+    ymir_vec_t         *prior_icov = rhea_inversion_param_vec_new (inv_param);
+    const int           n_parameters = inv_param->n_parameters;
+    const int          *active = inv_param->active;
+    const double       *prior = prior_term->meshfree->e[0];
+    double             *param_out = param_vec_out->meshfree->e[0];
+    int                 i;
+
+    /* copy input */
+    ymir_vec_copy (param_vec_in, prior_term);
+
+    /* apply inverse prior covariance */
+    ymir_vec_copy (inv_param->prior_stddev, prior_icov);
+    ymir_vec_multiply_in (inv_param->prior_stddev, prior_icov);
+    ymir_vec_reciprocal (prior_icov);
+    ymir_vec_multiply_in (prior_icov, prior_term);
+
+    /* add prior term */
+    for (i = 0; i < n_parameters; i++) {
+      if (active[i]) {
+        RHEA_ASSERT (isfinite (prior[i]));
+        param_out[i] += prior_weight * prior[i];
+      }
+    }
+
+    /* destroy */
+    rhea_inversion_param_vec_destroy (prior_term);
+    rhea_inversion_param_vec_destroy (prior_icov);
+  }
 
   /*
    * Second-Order Derivative Terms
