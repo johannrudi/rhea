@@ -72,8 +72,10 @@ rhea_inversion_obs_velocity_misfit_vec (
 {
   /* check input */
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (misfit_surf));
-  RHEA_ASSERT (rhea_velocity_check_vec_type (vel_fwd_vol));
-  RHEA_ASSERT (rhea_velocity_is_valid (vel_fwd_vol));
+  RHEA_ASSERT (vel_fwd_vol == NULL ||
+               rhea_velocity_check_vec_type (vel_fwd_vol));
+  RHEA_ASSERT (vel_fwd_vol == NULL ||
+               rhea_velocity_is_valid (vel_fwd_vol));
   RHEA_ASSERT (vel_obs_surf == NULL ||
                rhea_velocity_surface_check_vec_type (vel_obs_surf));
   RHEA_ASSERT (vel_obs_surf == NULL ||
@@ -84,23 +86,28 @@ rhea_inversion_obs_velocity_misfit_vec (
                rhea_inversion_obs_velocity_weight_is_valid (weight_surf));
 
   /* project velocity from volume to surface */
-  rhea_velocity_surface_interpolate (misfit_surf, vel_fwd_vol);
+  if (vel_fwd_vol != NULL) {
+    rhea_velocity_surface_interpolate (misfit_surf, vel_fwd_vol);
 
-  /* project out mean rotation */
-  switch (obs_type) {
-  case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
-  case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
-  case RHEA_INVERSION_OBS_VELOCITY_ALL:
-    break;
-  case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
-  case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
-    RHEA_ASSERT (domain_options != NULL);
-    ymir_velocity_vec_project_out_mean_rotation (
-        misfit_surf, domain_options->center,
-        domain_options->moment_of_inertia_surface, 0 /* !residual_space */);
-    break;
-  default: /* unknown observation type */
-    RHEA_ABORT_NOT_REACHED ();
+    /* project out mean rotation */
+    switch (obs_type) {
+    case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
+    case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
+    case RHEA_INVERSION_OBS_VELOCITY_ALL:
+      break;
+    case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
+    case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
+      RHEA_ASSERT (domain_options != NULL);
+      ymir_velocity_vec_project_out_mean_rotation (
+          misfit_surf, domain_options->center,
+          domain_options->moment_of_inertia_surface, 0 /* !residual_space */);
+      break;
+    default: /* unknown observation type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+  else {
+    ymir_vec_set_zero (misfit_surf);
   }
 
   /* compute difference between forward and observed velocities */
@@ -143,7 +150,7 @@ rhea_inversion_obs_velocity_misfit (
                                   const rhea_inversion_obs_velocity_t obs_type,
                                   rhea_domain_options_t *domain_options)
 {
-  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_fwd_vol);
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_obs_surf);
   ymir_vec_t         *misfit_surf = rhea_velocity_surface_new (ymir_mesh);
   ymir_vec_t         *misfit_surf_mass = rhea_velocity_surface_new (ymir_mesh);
   double              misfit_norm_sq;
