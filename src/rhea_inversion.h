@@ -51,6 +51,7 @@ void                rhea_inversion_solve_with_vel_obs (
                                         rhea_inversion_problem_t *inv_problem,
                                         const int use_initial_guess,
                                         ymir_vec_t *vel_obs_surf,
-                                        ymir_vec_t *vel_obs_weight_surf);
+                                        ymir_vec_t *vel_obs_weight_surf,
+                                        const double add_noise_stddev);
 
 #endif /* RHEA_INVERSION_H */

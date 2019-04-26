@@ -11,6 +11,7 @@
  *****************************************************************************/
 
 /* default options */
+#define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_WEIGHT (NAN)
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
 #define RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN (1)
@@ -27,6 +28,8 @@
 #define RHEA_INVERSION_DEFAULT_CHECK_HESSIAN (0)
 
 /* initialize options */
+double              rhea_inversion_parameter_prior_weight =
+                      RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_WEIGHT;
 int                 rhea_inversion_vel_obs_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE;
 int                 rhea_inversion_first_order_hessian_approx =
@@ -67,6 +70,12 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
 
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
+
+  /* parameter options */
+  YMIR_OPTIONS_D, "parameter-prior-weight", '\0',
+    &(rhea_inversion_parameter_prior_weight),
+    RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_WEIGHT,
+    "Weight for the prior term in the objective functional",
 
   /* observational data options */
   YMIR_OPTIONS_I, "velocity-observations-type", '\0',
@@ -161,6 +170,10 @@ struct rhea_inversion_problem
   ymir_vec_t         *vel_obs_surf;
   ymir_vec_t         *vel_obs_weight_surf;
 
+  /* weights for observations misfit and prior terms */
+  double              obs_misfit_weight;
+  double              prior_weight;
+
   /* forward and adjoint states */
   ymir_vec_t         *forward_vel_press;
   ymir_vec_t         *adjoint_vel_press;
@@ -196,6 +209,31 @@ rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
   vel_obs_exist = (inv_problem->vel_obs_surf != NULL);
 
   return (fwd_adj_states_exist && vel_obs_exist);
+}
+
+static void
+rhea_inversion_set_weight_obs_misfit (rhea_inversion_problem_t *inv_problem)
+{
+  rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
+
+  inv_problem->obs_misfit_weight = 1.0 / rhea_inversion_obs_velocity_misfit (
+        NULL /* vel_fwd_vol */, inv_problem->vel_obs_surf,
+        inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
+        rhea_stokes_problem_get_domain_options (stokes_problem));
+}
+
+static void
+rhea_inversion_set_weight_prior (rhea_inversion_problem_t *inv_problem)
+{
+  if (isfinite (rhea_inversion_parameter_prior_weight) &&
+      0.0 < rhea_inversion_parameter_prior_weight) {
+    inv_problem->prior_weight =
+      rhea_inversion_parameter_prior_weight /
+      rhea_inversion_param_prior (NULL /* !param */, inv_problem->inv_param);
+  }
+  else {
+    inv_problem->prior_weight = 0.0;
+  }
 }
 
 /******************************************************************************
@@ -647,15 +685,29 @@ static double
 rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
+  rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
+  double              obs_misfit_weight;
+  double              prior_weight;
   ymir_vec_t         *vel;
-  double              obj_val;
+  double              obj_val = 0.0;
 
   //TODO add performance monitoring
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  /* set weights if they do not exist */
+  if (!isfinite (inv_problem->obs_misfit_weight)) {
+    rhea_inversion_set_weight_obs_misfit (inv_problem);
+  }
+  if (!isfinite (inv_problem->prior_weight)) {
+    rhea_inversion_set_weight_prior (inv_problem);
+  }
+  obs_misfit_weight = inv_problem->obs_misfit_weight;
+  prior_weight = inv_problem->prior_weight;
+
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "weights=[%.6e,%.6e]",
+                                 obs_misfit_weight, prior_weight);
 
   /* solve for forward state */
   if (inv_problem->forward_is_outdated) {
@@ -674,15 +726,20 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
   RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
   /* compute misfit term, e.g., (squared norm of the) observation data misfit */
-  obj_val = rhea_inversion_obs_velocity_misfit (
-      vel, inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
-      inv_problem->vel_obs_type,
-      rhea_stokes_problem_get_domain_options (stokes_problem));
-  obj_val *= 0.5;
+  if (0.0 < obs_misfit_weight) {
+    obj_val +=
+      0.5 * obs_misfit_weight * rhea_inversion_obs_velocity_misfit (
+        vel, inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
+        inv_problem->vel_obs_type,
+        rhea_stokes_problem_get_domain_options (stokes_problem));
+  }
   rhea_velocity_destroy (vel);
 
   /* compute & add prior term */
-  //TODO
+  if (0.0 < prior_weight) {
+    obj_val +=
+      0.5 * prior_weight * rhea_inversion_param_prior (solution, inv_param);
+  }
 
   RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "result=%g", obj_val);
 
@@ -700,6 +757,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
+  const double        obs_misfit_weight = inv_problem->obs_misfit_weight;
+  const double        prior_weight = inv_problem->prior_weight;
   ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
 
   //TODO add performance monitoring
@@ -743,6 +802,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_vec_set_zero (rhs_vel_press);
   rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                          press_elem);
+  ymir_vec_scale (obs_misfit_weight, rhs_vel_press);
 
   /* update Stokes solver for adjoint problem
    * Note: The Stokes coefficient is updated only for nonlinear Stokes, since
@@ -763,8 +823,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
 
   /* compute the (positive) gradient */
   rhea_inversion_param_compute_gradient (
-      neg_gradient, inv_problem->forward_vel_press,
-      inv_problem->adjoint_vel_press, inv_param);
+      neg_gradient, solution, inv_problem->forward_vel_press,
+      inv_problem->adjoint_vel_press, prior_weight, inv_param);
 
   /* print gradient */
 #ifdef RHEA_ENABLE_DEBUG
@@ -814,6 +874,8 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
+  const double        obs_misfit_weight = inv_problem->obs_misfit_weight;
+  const double        prior_weight = inv_problem->prior_weight;
   ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
 
   /* solve for forward state */
@@ -886,6 +948,7 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
     ymir_vec_set_zero (rhs_vel_press);
     rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                            press_elem);
+    ymir_vec_scale (obs_misfit_weight, rhs_vel_press);
 
     /* update Stokes right-hand side for incremental adjoint problem */
     rhea_stokes_problem_update_solver (
@@ -908,14 +971,15 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
         inv_problem->forward_vel_press,
         inv_problem->adjoint_vel_press,
         inv_problem->incremental_forward_vel_press,
-        inv_problem->incremental_adjoint_vel_press, inv_param);
+        inv_problem->incremental_adjoint_vel_press,
+        prior_weight, inv_param);
   }
   else {
     rhea_inversion_param_apply_hessian (
         param_vec_out, param_vec_in,
         inv_problem->forward_vel_press, NULL /* adjoint */,
         NULL /* incr. forward */, inv_problem->incremental_adjoint_vel_press,
-        inv_param);
+        prior_weight, inv_param);
   }
 }
 
@@ -1087,6 +1151,10 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->inv_param = rhea_inversion_param_new (
       stokes_problem, inv_problem->inv_param_options);
 
+  /* initialize weights */
+  inv_problem->obs_misfit_weight = NAN;
+  inv_problem->prior_weight = NAN;
+
   /* initialize Newton problem */
   inv_problem->newton_options = &rhea_inversion_newton_options;
   inv_problem->newton_neg_gradient_vec =
@@ -1206,7 +1274,8 @@ void
 rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                    const int use_initial_guess,
                                    ymir_vec_t *vel_obs_surf,
-                                   ymir_vec_t *vel_obs_weight_surf)
+                                   ymir_vec_t *vel_obs_weight_surf,
+                                   const double add_noise_stddev)
 {
   rhea_inversion_param_t *inv_param = inv_problem->inv_param;
   ymir_vec_t         *parameter_vec;
@@ -1236,6 +1305,15 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
   /* override observational data */
   ymir_vec_copy (vel_obs_surf, inv_problem->vel_obs_surf);
+  if (isfinite (add_noise_stddev) && 0.0 < fabs (add_noise_stddev)) {
+    ymir_vec_t         *noise = ymir_vec_template (inv_problem->vel_obs_surf);
+    const double        norm = ymir_vec_norm (inv_problem->vel_obs_surf);
+
+    /* add noise to observations; weighted by the l2-norm of the observations */
+    ymir_vec_set_random_normal (noise, fabs (add_noise_stddev), 0.0 /* mean */);
+    ymir_vec_add (norm, noise, inv_problem->vel_obs_surf);
+    ymir_vec_destroy (noise);
+  }
   if (vel_obs_weight_surf != NULL) {
     RHEA_ASSERT (inv_problem->vel_obs_weight_surf != NULL);
     ymir_vec_copy (vel_obs_weight_surf, inv_problem->vel_obs_weight_surf);
