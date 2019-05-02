@@ -12,6 +12,7 @@
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
+#include <ymir_comm.h>
 
 /******************************************************************************
  * Monitoring
@@ -58,6 +59,7 @@ basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   vel_sol = rhea_velocity_new (ymir_mesh);
   rhea_velocity_pressure_copy_components (vel_sol, NULL, sol_vel_press,
                                           press_elem);
+  ymir_vec_share_owned (vel_sol);
   rhea_stokes_problem_velocity_boundary_set_zero (vel_sol, stokes_problem);
   RHEA_ASSERT (rhea_velocity_is_valid (vel_sol));
 
