@@ -656,7 +656,7 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
   /* print Hessian */
 #ifdef RHEA_ENABLE_DEBUG
   RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("Inversion Hessian\n");
   RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
   for (row = 0; row < hessian_mat->m; row++) {
     char                line[BUFSIZ] = "";
@@ -793,6 +793,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       rhs_vel_mass, vel, inv_problem->vel_obs_surf,
       inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
       rhea_stokes_problem_get_domain_options (stokes_problem));
+  ymir_vec_scale (obs_misfit_weight, rhs_vel_mass);
 
   /* enforce Dirichlet BC's on right-hand side */
   rhea_stokes_problem_velocity_boundary_set_zero (rhs_vel_mass,
@@ -802,7 +803,6 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_vec_set_zero (rhs_vel_press);
   rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                          press_elem);
-  ymir_vec_scale (obs_misfit_weight, rhs_vel_press);
 
   /* update Stokes solver for adjoint problem
    * Note: The Stokes coefficient is updated only for nonlinear Stokes, since
@@ -927,6 +927,7 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
     rhea_inversion_obs_velocity_incremental_adjoint_rhs (
         rhs_vel_mass, vel, inv_problem->vel_obs_type,
         rhea_stokes_problem_get_domain_options (stokes_problem));
+    ymir_vec_scale (obs_misfit_weight, rhs_vel_mass);
 
     /* add 2nd-order terms to right-hand side */
     if (!first_order_approx) { /* if full Hessian */
@@ -948,7 +949,6 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
     ymir_vec_set_zero (rhs_vel_press);
     rhea_velocity_pressure_set_components (rhs_vel_press, rhs_vel_mass, NULL,
                                            press_elem);
-    ymir_vec_scale (obs_misfit_weight, rhs_vel_press);
 
     /* update Stokes right-hand side for incremental adjoint problem */
     rhea_stokes_problem_update_solver (
@@ -1083,6 +1083,17 @@ rhea_inversion_newton_solve_hessian_system_fn (
     rhea_inversion_param_vec_reduced_destroy (neg_grad_reduced);
     rhea_inversion_param_vec_reduced_destroy (step_reduced);
   }
+
+  /* print step */
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSE ("Inversion step\n");
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  rhea_inversion_param_vec_print (step, inv_param);
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+#endif
+
+  /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (step, inv_param));
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
@@ -1297,6 +1308,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   /* check input */
   RHEA_ASSERT (vel_obs_surf != NULL);
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_obs_surf));
+  RHEA_ASSERT (rhea_velocity_surface_is_valid (vel_obs_surf));
   RHEA_ASSERT (ymir_vec_get_mesh (vel_obs_surf) ==
                ymir_vec_get_mesh (inv_problem->vel_obs_surf));
   RHEA_ASSERT (vel_obs_weight_surf == NULL ||
@@ -1318,6 +1330,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
     RHEA_ASSERT (inv_problem->vel_obs_weight_surf != NULL);
     ymir_vec_copy (vel_obs_weight_surf, inv_problem->vel_obs_weight_surf);
   }
+  RHEA_ASSERT (rhea_velocity_surface_is_valid (inv_problem->vel_obs_surf));
 
   /* run solver */
   rhea_inversion_solve (inv_problem, 1 /* use_initial_guess */);
