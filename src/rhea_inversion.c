@@ -6,6 +6,12 @@
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
 
+#define RHEA_INVERSION_VTK (0)
+
+#if (0 < RHEA_INVERSION_VTK)
+# include <ymir_vtk.h>
+#endif
+
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -15,7 +21,7 @@
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
 #define RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN (1)
-#define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (1)
+#define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (0)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_ITER_MAX (100)
@@ -1318,18 +1324,54 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   /* override observational data */
   ymir_vec_copy (vel_obs_surf, inv_problem->vel_obs_surf);
   if (isfinite (add_noise_stddev) && 0.0 < fabs (add_noise_stddev)) {
-    ymir_vec_t         *noise = ymir_vec_template (inv_problem->vel_obs_surf);
-    const double        norm = ymir_vec_norm (inv_problem->vel_obs_surf);
+    double              mean, variance, size, stddev;
+    ymir_vec_t         *noise;
+
+    /* calculate standard deviation for noise */
+    ymir_vec_compute_mean_and_variance (inv_problem->vel_obs_surf, &mean,
+                                        &variance, &size);
+    stddev = sqrt (variance) * fabs (add_noise_stddev);
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (
+        __func__, "vel_mean=%g, vel_variance=%g, noise_stddev=%g",
+        mean, variance, stddev);
 
     /* add noise to observations; weighted by the l2-norm of the observations */
-    ymir_vec_set_random_normal (noise, fabs (add_noise_stddev), 0.0 /* mean */);
-    ymir_vec_add (norm, noise, inv_problem->vel_obs_surf);
+    noise = ymir_vec_template (inv_problem->vel_obs_surf);
+    ymir_vec_set_random_normal (noise, stddev, 0.0 /* mean */);
+    ymir_vec_add (1.0, noise, inv_problem->vel_obs_surf);
     ymir_vec_destroy (noise);
+
+    /* possibly remove normal/tangential components */
+    switch (inv_problem->vel_obs_type) {
+    case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
+      rhea_inversion_obs_velocity_remove_tangential (inv_problem->vel_obs_surf);
+      break;
+    case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
+    case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
+      rhea_inversion_obs_velocity_remove_normal (inv_problem->vel_obs_surf);
+      break;
+    case RHEA_INVERSION_OBS_VELOCITY_ALL:
+    case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
+      break;
+    default: /* unknown observation type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
   }
   if (vel_obs_weight_surf != NULL) {
     RHEA_ASSERT (inv_problem->vel_obs_weight_surf != NULL);
     ymir_vec_copy (vel_obs_weight_surf, inv_problem->vel_obs_weight_surf);
   }
+#if (0 < RHEA_INVERSION_VTK)
+  {
+    char                path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s", __func__);
+    ymir_vtk_write (ymir_vec_get_mesh (vel_obs_surf), path,
+                    inv_problem->vel_obs_surf, "vel_obs_surf",
+                    vel_obs_surf, "vel_obs_surf_arg",
+                    vel_obs_weight_surf, "vel_obs_weight_surf_arg", NULL);
+  }
+#endif
   RHEA_ASSERT (rhea_velocity_surface_is_valid (inv_problem->vel_obs_surf));
 
   /* run solver */
