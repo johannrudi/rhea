@@ -49,4 +49,12 @@ void                rhea_inversion_obs_velocity_incremental_adjoint_rhs (
                                   const rhea_inversion_obs_velocity_t obs_type,
                                   rhea_domain_options_t *domain_options);
 
+/**
+ * Removes normal/tangential components of a surface velocity field.
+ */
+void                rhea_inversion_obs_velocity_remove_normal (
+                                  ymir_vec_t * vel_surf);
+void                rhea_inversion_obs_velocity_remove_tangential (
+                                  ymir_vec_t * vel_surf);
+
 #endif /* RHEA_INVERSION_OBS_VELOCITY_H */

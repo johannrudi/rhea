@@ -34,27 +34,55 @@ rhea_inversion_obs_velocity_weight_is_valid (ymir_vec_t *vec)
 
 static void
 rhea_inversion_obs_velocity_remove_normal_fn (double *vec,
-                                       double X, double Y, double Z,
-                                       double nx, double ny, double nz,
-                                       ymir_topidx_t face,
-                                       ymir_locidx_t node_id, void *data)
+                                              double X, double Y, double Z,
+                                              double nx, double ny, double nz,
+                                              ymir_topidx_t face,
+                                              ymir_locidx_t node_id,
+                                              void *data)
 {
-  double              vr;
+  double              vn;
 
   /* remove the normal component of the face vector */
-  vr = nx * vec[0] + ny * vec[1] + nz * vec[2];
-  vec[0] -= vr * nx;
-  vec[1] -= vr * ny;
-  vec[2] -= vr * nz;
+  vn = nx * vec[0] + ny * vec[1] + nz * vec[2];
+  vec[0] -= vn * nx;
+  vec[1] -= vn * ny;
+  vec[2] -= vn * nz;
 }
 
 static void
+rhea_inversion_obs_velocity_remove_tangential_fn (
+                                              double *vec,
+                                              double X, double Y, double Z,
+                                              double nx, double ny, double nz,
+                                              ymir_topidx_t face,
+                                              ymir_locidx_t node_id,
+                                              void *data)
+{
+  double              vn;
+
+  /* keep only the normal component of the face vector */
+  vn = nx * vec[0] + ny * vec[1] + nz * vec[2];
+  vec[0] = vn * nx;
+  vec[1] = vn * ny;
+  vec[2] = vn * nz;
+}
+
+void
 rhea_inversion_obs_velocity_remove_normal (ymir_vec_t * vel_surf)
 {
   RHEA_ASSERT (rhea_inversion_obs_velocity_weight_check_vec_type (vel_surf));
 
   ymir_face_cvec_set_function (
       vel_surf, rhea_inversion_obs_velocity_remove_normal_fn, NULL);
+}
+
+void
+rhea_inversion_obs_velocity_remove_tangential (ymir_vec_t * vel_surf)
+{
+  RHEA_ASSERT (rhea_inversion_obs_velocity_weight_check_vec_type (vel_surf));
+
+  ymir_face_cvec_set_function (
+      vel_surf, rhea_inversion_obs_velocity_remove_tangential_fn, NULL);
 }
 
 /**
@@ -112,18 +140,17 @@ rhea_inversion_obs_velocity_misfit_vec (
 
   /* compute difference between forward and observed velocities */
   if (vel_obs_surf != NULL) {
+    ymir_vec_add (-1.0, vel_obs_surf, misfit_surf);
     switch (obs_type) {
     case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
-      RHEA_ABORT_NOT_REACHED (); //TODO
+      rhea_inversion_obs_velocity_remove_tangential (misfit_surf);
       break;
     case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
     case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
-      ymir_vec_add (-1.0, vel_obs_surf, misfit_surf);
       rhea_inversion_obs_velocity_remove_normal (misfit_surf);
       break;
     case RHEA_INVERSION_OBS_VELOCITY_ALL:
     case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
-      RHEA_ABORT_NOT_REACHED (); //TODO
       break;
     default: /* unknown observation type */
       RHEA_ABORT_NOT_REACHED ();
