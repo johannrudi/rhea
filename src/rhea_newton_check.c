@@ -193,7 +193,8 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
   grad_dir_ref *= -1.0;
 
   /* set up the finite difference derivative */
-  obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem);
+  obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem,
+                                                    NULL /* components */);
 
   /* compare reference with finite difference derivative */
   for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
@@ -203,8 +204,8 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
     ymir_vec_copy (sol_vec, perturb_vec);
     ymir_vec_add (eps, dir_vec, perturb_vec);
     rhea_newton_problem_update_operator (perturb_vec, nl_problem);
-    perturb_obj_val = rhea_newton_problem_evaluate_objective (perturb_vec,
-                                                              nl_problem);
+    perturb_obj_val = rhea_newton_problem_evaluate_objective (
+        perturb_vec, nl_problem, NULL /* components */);
     grad_dir_fd = (perturb_obj_val - obj_val) / eps;
 
     abs_error = fabs (grad_dir_ref - grad_dir_fd);
