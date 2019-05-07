@@ -10,6 +10,10 @@ typedef struct rhea_newton_status
   double              obj_prev;
   double              obj_curr;
 
+  /* components of the objective */
+  int                 obj_multi_components;
+  double             *obj_curr_comp;
+
   /* reduction of objective in just one iteration (previous and current) */
   double              obj_reduction_prev;
   double              obj_reduction_curr;
@@ -24,8 +28,6 @@ typedef struct rhea_newton_status
 
   /* components of the gradient norm */
   int                 grad_norm_multi_components;
-  double             *grad_norm_init_comp;
-  double             *grad_norm_prev_comp;
   double             *grad_norm_curr_comp;
 
   /* reduction of gradient norm in just one iteration (previous and current) */
@@ -65,6 +67,7 @@ struct rhea_newton_problem
   rhea_newton_evaluate_objective_fn_t         evaluate_objective;
   rhea_newton_compute_negative_gradient_fn_t  compute_neg_gradient;
   rhea_newton_compute_norm_of_gradient_fn_t   compute_gradient_norm;
+  int                 obj_multi_components;
   int                 grad_norm_multi_components;
 
   rhea_newton_apply_hessian_fn_t        apply_hessian;
@@ -346,7 +349,7 @@ rhea_newton_problem_new (
   nl_problem->solve_hessian_sys = solve_hessian_sys;
 
   rhea_newton_problem_set_data_fn (NULL, NULL, NULL, nl_problem);
-  rhea_newton_problem_set_evaluate_objective_fn (NULL, nl_problem);
+  rhea_newton_problem_set_evaluate_objective_fn (NULL, 0, nl_problem);
   rhea_newton_problem_set_apply_hessian_fn (NULL, nl_problem);
   rhea_newton_problem_set_update_fn (NULL, NULL, NULL, nl_problem);
   rhea_newton_problem_set_setup_poststep_fn (NULL, nl_problem);
@@ -401,9 +404,11 @@ rhea_newton_problem_set_data_fn (
 void
 rhea_newton_problem_set_evaluate_objective_fn (
               rhea_newton_evaluate_objective_fn_t evaluate_objective,
+              const int obj_multi_components,
               rhea_newton_problem_t *nl_problem)
 {
   nl_problem->evaluate_objective = evaluate_objective;
+  nl_problem->obj_multi_components = obj_multi_components;
 }
 
 void
@@ -550,10 +555,11 @@ rhea_newton_problem_evaluate_objective_exists (
 
 double
 rhea_newton_problem_evaluate_objective (ymir_vec_t *solution,
-                                        rhea_newton_problem_t *nl_problem)
+                                        rhea_newton_problem_t *nl_problem,
+                                        double *obj_comp)
 {
   RHEA_ASSERT (rhea_newton_problem_evaluate_objective_exists (nl_problem));
-  return nl_problem->evaluate_objective (solution, nl_problem->data);
+  return nl_problem->evaluate_objective (solution, nl_problem->data, obj_comp);
 }
 
 int
@@ -566,7 +572,7 @@ rhea_newton_problem_compute_gradient_norm_exists (
 double
 rhea_newton_problem_compute_gradient_norm (ymir_vec_t *neg_gradient,
                                            rhea_newton_problem_t *nl_problem,
-                                           double * grad_norm_comp)
+                                           double *grad_norm_comp)
 {
   RHEA_ASSERT (rhea_newton_problem_compute_gradient_norm_exists (nl_problem));
   return nl_problem->compute_gradient_norm (neg_gradient, nl_problem->data,
@@ -702,7 +708,7 @@ rhea_newton_step_init (rhea_newton_step_t *step)
 {
   step->length = 0.0;
 
-  step->search_success = 0;
+  step->search_success = 1;
   step->search_iter_count = 0;
 
   step->iter = -1;
@@ -722,12 +728,26 @@ rhea_newton_step_init (rhea_newton_step_t *step)
  */
 static void
 rhea_newton_status_init (rhea_newton_status_t *status,
+                         const int obj_multi_components,
                          const int grad_norm_multi_components)
 {
+  int                 compid;
+
   /* init valus pertaining to objective values */
   status->obj_init = NAN;
   status->obj_prev = NAN;
   status->obj_curr = NAN;
+
+  status->obj_multi_components = obj_multi_components;
+  if (0 < status->obj_multi_components) {
+    status->obj_curr_comp = RHEA_ALLOC (double, status->obj_multi_components);
+    for (compid = 0; compid < status->obj_multi_components; compid++) {
+      status->obj_curr_comp[compid] = NAN;
+    }
+  }
+  else {
+    status->obj_curr_comp = NULL;
+  }
 
   status->obj_reduction_prev = 1.0;
   status->obj_reduction_curr = 1.0;
@@ -740,21 +760,13 @@ rhea_newton_status_init (rhea_newton_status_t *status,
 
   status->grad_norm_multi_components = grad_norm_multi_components;
   if (0 < status->grad_norm_multi_components) {
-    const int           n_components = status->grad_norm_multi_components;
-    int                 compid;
-
-    status->grad_norm_init_comp = RHEA_ALLOC (double, n_components);
-    status->grad_norm_prev_comp = RHEA_ALLOC (double, n_components);
-    status->grad_norm_curr_comp = RHEA_ALLOC (double, n_components);
-    for (compid = 0; compid < n_components; compid++) {
-      status->grad_norm_init_comp[compid] = NAN;
-      status->grad_norm_prev_comp[compid] = NAN;
+    status->grad_norm_curr_comp =
+      RHEA_ALLOC (double, status->grad_norm_multi_components);
+    for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
       status->grad_norm_curr_comp[compid] = NAN;
     }
   }
   else {
-    status->grad_norm_init_comp = NULL;
-    status->grad_norm_prev_comp = NULL;
     status->grad_norm_curr_comp = NULL;
   }
 
@@ -769,11 +781,8 @@ rhea_newton_status_init (rhea_newton_status_t *status,
 static void
 rhea_newton_status_clear (rhea_newton_status_t *status)
 {
-  if (status->grad_norm_init_comp != NULL) {
-    RHEA_FREE (status->grad_norm_init_comp);
-  }
-  if (status->grad_norm_prev_comp != NULL) {
-    RHEA_FREE (status->grad_norm_prev_comp);
+  if (status->obj_curr_comp != NULL) {
+    RHEA_FREE (status->obj_curr_comp);
   }
   if (status->grad_norm_curr_comp != NULL) {
     RHEA_FREE (status->grad_norm_curr_comp);
@@ -786,6 +795,7 @@ rhea_newton_status_clear (rhea_newton_status_t *status)
 static void
 rhea_newton_status_set_curr (rhea_newton_status_t *status,
                              const double obj,
+                             const double *obj_comp,
                              const double grad_norm,
                              const double *grad_norm_comp)
 {
@@ -794,6 +804,11 @@ rhea_newton_status_set_curr (rhea_newton_status_t *status,
   /* set values pertaining to objective */
   if (isfinite (obj)) {
     status->obj_curr = obj;
+    if (0 < status->obj_multi_components && obj_comp != NULL) {
+      for (compid = 0; compid < status->obj_multi_components; compid++) {
+        status->obj_curr_comp[compid] = obj_comp[compid];
+      }
+    }
     if (isfinite (status->obj_prev)) {
       status->obj_reduction_curr = rhea_newton_calculate_reduction (
           status->obj_prev, status->obj_curr);
@@ -829,18 +844,11 @@ rhea_newton_status_set_curr (rhea_newton_status_t *status,
 static void
 rhea_newton_status_copy_curr_to_init (rhea_newton_status_t *status)
 {
-  int                 compid;
-
   /* copy values pertaining to objective */
   status->obj_init = status->obj_curr;
 
   /* copy valus pertaining to gradient norm(s) */
   status->grad_norm_init = status->grad_norm_curr;
-  if (0 < status->grad_norm_multi_components) {
-    for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
-      status->grad_norm_init_comp[compid] = status->grad_norm_curr_comp[compid];
-    }
-  }
 }
 
 /**
@@ -849,8 +857,6 @@ rhea_newton_status_copy_curr_to_init (rhea_newton_status_t *status)
 static void
 rhea_newton_status_copy_curr_to_prev (rhea_newton_status_t *status)
 {
-  int                 compid;
-
   /* copy values pertaining to objective */
   status->obj_prev = status->obj_curr;
   status->obj_reduction_prev = status->obj_reduction_curr;
@@ -858,11 +864,6 @@ rhea_newton_status_copy_curr_to_prev (rhea_newton_status_t *status)
   /* copy valus pertaining to gradient norm(s) */
   status->grad_norm_prev = status->grad_norm_curr;
   status->grad_norm_reduction_prev = status->grad_norm_reduction_curr;
-  if (0 < status->grad_norm_multi_components) {
-    for (compid = 0; compid < status->grad_norm_multi_components; compid++) {
-      status->grad_norm_prev_comp[compid] = status->grad_norm_curr_comp[compid];
-    }
-  }
 }
 
 /* enumerator for convergence critera */
@@ -889,6 +890,7 @@ rhea_newton_status_compute_curr (
   int                 compute_obj = 0;
   int                 compute_grad = 0;
   double              obj_val = NAN;
+  double             *obj_comp = NULL;
   double              grad_norm = NAN;
   double             *grad_norm_comp = NULL;
 
@@ -913,14 +915,17 @@ rhea_newton_status_compute_curr (
 
   /* evaluate objective functional */
   if (compute_obj) {
-    obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem);
+    if (0 < status->obj_multi_components) {
+      obj_comp = RHEA_ALLOC (double, status->obj_multi_components);
+    }
+    obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem,
+                                                      obj_comp);
     RHEA_ASSERT (isfinite (obj_val));
   }
 
   /* compute gradient norm */
   if (compute_grad) {
     ymir_vec_t         *neg_gradient = nl_problem->neg_gradient_vec;
-    const int           n_components = status->grad_norm_multi_components;
 
     /* compute (negative) gradient */
     RHEA_ASSERT (nl_problem->neg_gradient_vec != NULL);
@@ -934,8 +939,8 @@ rhea_newton_status_compute_curr (
     }
 
     /* compute norm of gradient */
-    if (0 < n_components) {
-      grad_norm_comp = RHEA_ALLOC (double, n_components);
+    if (0 < status->grad_norm_multi_components) {
+      grad_norm_comp = RHEA_ALLOC (double, status->grad_norm_multi_components);
     }
     grad_norm = rhea_newton_problem_compute_gradient_norm (neg_gradient,
                                                            nl_problem,
@@ -953,9 +958,13 @@ rhea_newton_status_compute_curr (
   }
 
   /* set current status */
-  rhea_newton_status_set_curr (status, obj_val, grad_norm, grad_norm_comp);
+  rhea_newton_status_set_curr (status, obj_val, obj_comp, grad_norm,
+                               grad_norm_comp);
 
   /* destroy */
+  if (obj_comp != NULL) {
+    RHEA_FREE (obj_comp);
+  }
   if (grad_norm_comp != NULL) {
     RHEA_FREE (grad_norm_comp);
   }
@@ -1127,9 +1136,9 @@ rhea_newton_status_vals_to_str (char string[BUFSIZ],
   snprintf (string, BUFSIZ, "");
 
   /* write array of values to string */
-  pos += snprintf (pos, end - pos, "%.3e", value[0]);
+  pos += snprintf (pos, end - pos, "%.6e", value[0]);
   for (k = 1; k < n_values; k++) {
-    pos += snprintf (pos, end - pos, ", %.3e", value[k]);
+    pos += snprintf (pos, end - pos, ", %.6e", value[k]);
   }
 }
 
@@ -1144,7 +1153,7 @@ rhea_newton_status_print_curr_obj (const double value, const double reduction,
 
   snprintf (func_tag, BUFSIZ, "%s_status", func_name);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_tag, "newton_iter=%i, objective_functional=%.3e, reduction=%.3e",
+      func_tag, "newton_iter=%i, objective_functional=%.15e, reduction=%.3e",
       iter, value, reduction);
 }
 
@@ -1156,7 +1165,7 @@ rhea_newton_status_print_curr_grad (const double value, const double reduction,
 
   snprintf (func_tag, BUFSIZ, "%s_status", func_name);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_tag, "newton_iter=%i, gradient_norm=%.3e, reduction=%.3e",
+      func_tag, "newton_iter=%i, gradient_norm=%.15e, reduction=%.3e",
       iter, value, reduction);
 }
 
@@ -1168,23 +1177,23 @@ rhea_newton_status_print_curr_res (const double value, const double reduction,
 
   snprintf (func_tag, BUFSIZ, "%s_status", func_name);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_tag, "newton_iter=%i, residual_norm=%.3e, reduction=%.3e",
+      func_tag, "newton_iter=%i, residual_norm=%.15e, reduction=%.3e",
       iter, value, reduction);
 }
 
 static void
 rhea_newton_status_print_curr_comp (const int n_components,
                                     const double *comp_value,
-                                    const int iter, const char *func_name)
+                                    const int iter, const char *func_name,
+                                    const char *component_label)
 {
   char                func_tag[BUFSIZ];
-  char                comp_string[BUFSIZ];
+  char                comp_vals[BUFSIZ];
 
   snprintf (func_tag, BUFSIZ, "%s_status", func_name);
-  rhea_newton_status_vals_to_str (comp_string, n_components, comp_value);
+  rhea_newton_status_vals_to_str (comp_vals, n_components, comp_value);
   RHEA_GLOBAL_INFOF_FN_TAG (
-      func_tag, "newton_iter=%i, component_norms=[%s]",
-      iter, comp_string);
+      func_tag, "newton_iter=%i, %s=[%s]", iter, component_label, comp_vals);
 }
 
 /**
@@ -1199,13 +1208,20 @@ rhea_newton_status_print_curr (rhea_newton_status_t *status,
   if (evaluate_objective_exists) {
     rhea_newton_status_print_curr_obj (status->obj_curr, status->obj_reduction,
                                        iter, func_name);
+    if (0 < status->obj_multi_components) { /* if print components */
+      rhea_newton_status_print_curr_comp (status->obj_multi_components,
+                                          status->obj_curr_comp,
+                                          iter, func_name,
+                                          "objective_components");
+    }
     rhea_newton_status_print_curr_grad (status->grad_norm_curr,
                                         status->grad_norm_reduction,
                                         iter, func_name);
     if (0 < status->grad_norm_multi_components) { /* if print components */
       rhea_newton_status_print_curr_comp (status->grad_norm_multi_components,
                                           status->grad_norm_curr_comp,
-                                          iter, func_name);
+                                          iter, func_name,
+                                          "gradient_norm_components");
     }
   }
   else {
@@ -1215,7 +1231,8 @@ rhea_newton_status_print_curr (rhea_newton_status_t *status,
     if (0 < status->grad_norm_multi_components) { /* if print components */
       rhea_newton_status_print_curr_comp (status->grad_norm_multi_components,
                                           status->grad_norm_curr_comp,
-                                          iter, func_name);
+                                          iter, func_name,
+                                          "residual_norm_components");
     }
   }
 }
@@ -1298,12 +1315,18 @@ rhea_newton_status_summary_write (rhea_newton_status_summary_t *summary,
 {
   double              obj, obj_reduction;
   double              grad_norm, grad_norm_reduction;
+  char                obj_comp[BUFSIZ] = "";
   char                grad_norm_comp[BUFSIZ] = "";
 
   /* retrieve objective functional and gradient norm(s) */
   if (evaluate_objective_exists) {
     obj = status->obj_curr;
     obj_reduction = status->obj_reduction;
+    if (0 < status->obj_multi_components) { /* if print components */
+      rhea_newton_status_vals_to_str (
+          obj_comp, status->obj_multi_components,
+          status->obj_curr_comp);
+    }
   }
   else {
     obj = NAN;
@@ -1319,15 +1342,11 @@ rhea_newton_status_summary_write (rhea_newton_status_summary_t *summary,
 
   /* write status to string */
   snprintf (summary->iteration_stats[summary->iteration_current_idx], BUFSIZ,
-            "%3d ; %.15e, %.15e [%s] ; %i, %2i, %.15f ; %4d, %.3e (%.3e)",
-            step->iter,
-            obj, grad_norm, grad_norm_comp,
-            step->search_success,
-            step->search_iter_count,
-            step->length,
+            "%3d ; %.15e [%s], %.15e [%s] ; %i, %2i, %.15f ; %4d, %.3e (%.3e)",
+            step->iter, obj, obj_comp, grad_norm, grad_norm_comp,
+            step->search_success, step->search_iter_count, step->length,
             step->lin_iter_count,
-            step->lin_res_norm_reduction,
-            step->lin_res_norm_rtol);
+            step->lin_res_norm_reduction, step->lin_res_norm_rtol);
   summary->iteration_current_idx++;
 
   /* update summary values */
@@ -1783,7 +1802,8 @@ rhea_newton_solve (ymir_vec_t **solution,
 
     /* init step & status */
     rhea_newton_step_init (&step);
-    rhea_newton_status_init (&status, nl_problem->grad_norm_multi_components);
+    rhea_newton_status_init (&status, nl_problem->obj_multi_components,
+                             nl_problem->grad_norm_multi_components);
     nl_problem->status = &status;
 
     /* initialize solution vector and status */

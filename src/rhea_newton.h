@@ -37,7 +37,8 @@ typedef void      (*rhea_newton_data_clear_fn_t) (void *data);
  * \param [in] data     User data
  */
 typedef double    (*rhea_newton_evaluate_objective_fn_t) (
-                                            ymir_vec_t *solution, void *data);
+                                            ymir_vec_t *solution, void *data,
+                                            double *obj_comp);
 
 /**
  * Computes the negative gradient of the objective functional.
@@ -60,7 +61,7 @@ typedef void      (*rhea_newton_compute_negative_gradient_fn_t) (
  */
 typedef double    (*rhea_newton_compute_norm_of_gradient_fn_t) (
                                             ymir_vec_t *neg_gradient,
-                                            void *data, double *norm_comp);
+                                            void *data, double *grad_norm_comp);
 
 /**
  * Applies the Hessian operator to a vector.
@@ -257,6 +258,7 @@ void                rhea_newton_problem_set_data_fn (
  */
 void                rhea_newton_problem_set_evaluate_objective_fn (
               rhea_newton_evaluate_objective_fn_t evaluate_objective,
+              const int obj_multi_components,
               rhea_newton_problem_t *nl_problem);
 
 /**
@@ -344,14 +346,15 @@ int                 rhea_newton_problem_evaluate_objective_exists (
                                             rhea_newton_problem_t *nl_problem);
 double              rhea_newton_problem_evaluate_objective (
                                             ymir_vec_t *solution,
-                                            rhea_newton_problem_t *nl_problem);
+                                            rhea_newton_problem_t *nl_problem,
+                                            double *obj_comp);
 
 int                 rhea_newton_problem_compute_gradient_norm_exists (
                                             rhea_newton_problem_t *nl_problem);
 double              rhea_newton_problem_compute_gradient_norm (
                                             ymir_vec_t *neg_gradient,
                                             rhea_newton_problem_t *nl_problem,
-                                            double * grad_norm_comp);
+                                            double *grad_norm_comp);
 
 int                 rhea_newton_problem_compute_neg_gradient_exists (
                                             rhea_newton_problem_t *nl_problem);
