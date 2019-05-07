@@ -42,6 +42,9 @@ typedef struct rhea_inversion_param_options
   int                 weak_factor_interior_earth_ridge_a;
   int                 weak_factor_interior_earth_fracture_a;
 
+  /* mean of Gaussian prior for viscosity parameters */
+  double              prior_mean_perturb_stddev;
+
   /* standard deviation of Gaussian prior for viscosity parameters */
   double              prior_stddev_min;
   double              prior_stddev_max;
