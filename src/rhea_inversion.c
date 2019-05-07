@@ -688,7 +688,8 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
 }
 
 static double
-rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
+rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
+                                             double *obj_comp)
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
@@ -698,7 +699,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
   double              obs_misfit_weight;
   double              prior_weight;
   ymir_vec_t         *vel;
-  double              obj_val = 0.0;
+  double              obj_data_misfit, obj_prior_misfit, obj_val;
 
   //TODO add performance monitoring
 
@@ -731,25 +732,40 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data)
   rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
   RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
-  /* compute misfit term, e.g., (squared norm of the) observation data misfit */
+  /* compute the observation data misfit term */
   if (0.0 < obs_misfit_weight) {
-    obj_val +=
+    obj_data_misfit =
       0.5 * obs_misfit_weight * rhea_inversion_obs_velocity_misfit (
         vel, inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
         inv_problem->vel_obs_type,
         rhea_stokes_problem_get_domain_options (stokes_problem));
   }
+  else {
+    obj_data_misfit = 0.0;
+  }
   rhea_velocity_destroy (vel);
 
   /* compute & add prior term */
   if (0.0 < prior_weight) {
-    obj_val +=
+    obj_prior_misfit =
       0.5 * prior_weight * rhea_inversion_param_prior (solution, inv_param);
   }
+  else {
+    obj_prior_misfit = 0.0;
+  }
 
-  RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "result=%g", obj_val);
+  /* add terms to get full objective value */
+  obj_val = obj_data_misfit + obj_prior_misfit;
+
+  RHEA_GLOBAL_VERBOSEF_FN_END (
+      __func__, "value=%.15e, components[%.15e, %.15e]",
+      obj_val, obj_data_misfit, obj_prior_misfit);
 
   /* return value of objective functional */
+  if (NULL != obj_comp) {
+    obj_comp[0] = obj_data_misfit;
+    obj_comp[1] = obj_prior_misfit;
+  }
   return obj_val;
 }
 
@@ -1184,7 +1200,8 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
     ymir_mesh_t        *ymir_mesh =
                           rhea_stokes_problem_get_ymir_mesh (stokes_problem);
     sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
-    const int           grad_norm_n_components = 0;//TODO
+    const int           obj_n_components = 2;
+    const int           grad_norm_n_components = 0;
     rhea_newton_problem_t *newton_problem;
 
     newton_problem = rhea_newton_problem_new (
@@ -1203,7 +1220,8 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
         rhea_inversion_newton_create_solver_data_fn,
         rhea_inversion_newton_clear_solver_data_fn, newton_problem);
     rhea_newton_problem_set_evaluate_objective_fn (
-        rhea_inversion_newton_evaluate_objective_fn, newton_problem);
+        rhea_inversion_newton_evaluate_objective_fn, obj_n_components,
+        newton_problem);
     rhea_newton_problem_set_apply_hessian_fn (
         rhea_inversion_newton_apply_hessian_fn, newton_problem);
     rhea_newton_problem_set_update_fn (
@@ -1292,7 +1310,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                    const int use_initial_guess,
                                    ymir_vec_t *vel_obs_surf,
                                    ymir_vec_t *vel_obs_weight_surf,
-                                   const double add_noise_stddev)
+                                   const double vel_obs_add_noise_stddev)
 {
   rhea_inversion_param_t *inv_param = inv_problem->inv_param;
   ymir_vec_t         *parameter_vec;
@@ -1311,7 +1329,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   rhea_inversion_newton_create_solver_data_fn (parameter_vec, inv_problem);
   rhea_inversion_param_vec_destroy (parameter_vec);
 
-  /* check input */
+  /* check given velocity observations */
   RHEA_ASSERT (vel_obs_surf != NULL);
   RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel_obs_surf));
   RHEA_ASSERT (rhea_velocity_surface_is_valid (vel_obs_surf));
@@ -1323,14 +1341,15 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
   /* override observational data */
   ymir_vec_copy (vel_obs_surf, inv_problem->vel_obs_surf);
-  if (isfinite (add_noise_stddev) && 0.0 < fabs (add_noise_stddev)) {
+  if (isfinite (vel_obs_add_noise_stddev) &&
+      0.0 < fabs (vel_obs_add_noise_stddev)) {
     double              mean, variance, size, stddev;
     ymir_vec_t         *noise;
 
     /* calculate standard deviation for noise */
     ymir_vec_compute_mean_and_variance (inv_problem->vel_obs_surf, &mean,
                                         &variance, &size);
-    stddev = sqrt (variance) * fabs (add_noise_stddev);
+    stddev = sqrt (variance) * fabs (vel_obs_add_noise_stddev);
     RHEA_GLOBAL_VERBOSEF_FN_TAG (
         __func__, "vel_mean=%g, vel_variance=%g, noise_stddev=%g",
         mean, variance, stddev);
