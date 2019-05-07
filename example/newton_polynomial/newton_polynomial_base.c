@@ -236,7 +236,8 @@ newton_polynomial_data_init (ymir_vec_t *solution, void *data)
 }
 
 double
-newton_polynomial_evaluate_objective (ymir_vec_t *solution, void *data)
+newton_polynomial_evaluate_objective (ymir_vec_t *solution, void *data,
+                                      double *obj_comp)
 {
   newton_polynomial_problem_t  *poly_problem = data;
   ymir_vec_t         *misfit_x = ymir_vec_template (solution);

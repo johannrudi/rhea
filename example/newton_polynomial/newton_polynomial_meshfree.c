@@ -154,7 +154,8 @@ main (int argc, char **argv)
         poly_problem, newton_polynomial_data_init, NULL /* no clear fnc. */,
         nl_problem);
     rhea_newton_problem_set_evaluate_objective_fn (
-        newton_polynomial_evaluate_objective, nl_problem);
+        newton_polynomial_evaluate_objective, 0 /* no multi-component obj */,
+        nl_problem);
     rhea_newton_problem_set_apply_hessian_fn (
         newton_polynomial_apply_hessian, nl_problem);
     rhea_newton_problem_set_update_fn (

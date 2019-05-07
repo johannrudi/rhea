@@ -86,7 +86,8 @@ void                newton_polynomial_data_init (ymir_vec_t *solution,
  * (Callback function for Newton's method.)
  */
 double              newton_polynomial_evaluate_objective (ymir_vec_t *solution,
-                                                          void *data);
+                                                          void *data,
+                                                          double *obj_comp);
 
 /**
  * Computes the negative gradient of the objective functional.
