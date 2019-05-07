@@ -137,7 +137,7 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data);
 /******************* newton function ***********************************/
 double
 adjoint_evaluate_objective (ymir_vec_t *solution,
-                          void *data);
+                            void *data, double *obj_comp);
 
 void
 adjoint_stokes_update_adjoint (ymir_vec_t *usol,

@@ -179,6 +179,7 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
 
     rhea_newton_problem_set_evaluate_objective_fn (
         adjoint_evaluate_objective,
+        0 /* no multi-component obj */,
         *newton_problem);
 
     rhea_newton_problem_set_apply_hessian_fn (
@@ -684,17 +685,15 @@ adjoint_stokes_update_forward (rhea_stokes_problem_t *stokes_problem,
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
-  rhea_stokes_problem_compute_and_update_coefficient (
-      stokes_problem, NULL /* velocity_pressure */, 0 /* !init */);
-  //TODO need velocity_pressure for nonlinear Stokes
-
   subd_options->rhs_type = SUBD_RHS_DENSITY;
   subd_compute_rhs_vel (stokes_problem, subd_options);
 
   rhs_vel_press = rhea_stokes_problem_get_rhs_vel_press (stokes_problem);
   rhs_vel = rhea_stokes_problem_get_rhs_vel (stokes_problem);
+
   rhea_stokes_problem_update_solver (
-      stokes_problem, NULL,
+      stokes_problem, 1 /* udpate_coeff */, NULL /* vel_press */,
+      //TODO need velocity_pressure for nonlinear Stokes
       1 /* new_rhs */,
       NULL,
       rhs_vel, //rhs_vel: volume forcing is zero
@@ -766,7 +765,7 @@ adjoint_update_operator_fn (ymir_vec_t *solution, void *data)
 
 /******************* newton function ***********************************/
 double
-adjoint_evaluate_objective (ymir_vec_t *solution, void *data)
+adjoint_evaluate_objective (ymir_vec_t *solution, void *data, double *obj_comp)
 {
   adjoint_problem_t *adjoint_problem = data;
   double        obj_val;
