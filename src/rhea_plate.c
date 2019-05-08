@@ -630,35 +630,38 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
   }
 
   /* set translations */
-  switch (opt->domain_options->shape) {
-  case RHEA_DOMAIN_CUBE:
-    break;
-  case RHEA_DOMAIN_SHELL:
-    opt->translation_x = RHEA_ALLOC (float, n_plates);
-    opt->translation_y = RHEA_ALLOC (float, n_plates);
-    if (opt->vertices_coarse_container_x != NULL &&
-        opt->vertices_coarse_container_y != NULL &&
-        opt->n_vertices_coarse_container != NULL) { /* use coarse vertices */
-      int                 pid;
+  if (opt->vertices_x != NULL && opt->vertices_y != NULL &&
+      opt->n_vertices != NULL) { /* if vertices exist */
+    switch (opt->domain_options->shape) {
+    case RHEA_DOMAIN_CUBE:
+      break;
+    case RHEA_DOMAIN_SHELL:
+      opt->translation_x = RHEA_ALLOC (float, n_plates);
+      opt->translation_y = RHEA_ALLOC (float, n_plates);
+      if (opt->vertices_coarse_container_x != NULL &&
+          opt->vertices_coarse_container_y != NULL &&
+          opt->n_vertices_coarse_container != NULL) { /* use coarse vertices */
+        int                 pid;
 
-      rhea_plate_translate_vertices_shell (
-          opt->translation_x, opt->translation_y,
-          opt->vertices_coarse_container_x, opt->vertices_coarse_container_y,
-          opt->n_vertices_coarse_container, n_plates);
-      for (pid = 0; pid < n_plates; pid++) {
-        rhea_plate_polygon_translation_shell_apply (
-            opt->vertices_x[pid], opt->vertices_y[pid], opt->n_vertices[pid],
-            opt->translation_x[pid], opt->translation_y[pid]);
+        rhea_plate_translate_vertices_shell (
+            opt->translation_x, opt->translation_y,
+            opt->vertices_coarse_container_x, opt->vertices_coarse_container_y,
+            opt->n_vertices_coarse_container, n_plates);
+        for (pid = 0; pid < n_plates; pid++) {
+          rhea_plate_polygon_translation_shell_apply (
+              opt->vertices_x[pid], opt->vertices_y[pid], opt->n_vertices[pid],
+              opt->translation_x[pid], opt->translation_y[pid]);
+        }
       }
+      else { /* use vertices of (fine) polygon */
+        rhea_plate_translate_vertices_shell (
+            opt->translation_x, opt->translation_y,
+            opt->vertices_x, opt->vertices_y, opt->n_vertices, n_plates);
+      }
+      break;
+    default: /* unknown domain shape */
+      RHEA_ABORT_NOT_REACHED ();
     }
-    else { /* use vertices of (fine) polygon */
-      rhea_plate_translate_vertices_shell (
-          opt->translation_x, opt->translation_y,
-          opt->vertices_x, opt->vertices_y, opt->n_vertices, n_plates);
-    }
-    break;
-  default: /* unknown domain shape */
-    RHEA_ABORT_NOT_REACHED ();
   }
 
   /* stop performance monitors */
@@ -1633,5 +1636,5 @@ rhea_plate_velocity_project_out_mean_rotation (ymir_vec_t *vel,
 
   /* project out mean rotation */
   ymir_velocity_vec_project_out_mean_rotation (
-      vel, rot_center, moment_of_inertia, 0 /*residual_space*/);
+      vel, rot_center, moment_of_inertia, 0 /* !residual_space */);
 }
