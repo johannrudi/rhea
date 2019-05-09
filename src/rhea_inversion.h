@@ -18,6 +18,24 @@
 void                rhea_inversion_add_options (ymir_options_t * opt_sup);
 
 /******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/**
+ * Initializes performance counters.
+ */
+void                rhea_inversion_perfmon_init (const int activate,
+                                                 const int skip_if_active);
+
+/**
+ * Prints statistics collected by performance monitors.
+ */
+void                rhea_inversion_perfmon_print (sc_MPI_Comm mpicomm,
+                                                  const int print_wtime,
+                                                  const int print_n_calls,
+                                                  const int print_flops);
+
+/******************************************************************************
  * Inverse Problem
  *****************************************************************************/
 
