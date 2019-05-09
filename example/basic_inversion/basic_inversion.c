@@ -23,6 +23,8 @@ typedef enum
 {
   RHEA_MAIN_PERFMON_SETUP_MESH,
   RHEA_MAIN_PERFMON_SETUP_STOKES,
+  RHEA_MAIN_PERFMON_SOLVE_STOKES,
+  RHEA_MAIN_PERFMON_SOLVE_INVERSION,
   RHEA_MAIN_PERFMON_TOTAL,
   RHEA_MAIN_PERFMON_N
 }
@@ -32,6 +34,8 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 {
   "Setup Mesh",
   "Setup Stokes",
+  "Solve Stokes",
+  "Solve Inversion",
   "Total"
 };
 
@@ -222,16 +226,18 @@ main (int argc, char **argv)
    * Solve Stokes Problem
    */
 
-  /* setup solver */
+  /* setup Stokes solver */
   rhea_stokes_problem_setup_solver (stokes_problem);
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
   nonzero_inital_guess = 0;
 
-  /* run solver */
+  /* run Stokes solver */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_STOKES);
   rhea_stokes_problem_solve (&sol_vel_press, nonzero_inital_guess,
                              solver_iter_max, solver_rel_tol, stokes_problem);
+  rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_STOKES);
 
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
@@ -241,9 +247,16 @@ main (int argc, char **argv)
    * Solve Inverse Problem
    */
 
+  /* setup inversion solver */
   inv_problem = rhea_inversion_new (stokes_problem);
+
+  /* run inversion solver */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
   basic_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
                                       vel_obs_add_noise_stddev, stokes_problem);
+  rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
+
+  /* destroy */
   rhea_inversion_destroy (inv_problem);
 
   /*
@@ -272,10 +285,10 @@ main (int argc, char **argv)
 
   /* print performance statistics */
   rhea_performance_monitor_print (func_name,
-                                  1 /* print wtime */,
-                                  0 /* print #calls */,
-                                  0 /* print flops */,
-                                  0 /* print ymir */);
+                                  RHEA_PERFMON_PRINT_WTIME_ALL,
+                                  RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL,
+                                  RHEA_PERFMON_PRINT_FLOPS_NONE,
+                                  RHEA_PERFMON_PRINT_YMIR_NONE);
   rhea_performance_monitor_finalize ();
 
   /* destroy options */
