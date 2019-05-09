@@ -104,14 +104,46 @@ void                rhea_performance_monitor_init (const char **monitor_name,
  */
 void                rhea_performance_monitor_finalize ();
 
+/* output verbosity for performance monitors */
+typedef enum
+{
+  RHEA_PERFMON_PRINT_WTIME_NONE = 0,
+  RHEA_PERFMON_PRINT_WTIME_ESSENTIAL,
+  RHEA_PERFMON_PRINT_WTIME_ALL
+}
+rhea_performance_monitor_print_wtime_t;
+
+typedef enum
+{
+  RHEA_PERFMON_PRINT_NCALLS_NONE = 0,
+  RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL,
+  RHEA_PERFMON_PRINT_NCALLS_ALL
+}
+rhea_performance_monitor_print_ncalls_t;
+
+typedef enum
+{
+  RHEA_PERFMON_PRINT_FLOPS_NONE = 0,
+  RHEA_PERFMON_PRINT_FLOPS_ALL
+}
+rhea_performance_monitor_print_flops_t;
+
+typedef enum
+{
+  RHEA_PERFMON_PRINT_YMIR_NONE = 0,
+  RHEA_PERFMON_PRINT_YMIR_ALL
+}
+rhea_performance_monitor_print_ymir_t;
+
 /**
  * Prints statistics collected by performance monitors.
  */
-void                rhea_performance_monitor_print (const char *title,
-                                                    const int print_wtime,
-                                                    const int print_n_calls,
-                                                    const int print_flops,
-                                                    const int print_ymir);
+void                rhea_performance_monitor_print (
+                        const char *title,
+                        rhea_performance_monitor_print_wtime_t print_wtime,
+                        rhea_performance_monitor_print_ncalls_t print_n_calls,
+                        rhea_performance_monitor_print_flops_t print_flops,
+                        rhea_performance_monitor_print_flops_t print_ymir);
 
 /**
  * Starts/stops a single performance monitor.

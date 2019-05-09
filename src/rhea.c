@@ -311,6 +311,7 @@ rhea_performance_monitor_init (const char **monitor_name,
   rhea_amr_perfmon_init (active, 0);
   rhea_plate_perfmon_init (active, 0);
   rhea_weakzone_perfmon_init (active, 0);
+  rhea_inversion_perfmon_init (active, 0);
 }
 
 void
@@ -325,11 +326,12 @@ rhea_performance_monitor_finalize ()
 }
 
 void
-rhea_performance_monitor_print (const char *title,
-                                const int print_wtime,
-                                const int print_n_calls,
-                                const int print_flops,
-                                const int print_ymir)
+rhea_performance_monitor_print (
+                        const char *title,
+                        rhea_performance_monitor_print_wtime_t print_wtime,
+                        rhea_performance_monitor_print_ncalls_t print_n_calls,
+                        rhea_performance_monitor_print_flops_t print_flops,
+                        rhea_performance_monitor_print_flops_t print_ymir)
 {
   const int           active = rhea_performance_monitor_active ();
   const int           print = (print_wtime || print_n_calls || print_flops);
@@ -347,17 +349,34 @@ rhea_performance_monitor_print (const char *title,
   RHEA_ASSERT (0 < rhea_perfmon_main_n);
 
   /* print rhea's setup performance statistics */
-  rhea_io_mpi_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
-                             print_flops);
-  rhea_amr_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
-                          print_flops);
-  rhea_plate_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
-                            print_flops);
-  rhea_weakzone_perfmon_print (rhea_mpicomm, print_wtime, print_n_calls,
-                               print_flops);
+  rhea_io_mpi_perfmon_print (
+      rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
+  rhea_amr_perfmon_print (
+      rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
+  rhea_plate_perfmon_print (
+      rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
+  rhea_weakzone_perfmon_print (
+      rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
+  rhea_inversion_perfmon_print (
+      rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
 
   /* print ymir performance statistics */
-  if (print_ymir) {
+  if (RHEA_PERFMON_PRINT_YMIR_ALL == print_ymir) {
     ymir_gmg_hierarchy_mesh_perf_counter_print ();   /* GMG mesh */
 
     ymir_stiff_op_perf_counter_print ();             /* Stiffness Op */
@@ -374,18 +393,21 @@ rhea_performance_monitor_print (const char *title,
 
     ymir_stokes_op_perf_counter_print ();            /* Stokes Op */
     ymir_stokes_pc_perf_counter_print ();            /* Stokes PC */
-
   }
 
   /* print matvec performance statistics */
-  rhea_perfmon_matvec_print (rhea_mpicomm, print_wtime, 1 /* #calls */,
-                             print_flops);
+  rhea_perfmon_matvec_print (
+      rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
 
   /* gather main performance statistics */
   n_stats = ymir_perf_counter_gather_stats (
-      rhea_perfmon_main, rhea_perfmon_main_n,
-      stats, stats_name, rhea_mpicomm,
-      print_wtime, print_n_calls, print_flops);
+      rhea_perfmon_main, rhea_perfmon_main_n, stats, stats_name, rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ALL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
 
   /* print main performance statistics */
   ymir_perf_counter_print_stats (stats, n_stats, title);
