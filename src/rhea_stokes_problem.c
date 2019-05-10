@@ -992,7 +992,7 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
                                   const double rtol,
                                   rhea_stokes_problem_t *stokes_problem_lin,
                                   int *num_iterations,
-                                  int *residual_reduction)
+                                  double *residual_reduction)
 {
   const int           check_residual = (NULL != residual_reduction) ||
                                        !rhea_production_run_get ();
@@ -2202,8 +2202,6 @@ rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
 {
   const int           check_lin_aniso =
     rhea_stokes_problem_nonlinear_lin_aniso_check;
-  const double        lin_res_atol = 1.0e-100;
-  const int           krylov_gmres_restart = 100;
   rhea_stokes_problem_t *stokes_problem_nl = data;
   int                 stop_reason;
 
@@ -2218,14 +2216,11 @@ rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (neg_gradient));
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (neg_gradient));
 
-  /* run solver for the linearized Stokes system */
-  stop_reason = ymir_stokes_pc_solve (neg_gradient, step,
-                                      stokes_problem_nl->stokes_pc,
-                                      nonzero_initial_guess,
-                                      lin_res_norm_rtol, lin_res_atol,
-                                      lin_iter_max,
-                                      krylov_gmres_restart /* unused */,
-                                      lin_iter_count);
+  /* run Krylov solver for the linearized system */
+  stop_reason = rhea_stokes_problem_run_krylov_solver (
+      step, neg_gradient, nonzero_initial_guess, lin_iter_max,
+      lin_res_norm_rtol, stokes_problem_nl, lin_iter_count,
+      NULL /* residual_reduction */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (step));
 
   /* check for linearization-induced anisotropy in (neg.) gradient & step */
@@ -3257,7 +3252,12 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
                                rhea_stokes_problem_t *stokes_problem,
                                const int force_linear_solve)
 {
-  int                 stop_reason, num_iterations, residual_reduction;
+  int                 num_iterations;
+  double              residual_reduction;
+  const int           check_residual = 1;
+//const int           check_residual = (NULL != residual_reduction);
+  int                 stop_reason;
+  double              res_reduction[3];
 
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
@@ -3267,10 +3267,10 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     if (force_linear_solve) { /* if run only a single linear solve */
-      stop_reason = rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
+      stop_reason = rhea_stokes_problem_run_krylov_solver (
           *sol_vel_press, stokes_problem->rhs_vel_press,
-          iter_max, rtol, nonzero_initial_guess, stokes_problem,
-          &num_iterations);
+          nonzero_initial_guess, iter_max, rtol, stokes_problem,
+          &num_iterations, (check_residual ? res_reduction : NULL));
     }
     else { /* otherwise run full nonlinear solve */
       rhea_stokes_problem_nonlinear_solve (sol_vel_press, nonzero_initial_guess,
