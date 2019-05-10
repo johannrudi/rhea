@@ -3,58 +3,11 @@
 #include <rhea_base.h>
 
 /* Newton status */
-typedef struct rhea_newton_status
-{
-  /* objective value at (initial, previous, and current) iteration */
-  double              obj_init;
-  double              obj_prev;
-  double              obj_curr;
-
-  /* components of the objective */
-  int                 obj_multi_components;
-  double             *obj_curr_comp;
-
-  /* reduction of objective in just one iteration (previous and current) */
-  double              obj_reduction_prev;
-  double              obj_reduction_curr;
-
-  /* reduction of objective over all iterations */
-  double              obj_reduction;
-
-  /* gradient norm at (initial, previous, and current) iteration */
-  double              grad_norm_init;
-  double              grad_norm_prev;
-  double              grad_norm_curr;
-
-  /* components of the gradient norm */
-  int                 grad_norm_multi_components;
-  double             *grad_norm_curr_comp;
-
-  /* reduction of gradient norm in just one iteration (previous and current) */
-  double              grad_norm_reduction_prev;
-  double              grad_norm_reduction_curr;
-
-  /* reduction of gradient norm over all iterations */
-  double              grad_norm_reduction;
-}
-rhea_newton_status_t;
+typedef struct rhea_newton_status rhea_newton_status_t;
+typedef struct rhea_newton_status_summary rhea_newton_status_summary_t;
 
 /* Newton step */
-typedef struct rhea_newton_step
-{
-  double              length;
-
-  int                 search_success;
-  int                 search_iter_count;
-
-  int                 iter;
-
-  double              lin_res_norm_rtol;
-  double              lin_res_norm_reduction;
-  int                 lin_iter_count;
-  double              lin_convergence;
-}
-rhea_newton_step_t;
+typedef struct rhea_newton_step rhea_newton_step_t;
 
 /* Nonlinear problem */
 struct rhea_newton_problem
@@ -90,6 +43,8 @@ struct rhea_newton_problem
 
   /* status (not owned) */
   rhea_newton_status_t *status;
+  int                 num_iterations;
+  double              residual_reduction;
 
   /* options */
   int                 check_gradient;
@@ -358,6 +313,8 @@ rhea_newton_problem_new (
   rhea_newton_problem_set_mpicomm (MPI_COMM_NULL, nl_problem);
 
   nl_problem->status = NULL;
+  nl_problem->num_iterations = -1;
+  nl_problem->residual_reduction = NAN;
 
   return nl_problem;
 }
@@ -700,6 +657,21 @@ rhea_newton_problem_output_prestep (ymir_vec_t *solution,
  * Newton Step
  *****************************************************************************/
 
+struct rhea_newton_step
+{
+  double              length;
+
+  int                 search_success;
+  int                 search_iter_count;
+
+  int                 iter;
+
+  double              lin_res_norm_rtol;
+  double              lin_res_norm_reduction;
+  int                 lin_iter_count;
+  double              lin_convergence;
+};
+
 /**
  * Initializes a step object.
  */
@@ -722,6 +694,41 @@ rhea_newton_step_init (rhea_newton_step_t *step)
 /******************************************************************************
  * Newton Status
  *****************************************************************************/
+
+struct rhea_newton_status
+{
+  /* objective value at (initial, previous, and current) iteration */
+  double              obj_init;
+  double              obj_prev;
+  double              obj_curr;
+
+  /* components of the objective */
+  int                 obj_multi_components;
+  double             *obj_curr_comp;
+
+  /* reduction of objective in just one iteration (previous and current) */
+  double              obj_reduction_prev;
+  double              obj_reduction_curr;
+
+  /* reduction of objective over all iterations */
+  double              obj_reduction;
+
+  /* gradient norm at (initial, previous, and current) iteration */
+  double              grad_norm_init;
+  double              grad_norm_prev;
+  double              grad_norm_curr;
+
+  /* components of the gradient norm */
+  int                 grad_norm_multi_components;
+  double             *grad_norm_curr_comp;
+
+  /* reduction of gradient norm in just one iteration (previous and current) */
+  double              grad_norm_reduction_prev;
+  double              grad_norm_reduction_curr;
+
+  /* reduction of gradient norm over all iterations */
+  double              grad_norm_reduction;
+};
 
 /**
  * Initializes a status object.
@@ -1238,7 +1245,7 @@ rhea_newton_status_print_curr (rhea_newton_status_t *status,
 }
 
 /* status summary */
-typedef struct rhea_newton_status_summary
+struct rhea_newton_status_summary
 {
   char              **iteration_stats;
   int                 iteration_length;
@@ -1250,8 +1257,7 @@ typedef struct rhea_newton_status_summary
   int                 total_step_below_unit_count;
   double              total_step_length_avg;
   int                 total_lin_iter_count;
-}
-rhea_newton_status_summary_t;
+};
 
 /**
  * Creates an object to store statistics of a Newton solve.
@@ -1766,7 +1772,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   step->search_iter_count = k - search_iter_start;
 }
 
-void
+int
 rhea_newton_solve (ymir_vec_t **solution,
                    rhea_newton_problem_t *nl_problem,
                    rhea_newton_options_t *opt)
@@ -1777,6 +1783,7 @@ rhea_newton_solve (ymir_vec_t **solution,
   const double        rtol = opt->rtol;
   int                 neg_gradient_updated;
   int                 solution_post_update = 0;
+  int                 stop_reason = 0;
   const int           print_summary = opt->print_summary;
   rhea_newton_step_t            step;
   rhea_newton_status_t          status;
@@ -1866,6 +1873,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       RHEA_GLOBAL_PRODUCTIONF_FN_TAG (
           func_tag_stop, "newton_iter=%i, reason=\"converged to rtol=%.3e\"",
           iter, rtol);
+      stop_reason = 1;
       break;
     }
 
@@ -1875,6 +1883,7 @@ rhea_newton_solve (ymir_vec_t **solution,
           func_tag_stop,
           "newton_iter=%i, reason=\"reached maximum number of iterations=%i\"",
           iter, iter_max);
+      stop_reason = 2;
       break;
     }
 
@@ -1957,6 +1966,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       RHEA_GLOBAL_PRODUCTIONF_FN_TAG (
           func_tag_stop, "newton_iter=%i, reason=\"failed step length search\"",
           iter);
+      stop_reason = 3;
       break;
     }
 
@@ -1988,6 +1998,10 @@ rhea_newton_solve (ymir_vec_t **solution,
    * Finalize
    */
   {
+    /* store iterations count and residual reduction */
+    nl_problem->num_iterations = iter;
+    nl_problem->residual_reduction = status.grad_norm_reduction;
+
     /* destroy */
     rhea_newton_status_clear (&status);
     nl_problem->status = NULL;
@@ -2003,4 +2017,18 @@ rhea_newton_solve (ymir_vec_t **solution,
   }
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
+
+  /* return stopping reason */
+  return stop_reason;
+}
+
+int
+rhea_newton_solve_get_num_iterations (rhea_newton_problem_t *nl_problem){
+  return nl_problem->num_iterations;
+}
+
+double
+rhea_newton_solve_get_residual_reduction (rhea_newton_problem_t *nl_problem)
+{
+  return nl_problem->residual_reduction;
 }

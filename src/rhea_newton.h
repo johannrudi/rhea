@@ -326,9 +326,14 @@ void                rhea_newton_problem_set_mpicomm (
 /**
  * Solves a nonlinear problem with inexact Newton--Krylov.
  */
-void                rhea_newton_solve (ymir_vec_t **solution,
+int                 rhea_newton_solve (ymir_vec_t **solution,
                                        rhea_newton_problem_t *nl_problem,
                                        rhea_newton_options_t *opt);
+
+int                 rhea_newton_solve_get_num_iterations (
+                                            rhea_newton_problem_t *nl_problem);
+double              rhea_newton_solve_get_residual_reduction (
+                                            rhea_newton_problem_t *nl_problem);
 
 /**
  * Accesses data and callback functions of a nonlinear problem.
