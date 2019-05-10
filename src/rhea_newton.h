@@ -330,6 +330,7 @@ int                 rhea_newton_solve (ymir_vec_t **solution,
                                        rhea_newton_problem_t *nl_problem,
                                        rhea_newton_options_t *opt);
 
+int                 rhea_newton_solve_has_converged (const int stop_reason);
 int                 rhea_newton_solve_get_num_iterations (
                                             rhea_newton_problem_t *nl_problem);
 double              rhea_newton_solve_get_residual_reduction (

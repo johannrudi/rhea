@@ -1966,7 +1966,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       RHEA_GLOBAL_PRODUCTIONF_FN_TAG (
           func_tag_stop, "newton_iter=%i, reason=\"failed step length search\"",
           iter);
-      stop_reason = 3;
+      stop_reason = -1;
       break;
     }
 
@@ -2020,6 +2020,12 @@ rhea_newton_solve (ymir_vec_t **solution,
 
   /* return stopping reason */
   return stop_reason;
+}
+
+int
+rhea_newton_solve_has_converged (const int stop_reason)
+{
+  return (1 == stop_reason);
 }
 
 int
