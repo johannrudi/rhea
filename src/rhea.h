@@ -143,7 +143,7 @@ void                rhea_performance_monitor_print (
                         rhea_performance_monitor_print_wtime_t print_wtime,
                         rhea_performance_monitor_print_ncalls_t print_n_calls,
                         rhea_performance_monitor_print_flops_t print_flops,
-                        rhea_performance_monitor_print_flops_t print_ymir);
+                        rhea_performance_monitor_print_ymir_t print_ymir);
 
 /**
  * Starts/stops a single performance monitor.
