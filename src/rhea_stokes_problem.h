@@ -127,13 +127,15 @@ void                rhea_stokes_problem_update_solver (
 /**
  * Solves a Stokes problem.
  */
-void                rhea_stokes_problem_solve_ext (
+int                 rhea_stokes_problem_solve_ext (
                                     ymir_vec_t **sol_vel_press,
                                     const int nonzero_initial_guess,
                                     const int iter_max,
                                     const double rtol,
                                     rhea_stokes_problem_t *stokes_problem,
-                                    const int force_linear_solve);
+                                    const int force_linear_solve,
+                                    int *num_iterations,
+                                    double *residual_reduction);
 
 /**
  * Sets data to enable solver AMR/grid continuation.

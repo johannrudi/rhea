@@ -3258,43 +3258,49 @@ rhea_stokes_problem_update_solver (rhea_stokes_problem_t *stokes_problem,
   }
 }
 
-void
+int
 rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
                                const int nonzero_initial_guess,
                                const int iter_max,
                                const double rtol,
                                rhea_stokes_problem_t *stokes_problem,
-                               const int force_linear_solve)
+                               const int force_linear_solve,
+                               int *num_iterations,
+                               double *residual_reduction)
 {
-  int                 num_iterations;
-  double              residual_reduction;
-  const int           check_residual = 1;
-//const int           check_residual = (NULL != residual_reduction);
   int                 stop_reason;
-  double              res_reduction[3];
 
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
     stop_reason = rhea_stokes_problem_linear_solve (
         sol_vel_press, nonzero_initial_guess, iter_max, rtol,
-        stokes_problem, &num_iterations, &residual_reduction);
+        stokes_problem, num_iterations, residual_reduction);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     if (force_linear_solve) { /* if run only a single linear solve */
+      const int           check_residual = (NULL != residual_reduction);
+      double              res_reduction[3];
+
       stop_reason = rhea_stokes_problem_run_krylov_solver (
           *sol_vel_press, stokes_problem->rhs_vel_press,
           nonzero_initial_guess, iter_max, rtol, stokes_problem,
-          &num_iterations, (check_residual ? res_reduction : NULL));
+          num_iterations, (check_residual ? res_reduction : NULL));
+      if (check_residual) {
+        *residual_reduction = res_reduction[0];
+      }
     }
     else { /* otherwise run full nonlinear solve */
       stop_reason = rhea_stokes_problem_nonlinear_solve (
           sol_vel_press, nonzero_initial_guess, iter_max, rtol,
-          stokes_problem, &num_iterations, &residual_reduction);
+          stokes_problem, num_iterations, residual_reduction);
     }
     break;
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
   }
+
+  /* return stopping reason */
+  return stop_reason;
 }
 
 void
@@ -3306,7 +3312,7 @@ rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
 {
   rhea_stokes_problem_solve_ext (
       sol_vel_press, nonzero_initial_guess, iter_max, rtol, stokes_problem,
-      0 /* !force_linear_solve */);
+      0 /* !force_linear_solve */, NULL /* num_iter */, NULL /* res_reduc */);
 }
 
 void
