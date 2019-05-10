@@ -3303,16 +3303,44 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
   return stop_reason;
 }
 
-void
+int
+rhea_stokes_problem_has_converged_ext (const int stop_reason,
+                                       rhea_stokes_problem_t *stokes_problem,
+                                       const int force_linear_solve)
+{
+  switch (stokes_problem->type) {
+  case RHEA_STOKES_PROBLEM_LINEAR:
+    return (2 == stop_reason);
+  case RHEA_STOKES_PROBLEM_NONLINEAR:
+    if (force_linear_solve) {
+      return (2 == stop_reason);
+    }
+    else {
+      return rhea_newton_solve_has_converged (stop_reason);
+    }
+  default: /* unknown Stokes type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+int
 rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
                            const int nonzero_initial_guess,
                            const int iter_max,
                            const double rtol,
                            rhea_stokes_problem_t *stokes_problem)
 {
-  rhea_stokes_problem_solve_ext (
+  return rhea_stokes_problem_solve_ext (
       sol_vel_press, nonzero_initial_guess, iter_max, rtol, stokes_problem,
       0 /* !force_linear_solve */, NULL /* num_iter */, NULL /* res_reduc */);
+}
+
+int
+rhea_stokes_problem_has_converged (const int stop_reason,
+                                   rhea_stokes_problem_t *stokes_problem)
+{
+  return rhea_stokes_problem_has_converged_ext (stop_reason, stokes_problem,
+                                                0 /* !force_linear_solve */);
 }
 
 void
