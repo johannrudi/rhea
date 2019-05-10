@@ -288,6 +288,18 @@ struct rhea_inversion_problem
   rhea_newton_problem_t  *newton_problem;
   ymir_vec_t             *newton_neg_gradient_vec;
   ymir_vec_t             *newton_step_vec;
+
+  /* statistics */
+  char              **fwd_adj_solve_stats;
+  int                 fwd_adj_solve_stats_length;
+  int                 fwd_adj_solve_stats_current_idx;
+  int                 fwd_adj_solve_stats_total_stop_reason[2];
+  int                 fwd_adj_solve_stats_total_iterations[2];
+  char              **ifwd_iadj_solve_stats;
+  int                 ifwd_iadj_solve_stats_length;
+  int                 ifwd_iadj_solve_stats_current_idx;
+  int                 ifwd_iadj_solve_stats_total_stop_reason[2];
+  int                 ifwd_iadj_solve_stats_total_iterations[2];
 };
 
 static int
@@ -335,6 +347,44 @@ rhea_inversion_set_weight_prior (rhea_inversion_problem_t *inv_problem)
  *****************************************************************************/
 
 /**
+ * Writes statistics of forward and adjoint solves.
+ */
+static void
+rhea_inversion_fwd_adj_solve_stats_write (rhea_inversion_problem_t *inv_problem,
+                                          const int is_adjoint_solve,
+                                          const int stop_reason,
+                                          const int num_iterations,
+                                          const double residual_reduction)
+{
+  const int           stats_idx = inv_problem->fwd_adj_solve_stats_current_idx;
+  char               *stats;
+
+  /* check input */
+  RHEA_ASSERT (0 <= stats_idx);
+
+  /* write text */
+  stats = inv_problem->fwd_adj_solve_stats[stats_idx];
+  if (!is_adjoint_solve) {
+    snprintf (stats, BUFSIZ, "%sfwd=(%d, %3d, %.2e) ",
+              stats, stop_reason, num_iterations, residual_reduction);
+  }
+  else {
+    snprintf (stats, BUFSIZ, "%sadj=(%d, %3d, %.2e)",
+              stats, stop_reason, num_iterations, residual_reduction);
+    inv_problem->fwd_adj_solve_stats_current_idx++;
+  }
+
+  /* update total values */
+  inv_problem->fwd_adj_solve_stats_total_stop_reason[is_adjoint_solve] =
+    inv_problem->fwd_adj_solve_stats_total_stop_reason[is_adjoint_solve] &&
+    rhea_stokes_problem_has_converged_ext (
+      stop_reason, inv_problem->stokes_problem,
+      is_adjoint_solve /* force_linear_solve */);
+  inv_problem->fwd_adj_solve_stats_total_iterations[is_adjoint_solve] +=
+    num_iterations;
+}
+
+/**
  * Runs solver for the forward state.
  */
 static void
@@ -344,6 +394,8 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   const int           nonzero_init = 0; //TODO 1?
   const int           iter_max = rhea_inversion_forward_solver_iter_max;
   const double        rtol = rhea_inversion_forward_solver_rtol;
+  int                 stop_reason, n_iter;
+  double              res_reduc;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
   ymir_perf_counter_start (
@@ -359,10 +411,14 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   }
 
   /* run Stokes solver */
-  rhea_stokes_problem_solve (
+  stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->forward_vel_press), nonzero_init, iter_max, rtol,
-      stokes_problem);
+      stokes_problem, 0 /* !force linear solve */, &n_iter, &res_reduc);
   inv_problem->forward_is_outdated = 0;
+
+  /* write solver statistics */
+  rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 0 /* forward */,
+                                            stop_reason, n_iter, res_reduc);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_FWD]);
@@ -379,20 +435,64 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
   const int           nonzero_init = 0; //TODO 1?
   const int           iter_max = rhea_inversion_adjoint_solver_iter_max;
   const double        rtol = rhea_inversion_adjoint_solver_rtol;
+  int                 stop_reason, n_iter;
+  double              res_reduc;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_ADJ]);
 
   /* run Stokes solver */
-  rhea_stokes_problem_solve_ext (
+  stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->adjoint_vel_press), nonzero_init, iter_max, rtol,
-      stokes_problem, 1 /* force linear solve */);
+      stokes_problem, 1 /* force linear solve */, &n_iter, &res_reduc);
   inv_problem->adjoint_is_outdated = 0;
+
+  /* write solver statistics */
+  rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 1 /* adjoint */,
+                                            stop_reason, n_iter, res_reduc);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_ADJ]);
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+}
+
+/**
+ * Writes statistics of incremental forward and adjoint solves.
+ */
+static void
+rhea_inversion_ifwd_iadj_solve_stats_write (
+                                        rhea_inversion_problem_t *inv_problem,
+                                        const int is_adjoint_solve,
+                                        const int stop_reason,
+                                        const int num_iterations,
+                                        const double residual_reduction)
+{
+  const int           stats_idx =
+                        inv_problem->ifwd_iadj_solve_stats_current_idx;
+  char               *stats;
+
+  /* check input */
+  RHEA_ASSERT (0 <= stats_idx);
+
+  /* write text */
+  stats = inv_problem->ifwd_iadj_solve_stats[stats_idx];
+  if (!is_adjoint_solve) {
+    snprintf (stats, BUFSIZ, "%s(%d, %3d, %.2e) ",
+              stats, stop_reason, num_iterations, residual_reduction);
+  }
+  else {
+    snprintf (stats, BUFSIZ, "%s(%d, %3d, %.2e); ",
+              stats, stop_reason, num_iterations, residual_reduction);
+  }
+
+  /* update total values */
+  inv_problem->ifwd_iadj_solve_stats_total_stop_reason[is_adjoint_solve] =
+    inv_problem->ifwd_iadj_solve_stats_total_stop_reason[is_adjoint_solve] &&
+    rhea_stokes_problem_has_converged_ext (
+      stop_reason, inv_problem->stokes_problem, 1 /* force_linear_solve */);
+  inv_problem->ifwd_iadj_solve_stats_total_iterations[is_adjoint_solve] +=
+    num_iterations;
 }
 
 /**
@@ -408,16 +508,23 @@ rhea_inversion_inner_solve_incremental_forward (
                         rhea_inversion_incremental_forward_solver_iter_max;
   const double        rtol =
                         rhea_inversion_incremental_forward_solver_rtol;
+  int                 stop_reason, n_iter;
+  double              res_reduc;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_FWD]);
 
   /* run Stokes solver */
-  rhea_stokes_problem_solve_ext (
+  stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->incremental_forward_vel_press), nonzero_init,
-      iter_max, rtol, stokes_problem, 1 /* force linear solve */);
+      iter_max, rtol, stokes_problem, 1 /* force linear solve */,
+      &n_iter, &res_reduc);
   inv_problem->incremental_forward_is_outdated = 0;
+
+  /* write solver statistics */
+  rhea_inversion_ifwd_iadj_solve_stats_write (inv_problem, 0 /* forward */,
+                                              stop_reason, n_iter, res_reduc);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_FWD]);
@@ -437,16 +544,23 @@ rhea_inversion_inner_solve_incremental_adjoint (
                         rhea_inversion_incremental_adjoint_solver_iter_max;
   const double        rtol =
                         rhea_inversion_incremental_adjoint_solver_rtol;
+  int                 stop_reason, n_iter;
+  double              res_reduc;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_ADJ]);
 
   /* run Stokes solver */
-  rhea_stokes_problem_solve_ext (
+  stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->incremental_adjoint_vel_press), nonzero_init,
-      iter_max, rtol, stokes_problem, 1 /* force linear solve */);
+      iter_max, rtol, stokes_problem, 1 /* force linear solve */,
+      &n_iter, &res_reduc);
   inv_problem->incremental_adjoint_is_outdated = 0;
+
+  /* write solver statistics */
+  rhea_inversion_ifwd_iadj_solve_stats_write (inv_problem, 1 /* adjoint */,
+                                              stop_reason, n_iter, res_reduc);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_ADJ]);
@@ -710,6 +824,9 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
   /* check input */
   RHEA_ASSERT (!rhea_inversion_assemble_hessian ||
                inv_problem->hessian_matrix != NULL);
+
+  /* increment index for statistics of incr forward and adjoint solves */
+  inv_problem->ifwd_iadj_solve_stats_current_idx++;
 
   /* exit if nothing to do */
   if (!rhea_inversion_assemble_hessian) {
@@ -1274,6 +1391,117 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
 }
 
 /******************************************************************************
+ * Inversion Statistics
+ *****************************************************************************/
+
+/**
+ * Creates a list to store statistics of inner solves.
+ */
+static void
+rhea_inversion_inner_solve_stats_create (rhea_inversion_problem_t *inv_problem,
+                                         const int max_num_iterations)
+{
+  int                 k;
+
+  /* create text storage for forward and adjoint solves */
+  inv_problem->fwd_adj_solve_stats = RHEA_ALLOC (char *, max_num_iterations);
+  for (k = 0; k < max_num_iterations; k++) {
+    inv_problem->fwd_adj_solve_stats[k] = RHEA_ALLOC (char, BUFSIZ);
+    snprintf (inv_problem->fwd_adj_solve_stats[k], BUFSIZ, "");
+  }
+  inv_problem->fwd_adj_solve_stats_length = max_num_iterations;
+  inv_problem->fwd_adj_solve_stats_current_idx = 0;
+
+  /* create text storage for incremental forward and adjoint solves */
+  inv_problem->ifwd_iadj_solve_stats = RHEA_ALLOC (char *, max_num_iterations);
+  for (k = 0; k < max_num_iterations; k++) {
+    inv_problem->ifwd_iadj_solve_stats[k] = RHEA_ALLOC (char, BUFSIZ);
+    snprintf (inv_problem->ifwd_iadj_solve_stats[k], BUFSIZ, "");
+  }
+  inv_problem->ifwd_iadj_solve_stats_length = max_num_iterations;
+  inv_problem->ifwd_iadj_solve_stats_current_idx = -1;
+
+  /* init total values */
+  inv_problem->fwd_adj_solve_stats_total_stop_reason[0] = 1;
+  inv_problem->fwd_adj_solve_stats_total_stop_reason[1] = 1;
+  inv_problem->fwd_adj_solve_stats_total_iterations[0] = 0;
+  inv_problem->fwd_adj_solve_stats_total_iterations[1] = 0;
+  inv_problem->ifwd_iadj_solve_stats_total_stop_reason[0] = 1;
+  inv_problem->ifwd_iadj_solve_stats_total_stop_reason[1] = 1;
+  inv_problem->ifwd_iadj_solve_stats_total_iterations[0] = 0;
+  inv_problem->ifwd_iadj_solve_stats_total_iterations[1] = 0;
+}
+
+/**
+ * Destroys a list with statistics of inner solves.
+ */
+static void
+rhea_inversion_inner_solve_stats_clear (rhea_inversion_problem_t *inv_problem)
+{
+  int                 k;
+
+  /* destroy text storage of forward and adjoint solves */
+  for (k = 0; k < inv_problem->fwd_adj_solve_stats_length; k++) {
+    RHEA_FREE (inv_problem->fwd_adj_solve_stats[k]);
+  }
+  RHEA_FREE (inv_problem->fwd_adj_solve_stats);
+
+  /* destroy text storage of incremental forward and adjoint solves */
+  for (k = 0; k < inv_problem->ifwd_iadj_solve_stats_length; k++) {
+    RHEA_FREE (inv_problem->ifwd_iadj_solve_stats[k]);
+  }
+  RHEA_FREE (inv_problem->ifwd_iadj_solve_stats);
+}
+
+/**
+ * Print statistics of inner solves.
+ */
+static void
+rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
+{
+  int                 stats_count, k;
+
+  /* print statistics of forward and adjoint solves */
+  stats_count = inv_problem->fwd_adj_solve_stats_current_idx;
+  RHEA_ASSERT (stats_count <= inv_problem->fwd_adj_solve_stats_length);
+  if (0 < stats_count) {
+    RHEA_GLOBAL_INFO ("========================================\n");
+    RHEA_GLOBAL_INFO ("Inversion summary: forward & adjoint solves\n");
+    RHEA_GLOBAL_INFO ("----------------------------------------\n");
+    for (k = 0; k < stats_count; k++) {
+      RHEA_GLOBAL_INFOF ("%3d; %s\n", k, inv_problem->fwd_adj_solve_stats[k]);
+    }
+    RHEA_GLOBAL_INFO ("----------------------------------------\n");
+    RHEA_GLOBAL_INFOF ("fwd=(%d, %d) adj=(%d, %d)\n",
+        inv_problem->fwd_adj_solve_stats_total_stop_reason[0],
+        inv_problem->fwd_adj_solve_stats_total_iterations[0],
+        inv_problem->fwd_adj_solve_stats_total_stop_reason[1],
+        inv_problem->fwd_adj_solve_stats_total_iterations[1]);
+    RHEA_GLOBAL_INFO ("========================================\n");
+  }
+
+  /* print statistics of incremental forward and adjoint solves */
+  stats_count = inv_problem->ifwd_iadj_solve_stats_current_idx + 1;
+  RHEA_ASSERT (stats_count <= inv_problem->ifwd_iadj_solve_stats_length);
+  if (0 < stats_count) {
+    RHEA_GLOBAL_INFO ("========================================\n");
+    RHEA_GLOBAL_INFO ("Inversion summary: "
+                      "incremental forward & adjoint solves\n");
+    RHEA_GLOBAL_INFO ("----------------------------------------\n");
+    for (k = 0; k < stats_count; k++) {
+      RHEA_GLOBAL_INFOF ("%3d; %s\n", k, inv_problem->ifwd_iadj_solve_stats[k]);
+    }
+    RHEA_GLOBAL_INFO ("----------------------------------------\n");
+    RHEA_GLOBAL_INFOF ("incr_fwd=(%d, %d) incr_adj=(%d, %d)\n",
+        inv_problem->ifwd_iadj_solve_stats_total_stop_reason[0],
+        inv_problem->ifwd_iadj_solve_stats_total_iterations[0],
+        inv_problem->ifwd_iadj_solve_stats_total_stop_reason[1],
+        inv_problem->ifwd_iadj_solve_stats_total_iterations[1]);
+    RHEA_GLOBAL_INFO ("========================================\n");
+  }
+}
+
+/******************************************************************************
  * Inverse Problem
  *****************************************************************************/
 
@@ -1363,6 +1591,14 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
         mpicomm, newton_problem);
   }
 
+  /* create statistics */
+  {
+    const int           max_n_iter = inv_problem->newton_options->iter_max -
+                                     inv_problem->newton_options->iter_start+1;
+
+    rhea_inversion_inner_solve_stats_create (inv_problem, max_n_iter);
+  }
+
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 
   return inv_problem;
@@ -1372,6 +1608,9 @@ void
 rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
 {
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
+
+  /* clear statistics */
+  rhea_inversion_inner_solve_stats_clear (inv_problem);
 
   /* destroy solver data */
   if (rhea_inversion_solver_data_exists (inv_problem)) {
@@ -1422,6 +1661,9 @@ rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
   /* run Newton solver */
   newton_options->nonzero_initial_guess = 1;
   rhea_newton_solve (&sol_parameter_vec, newton_problem, newton_options);
+
+  /* print inner solver statistics */
+  rhea_inversion_inner_solve_stats_print (inv_problem);
 
   /* destroy */
   rhea_inversion_param_vec_destroy (sol_parameter_vec);
