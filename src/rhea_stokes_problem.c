@@ -448,6 +448,37 @@ rhea_stokes_problem_compute_and_update_coefficient (
   }
 }
 
+/**
+ * Calculates the reduction of an end value relative to a start value.  Avoids
+ * ill-defined operations like division by zero.
+ */
+static double
+rhea_stokes_problem_calculate_reduction (const double start_value,
+                                         const double end_value)
+{
+  /* check input */
+  RHEA_ASSERT (isfinite (start_value));
+  RHEA_ASSERT (0.0 <= start_value);
+  RHEA_ASSERT (isfinite (end_value));
+  RHEA_ASSERT (0.0 <= end_value);
+
+  if (end_value < DBL_MIN) { /* if end value is small */
+    /* assume max reduction and set value below machine precision */
+    return pow (SC_EPS, 2.0);
+  }
+  else if (start_value < SC_EPS * end_value) { /* if start value is small */
+    /* assume no reduction */
+    return 1.0;
+  }
+  else { /* if division is well-defined */
+    /* compute reduction */
+    return end_value / start_value;
+  }
+}
+
+/**
+ * Runs the Krylov solver to solve a Stokes system.
+ */
 static int
 rhea_stokes_problem_run_krylov_solver (ymir_vec_t *sol_vel_press,
                                        ymir_vec_t *rhs_vel_press,
@@ -458,8 +489,8 @@ rhea_stokes_problem_run_krylov_solver (ymir_vec_t *sol_vel_press,
                                        int *num_iterations,
                                        double residual_reduction[3])
 {
-  const double        atol = 1.0e-100;
-  const int           krylov_gmres_n_vecs = 100;
+  const double        atol = pow (SC_EPS, 2);
+  const int           krylov_gmres_n_vecs = 100; /* required but unused */
   const int           check_residual = (NULL != residual_reduction);
   ymir_vec_t         *residual_vel_press = NULL;
   int                 stop_reason, itn;
@@ -513,13 +544,17 @@ rhea_stokes_problem_run_krylov_solver (ymir_vec_t *sol_vel_press,
         RHEA_STOKES_NORM_L2_VEC_SP, NULL, stokes_problem->press_elem);
 
     /* calculate convergence (note: division by zero is possible) */
-    res_reduction = norm_res/norm_res_init;
-    res_reduction_vel = norm_res_vel/norm_res_init_vel;
+    res_reduction =
+      rhea_stokes_problem_calculate_reduction (norm_res_init, norm_res);
+    res_reduction_vel =
+      rhea_stokes_problem_calculate_reduction (norm_res_init_vel, norm_res_vel);
     if (stokes_problem->incompressible) {
       res_reduction_press = norm_res_press;
     }
     else {
-      res_reduction_press = norm_res_press/norm_res_init_press;
+      res_reduction_press =
+        rhea_stokes_problem_calculate_reduction (norm_res_init_press,
+                                                 norm_res_press);
     }
 
     ymir_vec_destroy (residual_vel_press);
@@ -3310,10 +3345,10 @@ rhea_stokes_problem_has_converged_ext (const int stop_reason,
 {
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
-    return (2 == stop_reason);
+    return (2 == stop_reason || 3 == stop_reason);
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     if (force_linear_solve) {
-      return (2 == stop_reason);
+      return (2 == stop_reason || 3 == stop_reason);
     }
     else {
       return rhea_newton_solve_has_converged (stop_reason);
