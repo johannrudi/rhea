@@ -266,6 +266,19 @@ void                rhea_stokes_problem_set_rhs_vel_nonzero_neu_compute_fn (
                                     rhea_velocity_rhs_nz_neu_compute_fn_t fn,
                                     void *data);
 
+void                rhea_stokes_problem_weakzone_compute (
+                                    ymir_vec_t *weakzone,
+                                    rhea_stokes_problem_t *stokes_problem);
+void                rhea_stokes_problem_viscosity_compute (
+                                    ymir_vec_t *viscosity,
+                                    ymir_vec_t *proj_scal,
+                                    ymir_vec_t *bounds_marker,
+                                    ymir_vec_t *yielding_marker,
+                                    ymir_vec_t *temperature,
+                                    ymir_vec_t *weakzone,
+                                    ymir_vec_t *velocity,
+                                    rhea_stokes_problem_t *stokes_problem);
+
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
                                     rhea_stokes_problem_t *stokes_problem);
 

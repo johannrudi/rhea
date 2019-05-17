@@ -380,10 +380,9 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
     RHEA_ASSERT (visc_options->type == RHEA_VISCOSITY_LINEAR);
-    stokes_problem->viscosity_compute_fn (
+    rhea_stokes_problem_viscosity_compute (
         /* out: */ coeff, NULL, NULL, NULL,
-        /* in:  */ temperature, weakzone, NULL,
-        stokes_problem->viscosity_compute_fn_data);
+        /* in:  */ temperature, weakzone, NULL, stokes_problem);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     RHEA_ASSERT (visc_options->type == RHEA_VISCOSITY_NONLINEAR);
@@ -392,8 +391,7 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
     if (nonlinear_init) {
       rhea_viscosity_compute_nonlinear_init (
           /* out: */ coeff, proj_scal, bounds_marker, yielding_marker,
-          /* in:  */ temperature, weakzone,
-          visc_options);
+          /* in:  */ temperature, weakzone, visc_options);
     }
     else {
       RHEA_ASSERT (velocity_pressure != NULL);
@@ -403,10 +401,9 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
           stokes_problem, velocity_pressure);
       vel = rhea_stokes_problem_retrieve_velocity (
           stokes_problem->velocity_pressure, stokes_problem);
-      stokes_problem->viscosity_compute_fn (
+      rhea_stokes_problem_viscosity_compute (
           /* out: */ coeff, proj_scal, bounds_marker, yielding_marker,
-          /* in:  */ temperature, weakzone, vel,
-          stokes_problem->viscosity_compute_fn_data);
+          /* in:  */ temperature, weakzone, vel, stokes_problem);
     }
     break;
   default: /* unknown Stokes type */
@@ -763,12 +760,8 @@ rhea_stokes_problem_linear_create_solver_data (
   }
 
   /* compute weak zone */
-  if (stokes_problem_lin->weakzone_compute_fn != NULL) {
-    RHEA_ASSERT (stokes_problem_lin->weakzone != NULL);
-    stokes_problem_lin->weakzone_compute_fn (
-        stokes_problem_lin->weakzone,
-        stokes_problem_lin->weakzone_compute_fn_data);
-  }
+  rhea_stokes_problem_weakzone_compute (stokes_problem_lin->weakzone,
+                                        stokes_problem_lin);
 
   /* compute viscosity */
   rhea_stokes_problem_compute_coefficient (stokes_problem_lin,
@@ -964,12 +957,8 @@ rhea_stokes_problem_linear_update_solver (
   /* update the Stokes coefficient and dependent objects */
   if (update_coeff) {
     /* compute weak zone */
-    if (stokes_problem_lin->weakzone_compute_fn != NULL) {
-      RHEA_ASSERT (stokes_problem_lin->weakzone != NULL);
-      stokes_problem_lin->weakzone_compute_fn (
-          stokes_problem_lin->weakzone,
-          stokes_problem_lin->weakzone_compute_fn_data);
-    }
+    rhea_stokes_problem_weakzone_compute (stokes_problem_lin->weakzone,
+                                          stokes_problem_lin);
 
     /* update coefficient of Stokes operator */
     rhea_stokes_problem_compute_and_update_coefficient (
@@ -1294,10 +1283,9 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
           RHEA_ASSERT (rhea_velocity_is_valid (prev_vel));
 
           /* compute viscosity corresponding to prev solution */
-          stokes_problem_nl->viscosity_compute_fn (
+          rhea_stokes_problem_viscosity_compute (
               prev_coeff, NULL, NULL, NULL,
-              temperature, weakzone, prev_vel,
-              stokes_problem_nl->viscosity_compute_fn_data);
+              temperature, weakzone, prev_vel, stokes_problem_nl);
 
           /* replace coefficient in viscous stress operator (reverted below) */
           ymir_vec_scale (2.0, prev_coeff);
@@ -1802,12 +1790,8 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
   }
 
   /* compute weak zone */
-  if (stokes_problem_nl->weakzone_compute_fn != NULL) {
-    RHEA_ASSERT (stokes_problem_nl->weakzone != NULL);
-    stokes_problem_nl->weakzone_compute_fn (
-        stokes_problem_nl->weakzone,
-        stokes_problem_nl->weakzone_compute_fn_data);
-  }
+  rhea_stokes_problem_weakzone_compute (stokes_problem_nl->weakzone,
+                                        stokes_problem_nl);
 
   /* set up Stokes operator */
   if (solver_data_exists) {
@@ -3031,12 +3015,8 @@ rhea_stokes_problem_nonlinear_update_solver (
   /* update the Stokes coefficient and dependent objects */
   if (update_coeff) {
     /* compute weak zone */
-    if (stokes_problem_nl->weakzone_compute_fn != NULL) {
-      RHEA_ASSERT (stokes_problem_nl->weakzone != NULL);
-      stokes_problem_nl->weakzone_compute_fn (
-          stokes_problem_nl->weakzone,
-          stokes_problem_nl->weakzone_compute_fn_data);
-    }
+    rhea_stokes_problem_weakzone_compute (stokes_problem_nl->weakzone,
+                                          stokes_problem_nl);
 
     /* update Stokes operator and preconditioner */
     rhea_stokes_problem_nonlinear_update_operator_fn (vel_press,
@@ -3619,27 +3599,20 @@ rhea_stokes_problem_set_weakzone_compute_fn (
                                     rhea_weakzone_compute_fn_t fn,
                                     void *data)
 {
-  /* check input */
-  RHEA_ASSERT (stokes_problem->ymir_mesh != NULL);
-
   /* set function and corresponding data */
   stokes_problem->weakzone_compute_fn = fn;
   stokes_problem->weakzone_compute_fn_data = data;
 
-  /* recompute */
-  if (stokes_problem->weakzone_compute_fn != NULL) { /* if fn. provided */
-    if (stokes_problem->weakzone == NULL) {
+  /* create or destroy weak zone vector */
+  if (NULL != stokes_problem->weakzone_compute_fn &&
+      NULL == stokes_problem->weakzone) { /* if vector does not exist */
+      RHEA_ASSERT (stokes_problem->ymir_mesh != NULL);
       stokes_problem->weakzone = rhea_weakzone_new (stokes_problem->ymir_mesh);
-    }
-    stokes_problem->weakzone_compute_fn (
-        stokes_problem->weakzone,
-        stokes_problem->weakzone_compute_fn_data);
   }
-  else { /* if no function provided */
-    if (stokes_problem->weakzone != NULL) {
+  else if (NULL == stokes_problem->weakzone_compute_fn &&
+           NULL != stokes_problem->weakzone) { /* if vector is not required */
       rhea_weakzone_destroy (stokes_problem->weakzone);
       stokes_problem->weakzone = NULL;
-    }
   }
 }
 
@@ -3748,6 +3721,45 @@ rhea_stokes_problem_set_rhs_vel_nonzero_neu_compute_fn (
       stokes_problem->rhs_vel_face_nonzero_neumann = NULL;
     }
   }
+}
+
+void
+rhea_stokes_problem_weakzone_compute (ymir_vec_t *weakzone,
+                                      rhea_stokes_problem_t *stokes_problem)
+{
+  if (NULL != stokes_problem->weakzone_compute_fn) { /* if fn. exists */
+    if (NULL != weakzone) { /* if use vector from fn. input */
+      stokes_problem->weakzone_compute_fn (
+          weakzone, stokes_problem->weakzone_compute_fn_data);
+    }
+    else if (NULL != stokes_problem->weakzone) { /* if  use internal vector */
+      stokes_problem->weakzone_compute_fn (
+          stokes_problem->weakzone, stokes_problem->weakzone_compute_fn_data);
+    }
+    else { /* unkown output vector */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
+  else if (weakzone != NULL) { /* if no fn., then set neutral value */
+    ymir_vec_set_value (weakzone, RHEA_WEAKZONE_NEUTRAL_VALUE);
+  }
+}
+
+void
+rhea_stokes_problem_viscosity_compute (ymir_vec_t *viscosity,
+                                       ymir_vec_t *proj_scal,
+                                       ymir_vec_t *bounds_marker,
+                                       ymir_vec_t *yielding_marker,
+                                       ymir_vec_t *temperature,
+                                       ymir_vec_t *weakzone,
+                                       ymir_vec_t *velocity,
+                                       rhea_stokes_problem_t *stokes_problem)
+{
+  RHEA_ASSERT (stokes_problem->viscosity_compute_fn != NULL);
+  stokes_problem->viscosity_compute_fn (
+      /* out: */ viscosity, proj_scal, bounds_marker, yielding_marker,
+      /* in:  */ temperature, weakzone, velocity,
+      stokes_problem->viscosity_compute_fn_data);
 }
 
 ymir_stokes_op_t *
