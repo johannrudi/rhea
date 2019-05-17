@@ -426,7 +426,7 @@ rhea_amr_get_global_n_elems (p4est_t *p4est)
 static int
 rhea_amr_get_level_max (p4est_t *p4est)
 {
-  MPI_Comm            mpicomm = p4est->mpicomm;
+  sc_MPI_Comm         mpicomm = p4est->mpicomm;
   int                 mpiret;
   int                 level_max_loc;
   int                 level_max_glo;
@@ -452,7 +452,7 @@ static int
 rhea_amr_get_level_histogram (p4est_t *p4est,
                               int level_histogram[P4EST_QMAXLEVEL+1])
 {
-  MPI_Comm            mpicomm = p4est->mpicomm;
+  sc_MPI_Comm         mpicomm = p4est->mpicomm;
   int                 mpiret;
   int                 level_histogram_loc[P4EST_QMAXLEVEL + 1];
   int                 l;

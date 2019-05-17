@@ -1484,10 +1484,14 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   if (strcmp (type_name, "weakzone_peclet") == 0) {
     flag_fn = rhea_stokes_problem_amr_flag_weakzone_peclet_fn;
     flag_fn_data = amr_data;
+    rhea_stokes_problem_weakzone_compute (
+        NULL /* use vector of Stokes problem */, stokes_problem);
   }
   else if (strcmp (type_name, "viscosity_peclet") == 0) {
     flag_fn = rhea_stokes_problem_amr_flag_viscosity_peclet_fn;
     flag_fn_data = amr_data;
+    rhea_stokes_problem_weakzone_compute (
+        NULL /* use vector of Stokes problem */, stokes_problem);
     rhea_stokes_problem_compute_coefficient (
         stokes_problem, NULL /* velocity_pressure */, 1 /* nl. init */);
   }
