@@ -1,40 +1,60 @@
 #!/bin/bash
 
-#SBATCH -J earth_weak100km
-#SBATCH -o earth_weak100km.o%j
-#SBATCH -e earth_weak100km.e%j
-#SBATCH -p normal
-#SBATCH -N 128            # Total number of nodes (now required)
-#SBATCH -n 4352           # Total number of mpi tasks
-#SBATCH -t 10:00:00
-#SBATCH -A TG-DPP130002
+###############################################################################
+# Submits a job to the queue of Stampede 2's KNL nodes.
+#
+# Search and replace in this script:
+#   <ALLOCATION_NAME>
+#   <EMAIL_ADDRESS>
+#   <JOB_DIRECTORY_YYYY-MM-DD>
+#
+# Create input files:
+#   input/options.ini
+#   input/solver.petsc
+#
+# Author:             Johann Rudi <jrudi@anl.gov>
+###############################################################################
+
+#SBATCH -J earth_weak100km      # Job name
+#SBATCH -o earth_weak100km.o%j  # Output to stdout of this script
+#SBATCH -e earth_weak100km.e%j  # Output to stderr of this script
+#SBATCH -p normal               # Queue name
+#SBATCH -N 128                  # Total number of nodes (required)
+#SBATCH -n 4352                 # Total number of mpi tasks
+#SBATCH -t 10:00:00             # Allocated runtime
+
+#SBATCH -A <ALLOCATION_NAME>
+#SBATCH --mail-user=<EMAIL_ADDRESS>
 #SBATCH --mail-type=ALL
-#SBATCH --mail-user=johann@ices.utexas.edu
-
-###############################################################################
-# Author:             Johann Rudi <johann@ices.utexas.edu>
-###############################################################################
 
 ########################################
-# Constants
+# Rhea Directories and File Paths
 ########################################
 
-declare -r BUILD_DIR="$HOME/build/perf/rhea"
-declare -r EXEC_RELPATH="example/earth/rhea_earth"
 declare -r CODE_DIR="$HOME/code/rhea"
+declare -r BUILD_DIR="$HOME/build/perf/rhea"
+declare -r EXEC_PATH="$BUILD_DIR/example/earth/rhea_earth"
+
+########################################
+# Job Directories and File Paths
+########################################
 
 declare -r JOB_DIR="$SCRATCH/runs/rhea/earth_weak100km_YYYY-MM-DD"
-
 declare -r BIN_DIR="$JOB_DIR/bin"
 declare -r TXT_DIR="$JOB_DIR/txt"
 declare -r VTK_DIR="$JOB_DIR/vtk"
 declare -r ALEUTIAN_DIR="$JOB_DIR/aleutian"
+declare -r OPTIONS_PATH="$JOB_DIR/input/options.ini"
+
+########################################
+# Parallel Setup
+########################################
 
 declare -r OMPSIZE=4
 
-########################################
+###############################################################################
 # Functions
-########################################
+###############################################################################
 
 function print_path_environment()
 {
@@ -78,6 +98,10 @@ function print_program_environment()
   modules=${modules##+++ }
   echo "${modules%%++*}"
 }
+
+###############################################################################
+# Job Submission
+###############################################################################
 
 ########################################
 # Set Environment
@@ -125,18 +149,15 @@ mkdir -p "$TXT_DIR"
 mkdir -p "$VTK_DIR"
 mkdir -p "$ALEUTIAN_DIR"
 
-# set execution options
-options_path="$JOB_DIR/input/options.ini"
-exec_args="-f $options_path"
-exec_path="$BUILD_DIR/$EXEC_RELPATH"
-
-echo "Launch main executable"
-
-# launch executable
-out_base="${SLURM_JOB_NAME}_${SLURM_JOB_ID}"
+# set output files
+out_base="${SLURM_JOB_NAME}_x${SLURM_JOB_ID}"
 out_log="$JOB_DIR/${out_base}.out"
 err_log="$JOB_DIR/${out_base}.err"
-#ibrun tacc_affinity $exec_path $exec_args 1>> $out_log 2>$err_log
-ibrun $exec_path $exec_args 1>> $out_log 2>$err_log
+
+# launch executable
+echo "Launch main executable"
+exec_args="-f $OPTIONS_PATH"
+#ibrun tacc_affinity $EXEC_PATH $exec_args 1>> $out_log 2>$err_log
+ibrun $EXEC_PATH $exec_args 1>> $out_log 2>$err_log
 
 echo "========================================"
