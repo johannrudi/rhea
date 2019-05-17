@@ -149,7 +149,7 @@ rhea_io_mpi_read_broadcast_double (double *values_all,
   }
 
   /* broadcast values to all processors */
-  if (n_entries <= 0) { /* if #entries is not known */
+  if (file_path_txt != NULL) { /* if #entries is unknown */
     n_entries = (int) total_size;
     mpiret = sc_MPI_Bcast (&n_entries, 1, sc_MPI_INT, 0, mpicomm);
     SC_CHECK_MPI (mpiret);
@@ -211,7 +211,7 @@ rhea_io_mpi_read_broadcast_float (float *values_all,
   }
 
   /* broadcast values to all processors */
-  if (n_entries <= 0) { /* if #entries is not known */
+  if (file_path_txt != NULL) { /* if #entries is unknown */
     n_entries = (int) total_size;
     mpiret = sc_MPI_Bcast (&n_entries, 1, sc_MPI_INT, 0, mpicomm);
     SC_CHECK_MPI (mpiret);
@@ -273,7 +273,7 @@ rhea_io_mpi_read_broadcast_int (int *values_all,
   }
 
   /* broadcast values to all processors */
-  if (n_entries <= 0) { /* if #entries is not known */
+  if (file_path_txt != NULL) { /* if #entries is unknown */
     n_entries = (int) total_size;
     mpiret = sc_MPI_Bcast (&n_entries, 1, sc_MPI_INT, 0, mpicomm);
     SC_CHECK_MPI (mpiret);
