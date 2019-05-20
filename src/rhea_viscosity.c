@@ -322,7 +322,7 @@ rhea_viscosity_surface_interpolate (ymir_vec_t *visc_surf,
 
   /* interpolate */
   ymir_interp_vec (visc_vol, visc_surf);
-  RHEA_ASSERT (rhea_viscosity_is_valid (visc_surf));
+  RHEA_ASSERT (sc_dmatrix_is_valid (visc_surf->dataown));
 
   /* restrict surface values to valid range */
   if (isfinite (visc_surf_min) && 0.0 < visc_surf_min) {
@@ -331,6 +331,9 @@ rhea_viscosity_surface_interpolate (ymir_vec_t *visc_surf,
   if (isfinite (visc_surf_max) && 0.0 < visc_surf_max) {
     ymir_vec_bound_max (visc_surf, visc_surf_max);
   }
+
+  /* check output */
+  RHEA_ASSERT (rhea_viscosity_is_valid (visc_surf));
 }
 
 /******************************************************************************
