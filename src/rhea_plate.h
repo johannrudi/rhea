@@ -101,6 +101,9 @@ rhea_plate_earth_label_t;
 /* options for plates */
 typedef struct rhea_plate_options
 {
+  /* number of polygons, each of which represents one plate */
+  int                 n_polygons;
+
   /* text files with vertices of plate polygons */
   char               *vertices_file_path_txt;
   int                 n_vertices_total;

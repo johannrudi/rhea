@@ -12,6 +12,7 @@
  *****************************************************************************/
 
 /* default options */
+#define RHEA_PLATE_DEFAULT_POLYGON_N_POLYGONS (0)
 #define RHEA_PLATE_DEFAULT_POLYGON_VERTICES_FILE_PATH_TXT NULL
 #define RHEA_PLATE_DEFAULT_POLYGON_N_VERTICES_TOTAL (0)
 #define RHEA_PLATE_DEFAULT_POLYGON_VERTICES_COARSE_FILE_PATH_TXT NULL
@@ -23,6 +24,8 @@
 #define RHEA_PLATE_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* initialize options */
+int                 rhea_plate_polygon_n_polygons =
+  RHEA_PLATE_DEFAULT_POLYGON_N_POLYGONS;
 char               *rhea_plate_polygon_vertices_file_path_txt =
   RHEA_PLATE_DEFAULT_POLYGON_VERTICES_FILE_PATH_TXT;
 int                 rhea_plate_polygon_n_vertices_total =
@@ -50,6 +53,10 @@ rhea_plate_add_options (ymir_options_t * opt_sup)
 
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
+
+  YMIR_OPTIONS_I, "num-polygons", '\0',
+    &(rhea_plate_polygon_n_polygons), RHEA_PLATE_DEFAULT_POLYGON_N_POLYGONS,
+    "Number of polygons, each of which represents one plate",
 
   YMIR_OPTIONS_S, "polygon-vertices-file-path-txt", '\0',
     &(rhea_plate_polygon_vertices_file_path_txt),
@@ -105,6 +112,32 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
   /* exit if nothing to do */
   if (opt == NULL) {
     return;
+  }
+
+  /* set number of polygons */
+  if (0 < rhea_plate_polygon_n_polygons) { /* if set from option */
+    opt->n_polygons = rhea_plate_polygon_n_polygons;
+  }
+  else { /* otherwise set to default value */
+    switch (domain_options->shape) {
+    case RHEA_DOMAIN_CUBE:
+      opt->n_polygons = RHEA_PLATE_CUBE_N;
+      break;
+    case RHEA_DOMAIN_BOX:
+      opt->n_polygons = 0;
+      break;
+    case RHEA_DOMAIN_SHELL:
+      opt->n_polygons = RHEA_PLATE_EARTH_N;
+      break;
+    case RHEA_DOMAIN_CUBE_SPHERICAL:
+      opt->n_polygons = 0;
+      break;
+    case RHEA_DOMAIN_BOX_SPHERICAL:
+      opt->n_polygons = 0;
+      break;
+    default: /* unknown domain shape */
+      RHEA_ABORT_NOT_REACHED ();
+    }
   }
 
   /* set paths to text files */
@@ -258,8 +291,8 @@ rhea_plate_process_vertices_cube (float **vertices_x,
     /* get #vertices for current plate `pid` */
     n_vert = n_vertices[pid] = (size_t) rhea_plate_polygon_get_n_vertices (
         vertices_all + 2*idx_curr, n_total);
-    RHEA_GLOBAL_VERBOSEF (" %s Polygon of plate %i has %i vertices\n",
-                          __func__, pid, (int) n_vert);
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "plate_idx=%i, n_vertices=%i",
+                                 pid, (int) n_vert);
     RHEA_ASSERT (0 < n_vert);
 
     /* set vertex coordinates */
@@ -388,10 +421,11 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  RHEA_GLOBAL_VERBOSEF (" %s west=%i, east=%i, north=%i, south=%i; "
-                        "translation_x=%g, translation_y=%g\n",
-                        __func__, 10*bin_west, 10*bin_east,
-                        bin_north, bin_south, *translation_x, *translation_y);
+  RHEA_GLOBAL_VERBOSEF_FN_TAG (
+      __func__, "west=%i, east=%i, north=%i, south=%i, "
+      "translation_x=%g, translation_y=%g",
+      10*bin_west, 10*bin_east, bin_north, bin_south,
+      *translation_x, *translation_y);
 }
 
 static void
@@ -471,6 +505,10 @@ rhea_plate_process_vertices_shell (float **vertices_x,
   int                 pid;
   float              *vert_x, *vert_y;
   size_t              n_vert, vid;
+#ifdef RHEA_ENABLE_DEBUG
+  float               vert_x_min, vert_x_max;
+  float               vert_y_min, vert_y_max;
+#endif
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "n_plates=%i, n_vertices_total=%i",
                                  n_plates, n_vertices_total);
@@ -488,13 +526,17 @@ rhea_plate_process_vertices_shell (float **vertices_x,
     /* get #vertices for current plate `pid` */
     n_vert = n_vertices[pid] = (size_t) rhea_plate_polygon_get_n_vertices (
         vertices_all + 2*idx_curr, n_total);
-    RHEA_GLOBAL_VERBOSEF (" %s Polygon of plate %i has %i vertices\n",
-                          __func__, pid, (int) n_vert);
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "plate_idx=%i, n_vertices=%i",
+                                 pid, (int) n_vert);
     RHEA_ASSERT (0 < n_vert);
 
     /* set vertex coordinates */
     vert_x = vertices_x[pid] = RHEA_ALLOC (float, n_vert);
     vert_y = vertices_y[pid] = RHEA_ALLOC (float, n_vert);
+#ifdef RHEA_ENABLE_DEBUG
+    vert_x_min = 360.0; vert_x_max = 0.0;
+    vert_y_min = 180.0; vert_y_max = 0.0;
+#endif
     for (vid = 0; vid < n_vert; vid++) {
       vert_x[vid] = vertices_all[2*(idx_curr + vid)    ];
       vert_y[vid] = vertices_all[2*(idx_curr + vid) + 1];
@@ -509,7 +551,19 @@ rhea_plate_process_vertices_shell (float **vertices_x,
                    vert_y[vid] < 180.0 + 1.0e8*SC_EPS);
       vert_x[vid] = SC_MIN (SC_MAX (0.0, vert_x[vid]), 360.0);
       vert_y[vid] = SC_MIN (SC_MAX (0.0, vert_y[vid]), 180.0);
+#ifdef RHEA_ENABLE_DEBUG
+      vert_x_min = SC_MIN (vert_x[vid], vert_x_min);
+      vert_x_max = SC_MAX (vert_x[vid], vert_x_max);
+      vert_y_min = SC_MIN (vert_y[vid], vert_y_min);
+      vert_y_max = SC_MAX (vert_y[vid], vert_y_max);
+#endif
     }
+#ifdef RHEA_ENABLE_DEBUG
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (
+        __func__, "plate_idx=%i, "
+        "vert_x_min=%g, vert_x_max=%g, vert_y_min=%g, vert_y_max=%g",
+        pid, vert_x_min, vert_x_max, vert_y_min, vert_y_max);
+#endif
 
     /* increment vertex counter */
     idx_curr += (n_vert + 1);
@@ -744,17 +798,8 @@ rhea_plate_get_n_plates (rhea_plate_options_t *opt)
     return -1;
   }
 
-  /* return number of plates */
-  switch (opt->domain_options->shape) {
-  case RHEA_DOMAIN_CUBE:            return RHEA_PLATE_CUBE_N;
-  case RHEA_DOMAIN_BOX:             return 0;
-  case RHEA_DOMAIN_SHELL:           return RHEA_PLATE_EARTH_N;
-  case RHEA_DOMAIN_CUBE_SPHERICAL:  return 0;
-  case RHEA_DOMAIN_BOX_SPHERICAL:   return 0;
-  default: /* unknown domain shape */
-    RHEA_ABORT_NOT_REACHED ();
-    return -1;
-  }
+  /* return number of polygons */
+  return opt->n_polygons;
 }
 
 /**
@@ -1427,9 +1472,9 @@ rhea_plate_velocity_generate_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
         plate_vel, opt->domain_options, opt->temp_options);
     mean_vel_magn = rhea_plate_velocity_get_mean_magnitude (
         plate_vel, pid, 0 /* !projection */, opt);
-    RHEA_GLOBAL_VERBOSEF (
-        " %s plate_label=%i, mean_velocity_magn=\"%g mm/yr\"\n",
-        __func__, pid, mean_vel_magn);
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (
+        __func__, "plate_label=%i, mean_velocity_magn=\"%g mm/yr\"",
+        pid, mean_vel_magn);
 #endif
   }
 
