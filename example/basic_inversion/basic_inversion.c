@@ -1,12 +1,8 @@
 /** BASIC_INVERSION
  *
- * TODO update comment:
- * Runs rhea's elemental solver components for incompressible Stokes systems
- * with linear and nonlinear rheologies.
- *
- ******************************************************************************
- * Author:             Johann Rudi <johann@ices.utexas.edu>
- *****************************************************************************/
+ * Runs rhea's elemental inverse problem solver for incompressible Stokes
+ * models with linear and nonlinear rheologies.
+ */
 
 #include <rhea.h>
 #include <example_share_mesh.h>
@@ -23,6 +19,7 @@ typedef enum
 {
   RHEA_MAIN_PERFMON_SETUP_MESH,
   RHEA_MAIN_PERFMON_SETUP_STOKES,
+  RHEA_MAIN_PERFMON_SETUP_SOLVER,
   RHEA_MAIN_PERFMON_SOLVE_STOKES,
   RHEA_MAIN_PERFMON_SOLVE_INVERSION,
   RHEA_MAIN_PERFMON_TOTAL,
@@ -34,6 +31,7 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 {
   "Setup Mesh",
   "Setup Stokes",
+  "Setup Stokes Solver",
   "Solve Stokes",
   "Solve Inversion",
   "Total"
@@ -113,14 +111,15 @@ main (int argc, char **argv)
   char               *vtk_solution_path;
   char               *vtk_solver_path;
   /* mesh */
-  p4est_t            *p4est;
-  ymir_mesh_t        *ymir_mesh;
-  ymir_pressure_elem_t  *press_elem;
+  p4est_t                *p4est;
+  ymir_mesh_t            *ymir_mesh;
+  ymir_pressure_elem_t   *press_elem;
   /* Stokes */
-  rhea_stokes_problem_t    *stokes_problem;
-  rhea_inversion_problem_t *inv_problem;
+  rhea_stokes_problem_t  *stokes_problem;
   ymir_vec_t         *sol_vel_press;
   int                 nonzero_inital_guess;
+  /* Inversion */
+  rhea_inversion_problem_t *inv_problem;
 
   /*
    * Initialize Program
@@ -227,7 +226,9 @@ main (int argc, char **argv)
    */
 
   /* setup Stokes solver */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_SOLVER);
   rhea_stokes_problem_setup_solver (stokes_problem);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_SOLVER);
 
   /* initialize solution vector */
   sol_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
@@ -237,7 +238,7 @@ main (int argc, char **argv)
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_STOKES);
   rhea_stokes_problem_solve (&sol_vel_press, nonzero_inital_guess,
                              solver_iter_max, solver_rel_tol, stokes_problem);
-  rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_STOKES);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SOLVE_STOKES);
 
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
