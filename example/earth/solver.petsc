@@ -197,7 +197,7 @@
   ### KSP type
   -schur_ksp_type preonly
 
-  ### KSP tolerances
+  ### Schur KSP tolerances
   -schur_ksp_max_it 1
   -schur_ksp_norm_type none
 
@@ -211,7 +211,7 @@
   ### KSP type
   -schur_stress_ksp_type preonly
 
-  ### KSP tolerances
+  ### Schur KSP tolerances
   -schur_stress_ksp_max_it 1
   -schur_stress_ksp_norm_type none
 
