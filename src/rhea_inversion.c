@@ -346,6 +346,9 @@ rhea_inversion_set_weight_prior (rhea_inversion_problem_t *inv_problem)
  * State Solvers
  *****************************************************************************/
 
+static char        *rhea_inversion_inner_solve_stats_cat (const char *a,
+                                                          const char *b);
+
 /**
  * Writes statistics of forward and adjoint solves.
  */
@@ -358,21 +361,27 @@ rhea_inversion_fwd_adj_solve_stats_write (rhea_inversion_problem_t *inv_problem,
 {
   const int           stats_idx = inv_problem->fwd_adj_solve_stats_current_idx;
   char               *stats;
+  char                append[64];
 
   /* check input */
   RHEA_ASSERT (0 <= stats_idx);
 
-  /* write text */
-  stats = inv_problem->fwd_adj_solve_stats[stats_idx];
+  /* create text */
   if (!is_adjoint_solve) {
-    snprintf (stats, BUFSIZ, "%sfwd=(%d, %3d, %.2e) ",
-              stats, stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "fwd=(%d, %3d, %.2e) ",
+              stop_reason, num_iterations, residual_reduction);
   }
   else {
-    snprintf (stats, BUFSIZ, "%sadj=(%d, %3d, %.2e)",
-              stats, stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "adj=(%d, %3d, %.2e)",
+              stop_reason, num_iterations, residual_reduction);
     inv_problem->fwd_adj_solve_stats_current_idx++;
   }
+
+  /* append text */
+  stats = inv_problem->fwd_adj_solve_stats[stats_idx];
+  inv_problem->fwd_adj_solve_stats[stats_idx] =
+    rhea_inversion_inner_solve_stats_cat (stats, append);
+  RHEA_FREE (stats);
 
   /* update total values */
   inv_problem->fwd_adj_solve_stats_total_stop_reason[is_adjoint_solve] =
@@ -471,20 +480,26 @@ rhea_inversion_ifwd_iadj_solve_stats_write (
   const int           stats_idx =
                         inv_problem->ifwd_iadj_solve_stats_current_idx;
   char               *stats;
+  char                append[64];
 
   /* check input */
   RHEA_ASSERT (0 <= stats_idx);
 
-  /* write text */
-  stats = inv_problem->ifwd_iadj_solve_stats[stats_idx];
+  /* create text */
   if (!is_adjoint_solve) {
-    snprintf (stats, BUFSIZ, "%s(%d, %3d, %.2e) ",
-              stats, stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "(%d, %3d, %.2e) ",
+              stop_reason, num_iterations, residual_reduction);
   }
   else {
-    snprintf (stats, BUFSIZ, "%s(%d, %3d, %.2e); ",
-              stats, stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "(%d, %3d, %.2e); ",
+              stop_reason, num_iterations, residual_reduction);
   }
+
+  /* append text */
+  stats = inv_problem->ifwd_iadj_solve_stats[stats_idx];
+  inv_problem->ifwd_iadj_solve_stats[stats_idx] =
+    rhea_inversion_inner_solve_stats_cat (stats, append);
+  RHEA_FREE (stats);
 
   /* update total values */
   inv_problem->ifwd_iadj_solve_stats_total_stop_reason[is_adjoint_solve] =
@@ -1406,8 +1421,7 @@ rhea_inversion_inner_solve_stats_create (rhea_inversion_problem_t *inv_problem,
   /* create text storage for forward and adjoint solves */
   inv_problem->fwd_adj_solve_stats = RHEA_ALLOC (char *, max_num_iterations);
   for (k = 0; k < max_num_iterations; k++) {
-    inv_problem->fwd_adj_solve_stats[k] = RHEA_ALLOC (char, BUFSIZ);
-    snprintf (inv_problem->fwd_adj_solve_stats[k], BUFSIZ, "");
+    inv_problem->fwd_adj_solve_stats[k] = NULL;
   }
   inv_problem->fwd_adj_solve_stats_length = max_num_iterations;
   inv_problem->fwd_adj_solve_stats_current_idx = 0;
@@ -1415,8 +1429,7 @@ rhea_inversion_inner_solve_stats_create (rhea_inversion_problem_t *inv_problem,
   /* create text storage for incremental forward and adjoint solves */
   inv_problem->ifwd_iadj_solve_stats = RHEA_ALLOC (char *, max_num_iterations);
   for (k = 0; k < max_num_iterations; k++) {
-    inv_problem->ifwd_iadj_solve_stats[k] = RHEA_ALLOC (char, BUFSIZ);
-    snprintf (inv_problem->ifwd_iadj_solve_stats[k], BUFSIZ, "");
+    inv_problem->ifwd_iadj_solve_stats[k] = NULL;
   }
   inv_problem->ifwd_iadj_solve_stats_length = max_num_iterations;
   inv_problem->ifwd_iadj_solve_stats_current_idx = -1;
@@ -1442,15 +1455,45 @@ rhea_inversion_inner_solve_stats_clear (rhea_inversion_problem_t *inv_problem)
 
   /* destroy text storage of forward and adjoint solves */
   for (k = 0; k < inv_problem->fwd_adj_solve_stats_length; k++) {
-    RHEA_FREE (inv_problem->fwd_adj_solve_stats[k]);
+    if (NULL != inv_problem->fwd_adj_solve_stats[k]) {
+      RHEA_FREE (inv_problem->fwd_adj_solve_stats[k]);
+    }
   }
   RHEA_FREE (inv_problem->fwd_adj_solve_stats);
 
   /* destroy text storage of incremental forward and adjoint solves */
   for (k = 0; k < inv_problem->ifwd_iadj_solve_stats_length; k++) {
-    RHEA_FREE (inv_problem->ifwd_iadj_solve_stats[k]);
+    if (NULL != inv_problem->ifwd_iadj_solve_stats[k]) {
+      RHEA_FREE (inv_problem->ifwd_iadj_solve_stats[k]);
+    }
   }
   RHEA_FREE (inv_problem->ifwd_iadj_solve_stats);
+}
+
+/**
+ * Concatenates two strings.
+ */
+static char *
+rhea_inversion_inner_solve_stats_cat (const char *a, const char *b)
+{
+  size_t              length;
+  char               *cat;
+
+  /* create string to store contatenation */
+  length = 1 + (NULL != a ? strlen(a) : 0) + (NULL != b ? strlen(b) : 0);
+  cat = RHEA_ALLOC (char, length);
+  cat[0] = '\0';
+
+  /* append strings */
+  if (NULL != a) {
+    strcat(cat, a);
+  }
+  if (NULL != b) {
+    strcat(cat, b);
+  }
+
+  /* return concatenation */
+  return cat;
 }
 
 /**
@@ -1469,6 +1512,7 @@ rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
     RHEA_GLOBAL_INFO ("Inversion summary: forward & adjoint solves\n");
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
     for (k = 0; k < stats_count; k++) {
+      RHEA_ASSERT (NULL != inv_problem->fwd_adj_solve_stats[k]);
       RHEA_GLOBAL_INFOF ("%3d; %s\n", k, inv_problem->fwd_adj_solve_stats[k]);
     }
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
@@ -1489,6 +1533,7 @@ rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
                       "incremental forward & adjoint solves\n");
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
     for (k = 0; k < stats_count; k++) {
+      RHEA_ASSERT (NULL != inv_problem->ifwd_iadj_solve_stats[k]);
       RHEA_GLOBAL_INFOF ("%3d; %s\n", k, inv_problem->ifwd_iadj_solve_stats[k]);
     }
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
