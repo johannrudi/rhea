@@ -1563,7 +1563,8 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   /* initialize inverse problem */
   inv_problem = RHEA_ALLOC (rhea_inversion_problem_t, 1);
   inv_problem->stokes_problem = stokes_problem;
-  inv_problem->vel_obs_type = rhea_inversion_vel_obs_type;
+  inv_problem->vel_obs_type =
+    (rhea_inversion_obs_velocity_t) rhea_inversion_vel_obs_type;
   inv_problem->vel_obs_surf = NULL;
   inv_problem->vel_obs_weight_surf = NULL;
   inv_problem->forward_vel_press = NULL;
