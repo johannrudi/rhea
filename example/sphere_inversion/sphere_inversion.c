@@ -10,6 +10,7 @@
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
 #include <ymir_comm.h>
+#include <ymir_velocity_vec.h>
 
 /******************************************************************************
  * Monitoring
@@ -46,7 +47,8 @@ static void
 sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                      ymir_vec_t *sol_vel_press,
                                      const double vel_obs_add_noise_stddev,
-                                     rhea_stokes_problem_t *stokes_problem)
+                                     rhea_stokes_problem_t *stokes_problem,
+                                     rhea_domain_options_t *domain_options)
 {
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
@@ -69,6 +71,9 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   /* project velocity from volume to surface */
   vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
   rhea_velocity_surface_interpolate (vel_obs_surf, vel_sol);
+  ymir_velocity_vec_project_out_mean_rotation (
+      vel_obs_surf, domain_options->center,
+      domain_options->moment_of_inertia_surface, 0 /* !residual_space */);
 
   /* run solver */
   rhea_inversion_solve_with_vel_obs (
@@ -256,7 +261,7 @@ main (int argc, char **argv)
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
   sphere_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
                                        vel_obs_add_noise_stddev,
-                                       stokes_problem);
+                                       stokes_problem, &domain_options);
   rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
 
   /* destroy */
