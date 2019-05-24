@@ -372,9 +372,8 @@ rhea_inversion_fwd_adj_solve_stats_write (rhea_inversion_problem_t *inv_problem,
               stop_reason, num_iterations, residual_reduction);
   }
   else {
-    snprintf (append, 64, "adj=(%d, %3d, %.2e)",
+    snprintf (append, 64, "adj=(%d, %3d, %.2e); ",
               stop_reason, num_iterations, residual_reduction);
-    inv_problem->fwd_adj_solve_stats_current_idx++;
   }
 
   /* append text */
@@ -839,9 +838,6 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
   /* check input */
   RHEA_ASSERT (!rhea_inversion_assemble_hessian ||
                inv_problem->hessian_matrix != NULL);
-
-  /* increment index for statistics of incr forward and adjoint solves */
-  inv_problem->ifwd_iadj_solve_stats_current_idx++;
 
   /* exit if nothing to do */
   if (!rhea_inversion_assemble_hessian) {
@@ -1372,6 +1368,10 @@ rhea_inversion_newton_solve_hessian_system_fn (
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (step, inv_param));
 
+  /* increment index for statistics of inner solves */
+  inv_problem->fwd_adj_solve_stats_current_idx++;
+  inv_problem->ifwd_iadj_solve_stats_current_idx++;
+
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_SOLVE]);
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
@@ -1432,7 +1432,7 @@ rhea_inversion_inner_solve_stats_create (rhea_inversion_problem_t *inv_problem,
     inv_problem->ifwd_iadj_solve_stats[k] = NULL;
   }
   inv_problem->ifwd_iadj_solve_stats_length = max_num_iterations;
-  inv_problem->ifwd_iadj_solve_stats_current_idx = -1;
+  inv_problem->ifwd_iadj_solve_stats_current_idx = 0;
 
   /* init total values */
   inv_problem->fwd_adj_solve_stats_total_stop_reason[0] = 1;
@@ -1505,7 +1505,7 @@ rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
   int                 stats_count, k;
 
   /* print statistics of forward and adjoint solves */
-  stats_count = inv_problem->fwd_adj_solve_stats_current_idx;
+  stats_count = inv_problem->fwd_adj_solve_stats_current_idx + 1;
   RHEA_ASSERT (stats_count <= inv_problem->fwd_adj_solve_stats_length);
   if (0 < stats_count) {
     RHEA_GLOBAL_INFO ("========================================\n");
@@ -1525,7 +1525,7 @@ rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
   }
 
   /* print statistics of incremental forward and adjoint solves */
-  stats_count = inv_problem->ifwd_iadj_solve_stats_current_idx + 1;
+  stats_count = inv_problem->ifwd_iadj_solve_stats_current_idx;
   RHEA_ASSERT (stats_count <= inv_problem->ifwd_iadj_solve_stats_length);
   if (0 < stats_count) {
     RHEA_GLOBAL_INFO ("========================================\n");
