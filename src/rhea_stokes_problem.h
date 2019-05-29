@@ -318,6 +318,7 @@ int                 rhea_stokes_problem_velocity_compute_mean_rotation (
  */
 int                 rhea_stokes_problem_velocity_project_out_mean_rotation (
                                         ymir_vec_t *velocity,
+                                        const int residual_space,
                                         rhea_stokes_problem_t *stokes_problem);
 
 /**

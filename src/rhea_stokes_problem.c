@@ -3876,6 +3876,7 @@ rhea_stokes_problem_velocity_compute_mean_rotation (
 int
 rhea_stokes_problem_velocity_project_out_mean_rotation (
                                         ymir_vec_t *velocity,
+                                        const int residual_space,
                                         rhea_stokes_problem_t *stokes_problem)
 {
   ymir_stress_op_t   *stress_op;
@@ -3888,7 +3889,8 @@ rhea_stokes_problem_velocity_project_out_mean_rotation (
   case RHEA_DOMAIN_SHELL:
     RHEA_ASSERT (stokes_problem->stokes_op != NULL);
     stress_op = stokes_problem->stokes_op->stress_op;
-    ymir_stress_op_project_out_mean_rotation (velocity, stress_op, 0);
+    ymir_stress_op_project_out_mean_rotation (velocity, stress_op,
+                                              residual_space);
     return 1;
   default: /* no mean rotation */
     return 0;
@@ -3916,7 +3918,7 @@ rhea_stokes_problem_project_out_nullspace (
 
   /* project out null spaces */
   proj_vel_rot = rhea_stokes_problem_velocity_project_out_mean_rotation (
-      velocity, stokes_problem);
+      velocity, 0 /* !residual_space */, stokes_problem);
   proj_press_mean = rhea_pressure_project_out_mean (pressure, press_elem);
 
   /* set fields */
