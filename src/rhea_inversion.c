@@ -1059,9 +1059,11 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       rhea_stokes_problem_get_domain_options (stokes_problem));
   ymir_vec_scale (obs_misfit_weight, rhs_vel_mass);
 
-  /* enforce Dirichlet BC's on right-hand side */
-  rhea_stokes_problem_velocity_boundary_set_zero (rhs_vel_mass,
-                                                  stokes_problem);
+  /* project out null spaces and enforce Dirichlet BC's on right-hand side */
+  rhea_stokes_problem_velocity_project_out_mean_rotation (
+      rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+  rhea_stokes_problem_velocity_boundary_set_zero (
+      rhs_vel_mass, stokes_problem);
 
   /* set Stokes right-hand side for the adjoint problem */
   ymir_vec_set_zero (rhs_vel_press);
@@ -1164,9 +1166,11 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
     rhea_inversion_param_incremental_forward_rhs (
         rhs_vel_mass, param_vec_in, inv_problem->forward_vel_press, inv_param);
 
-    /* enforce Dirichlet BC's on right-hand side */
-    rhea_stokes_problem_velocity_boundary_set_zero (rhs_vel_mass,
-                                                    stokes_problem);
+    /* project out null spaces and enforce Dirichlet BC's on right-hand side */
+    rhea_stokes_problem_velocity_project_out_mean_rotation (
+        rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+    rhea_stokes_problem_velocity_boundary_set_zero (
+        rhs_vel_mass, stokes_problem);
 
     /* set Stokes right-hand side for the incremental forward problem */
     ymir_vec_set_zero (rhs_vel_press);
@@ -1207,9 +1211,11 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
       RHEA_ABORT_NOT_REACHED (); //TODO
     }
 
-    /* enforce Dirichlet BC's on right-hand side */
-    rhea_stokes_problem_velocity_boundary_set_zero (rhs_vel_mass,
-                                                    stokes_problem);
+    /* project out null spaces and enforce Dirichlet BC's on right-hand side */
+    rhea_stokes_problem_velocity_project_out_mean_rotation (
+        rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+    rhea_stokes_problem_velocity_boundary_set_zero (
+        rhs_vel_mass, stokes_problem);
 
     /* set Stokes right-hand side for incremental adjoint problem */
     ymir_vec_set_zero (rhs_vel_press);
