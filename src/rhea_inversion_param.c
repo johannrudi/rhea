@@ -1083,7 +1083,7 @@ rhea_inversion_param_get_derivative_type (
   case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE:
   case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE:
     RHEA_ABORT_NOT_REACHED (); //TODO
-    return -1;
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
 
   case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST:
     return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST;
@@ -1091,7 +1091,7 @@ rhea_inversion_param_get_derivative_type (
   case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE:
   case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE:
     RHEA_ABORT_NOT_REACHED (); //TODO
-    return -1;
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
 
   case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR:
     return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR;
@@ -1099,7 +1099,7 @@ rhea_inversion_param_get_derivative_type (
   case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE:
   case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE:
     RHEA_ABORT_NOT_REACHED (); //TODO
-    return -1;
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
 
   default:
     break;
@@ -1112,12 +1112,12 @@ rhea_inversion_param_get_derivative_type (
           RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
   if (offset <= param_idx && param_idx < offset + total) {
     RHEA_ABORT_NOT_REACHED (); //TODO
-    return -1;
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
   }
 
   /* unknown derivative type */
   RHEA_ABORT_NOT_REACHED ();
-  return -1;
+  return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
 }
 
 void
@@ -1447,11 +1447,13 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   ymir_vec_set_zero (gradient_vec);
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
+      const rhea_inversion_param_idx_t idx = (rhea_inversion_param_idx_t) i;
+
       RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "param_idx=%i", i);
 
       /* compute parameter derivative of viscosity */
       rhea_viscosity_param_derivative (
-          derivative, rhea_inversion_param_get_derivative_type (i),
+          derivative, rhea_inversion_param_get_derivative_type (idx),
           viscosity, bounds_marker, yielding_marker, temperature, weakzone,
           forward_vel, inv_param->weak_options, inv_param->visc_options);
 
@@ -1602,9 +1604,11 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
   ymir_vec_set_zero (rhs_vel_mass);
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i] && 0.0 < fabs (grad_dir[i])) {
+      const rhea_inversion_param_idx_t idx = (rhea_inversion_param_idx_t) i;
+
       /* compute parameter derivative of viscosity */
       rhea_viscosity_param_derivative (
-          derivative, rhea_inversion_param_get_derivative_type (i),
+          derivative, rhea_inversion_param_get_derivative_type (idx),
           viscosity, bounds_marker, yielding_marker, temperature, weakzone,
           forward_vel, inv_param->weak_options, inv_param->visc_options);
 
