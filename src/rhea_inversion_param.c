@@ -1447,6 +1447,8 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   ymir_vec_set_zero (gradient_vec);
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
+      RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "param_idx=%i", i);
+
       /* compute parameter derivative of viscosity */
       rhea_viscosity_param_derivative (
           derivative, rhea_inversion_param_get_derivative_type (i),
