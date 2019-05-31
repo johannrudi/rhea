@@ -42,7 +42,7 @@ typedef struct rhea_inversion_param_options
   int                 weak_factor_interior_earth_ridge_a;
   int                 weak_factor_interior_earth_fracture_a;
 
-  /* mean of Gaussian prior for viscosity parameters */
+  /* mean of Gaussian prior */
   double              prior_mean_perturb_stddev;
 
   /* standard deviation of Gaussian prior for viscosity parameters */
@@ -71,6 +71,9 @@ typedef struct rhea_inversion_param_options
   double              prior_stddev_weak_factor_interior_earth_slab;
   double              prior_stddev_weak_factor_interior_earth_ridge;
   double              prior_stddev_weak_factor_interior_earth_fracture;
+
+  /* initial guess */
+  double              initial_guess_perturb_stddev;
 }
 rhea_inversion_param_options_t;
 
@@ -140,9 +143,13 @@ void                rhea_inversion_param_push_to_model (
 /**
  * Sets the inversion parameters to initial values.
  */
-void                rhea_inversion_param_set_initial (
-                                            ymir_vec_t *parameter_vec,
-                                            rhea_inversion_param_t *inv_param);
+void                rhea_inversion_param_set_initial_from_model (
+                                          ymir_vec_t *parameter_vec,
+                                          rhea_inversion_param_t *inv_param,
+                                          rhea_inversion_param_options_t *opt);
+void                rhea_inversion_param_set_initial_from_prior (
+                                          ymir_vec_t *parameter_vec,
+                                          rhea_inversion_param_t *inv_param);
 
 /**
  * Converts between model values and their corresponding inversion parameters
@@ -238,6 +245,9 @@ void                rhea_inversion_param_apply_hessian (
  */
 ymir_vec_t         *rhea_inversion_param_vec_new (
                                             rhea_inversion_param_t *inv_param);
+ymir_vec_t         *rhea_inversion_param_vec_new_perturb (
+                                            rhea_inversion_param_t *inv_param,
+                                            const double perturb_stddev);
 
 void                rhea_inversion_param_vec_destroy (ymir_vec_t *vec);
 

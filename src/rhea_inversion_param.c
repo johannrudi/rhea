@@ -20,6 +20,7 @@
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_ARRHENIUS_ACTIVATION_ENERGY 2.3
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_STRESS_EXPONENT 2.3
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_YIELD_STRENGTH 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV NAN
 
 /* global options */
 rhea_inversion_param_options_t rhea_inversion_param_options_global;
@@ -145,14 +146,12 @@ rhea_inversion_param_add_options (
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone factor of earth's fractures",
 
-  /****** Prior: Mean of Gaussian ******/
+  /****** Prior ******/
 
   YMIR_OPTIONS_D, "prior-mean-perturbation-stddev", '\0',
     &(inv_param_opt->prior_mean_perturb_stddev),
     RHEA_INVERSION_PARAM_DEFAULT_PRMN_PERTURB_STDDEV,
     "Prior mean: standard deviation for perturbations of mean",
-
-  /****** Prior: Standard Deviation of Gaussian ******/
 
   YMIR_OPTIONS_D, "prior-stddev-min", '\0',
     &(inv_param_opt->prior_stddev_min),
@@ -188,6 +187,13 @@ rhea_inversion_param_add_options (
     &(inv_param_opt->prior_stddev_yield_strength),
     RHEA_INVERSION_PARAM_DEFAULT_PRSD_YIELD_STRENGTH,
     "Prior std dev: plastic yielding",
+
+  /****** Initial Guess ******/
+
+  YMIR_OPTIONS_D, "initial-guess-perturbation-stddev", '\0',
+    &(inv_param_opt->initial_guess_perturb_stddev),
+    RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV,
+    "Initial guess: standard deviation for perturbations",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -1011,8 +1017,32 @@ rhea_inversion_param_push_to_model (ymir_vec_t *parameter_vec,
 }
 
 void
-rhea_inversion_param_set_initial (ymir_vec_t *parameter_vec,
-                                  rhea_inversion_param_t *inv_param)
+rhea_inversion_param_set_initial_from_model (
+                                          ymir_vec_t *parameter_vec,
+                                          rhea_inversion_param_t *inv_param,
+                                          rhea_inversion_param_options_t *opt)
+{
+  const double        perturb_stddev = opt->initial_guess_perturb_stddev;
+
+  /* get values from model parameters */
+  rhea_inversion_param_pull_from_model (parameter_vec, inv_param);
+
+  /* apply perturbation */
+  if (isfinite (perturb_stddev) && 0.0 < fabs (perturb_stddev)) {
+    ymir_vec_t         *perturb;
+
+    perturb = rhea_inversion_param_vec_new_perturb (inv_param, perturb_stddev);
+    ymir_vec_multiply_in (perturb, parameter_vec);
+    rhea_inversion_param_vec_destroy (perturb);
+  }
+
+  /* check output */
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+}
+
+void
+rhea_inversion_param_set_initial_from_prior (ymir_vec_t *parameter_vec,
+                                             rhea_inversion_param_t *inv_param)
 {
   RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "n_active=%i", inv_param->n_active);
 
@@ -1172,22 +1202,13 @@ rhea_inversion_param_print (ymir_vec_t *parameter_vec,
  * Perturbs the mean of prior multiplicatively.
  */
 static void
-rhea_inversion_param_prior_perturb_mean (const double perturb_stddev,
-                                         rhea_inversion_param_t *inv_param)
+rhea_inversion_param_prior_perturb_mean (rhea_inversion_param_t *inv_param,
+                                         const double perturb_stddev)
 {
-  ymir_mesh_t        *ymir_mesh =
-    rhea_stokes_problem_get_ymir_mesh (inv_param->stokes_problem);
-  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
   ymir_vec_t         *perturb;
 
   /* create perturbation vector */
-  perturb = rhea_inversion_param_vec_new (inv_param);
-
-  /* set random perturbations */
-  ymir_vec_set_random_normal (perturb, fabs (perturb_stddev), 0.0 /* mean */);
-  ymir_vec_shift (1.0, perturb);
-  ymir_vec_bound_min (perturb, SC_1000_EPS);
-  ymir_vec_meshfree_sync (perturb, 0 /* mpirank_master */, mpicomm);
+  perturb = rhea_inversion_param_vec_new_perturb (inv_param, perturb_stddev);
 
   /* print perturbation */
 #ifdef RHEA_ENABLE_DEBUG
@@ -1221,7 +1242,7 @@ rhea_inversion_param_prior_get_mean (ymir_vec_t *prior_mean_vec,
 
   /* perturb mean */
   if (isfinite (perturb_stddev) && 0.0 < fabs (perturb_stddev)) {
-    rhea_inversion_param_prior_perturb_mean (perturb_stddev, inv_param);
+    rhea_inversion_param_prior_perturb_mean (inv_param, perturb_stddev);
   }
 
   /* print mean */
@@ -1722,6 +1743,28 @@ ymir_vec_t *
 rhea_inversion_param_vec_new (rhea_inversion_param_t *inv_param)
 {
   return ymir_vec_new_meshfree (inv_param->n_parameters);
+}
+
+ymir_vec_t *
+rhea_inversion_param_vec_new_perturb (rhea_inversion_param_t *inv_param,
+                                      const double perturb_stddev)
+{
+  ymir_mesh_t        *ymir_mesh =
+    rhea_stokes_problem_get_ymir_mesh (inv_param->stokes_problem);
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  ymir_vec_t         *perturb = rhea_inversion_param_vec_new (inv_param);
+
+  /* set random values; add one */
+  ymir_vec_set_random_normal (perturb, fabs (perturb_stddev), 0.0 /* mean */);
+  ymir_vec_shift (1.0, perturb);
+
+  /* bound from below to a value greater zero */
+  ymir_vec_bound_min (perturb, SC_1000_EPS);
+
+  /* sync values across all processors */
+  ymir_vec_meshfree_sync (perturb, 0 /* mpirank_master */, mpicomm);
+
+  return perturb;
 }
 
 void
