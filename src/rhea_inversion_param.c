@@ -1036,6 +1036,15 @@ rhea_inversion_param_set_initial_from_model (
     rhea_inversion_param_vec_destroy (perturb);
   }
 
+  /* print parameters */
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  rhea_inversion_param_vec_print (parameter_vec, inv_param);
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+#endif
+
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
 }
@@ -1075,6 +1084,15 @@ rhea_inversion_param_set_initial_from_prior (ymir_vec_t *parameter_vec,
 
   /* shift parameters with respect to their prior mean values */
   ymir_vec_add (1.0, inv_param->prior_mean, parameter_vec);
+
+  /* print parameters */
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  rhea_inversion_param_vec_print (parameter_vec, inv_param);
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+#endif
 
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
