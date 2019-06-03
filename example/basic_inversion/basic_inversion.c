@@ -71,7 +71,7 @@ basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
   /* run solver */
   rhea_inversion_solve_with_vel_obs (
-      inv_problem, 0 /* no initial guess */,
+      inv_problem, 0 /* no initial guess */, NULL /* no parameter vector */,
       vel_obs_surf, vel_obs_weight_surf, vel_obs_add_noise_stddev);
 
   /* destroy */
