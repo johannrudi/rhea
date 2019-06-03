@@ -1691,35 +1691,42 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
 
 void
 rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
-                      const int use_initial_guess)
+                      const int use_initial_guess,
+                      ymir_vec_t *inv_parameter_vec)
 {
   rhea_inversion_param_t *inv_param = inv_problem->inv_param;
   rhea_newton_options_t *newton_options = inv_problem->newton_options;
   rhea_newton_problem_t *newton_problem = inv_problem->newton_problem;
-  ymir_vec_t         *sol_parameter_vec;
+  ymir_vec_t         *parameter_vec;
 
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (__func__, "use_initial_guess=%i",
                                     use_initial_guess);
 
   /* create vector for inversion parameters */
-  sol_parameter_vec = rhea_inversion_param_vec_new (inv_param);
-  if (use_initial_guess) {
+  parameter_vec = rhea_inversion_param_vec_new (inv_param);
+  if (use_initial_guess && inv_parameter_vec != NULL) {
+    ymir_vec_copy (inv_parameter_vec, parameter_vec);
+  }
+  else if (use_initial_guess) {
     rhea_inversion_param_set_initial_from_model (
-        sol_parameter_vec, inv_param, inv_problem->inv_param_options);
+        parameter_vec, inv_param, inv_problem->inv_param_options);
   }
   else {
-    rhea_inversion_param_set_initial_from_prior (sol_parameter_vec, inv_param);
+    rhea_inversion_param_set_initial_from_prior (parameter_vec, inv_param);
   }
 
   /* run Newton solver */
   newton_options->nonzero_initial_guess = 1;
-  rhea_newton_solve (&sol_parameter_vec, newton_problem, newton_options);
+  rhea_newton_solve (&parameter_vec, newton_problem, newton_options);
 
   /* print inner solver statistics */
   rhea_inversion_inner_solve_stats_print (inv_problem);
 
   /* destroy */
-  rhea_inversion_param_vec_destroy (sol_parameter_vec);
+  if (inv_parameter_vec != NULL) {
+    ymir_vec_copy (parameter_vec, inv_parameter_vec);
+  }
+  rhea_inversion_param_vec_destroy (parameter_vec);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
@@ -1727,6 +1734,7 @@ rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
 void
 rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                    const int use_initial_guess,
+                                   ymir_vec_t *inv_parameter_vec,
                                    ymir_vec_t *vel_obs_surf,
                                    ymir_vec_t *vel_obs_weight_surf,
                                    const double vel_obs_add_noise_stddev)
@@ -1739,7 +1747,10 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
   /* create solver data */
   parameter_vec = rhea_inversion_param_vec_new (inv_param);
-  if (use_initial_guess) {
+  if (use_initial_guess && inv_parameter_vec != NULL) {
+    ymir_vec_copy (inv_parameter_vec, parameter_vec);
+  }
+  else if (use_initial_guess) {
     rhea_inversion_param_set_initial_from_model (
         parameter_vec, inv_param, inv_problem->inv_param_options);
   }
@@ -1747,7 +1758,6 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
     rhea_inversion_param_set_initial_from_prior (parameter_vec, inv_param);
   }
   rhea_inversion_newton_create_solver_data_fn (parameter_vec, inv_problem);
-  rhea_inversion_param_vec_destroy (parameter_vec);
 
   /* check given velocity observations */
   RHEA_ASSERT (vel_obs_surf != NULL);
@@ -1814,7 +1824,13 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   RHEA_ASSERT (rhea_velocity_surface_is_valid (inv_problem->vel_obs_surf));
 
   /* run solver */
-  rhea_inversion_solve (inv_problem, 1 /* use_initial_guess */);
+  rhea_inversion_solve (inv_problem, 1 /* use_initial_guess */, parameter_vec);
+
+  /* destroy */
+  if (inv_parameter_vec != NULL) {
+    ymir_vec_copy (parameter_vec, inv_parameter_vec);
+  }
+  rhea_inversion_param_vec_destroy (parameter_vec);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 }
