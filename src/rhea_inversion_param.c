@@ -1443,6 +1443,15 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   const int          *active = inv_param->active;
   double             *grad = gradient_vec->meshfree->e[0];
   int                 i;
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_vec_t         *grad_vec_adj = rhea_inversion_param_vec_new (inv_param);
+  ymir_vec_t         *grad_vec_prior = rhea_inversion_param_vec_new (inv_param);
+  double             *grad_adj = grad_vec_adj->meshfree->e[0];
+  double             *grad_prior = grad_vec_prior->meshfree->e[0];
+
+  ymir_vec_set_zero (grad_vec_adj);
+  ymir_vec_set_zero (grad_vec_prior);
+#endif
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient_vec, inv_param));
@@ -1508,6 +1517,9 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
 
       /* compute inner product with adjoint velocity */
       grad[i] = ymir_vec_innerprod (op_out_vel, adjoint_vel);
+#ifdef RHEA_ENABLE_DEBUG
+      grad_adj[i] = grad[i];
+#endif
     }
   }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient_vec, inv_param));
@@ -1532,6 +1544,9 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
       if (active[i]) {
         RHEA_ASSERT (isfinite (misfit[i]));
         grad[i] += prior_weight * icov[i] * misfit[i];
+#ifdef RHEA_ENABLE_DEBUG
+        grad_prior[i] = grad[i] - grad_adj[i];
+#endif
       }
     }
 
@@ -1540,6 +1555,22 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
     rhea_inversion_param_vec_destroy (prior_icov);
   }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient_vec, inv_param));
+
+  /* print gradient */
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  for (i = 0; i < n_parameters; i++) {
+    if (active[i]) {
+      RHEA_GLOBAL_VERBOSEF ("param# %3i: %.6e [%.6e, %.6e]\n", i,
+                            grad[i], grad_adj[i], grad_prior[i]);
+    }
+  }
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  rhea_inversion_param_vec_destroy (grad_vec_adj);
+  rhea_inversion_param_vec_destroy (grad_vec_prior);
+#endif
 
   /* destroy */
   ymir_stress_op_destroy (stress_op);
