@@ -85,11 +85,7 @@ rhea_inversion_obs_velocity_remove_tangential (ymir_vec_t * vel_surf)
       vel_surf, rhea_inversion_obs_velocity_remove_tangential_fn, NULL);
 }
 
-/**
- * Compute the misfit of the velocity at the surface:
- *   ObsOp(vel) - vel_obs
- */
-static void
+void
 rhea_inversion_obs_velocity_misfit_vec (
                                   ymir_vec_t *misfit_surf,
                                   ymir_vec_t *vel_fwd_vol,

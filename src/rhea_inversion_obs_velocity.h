@@ -20,6 +20,18 @@ typedef enum
 rhea_inversion_obs_velocity_t;
 
 /**
+ * Compute the misfit of the velocity at the surface:
+ *   ObsOp(vel) - vel_obs
+ */
+void                rhea_inversion_obs_velocity_misfit_vec (
+                                  ymir_vec_t *misfit_surf,
+                                  ymir_vec_t *vel_fwd_vol,
+                                  ymir_vec_t *vel_obs_surf,
+                                  ymir_vec_t *weight_surf,
+                                  const rhea_inversion_obs_velocity_t obs_type,
+                                  rhea_domain_options_t *domain_options);
+
+/**
  * Computes the (squared norm of the) misfit of velocities at the surface.
  */
 double              rhea_inversion_obs_velocity_misfit (
