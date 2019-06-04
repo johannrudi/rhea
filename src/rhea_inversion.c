@@ -5,6 +5,7 @@
 #include <rhea_newton.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
+#include <rhea_vtk.h>
 #include <ymir_perf_counter.h>
 
 #define RHEA_INVERSION_VTK (0)
@@ -12,6 +13,9 @@
 #if (0 < RHEA_INVERSION_VTK)
 # include <ymir_vtk.h>
 #endif
+
+/* I/O labels that are attached at the end of file names */
+#define RHEA_INVERSION_IO_LABEL_NL_ITER "_itn"
 
 /******************************************************************************
  * Options
@@ -31,6 +35,7 @@
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL (1.0e-6)
+#define RHEA_INVERSION_DEFAULT_PROJECT_OUT_ROT (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_HESSIAN (0)
 #define RHEA_INVERSION_DEFAULT_MONITOR_PERFORMANCE (0)
@@ -62,6 +67,8 @@ int                 rhea_inversion_incremental_adjoint_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX;
 double              rhea_inversion_incremental_adjoint_solver_rtol =
                       RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL;
+int                 rhea_inversion_project_out_rot =
+                      RHEA_INVERSION_DEFAULT_PROJECT_OUT_ROT;
 int                 rhea_inversion_check_gradient =
                       RHEA_INVERSION_DEFAULT_CHECK_GRADIENT;
 int                 rhea_inversion_check_hessian =
@@ -139,6 +146,9 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_incremental_adjoint_solver_rtol),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL,
     "Incremental adjoint solver: Relative tolerance for Stokes solver",
+  YMIR_OPTIONS_I, "project-out-rot", '\0',
+    &(rhea_inversion_project_out_rot), RHEA_INVERSION_DEFAULT_PROJECT_OUT_ROT,
+    "Inner solves: Project out rotational velocity modes",
 
   /* derivative checks */
   YMIR_OPTIONS_B, "check-gradient", '\0',
@@ -280,6 +290,9 @@ struct rhea_inversion_problem
   int                 incremental_forward_is_outdated;
   int                 incremental_adjoint_is_outdated;
 
+  /* options for inner solves */
+  int                 project_out_rot;
+
   /* assembled Hessian matrix */
   sc_dmatrix_t       *hessian_matrix;
 
@@ -300,6 +313,9 @@ struct rhea_inversion_problem
   int                 ifwd_iadj_solve_stats_current_idx;
   int                 ifwd_iadj_solve_stats_total_stop_reason[2];
   int                 ifwd_iadj_solve_stats_total_iterations[2];
+
+  /* output paths */
+  char               *vtk_path;
 };
 
 static int
@@ -1060,8 +1076,10 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_vec_scale (obs_misfit_weight, rhs_vel_mass);
 
   /* project out null spaces and enforce Dirichlet BC's on right-hand side */
-  rhea_stokes_problem_velocity_project_out_mean_rotation (
-      rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+  if (inv_problem->project_out_rot) {
+    rhea_stokes_problem_velocity_project_out_mean_rotation (
+        rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+  }
   rhea_stokes_problem_velocity_boundary_set_zero (
       rhs_vel_mass, stokes_problem);
 
@@ -1167,8 +1185,10 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
         rhs_vel_mass, param_vec_in, inv_problem->forward_vel_press, inv_param);
 
     /* project out null spaces and enforce Dirichlet BC's on right-hand side */
-    rhea_stokes_problem_velocity_project_out_mean_rotation (
-        rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+    if (inv_problem->project_out_rot) {
+      rhea_stokes_problem_velocity_project_out_mean_rotation (
+          rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+    }
     rhea_stokes_problem_velocity_boundary_set_zero (
         rhs_vel_mass, stokes_problem);
 
@@ -1212,8 +1232,10 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
     }
 
     /* project out null spaces and enforce Dirichlet BC's on right-hand side */
-    rhea_stokes_problem_velocity_project_out_mean_rotation (
-        rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+    if (inv_problem->project_out_rot) {
+      rhea_stokes_problem_velocity_project_out_mean_rotation (
+          rhs_vel_mass, 1 /* residual_space */, stokes_problem);
+    }
     rhea_stokes_problem_velocity_boundary_set_zero (
         rhs_vel_mass, stokes_problem);
 
@@ -1394,6 +1416,7 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
                                          void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
+  const char         *vtk_path = inv_problem->vtk_path;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
@@ -1408,7 +1431,50 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
 
   //TODO
 
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  /* create visualization */
+  if (vtk_path != NULL) {
+    rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
+    ymir_mesh_t              *ymir_mesh;
+    ymir_pressure_elem_t     *press_elem;
+    ymir_vec_t         *vel, *vel_fwd_surf, *misfit_surf;
+    char                path[BUFSIZ];
+
+    /* get mesh data */
+    ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+    press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+    /* retrieve velocity of the forward state */
+    vel = rhea_velocity_new (ymir_mesh);
+    rhea_velocity_pressure_copy_components (
+        vel, NULL, inv_problem->forward_vel_press, press_elem);
+    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+
+    /* extract velocity at the surface */
+    vel_fwd_surf = rhea_velocity_surface_new (ymir_mesh);
+    rhea_velocity_surface_interpolate (vel_fwd_surf, vel);
+
+    /* compute the observation data misfit term */
+    misfit_surf = rhea_velocity_surface_new (ymir_mesh);
+    rhea_inversion_obs_velocity_misfit_vec (
+        misfit_surf, vel, inv_problem->vel_obs_surf,
+        inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
+        rhea_stokes_problem_get_domain_options (stokes_problem));
+
+    /* set path */
+    snprintf (path, BUFSIZ, "%s%s%02i", vtk_path,
+              RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+
+    /* write VTK */
+    rhea_vtk_write_inversion_iteration_surf (
+        path, vel_fwd_surf, inv_problem->vel_obs_surf, misfit_surf);
+
+    /* destroy */
+    rhea_velocity_destroy (vel);
+    rhea_velocity_surface_destroy (vel_fwd_surf);
+    rhea_velocity_surface_destroy (misfit_surf);
+  }
+
+  RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "newton_iter=%i", iter);
 }
 
 /******************************************************************************
@@ -1581,6 +1647,7 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->adjoint_is_outdated = 1;
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
+  inv_problem->project_out_rot = rhea_inversion_project_out_rot;
   inv_problem->hessian_matrix = NULL;
 
   /* create parameters */
@@ -1651,6 +1718,9 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
     rhea_inversion_inner_solve_stats_create (inv_problem, max_n_iter);
   }
 
+  /* initialize output paths */
+  inv_problem->vtk_path = NULL;
+
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 
   return inv_problem;
@@ -1683,6 +1753,13 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
   RHEA_FREE (inv_problem);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
+}
+
+void
+rhea_inversion_set_vtk_output (rhea_inversion_problem_t *inv_problem,
+                               char *vtk_path)
+{
+  inv_problem->vtk_path = vtk_path;
 }
 
 /******************************************************************************

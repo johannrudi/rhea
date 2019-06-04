@@ -28,6 +28,9 @@
 #define RHEA_VTK_NAME_PLATE_LABEL "plate_label"
 #define RHEA_VTK_NAME_PLATE_VEL "plate_velocity"
 
+#define RHEA_VTK_NAME_VELOCITY_OBS "velocity_obs"
+#define RHEA_VTK_NAME_VELOCITY_MISFIT "velocity_misfit"
+
 int
 rhea_vtk_write_input_data (const char *filepath,
                            ymir_vec_t *temperature,
@@ -390,6 +393,35 @@ rhea_vtk_write_nonlinear_stokes_iteration_surf (const char *filepath,
                   velocity_surf, RHEA_VTK_NAME_VELOCITY,
                   stress_norm_surf, RHEA_VTK_NAME_STRESS_NORM,
                   viscosity_surf, RHEA_VTK_NAME_VISCOSITY, NULL);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
+
+  return 1;
+}
+
+int
+rhea_vtk_write_inversion_iteration_surf (const char *filepath,
+                                         ymir_vec_t *velocity_surf,
+                                         ymir_vec_t *velocity_obs_surf,
+                                         ymir_vec_t *misfit_surf)
+{
+  ymir_mesh_t        *ymir_mesh;
+
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
+
+  /* check input */
+  RHEA_ASSERT (velocity_surf != NULL);
+  RHEA_ASSERT (velocity_obs_surf != NULL);
+  RHEA_ASSERT (misfit_surf != NULL);
+
+  /* create work variables */
+  ymir_mesh = ymir_vec_get_mesh (velocity_surf);
+
+  /* write vtk file */
+  ymir_vtk_write (ymir_mesh, filepath,
+                  velocity_surf, RHEA_VTK_NAME_VELOCITY,
+                  velocity_obs_surf, RHEA_VTK_NAME_VELOCITY_OBS,
+                  misfit_surf, RHEA_VTK_NAME_VELOCITY_MISFIT, NULL);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 

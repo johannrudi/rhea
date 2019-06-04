@@ -51,6 +51,13 @@ rhea_inversion_problem_t *rhea_inversion_new (
 void                      rhea_inversion_destroy (
                                         rhea_inversion_problem_t *inv_problem);
 
+/**
+ * Sets output path for VTK files.
+ */
+void                      rhea_inversion_set_vtk_output (
+                                        rhea_inversion_problem_t *inv_problem,
+                                        char *vtk_path);
+
 /******************************************************************************
  * Inverse Problem Solver
  *****************************************************************************/
