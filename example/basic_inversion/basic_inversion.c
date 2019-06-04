@@ -110,6 +110,7 @@ main (int argc, char **argv)
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
+  char               *vtk_inv_solver_path;
   /* mesh */
   p4est_t                *p4est;
   ymir_mesh_t            *ymir_mesh;
@@ -164,6 +165,9 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
+  YMIR_OPTIONS_S, "vtk-write-inverse-solver-path", '\0',
+    &(vtk_inv_solver_path), NULL,
+    "VTK file path for solver internals of the inversion.",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -250,6 +254,7 @@ main (int argc, char **argv)
 
   /* setup inversion solver */
   inv_problem = rhea_inversion_new (stokes_problem);
+  rhea_inversion_set_vtk_output (inv_problem, vtk_inv_solver_path);
 
   /* run inversion solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
