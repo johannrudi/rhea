@@ -1420,7 +1420,9 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
                                        ymir_vec_t *forward_vel_press,
                                        ymir_vec_t *adjoint_vel_press,
                                        const double prior_weight,
-                                       rhea_inversion_param_t *inv_param)
+                                       rhea_inversion_param_t *inv_param,
+                                       ymir_vec_t *gradient_adjoint_comp_vec,
+                                       ymir_vec_t *gradient_prior_comp_vec)
 {
   rhea_stokes_problem_t    *stokes_problem = inv_param->stokes_problem;
   rhea_domain_options_t    *domain_options =
@@ -1442,16 +1444,10 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
   double             *grad = gradient_vec->meshfree->e[0];
+  double             *grad_adj = NULL;
+  double             *grad_prior = NULL;
+  double              g;
   int                 i;
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_vec_t         *grad_vec_adj = rhea_inversion_param_vec_new (inv_param);
-  ymir_vec_t         *grad_vec_prior = rhea_inversion_param_vec_new (inv_param);
-  double             *grad_adj = grad_vec_adj->meshfree->e[0];
-  double             *grad_prior = grad_vec_prior->meshfree->e[0];
-
-  ymir_vec_set_zero (grad_vec_adj);
-  ymir_vec_set_zero (grad_vec_prior);
-#endif
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient_vec, inv_param));
@@ -1493,6 +1489,14 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
 
   /* compute gradient entry for each parameter */
   ymir_vec_set_zero (gradient_vec);
+  if (gradient_adjoint_comp_vec != NULL) {
+    ymir_vec_set_zero (gradient_adjoint_comp_vec);
+    grad_adj = gradient_adjoint_comp_vec->meshfree->e[0];
+  }
+  if (gradient_prior_comp_vec != NULL) {
+    ymir_vec_set_zero (gradient_prior_comp_vec);
+    grad_prior = gradient_prior_comp_vec->meshfree->e[0];
+  }
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
       const rhea_inversion_param_idx_t idx = (rhea_inversion_param_idx_t) i;
@@ -1516,10 +1520,11 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
                                       0 /* !linearized */, 1 /* dirty */);
 
       /* compute inner product with adjoint velocity */
-      grad[i] = ymir_vec_innerprod (op_out_vel, adjoint_vel);
-#ifdef RHEA_ENABLE_DEBUG
-      grad_adj[i] = grad[i];
-#endif
+      g = ymir_vec_innerprod (op_out_vel, adjoint_vel);
+      grad[i] = g;
+      if (grad_adj != NULL) {
+        grad_adj[i] = g;
+      }
     }
   }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient_vec, inv_param));
@@ -1543,10 +1548,11 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
     for (i = 0; i < n_parameters; i++) {
       if (active[i]) {
         RHEA_ASSERT (isfinite (misfit[i]));
-        grad[i] += prior_weight * icov[i] * misfit[i];
-#ifdef RHEA_ENABLE_DEBUG
-        grad_prior[i] = grad[i] - grad_adj[i];
-#endif
+        g = prior_weight * icov[i] * misfit[i];
+        grad[i] += g;
+        if (grad_prior != NULL) {
+          grad_prior[i] = g;
+        }
       }
     }
 
@@ -1555,22 +1561,6 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
     rhea_inversion_param_vec_destroy (prior_icov);
   }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (gradient_vec, inv_param));
-
-  /* print gradient */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
-  for (i = 0; i < n_parameters; i++) {
-    if (active[i]) {
-      RHEA_GLOBAL_VERBOSEF ("param# %3i: %.6e [%.6e, %.6e]\n", i,
-                            grad[i], grad_adj[i], grad_prior[i]);
-    }
-  }
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  rhea_inversion_param_vec_destroy (grad_vec_adj);
-  rhea_inversion_param_vec_destroy (grad_vec_prior);
-#endif
 
   /* destroy */
   ymir_stress_op_destroy (stress_op);
@@ -1733,10 +1723,9 @@ rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
    */
 
   /* init output by "hijacking" the gradient function using incr. adj. vel. */
-  rhea_inversion_param_compute_gradient (param_vec_out, param_vec_in,
-                                         forward_vel_press,
-                                         incr_adjoint_vel_press,
-                                         NAN /* no prior term */, inv_param);
+  rhea_inversion_param_compute_gradient (
+      param_vec_out, param_vec_in, forward_vel_press, incr_adjoint_vel_press,
+      NAN /* no prior term */, inv_param, NULL, NULL);
 
   /* compute & add prior term */
   if (isfinite (prior_weight) && 0.0 < prior_weight) {

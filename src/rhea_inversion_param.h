@@ -194,47 +194,49 @@ double              rhea_inversion_param_convert_from_model_weak_deriv (
  * Computes the (squared norm of the) prior term for the objective functional.
  */
 double              rhea_inversion_param_prior (
-                                            ymir_vec_t *parameter_vec,
-                                            rhea_inversion_param_t *inv_param);
+                                        ymir_vec_t *parameter_vec,
+                                        rhea_inversion_param_t *inv_param);
 /**
  * Computes the gradient vector of the Stokes model w.r.t. model parameters.
  */
 void                rhea_inversion_param_compute_gradient (
-                                            ymir_vec_t *gradient_vec,
-                                            ymir_vec_t *parameter_vec,
-                                            ymir_vec_t *forward_vel_press,
-                                            ymir_vec_t *adjoint_vel_press,
-                                            const double prior_weight,
-                                            rhea_inversion_param_t *inv_param);
+                                        ymir_vec_t *gradient_vec,
+                                        ymir_vec_t *parameter_vec,
+                                        ymir_vec_t *forward_vel_press,
+                                        ymir_vec_t *adjoint_vel_press,
+                                        const double prior_weight,
+                                        rhea_inversion_param_t *inv_param,
+                                        ymir_vec_t *gradient_adjoint_comp_vec,
+                                        ymir_vec_t *gradient_prior_comp_vec);
 
 /**
  * Computes the norm of the provided gradient vector.
  */
 double              rhea_inversion_param_compute_gradient_norm (
-                                            ymir_vec_t *gradient_vec,
-                                            rhea_inversion_param_t *inv_param);
+                                        ymir_vec_t *gradient_vec,
+                                        rhea_inversion_param_t *inv_param);
 
 /**
  * Computes the right-hand side for incremental forward equations.
  */
 void                rhea_inversion_param_incremental_forward_rhs (
-                                            ymir_vec_t *rhs_vel_mass,
-                                            ymir_vec_t *gradient_direction,
-                                            ymir_vec_t *forward_vel_press,
-                                            rhea_inversion_param_t *inv_param);
+                                        ymir_vec_t *rhs_vel_mass,
+                                        ymir_vec_t *gradient_direction,
+                                        ymir_vec_t *forward_vel_press,
+                                        rhea_inversion_param_t *inv_param);
 
 /**
  * Applies the Hessian of the inverse problem to a parameter vector.
  */
 void                rhea_inversion_param_apply_hessian (
-                                            ymir_vec_t *param_vec_out,
-                                            ymir_vec_t *param_vec_in,
-                                            ymir_vec_t *forward_vel_press,
-                                            ymir_vec_t *adjoint_vel_press,
-                                            ymir_vec_t *incr_forward_vel_press,
-                                            ymir_vec_t *incr_adjoint_vel_press,
-                                            const double prior_weight,
-                                            rhea_inversion_param_t *inv_param);
+                                        ymir_vec_t *param_vec_out,
+                                        ymir_vec_t *param_vec_in,
+                                        ymir_vec_t *forward_vel_press,
+                                        ymir_vec_t *adjoint_vel_press,
+                                        ymir_vec_t *incr_forward_vel_press,
+                                        ymir_vec_t *incr_adjoint_vel_press,
+                                        const double prior_weight,
+                                        rhea_inversion_param_t *inv_param);
 
 /******************************************************************************
  * Parameter Vector

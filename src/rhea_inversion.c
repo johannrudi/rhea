@@ -8,11 +8,8 @@
 #include <rhea_vtk.h>
 #include <ymir_perf_counter.h>
 
-#define RHEA_INVERSION_VTK (0)
-
-#if (0 < RHEA_INVERSION_VTK)
-# include <ymir_vtk.h>
-#endif
+/* Inverse solver */
+#define RHEA_INVERSION_GRAD_NORM_N_COMPONENTS 2
 
 /* I/O labels that are attached at the end of file names */
 #define RHEA_INVERSION_IO_LABEL_NL_ITER "_itn"
@@ -301,6 +298,8 @@ struct rhea_inversion_problem
   rhea_newton_problem_t  *newton_problem;
   ymir_vec_t             *newton_neg_gradient_vec;
   ymir_vec_t             *newton_step_vec;
+  ymir_vec_t             *newton_gradient_adjoint_comp_vec;
+  ymir_vec_t             *newton_gradient_prior_comp_vec;
 
   /* statistics */
   char              **fwd_adj_solve_stats;
@@ -1039,6 +1038,10 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_pressure_elem_t     *press_elem;
   const double        obs_misfit_weight = inv_problem->obs_misfit_weight;
   const double        prior_weight = inv_problem->prior_weight;
+  ymir_vec_t         *gradient_adjoint_comp =
+                        inv_problem->newton_gradient_adjoint_comp_vec;
+  ymir_vec_t         *gradient_prior_comp =
+                        inv_problem->newton_gradient_prior_comp_vec;
   ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
@@ -1108,15 +1111,29 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   /* compute the (positive) gradient */
   rhea_inversion_param_compute_gradient (
       neg_gradient, solution, inv_problem->forward_vel_press,
-      inv_problem->adjoint_vel_press, prior_weight, inv_param);
+      inv_problem->adjoint_vel_press, prior_weight, inv_param,
+      gradient_adjoint_comp, gradient_prior_comp);
 
   /* print gradient */
 #ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSE ("Inversion gradient\n");
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
-  rhea_inversion_param_vec_print (neg_gradient, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  {
+    const int          *active = rhea_inversion_param_get_active (inv_param);
+    const double       *grad = neg_gradient->meshfree->e[0];
+    const double       *grad_adj = gradient_adjoint_comp->meshfree->e[0];
+    const double       *grad_prior = gradient_prior_comp->meshfree->e[0];
+    int                 i;
+
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+    RHEA_GLOBAL_VERBOSE ("Inversion gradient\n");
+    RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+    for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
+      if (active[i]) {
+        RHEA_GLOBAL_VERBOSEF ("param# %3i: %+.6e [%+.6e, %+.6e]\n", i,
+                              grad[i], grad_adj[i], grad_prior[i]);
+      }
+    }
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+  }
 #endif
 
   /* flip the sign of the (positive) gradient */
@@ -1136,17 +1153,28 @@ rhea_inversion_newton_compute_gradient_norm_fn (ymir_vec_t *neg_gradient,
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
-  double              grad_norm;
+  double              grad_norm, grad_adj_norm, grad_prior_norm;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (neg_gradient, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (neg_gradient, inv_param));
 
-  /* compute norm */
-  grad_norm = rhea_inversion_param_compute_gradient_norm (neg_gradient,
-                                                          inv_param);
-  RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "gradient_norm=%g", grad_norm);
+  /* compute norms */
+  grad_norm = rhea_inversion_param_compute_gradient_norm (
+      neg_gradient, inv_param);
+  grad_adj_norm = rhea_inversion_param_compute_gradient_norm (
+      inv_problem->newton_gradient_adjoint_comp_vec, inv_param);
+  grad_prior_norm = rhea_inversion_param_compute_gradient_norm (
+      inv_problem->newton_gradient_prior_comp_vec, inv_param);
+  RHEA_GLOBAL_VERBOSEF_FN_TAG (
+      __func__, "gradient_norm=%.6e, gradient_adjoint_comp=%.6e, "
+      "gradient_prior_comp=%.6e", grad_norm, grad_adj_norm, grad_prior_norm);
 
+  /* return gradient norms */
+  if (norm_comp != NULL) {
+    norm_comp[0] = grad_adj_norm;
+    norm_comp[1] = grad_prior_norm;
+  }
   return grad_norm;
 }
 
@@ -1436,27 +1464,25 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
     rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
     ymir_mesh_t              *ymir_mesh;
     ymir_pressure_elem_t     *press_elem;
-    ymir_vec_t         *vel, *vel_fwd_surf, *misfit_surf;
+    ymir_vec_t         *vel_fwd_vol, *vel_fwd_surf, *misfit_surf;
     char                path[BUFSIZ];
 
     /* get mesh data */
     ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
     press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
-    /* retrieve velocity of the forward state */
-    vel = rhea_velocity_new (ymir_mesh);
-    rhea_velocity_pressure_copy_components (
-        vel, NULL, inv_problem->forward_vel_press, press_elem);
-    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    /* get volume fields */
+    rhea_velocity_pressure_create_components (
+        &vel_fwd_vol, NULL, inv_problem->forward_vel_press, press_elem);
 
-    /* extract velocity at the surface */
+    /* get surface fields */
     vel_fwd_surf = rhea_velocity_surface_new (ymir_mesh);
-    rhea_velocity_surface_interpolate (vel_fwd_surf, vel);
+    rhea_velocity_surface_interpolate (vel_fwd_surf, vel_fwd_vol);
 
     /* compute the observation data misfit term */
     misfit_surf = rhea_velocity_surface_new (ymir_mesh);
     rhea_inversion_obs_velocity_misfit_vec (
-        misfit_surf, vel, inv_problem->vel_obs_surf,
+        misfit_surf, vel_fwd_vol, inv_problem->vel_obs_surf,
         inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
         rhea_stokes_problem_get_domain_options (stokes_problem));
 
@@ -1469,7 +1495,7 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
         path, vel_fwd_surf, inv_problem->vel_obs_surf, misfit_surf);
 
     /* destroy */
-    rhea_velocity_destroy (vel);
+    rhea_velocity_destroy (vel_fwd_vol);
     rhea_velocity_surface_destroy (vel_fwd_surf);
     rhea_velocity_surface_destroy (misfit_surf);
   }
@@ -1663,6 +1689,10 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->newton_options = &rhea_inversion_newton_options;
   inv_problem->newton_neg_gradient_vec =
     rhea_inversion_param_vec_new (inv_problem->inv_param);
+  inv_problem->newton_gradient_adjoint_comp_vec =
+    rhea_inversion_param_vec_new (inv_problem->inv_param);
+  inv_problem->newton_gradient_prior_comp_vec =
+    rhea_inversion_param_vec_new (inv_problem->inv_param);
   inv_problem->newton_step_vec =
     rhea_inversion_param_vec_new (inv_problem->inv_param);
 
@@ -1672,13 +1702,12 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
                           rhea_stokes_problem_get_ymir_mesh (stokes_problem);
     sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
     const int           obj_n_components = 2;
-    const int           grad_norm_n_components = 0;
     rhea_newton_problem_t *newton_problem;
 
     newton_problem = rhea_newton_problem_new (
         rhea_inversion_newton_compute_negative_gradient_fn,
         rhea_inversion_newton_compute_gradient_norm_fn,
-        grad_norm_n_components,
+        RHEA_INVERSION_GRAD_NORM_N_COMPONENTS,
         rhea_inversion_newton_solve_hessian_system_fn);
     inv_problem->newton_problem = newton_problem;
 
@@ -1745,6 +1774,10 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
   /* destroy vectors */
   rhea_inversion_param_vec_destroy (inv_problem->newton_neg_gradient_vec);
   rhea_inversion_param_vec_destroy (inv_problem->newton_step_vec);
+  rhea_inversion_param_vec_destroy (
+      inv_problem->newton_gradient_adjoint_comp_vec);
+  rhea_inversion_param_vec_destroy (
+      inv_problem->newton_gradient_prior_comp_vec);
 
   /* destroy parameters */
   rhea_inversion_param_destroy (inv_problem->inv_param);
@@ -1887,17 +1920,6 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
     RHEA_ASSERT (inv_problem->vel_obs_weight_surf != NULL);
     ymir_vec_copy (vel_obs_weight_surf, inv_problem->vel_obs_weight_surf);
   }
-#if (0 < RHEA_INVERSION_VTK)
-  {
-    char                path[BUFSIZ];
-
-    snprintf (path, BUFSIZ, "%s", __func__);
-    ymir_vtk_write (ymir_vec_get_mesh (vel_obs_surf), path,
-                    inv_problem->vel_obs_surf, "vel_obs_surf",
-                    vel_obs_surf, "vel_obs_surf_arg",
-                    vel_obs_weight_surf, "vel_obs_weight_surf_arg", NULL);
-  }
-#endif
   RHEA_ASSERT (rhea_velocity_surface_is_valid (inv_problem->vel_obs_surf));
 
   /* run solver */
