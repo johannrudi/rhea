@@ -15,6 +15,9 @@
 # include <ymir_comm.h>
 #endif
 
+/* Stokes solver */
+#define RHEA_STOKES_PROBLEM_NONLINEAR_GRAD_NORM_N_COMPONENTS 2
+
 /* I/O labels that are attached at the end of file names */
 #define RHEA_STOKES_PROBLEM_IO_LABEL_P4EST ".p4est"
 #define RHEA_STOKES_PROBLEM_IO_LABEL_TEMPERATURE "_temp"
@@ -2890,13 +2893,12 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
 
   /* create Newton problem */
   {
-    const int           grad_norm_n_components = 2;
     rhea_newton_problem_t *newton_problem;
 
     newton_problem = rhea_newton_problem_new (
         rhea_stokes_problem_nonlinear_compute_negative_gradient_fn,
         rhea_stokes_problem_nonlinear_compute_gradient_norm_fn,
-        grad_norm_n_components,
+        RHEA_STOKES_PROBLEM_NONLINEAR_GRAD_NORM_N_COMPONENTS,
         rhea_stokes_problem_nonlinear_solve_hessian_system_fn);
     stokes_problem_nl->newton_problem = newton_problem;
 
