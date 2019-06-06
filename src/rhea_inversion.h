@@ -52,8 +52,12 @@ void                      rhea_inversion_destroy (
                                         rhea_inversion_problem_t *inv_problem);
 
 /**
- * Sets output path for VTK files.
+ * Sets paths for writing output files.
  */
+void                      rhea_inversion_set_txt_output (
+                                        rhea_inversion_problem_t *inv_problem,
+                                        char *txt_path);
+
 void                      rhea_inversion_set_vtk_output (
                                         rhea_inversion_problem_t *inv_problem,
                                         char *vtk_path);

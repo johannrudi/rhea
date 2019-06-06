@@ -5,6 +5,7 @@
 #include <rhea_newton.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
+#include <rhea_io_std.h>
 #include <rhea_vtk.h>
 #include <ymir_perf_counter.h>
 
@@ -314,6 +315,7 @@ struct rhea_inversion_problem
   int                 ifwd_iadj_solve_stats_total_iterations[2];
 
   /* output paths */
+  char               *txt_path;
   char               *vtk_path;
 };
 
@@ -1444,7 +1446,15 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
                                          void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
+  rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t              *ymir_mesh;
+  ymir_pressure_elem_t     *press_elem;
+  sc_MPI_Comm         mpicomm;
+  int                 mpirank, mpiret;
+  const int           iter_start = inv_problem->newton_options->iter_start;
+  const char         *txt_path = inv_problem->txt_path;
   const char         *vtk_path = inv_problem->vtk_path;
+  char                path[BUFSIZ];
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
@@ -1457,19 +1467,79 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
       inv_problem->inv_param);
   RHEA_GLOBAL_INFO ("========================================\n");
 
-  //TODO
+  /* get mesh data */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+  /* get parallel environment */
+  mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+
+  /* write text files */
+  if (txt_path != NULL && mpirank == 0) {
+    rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+    sc_dmatrix_t       *sol, *step;
+    sc_dmatrix_t       *grad_combined, *neg_grad, *grad_adj, *grad_prior;
+    int                 i;
+
+    /* write parameters */
+    sol = rhea_inversion_param_vec_reduced_new (solution, inv_param);
+    snprintf (path, BUFSIZ, "%s%s%02i_parameters.txt", txt_path,
+              RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+    rhea_io_std_write_double_to_txt (
+        path, sol->e[0], (size_t) sol->m * sol->n, sol->n);
+    rhea_inversion_param_vec_reduced_destroy (sol);
+
+    /* write gradient */
+    neg_grad = rhea_inversion_param_vec_reduced_new (
+        inv_problem->newton_neg_gradient_vec, inv_param);
+    grad_adj = rhea_inversion_param_vec_reduced_new (
+        inv_problem->newton_gradient_adjoint_comp_vec, inv_param);
+    grad_prior = rhea_inversion_param_vec_reduced_new (
+        inv_problem->newton_gradient_prior_comp_vec, inv_param);
+    grad_combined = sc_dmatrix_new (neg_grad->m, 3);
+    RHEA_ASSERT (neg_grad->m == grad_adj->m && neg_grad->m == grad_prior->m);
+    for (i = 0; i < grad_combined->m; i++) {
+      grad_combined->e[i][0] = -neg_grad->e[i][0];
+      grad_combined->e[i][1] = grad_adj->e[i][0];
+      grad_combined->e[i][2] = grad_prior->e[i][0];
+    }
+    snprintf (path, BUFSIZ, "%s%s%02i_gradient.txt", txt_path,
+              RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+    rhea_io_std_write_double_to_txt (
+        path, grad_combined->e[0], (size_t) grad_combined->m * grad_combined->n,
+        grad_combined->n);
+    rhea_inversion_param_vec_reduced_destroy (neg_grad);
+    rhea_inversion_param_vec_reduced_destroy (grad_adj);
+    rhea_inversion_param_vec_reduced_destroy (grad_prior);
+    sc_dmatrix_destroy (grad_combined);
+
+    /* write step */
+    if (iter_start < iter) {
+      step = rhea_inversion_param_vec_reduced_new (
+          inv_problem->newton_step_vec, inv_param);
+      snprintf (path, BUFSIZ, "%s%s%02i_step.txt", txt_path,
+                RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+      rhea_io_std_write_double_to_txt (
+          path, step->e[0], (size_t) step->m * step->n, step->n);
+      rhea_inversion_param_vec_reduced_destroy (step);
+    }
+
+    /* write Hessian */
+    if (iter_start < iter && rhea_inversion_assemble_hessian) {
+      snprintf (path, BUFSIZ, "%s%s%02i_hessian.txt", txt_path,
+                RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+      rhea_io_std_write_double_to_txt (
+          path, inv_problem->hessian_matrix->e[0],
+          (size_t) inv_problem->hessian_matrix->m *
+                   inv_problem->hessian_matrix->n,
+          inv_problem->hessian_matrix->n);
+    }
+  }
 
   /* create visualization */
   if (vtk_path != NULL) {
-    rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
-    ymir_mesh_t              *ymir_mesh;
-    ymir_pressure_elem_t     *press_elem;
     ymir_vec_t         *vel_fwd_vol, *vel_fwd_surf, *misfit_surf;
-    char                path[BUFSIZ];
-
-    /* get mesh data */
-    ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-    press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
     /* get volume fields */
     rhea_velocity_pressure_create_components (
@@ -1748,6 +1818,7 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   }
 
   /* initialize output paths */
+  inv_problem->txt_path = NULL;
   inv_problem->vtk_path = NULL;
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
@@ -1786,6 +1857,13 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
   RHEA_FREE (inv_problem);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
+}
+
+void
+rhea_inversion_set_txt_output (rhea_inversion_problem_t *inv_problem,
+                               char *txt_path)
+{
+  inv_problem->txt_path = txt_path;
 }
 
 void
