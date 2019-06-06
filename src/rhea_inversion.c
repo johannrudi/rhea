@@ -15,6 +15,16 @@
 /* I/O labels that are attached at the end of file names */
 #define RHEA_INVERSION_IO_LABEL_NL_ITER "_itn"
 
+/* enumerator for types of null space projections */
+typedef enum
+{
+  RHEA_INVERSION_PROJECT_OUT_NULL_NONE     = 0,
+  RHEA_INVERSION_PROJECT_OUT_NULL_PRIMAL   = 1,
+  RHEA_INVERSION_PROJECT_OUT_NULL_RESIDUAL = 2,
+  RHEA_INVERSION_PROJECT_OUT_NULL_BOTH     = 3
+}
+rhea_inversion_project_out_null_t;
+
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -33,7 +43,8 @@
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL (1.0e-6)
-#define RHEA_INVERSION_DEFAULT_PROJECT_OUT_ROT (0)
+#define RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL \
+  (RHEA_INVERSION_PROJECT_OUT_NULL_NONE)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_HESSIAN (0)
 #define RHEA_INVERSION_DEFAULT_MONITOR_PERFORMANCE (0)
@@ -65,8 +76,8 @@ int                 rhea_inversion_incremental_adjoint_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX;
 double              rhea_inversion_incremental_adjoint_solver_rtol =
                       RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL;
-int                 rhea_inversion_project_out_rot =
-                      RHEA_INVERSION_DEFAULT_PROJECT_OUT_ROT;
+int                 rhea_inversion_project_out_null =
+                      RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL;
 int                 rhea_inversion_check_gradient =
                       RHEA_INVERSION_DEFAULT_CHECK_GRADIENT;
 int                 rhea_inversion_check_hessian =
@@ -144,9 +155,10 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_incremental_adjoint_solver_rtol),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL,
     "Incremental adjoint solver: Relative tolerance for Stokes solver",
-  YMIR_OPTIONS_I, "project-out-rot", '\0',
-    &(rhea_inversion_project_out_rot), RHEA_INVERSION_DEFAULT_PROJECT_OUT_ROT,
-    "Inner solves: Project out rotational velocity modes",
+  YMIR_OPTIONS_I, "project-out-null", '\0',
+    &(rhea_inversion_project_out_null),
+    RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL,
+    "Inner solves: Project out null spaces",
 
   /* derivative checks */
   YMIR_OPTIONS_B, "check-gradient", '\0',
@@ -289,7 +301,7 @@ struct rhea_inversion_problem
   int                 incremental_adjoint_is_outdated;
 
   /* options for inner solves */
-  int                 project_out_rot;
+  rhea_inversion_project_out_null_t project_out_null;
 
   /* assembled Hessian matrix */
   sc_dmatrix_t       *hessian_matrix;
@@ -1038,6 +1050,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
+  const rhea_inversion_project_out_null_t project_out_null =
+                                            inv_problem->project_out_null;
   const double        obs_misfit_weight = inv_problem->obs_misfit_weight;
   const double        prior_weight = inv_problem->prior_weight;
   ymir_vec_t         *gradient_adjoint_comp =
@@ -1081,7 +1095,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_vec_scale (obs_misfit_weight, rhs_vel_mass);
 
   /* project out null spaces and enforce Dirichlet BC's on right-hand side */
-  if (inv_problem->project_out_rot) {
+  if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_RESIDUAL ||
+      project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_BOTH) {
     rhea_stokes_problem_velocity_project_out_mean_rotation (
         rhs_vel_mass, 1 /* residual_space */, stokes_problem);
   }
@@ -1109,6 +1124,11 @@ rhea_inversion_newton_compute_negative_gradient_fn (
 
   /* solve for adjoint state */
   rhea_inversion_inner_solve_adjoint (inv_problem);
+  if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_PRIMAL ||
+      project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_BOTH) {
+    rhea_stokes_problem_project_out_nullspace (
+        inv_problem->adjoint_vel_press, stokes_problem);
+  }
 
   /* compute the (positive) gradient */
   rhea_inversion_param_compute_gradient (
@@ -1190,6 +1210,8 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t              *ymir_mesh;
   ymir_pressure_elem_t     *press_elem;
+  const rhea_inversion_project_out_null_t project_out_null =
+                                            inv_problem->project_out_null;
   const double        obs_misfit_weight = inv_problem->obs_misfit_weight;
   const double        prior_weight = inv_problem->prior_weight;
   ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
@@ -1215,7 +1237,8 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
         rhs_vel_mass, param_vec_in, inv_problem->forward_vel_press, inv_param);
 
     /* project out null spaces and enforce Dirichlet BC's on right-hand side */
-    if (inv_problem->project_out_rot) {
+    if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_RESIDUAL ||
+        project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_BOTH) {
       rhea_stokes_problem_velocity_project_out_mean_rotation (
           rhs_vel_mass, 1 /* residual_space */, stokes_problem);
     }
@@ -1234,6 +1257,11 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
 
     /* solve for incremental forward state */
     rhea_inversion_inner_solve_incremental_forward (inv_problem);
+    if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_PRIMAL ||
+        project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_BOTH) {
+      rhea_stokes_problem_project_out_nullspace (
+          inv_problem->incremental_forward_vel_press, stokes_problem);
+    }
   } /* END: incremental forward */
 
   { /* BEGIN: incremental adjoint */
@@ -1262,7 +1290,8 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
     }
 
     /* project out null spaces and enforce Dirichlet BC's on right-hand side */
-    if (inv_problem->project_out_rot) {
+    if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_RESIDUAL ||
+        project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_BOTH) {
       rhea_stokes_problem_velocity_project_out_mean_rotation (
           rhs_vel_mass, 1 /* residual_space */, stokes_problem);
     }
@@ -1281,6 +1310,11 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
 
     /* solve for incremental adjoint state */
     rhea_inversion_inner_solve_incremental_adjoint (inv_problem);
+    if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_PRIMAL ||
+        project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_BOTH) {
+      rhea_stokes_problem_project_out_nullspace (
+          inv_problem->incremental_adjoint_vel_press, stokes_problem);
+    }
   } /* END: incremental adjoint */
 
   /* destroy */
@@ -1743,7 +1777,8 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->adjoint_is_outdated = 1;
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
-  inv_problem->project_out_rot = rhea_inversion_project_out_rot;
+  inv_problem->project_out_null =
+      (rhea_inversion_project_out_null_t) rhea_inversion_project_out_null;
   inv_problem->hessian_matrix = NULL;
 
   /* create parameters */
