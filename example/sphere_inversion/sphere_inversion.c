@@ -47,8 +47,7 @@ static void
 sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                      ymir_vec_t *sol_vel_press,
                                      const double vel_obs_add_noise_stddev,
-                                     rhea_stokes_problem_t *stokes_problem,
-                                     rhea_domain_options_t *domain_options)
+                                     rhea_stokes_problem_t *stokes_problem)
 {
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
@@ -71,14 +70,12 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   /* project velocity from volume to surface */
   vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
   rhea_velocity_surface_interpolate (vel_obs_surf, vel_sol);
-  ymir_velocity_vec_project_out_mean_rotation (
-      vel_obs_surf, domain_options->center,
-      domain_options->moment_of_inertia_surface, 0 /* !residual_space */);
 
   /* run solver */
   rhea_inversion_solve_with_vel_obs (
-      inv_problem, 0 /* no initial guess */, NULL /* no parameter vector */,
-      vel_obs_surf, vel_obs_weight_surf, vel_obs_add_noise_stddev);
+      inv_problem, 1 /* use model param's as initial guess */,
+      NULL /* no parameter vector */, vel_obs_surf, vel_obs_weight_surf,
+      vel_obs_add_noise_stddev);
 
   /* destroy */
   rhea_velocity_destroy (vel_sol);
@@ -113,9 +110,11 @@ main (int argc, char **argv)
   double              solver_rel_tol;
   double              vel_obs_add_noise_stddev;
   char               *bin_solver_path;
+  char               *txt_inv_solver_path;
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
+  char               *vtk_inv_solver_path;
   /* mesh */
   p4est_t                *p4est;
   ymir_mesh_t            *ymir_mesh;
@@ -160,6 +159,11 @@ main (int argc, char **argv)
     &(bin_solver_path), NULL,
     "Bin file path for solver internals (e.g., iterations of Newton's method)",
 
+  /* text file output */
+  YMIR_OPTIONS_S, "txt-write-inverse-solver-path", '\0',
+    &(txt_inv_solver_path), NULL,
+    "Text file path for solver internals of the inversion",
+
   /* vtk file output */
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
     &(vtk_input_path), NULL,
@@ -170,6 +174,9 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
+  YMIR_OPTIONS_S, "vtk-write-inverse-solver-path", '\0',
+    &(vtk_inv_solver_path), NULL,
+    "VTK file path for solver internals of the inversion.",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -256,12 +263,14 @@ main (int argc, char **argv)
 
   /* setup inversion solver */
   inv_problem = rhea_inversion_new (stokes_problem);
+  rhea_inversion_set_txt_output (inv_problem, txt_inv_solver_path);
+  rhea_inversion_set_vtk_output (inv_problem, vtk_inv_solver_path);
 
   /* run inversion solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
   sphere_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
                                        vel_obs_add_noise_stddev,
-                                       stokes_problem, &domain_options);
+                                       stokes_problem);
   rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
 
   /* destroy */

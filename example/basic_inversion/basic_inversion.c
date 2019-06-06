@@ -107,6 +107,7 @@ main (int argc, char **argv)
   double              solver_rel_tol;
   double              vel_obs_add_noise_stddev;
   char               *bin_solver_path;
+  char               *txt_inv_solver_path;
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
@@ -154,6 +155,11 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
     &(bin_solver_path), NULL,
     "Bin file path for solver internals (e.g., iterations of Newton's method)",
+
+  /* text file output */
+  YMIR_OPTIONS_S, "txt-write-inverse-solver-path", '\0',
+    &(txt_inv_solver_path), NULL,
+    "Text file path for solver internals of the inversion",
 
   /* vtk file output */
   YMIR_OPTIONS_S, "vtk-write-input-path", '\0',
@@ -254,6 +260,7 @@ main (int argc, char **argv)
 
   /* setup inversion solver */
   inv_problem = rhea_inversion_new (stokes_problem);
+  rhea_inversion_set_txt_output (inv_problem, txt_inv_solver_path);
   rhea_inversion_set_vtk_output (inv_problem, vtk_inv_solver_path);
 
   /* run inversion solver */
