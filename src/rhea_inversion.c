@@ -318,13 +318,15 @@ struct rhea_inversion_problem
   char              **fwd_adj_solve_stats;
   int                 fwd_adj_solve_stats_length;
   int                 fwd_adj_solve_stats_current_idx;
-  int                 fwd_adj_solve_stats_total_stop_reason[2];
+  int                 fwd_adj_solve_stats_total_num_solves[2];
   int                 fwd_adj_solve_stats_total_iterations[2];
+  int                 fwd_adj_solve_stats_total_stop_reason[2];
   char              **ifwd_iadj_solve_stats;
   int                 ifwd_iadj_solve_stats_length;
   int                 ifwd_iadj_solve_stats_current_idx;
-  int                 ifwd_iadj_solve_stats_total_stop_reason[2];
+  int                 ifwd_iadj_solve_stats_total_num_solves[2];
   int                 ifwd_iadj_solve_stats_total_iterations[2];
+  int                 ifwd_iadj_solve_stats_total_stop_reason[2];
 
   /* output paths */
   char               *txt_path;
@@ -384,9 +386,9 @@ static char        *rhea_inversion_inner_solve_stats_cat (const char *a,
 static void
 rhea_inversion_fwd_adj_solve_stats_write (rhea_inversion_problem_t *inv_problem,
                                           const int is_adjoint_solve,
-                                          const int stop_reason,
                                           const int num_iterations,
-                                          const double residual_reduction)
+                                          const double residual_reduction,
+                                          const int stop_reason)
 {
   const int           stats_idx = inv_problem->fwd_adj_solve_stats_current_idx;
   char               *stats;
@@ -397,12 +399,12 @@ rhea_inversion_fwd_adj_solve_stats_write (rhea_inversion_problem_t *inv_problem,
 
   /* create text */
   if (!is_adjoint_solve) {
-    snprintf (append, 64, "fwd=(%d, %3d, %.2e) ",
-              stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "fwd=(%3d, %.2e, %d) ",
+              num_iterations, residual_reduction, stop_reason);
   }
   else {
-    snprintf (append, 64, "adj=(%d, %3d, %.2e); ",
-              stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "adj=(%3d, %.2e, %d); ",
+              num_iterations, residual_reduction, stop_reason);
   }
 
   /* append text */
@@ -412,13 +414,14 @@ rhea_inversion_fwd_adj_solve_stats_write (rhea_inversion_problem_t *inv_problem,
   RHEA_FREE (stats);
 
   /* update total values */
+  inv_problem->fwd_adj_solve_stats_total_num_solves[is_adjoint_solve]++;
+  inv_problem->fwd_adj_solve_stats_total_iterations[is_adjoint_solve] +=
+    num_iterations;
   inv_problem->fwd_adj_solve_stats_total_stop_reason[is_adjoint_solve] =
     inv_problem->fwd_adj_solve_stats_total_stop_reason[is_adjoint_solve] &&
     rhea_stokes_problem_has_converged_ext (
       stop_reason, inv_problem->stokes_problem,
       is_adjoint_solve /* force_linear_solve */);
-  inv_problem->fwd_adj_solve_stats_total_iterations[is_adjoint_solve] +=
-    num_iterations;
 }
 
 /**
@@ -455,7 +458,7 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
 
   /* write solver statistics */
   rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 0 /* forward */,
-                                            stop_reason, n_iter, res_reduc);
+                                            n_iter, res_reduc, stop_reason);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_FWD]);
@@ -487,7 +490,7 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
 
   /* write solver statistics */
   rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 1 /* adjoint */,
-                                            stop_reason, n_iter, res_reduc);
+                                            n_iter, res_reduc, stop_reason);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_ADJ]);
@@ -501,9 +504,9 @@ static void
 rhea_inversion_ifwd_iadj_solve_stats_write (
                                         rhea_inversion_problem_t *inv_problem,
                                         const int is_adjoint_solve,
-                                        const int stop_reason,
                                         const int num_iterations,
-                                        const double residual_reduction)
+                                        const double residual_reduction,
+                                        const int stop_reason)
 {
   const int           stats_idx =
                         inv_problem->ifwd_iadj_solve_stats_current_idx;
@@ -515,12 +518,12 @@ rhea_inversion_ifwd_iadj_solve_stats_write (
 
   /* create text */
   if (!is_adjoint_solve) {
-    snprintf (append, 64, "(%d, %3d, %.2e) ",
-              stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "(%3d, %.2e, %d)  ",
+              num_iterations, residual_reduction, stop_reason);
   }
   else {
-    snprintf (append, 64, "(%d, %3d, %.2e); ",
-              stop_reason, num_iterations, residual_reduction);
+    snprintf (append, 64, "(%3d, %.2e, %d); ",
+              num_iterations, residual_reduction, stop_reason);
   }
 
   /* append text */
@@ -530,12 +533,13 @@ rhea_inversion_ifwd_iadj_solve_stats_write (
   RHEA_FREE (stats);
 
   /* update total values */
+  inv_problem->ifwd_iadj_solve_stats_total_num_solves[is_adjoint_solve]++;
+  inv_problem->ifwd_iadj_solve_stats_total_iterations[is_adjoint_solve] +=
+    num_iterations;
   inv_problem->ifwd_iadj_solve_stats_total_stop_reason[is_adjoint_solve] =
     inv_problem->ifwd_iadj_solve_stats_total_stop_reason[is_adjoint_solve] &&
     rhea_stokes_problem_has_converged_ext (
       stop_reason, inv_problem->stokes_problem, 1 /* force_linear_solve */);
-  inv_problem->ifwd_iadj_solve_stats_total_iterations[is_adjoint_solve] +=
-    num_iterations;
 }
 
 /**
@@ -567,7 +571,7 @@ rhea_inversion_inner_solve_incremental_forward (
 
   /* write solver statistics */
   rhea_inversion_ifwd_iadj_solve_stats_write (inv_problem, 0 /* forward */,
-                                              stop_reason, n_iter, res_reduc);
+                                              n_iter, res_reduc, stop_reason);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_FWD]);
@@ -603,7 +607,7 @@ rhea_inversion_inner_solve_incremental_adjoint (
 
   /* write solver statistics */
   rhea_inversion_ifwd_iadj_solve_stats_write (inv_problem, 1 /* adjoint */,
-                                              stop_reason, n_iter, res_reduc);
+                                              n_iter, res_reduc, stop_reason);
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_ADJ]);
@@ -1637,14 +1641,18 @@ rhea_inversion_inner_solve_stats_create (rhea_inversion_problem_t *inv_problem,
   inv_problem->ifwd_iadj_solve_stats_current_idx = 0;
 
   /* init total values */
-  inv_problem->fwd_adj_solve_stats_total_stop_reason[0] = 1;
-  inv_problem->fwd_adj_solve_stats_total_stop_reason[1] = 1;
+  inv_problem->fwd_adj_solve_stats_total_num_solves[0] = 0;
+  inv_problem->fwd_adj_solve_stats_total_num_solves[1] = 0;
   inv_problem->fwd_adj_solve_stats_total_iterations[0] = 0;
   inv_problem->fwd_adj_solve_stats_total_iterations[1] = 0;
-  inv_problem->ifwd_iadj_solve_stats_total_stop_reason[0] = 1;
-  inv_problem->ifwd_iadj_solve_stats_total_stop_reason[1] = 1;
+  inv_problem->fwd_adj_solve_stats_total_stop_reason[0] = 1;
+  inv_problem->fwd_adj_solve_stats_total_stop_reason[1] = 1;
+  inv_problem->ifwd_iadj_solve_stats_total_num_solves[0] = 0;
+  inv_problem->ifwd_iadj_solve_stats_total_num_solves[1] = 0;
   inv_problem->ifwd_iadj_solve_stats_total_iterations[0] = 0;
   inv_problem->ifwd_iadj_solve_stats_total_iterations[1] = 0;
+  inv_problem->ifwd_iadj_solve_stats_total_stop_reason[0] = 1;
+  inv_problem->ifwd_iadj_solve_stats_total_stop_reason[1] = 1;
 }
 
 /**
@@ -1718,11 +1726,13 @@ rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
       RHEA_GLOBAL_INFOF ("%3d; %s\n", k, inv_problem->fwd_adj_solve_stats[k]);
     }
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
-    RHEA_GLOBAL_INFOF ("fwd=(%d, %d) adj=(%d, %d)\n",
-        inv_problem->fwd_adj_solve_stats_total_stop_reason[0],
+    RHEA_GLOBAL_INFOF ("fwd=(%d, %d, %d) adj=(%d, %d, %d)\n",
+        inv_problem->fwd_adj_solve_stats_total_num_solves[0],
         inv_problem->fwd_adj_solve_stats_total_iterations[0],
-        inv_problem->fwd_adj_solve_stats_total_stop_reason[1],
-        inv_problem->fwd_adj_solve_stats_total_iterations[1]);
+        inv_problem->fwd_adj_solve_stats_total_stop_reason[0],
+        inv_problem->fwd_adj_solve_stats_total_num_solves[1],
+        inv_problem->fwd_adj_solve_stats_total_iterations[1],
+        inv_problem->fwd_adj_solve_stats_total_stop_reason[1]);
     RHEA_GLOBAL_INFO ("========================================\n");
   }
 
@@ -1739,11 +1749,13 @@ rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
       RHEA_GLOBAL_INFOF ("%3d; %s\n", k, inv_problem->ifwd_iadj_solve_stats[k]);
     }
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
-    RHEA_GLOBAL_INFOF ("incr_fwd=(%d, %d) incr_adj=(%d, %d)\n",
-        inv_problem->ifwd_iadj_solve_stats_total_stop_reason[0],
+    RHEA_GLOBAL_INFOF ("incr_fwd=(%d, %d, %d) incr_adj=(%d, %d, %d)\n",
+        inv_problem->ifwd_iadj_solve_stats_total_num_solves[0],
         inv_problem->ifwd_iadj_solve_stats_total_iterations[0],
-        inv_problem->ifwd_iadj_solve_stats_total_stop_reason[1],
-        inv_problem->ifwd_iadj_solve_stats_total_iterations[1]);
+        inv_problem->ifwd_iadj_solve_stats_total_stop_reason[0],
+        inv_problem->ifwd_iadj_solve_stats_total_num_solves[1],
+        inv_problem->ifwd_iadj_solve_stats_total_iterations[1],
+        inv_problem->ifwd_iadj_solve_stats_total_stop_reason[1]);
     RHEA_GLOBAL_INFO ("========================================\n");
   }
 }
