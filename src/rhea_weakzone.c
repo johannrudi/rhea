@@ -1289,11 +1289,15 @@ rhea_weakzone_compute_indicator (ymir_vec_t *indicator,
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
     ymir_dvec_set_function (indicator, rhea_weakzone_indicator_node_fn, opt);
-    RHEA_ASSERT (rhea_weakzone_is_valid (indicator));
     break;
   default: /* unknown weak zone type */
     RHEA_ABORT_NOT_REACHED ();
   }
+
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (indicator->dataown) &&
+               0.0 <= ymir_dvec_min_global (indicator) &&
+               ymir_dvec_max_global (indicator) <= 1.0);
 }
 
 /******************************************************************************
