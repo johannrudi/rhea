@@ -1846,10 +1846,13 @@ rhea_viscosity_filter_where_active_correction_fn (double *filter, double x,
                                                   ymir_locidx_t nodeid,
                                                   void *data)
 {
-  const double        active = *((double *) data);
+  const double       *active_range = data;
   const double        rtol = 1.0e-1;
 
-  if (fabs (*filter - active) < rtol * fabs (*filter)) {
+  RHEA_ASSERT (active_range[0] <= active_range[1]);
+
+  if ( (active_range[0] - rtol * fabs (active_range[0])) <= *filter &&
+       *filter <= (active_range[1] + rtol * fabs (active_range[1])) ) {
     *filter = 1.0;
   }
   else {
@@ -1860,7 +1863,7 @@ rhea_viscosity_filter_where_active_correction_fn (double *filter, double x,
 static void
 rhea_viscosity_filter_where_marker_active (ymir_vec_t *vec,
                                            ymir_vec_t *marker,
-                                           double active_val,
+                                           double active_range[2],
                                            const int invert_filter)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (marker);
@@ -1877,20 +1880,20 @@ rhea_viscosity_filter_where_marker_active (ymir_vec_t *vec,
     filter = ymir_cvec_new (ymir_mesh, 1);
     ymir_interp_vec (marker, filter);
     ymir_cvec_set_function (
-        filter, rhea_viscosity_filter_where_active_correction_fn, &active_val);
+        filter, rhea_viscosity_filter_where_active_correction_fn, active_range);
   }
   else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GLL_NODE) {
     /* create filter for a discontinuous GLL vector */
     filter = ymir_dvec_new (ymir_mesh, 1, YMIR_GLL_NODE);
     ymir_interp_vec (marker, filter);
     ymir_dvec_set_function (
-        filter, rhea_viscosity_filter_where_active_correction_fn, &active_val);
+        filter, rhea_viscosity_filter_where_active_correction_fn, active_range);
   }
   else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
     /* create filter for a discontinuous Gauss vector */
     filter = ymir_vec_clone (marker);
     ymir_dvec_set_function (
-        filter, rhea_viscosity_filter_where_active_correction_fn, &active_val);
+        filter, rhea_viscosity_filter_where_active_correction_fn, active_range);
   }
   else { /* vector is not supported */
     RHEA_ABORT_NOT_REACHED ();
@@ -1913,9 +1916,10 @@ rhea_viscosity_filter_where_min (ymir_vec_t *vec,
                                  ymir_vec_t *bounds_marker,
                                  const int invert_filter)
 {
-  double              active_val = RHEA_VISCOSITY_BOUNDS_MIN;
+  double              active_range[2] = {RHEA_VISCOSITY_BOUNDS_MIN,
+                                         RHEA_VISCOSITY_BOUNDS_MIN};
 
-  rhea_viscosity_filter_where_marker_active (vec, bounds_marker, active_val,
+  rhea_viscosity_filter_where_marker_active (vec, bounds_marker, active_range,
                                              invert_filter);
 }
 
@@ -1924,9 +1928,10 @@ rhea_viscosity_filter_where_max (ymir_vec_t *vec,
                                  ymir_vec_t *bounds_marker,
                                  const int invert_filter)
 {
-  double              active_val = RHEA_VISCOSITY_BOUNDS_MAX;
+  double              active_range[2] = {RHEA_VISCOSITY_BOUNDS_MAX_WEAK,
+                                         RHEA_VISCOSITY_BOUNDS_MAX};
 
-  rhea_viscosity_filter_where_marker_active (vec, bounds_marker, active_val,
+  rhea_viscosity_filter_where_marker_active (vec, bounds_marker, active_range,
                                              invert_filter);
 }
 
@@ -1994,10 +1999,11 @@ rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
                                       ymir_vec_t *yielding_marker,
                                       const int invert_filter)
 {
-  double              active_val = RHEA_VISCOSITY_YIELDING_ACTIVE;
+  double              active_range[2] = {RHEA_VISCOSITY_YIELDING_ACTIVE,
+                                         RHEA_VISCOSITY_YIELDING_ACTIVE};
 
-  rhea_viscosity_filter_where_marker_active (vec, yielding_marker, active_val,
-                                             invert_filter);
+  rhea_viscosity_filter_where_marker_active (vec, yielding_marker,
+                                             active_range, invert_filter);
 }
 
 int
