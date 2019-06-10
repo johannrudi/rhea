@@ -1,5 +1,4 @@
 #include <rhea_weakzone.h>
-#include <rhea_weakzone_label.h>
 #include <rhea_base.h>
 #include <rhea_io_mpi.h>
 #include <rhea_io_std.h>
@@ -893,7 +892,7 @@ rhea_weakzone_lookup_factor_interior (const int label,
           return opt->weak_factor_interior;
         }
       }
-      else { /* otherwise label is unknown */
+      else { /* otherwise the label is unknown */
         RHEA_ABORT_NOT_REACHED ();
         return NAN;
       }
@@ -1238,14 +1237,25 @@ rhea_weakzone_compute_distance (ymir_vec_t *distance,
   }
 }
 
-static void
-rhea_weakzone_indicator_node_fn (double *indc, double x, double y, double z,
-                                 ymir_locidx_t nid, void *data)
+typedef struct rhea_weakzone_indicator_node_data
 {
-  rhea_weakzone_options_t *opt = data;
-  int                 label;
-  double              distance, thickness, thickness_const;
+  rhea_weakzone_options_t  *weak_options;
+  rhea_weakzone_label_t     label_filter;
+}
+rhea_weakzone_indicator_node_data_t;
 
+static void
+rhea_weakzone_indicator_node_fn (double *indicator, double x, double y,
+                                 double z, ymir_locidx_t nid, void *data)
+{
+  rhea_weakzone_indicator_node_data_t  *d = data;
+  rhea_weakzone_options_t     *opt = d->weak_options;
+  const rhea_weakzone_label_t label_filter = d->label_filter;
+  rhea_weakzone_label_t       label;
+  int                 label_int;
+  double              distance, thickness, thickness_const, indc;
+
+  /* get distance and weak zone parameters */
   switch (opt->type) {
   case RHEA_WEAKZONE_DEPTH:
   case RHEA_WEAKZONE_DATA_POINTS:
@@ -1256,9 +1266,10 @@ rhea_weakzone_indicator_node_fn (double *indc, double x, double y, double z,
     break;
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
-    label = -1;
-    distance = rhea_weakzone_dist_node (&label, NULL, x, y, z, opt);
-    RHEA_ASSERT (0 <= label);
+    label_int = -1;
+    distance = rhea_weakzone_dist_node (&label_int, NULL, x, y, z, opt);
+    RHEA_ASSERT (0 <= label_int);
+    label = (rhea_weakzone_label_t) label_int;
     thickness = rhea_weakzone_lookup_thickness (label, opt);
     thickness_const = rhea_weakzone_lookup_thickness_const (label, opt);
     break;
@@ -1266,18 +1277,55 @@ rhea_weakzone_indicator_node_fn (double *indc, double x, double y, double z,
     RHEA_ABORT_NOT_REACHED ();
   }
 
-  *indc = rhea_weakzone_indicator_node (distance, thickness, thickness_const);
+  /* compute indicator value */
+  indc = rhea_weakzone_indicator_node (distance, thickness, thickness_const);
+
+  /* apply filter with respect to label */
+  switch (label_filter) {
+  case RHEA_WEAKZONE_LABEL_NONE:
+    *indicator = indc;
+    break;
+  case RHEA_WEAKZONE_LABEL_GENERIC_SLAB:
+    if (rhea_weakzone_label_is_slab (label)) *indicator = indc;
+    else                                     *indicator = 0.0;
+    break;
+  case RHEA_WEAKZONE_LABEL_GENERIC_RIDGE:
+    if (rhea_weakzone_label_is_ridge (label)) *indicator = indc;
+    else                                      *indicator = 0.0;
+    break;
+  case RHEA_WEAKZONE_LABEL_GENERIC_FRACTURE:
+    if (rhea_weakzone_label_is_fracture (label)) *indicator = indc;
+    else                                         *indicator = 0.0;
+    break;
+  default:
+    if (rhea_weakzone_label_assigned_to_earth (label_filter)) {
+      if (label_filter == label) *indicator = indc;
+      else                       *indicator = 0.0;
+    }
+    else { /* otherwise the filter label is unknown */
+      *indicator = NAN;
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  }
 }
 
 void
 rhea_weakzone_compute_indicator (ymir_vec_t *indicator,
+                                 const rhea_weakzone_label_t label_filter,
                                  rhea_weakzone_options_t *opt)
 {
+  rhea_weakzone_indicator_node_data_t data;
+
   /* check input */
   RHEA_ASSERT (opt->type == RHEA_WEAKZONE_NONE || indicator != NULL);
   RHEA_ASSERT (opt->type == RHEA_WEAKZONE_NONE ||
                rhea_weakzone_check_vec_type (indicator));
 
+  /* set data */
+  data.weak_options = opt;
+  data.label_filter = label_filter;
+
+  /* compute indicator */
   switch (opt->type) {
   case RHEA_WEAKZONE_NONE:
     if (indicator != NULL) {
@@ -1288,7 +1336,7 @@ rhea_weakzone_compute_indicator (ymir_vec_t *indicator,
   case RHEA_WEAKZONE_DATA_POINTS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
-    ymir_dvec_set_function (indicator, rhea_weakzone_indicator_node_fn, opt);
+    ymir_dvec_set_function (indicator, rhea_weakzone_indicator_node_fn, &data);
     break;
   default: /* unknown weak zone type */
     RHEA_ABORT_NOT_REACHED ();

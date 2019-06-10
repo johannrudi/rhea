@@ -7,6 +7,7 @@
 #define RHEA_WEAKZONE_H
 
 #include <rhea_domain.h>
+#include <rhea_weakzone_label.h>
 #include <rhea_pointcloud_adaptor.h>
 #include <ymir_vec_ops.h>
 
@@ -184,8 +185,9 @@ void                rhea_weakzone_compute_distance (
  * zones and goes to zero far away from weak zones.
  */
 void                rhea_weakzone_compute_indicator (
-                                                ymir_vec_t *indicator,
-                                                rhea_weakzone_options_t *opt);
+                                      ymir_vec_t *indicator,
+                                      const rhea_weakzone_label_t label_filter,
+                                      rhea_weakzone_options_t *opt);
 
 /******************************************************************************
  * Get & Set Values
