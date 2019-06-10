@@ -438,6 +438,7 @@ rhea_viscosity_param_derivative_yield_strength (
 static void
 rhea_viscosity_param_derivative_weak_factor_interior (
                                         ymir_vec_t *derivative,
+                                        rhea_weakzone_label_t weak_label,
                                         ymir_vec_t *viscosity,
                                         ymir_vec_t *bounds_marker,
                                         ymir_vec_t *yielding_marker,
@@ -445,14 +446,21 @@ rhea_viscosity_param_derivative_weak_factor_interior (
                                         rhea_weakzone_options_t *weak_options,
                                         rhea_viscosity_options_t *visc_options)
 {
-  const double        scaling_prev = weak_options->weak_factor_interior;
-  const double        scaling_deriv =
-    rhea_inversion_param_convert_from_model_weak_deriv (scaling_prev);
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (weakzone);
   ymir_vec_t         *weak_indicator = rhea_weakzone_new (ymir_mesh);
+  double              weak_factor, scaling_deriv;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
+  RHEA_ASSERT (rhea_weakzone_label_is_valid (weak_label));
+
+  /* get weak zone factor */
+  weak_factor = rhea_weakzone_lookup_factor_interior ((int) weak_label,
+                                                      weak_options);
+
+  /* set scaling factor for the derivative */
+  scaling_deriv =
+    rhea_inversion_param_convert_from_model_weak_deriv (weak_factor);
 
   /* init derivative */
   rhea_viscosity_param_derivative_init (
@@ -464,7 +472,8 @@ rhea_viscosity_param_derivative_weak_factor_interior (
       1 /* remove_lower_mantle */);
 
   /* get indicator for weak zones */
-  rhea_weakzone_compute_indicator (weak_indicator, weak_options);
+  rhea_weakzone_compute_indicator (weak_indicator, (int) weak_label,
+                                   weak_options);
 
   /* compute derivative */
   ymir_vec_scale (scaling_deriv, weak_indicator);
@@ -486,20 +495,18 @@ rhea_viscosity_param_derivative (
                             ymir_vec_t *bounds_marker,
                             ymir_vec_t *yielding_marker,
                             ymir_vec_t *temperature,
-                            ymir_vec_t *weakzone,
                             ymir_vec_t *velocity,
-                            rhea_weakzone_options_t *weak_options,
                             rhea_viscosity_options_t *visc_options)
 {
-  switch (derivative_type) {
+  /* initialize to zero */
+  ymir_vec_set_zero (derivative);
 
+  /* compute derivative */
+  switch (derivative_type) {
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_MIN:
     if (rhea_viscosity_restrict_min (visc_options)) {
       rhea_viscosity_param_derivative_min (
           derivative, viscosity, bounds_marker, yielding_marker, visc_options);
-    }
-    else {
-      ymir_vec_set_zero (derivative);
     }
     break;
 
@@ -507,9 +514,6 @@ rhea_viscosity_param_derivative (
     if (rhea_viscosity_restrict_max (visc_options)) {
       rhea_viscosity_param_derivative_max (
           derivative, viscosity, bounds_marker, yielding_marker, visc_options);
-    }
-    else {
-      ymir_vec_set_zero (derivative);
     }
     break;
 
@@ -525,9 +529,6 @@ rhea_viscosity_param_derivative (
           derivative, viscosity, bounds_marker, yielding_marker, temperature,
           visc_options, 1 /* upper mantle */, 0 /* not lower mantle */);
     }
-    else {
-      ymir_vec_set_zero (derivative);
-    }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_SCALING:
@@ -542,9 +543,6 @@ rhea_viscosity_param_derivative (
           derivative, viscosity, bounds_marker, yielding_marker, temperature,
           visc_options, 0 /* not upper mantle */, 1 /* lower mantle */);
     }
-    else {
-      ymir_vec_set_zero (derivative);
-    }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_STRESS_EXPONENT:
@@ -553,37 +551,12 @@ rhea_viscosity_param_derivative (
           derivative, viscosity, bounds_marker, yielding_marker, velocity,
           visc_options);
     }
-    else {
-      ymir_vec_set_zero (derivative);
-    }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_YIELD_STRENGTH:
     if (rhea_viscosity_has_yielding (visc_options)) {
       rhea_viscosity_param_derivative_yield_strength (
           derivative, viscosity, bounds_marker, yielding_marker, visc_options);
-    }
-    else {
-      ymir_vec_set_zero (derivative);
-    }
-    break;
-
-  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    break;
-
-  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    break;
-
-  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR:
-    if (rhea_weakzone_exists (weak_options)) {
-      rhea_viscosity_param_derivative_weak_factor_interior (
-          derivative, viscosity, bounds_marker, yielding_marker, weakzone,
-          weak_options, visc_options);
-    }
-    else {
-      ymir_vec_set_zero (derivative);
     }
     break;
 
@@ -599,6 +572,55 @@ rhea_viscosity_param_derivative (
     ymir_vtk_write (ymir_vec_get_mesh (derivative), path,
                     derivative, "derivative",
                     temperature, "temperature",
+                    viscosity, "viscosity", NULL);
+  }
+#endif
+}
+
+void
+rhea_viscosity_param_derivative_weakzone (
+                            ymir_vec_t *derivative,
+                            rhea_viscosity_param_derivative_t derivative_type,
+                            rhea_weakzone_label_t weak_label,
+                            ymir_vec_t *viscosity,
+                            ymir_vec_t *bounds_marker,
+                            ymir_vec_t *yielding_marker,
+                            ymir_vec_t *weakzone,
+                            rhea_weakzone_options_t *weak_options,
+                            rhea_viscosity_options_t *visc_options)
+{
+  /* initialize to zero */
+  ymir_vec_set_zero (derivative);
+
+  /* exit if nothing to do */
+  if (!rhea_weakzone_exists (weak_options)) {
+    return;
+  }
+
+  /* compute derivative */
+  switch (derivative_type) {
+  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS:
+    RHEA_ABORT_NOT_REACHED (); //TODO
+    break;
+  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST:
+    RHEA_ABORT_NOT_REACHED (); //TODO
+    break;
+  case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR:
+    rhea_viscosity_param_derivative_weak_factor_interior (
+        derivative, weak_label, viscosity, bounds_marker, yielding_marker,
+        weakzone, weak_options, visc_options);
+    break;
+  default: /* unknown derivative type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+#if (0 < RHEA_VISCOSITY_PARAM_DERIVATIVE_VTK)
+  {
+    char                path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_type%i", __func__, derivative_type);
+    ymir_vtk_write (ymir_vec_get_mesh (derivative), path,
+                    derivative, "derivative",
                     viscosity, "viscosity", NULL);
   }
 #endif
