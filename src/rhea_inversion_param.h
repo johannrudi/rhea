@@ -27,17 +27,17 @@ typedef struct rhea_inversion_param_options
 
   /* flags activating inversion for weak zone parameters */
   int                 thickness_a;
-  int                 thickness_generic_slab_a;
-  int                 thickness_generic_ridge_a;
-  int                 thickness_generic_fracture_a;
+  int                 thickness_class_slab_a;
+  int                 thickness_class_ridge_a;
+  int                 thickness_class_fracture_a;
   int                 thickness_const_a;
-  int                 thickness_const_generic_slab_a;
-  int                 thickness_const_generic_ridge_a;
-  int                 thickness_const_generic_fracture_a;
+  int                 thickness_const_class_slab_a;
+  int                 thickness_const_class_ridge_a;
+  int                 thickness_const_class_fracture_a;
   int                 weak_factor_interior_a;
-  int                 weak_factor_interior_generic_slab_a;
-  int                 weak_factor_interior_generic_ridge_a;
-  int                 weak_factor_interior_generic_fracture_a;
+  int                 weak_factor_interior_class_slab_a;
+  int                 weak_factor_interior_class_ridge_a;
+  int                 weak_factor_interior_class_fracture_a;
   int                 weak_factor_interior_earth_slab_a;
   int                 weak_factor_interior_earth_ridge_a;
   int                 weak_factor_interior_earth_fracture_a;
@@ -57,20 +57,8 @@ typedef struct rhea_inversion_param_options
 
   /* standard deviation of Gaussian prior for weak zone parameters */
   double              prior_stddev_thickness;
-  double              prior_stddev_thickness_generic_slab;
-  double              prior_stddev_thickness_generic_ridge;
-  double              prior_stddev_thickness_generic_fracture;
   double              prior_stddev_thickness_const;
-  double              prior_stddev_thickness_const_generic_slab;
-  double              prior_stddev_thickness_const_generic_ridge;
-  double              prior_stddev_thickness_const_generic_fracture;
   double              prior_stddev_weak_factor_interior;
-  double              prior_stddev_weak_factor_interior_generic_slab;
-  double              prior_stddev_weak_factor_interior_generic_ridge;
-  double              prior_stddev_weak_factor_interior_generic_fracture;
-  double              prior_stddev_weak_factor_interior_earth_slab;
-  double              prior_stddev_weak_factor_interior_earth_ridge;
-  double              prior_stddev_weak_factor_interior_earth_fracture;
 
   /* initial guess */
   double              initial_guess_perturb_stddev;
@@ -247,6 +235,7 @@ void                rhea_inversion_param_apply_hessian (
  */
 ymir_vec_t         *rhea_inversion_param_vec_new (
                                             rhea_inversion_param_t *inv_param);
+
 ymir_vec_t         *rhea_inversion_param_vec_new_perturb (
                                             rhea_inversion_param_t *inv_param,
                                             const double perturb_stddev);

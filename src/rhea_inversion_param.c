@@ -14,12 +14,15 @@
 #define RHEA_INVERSION_PARAM_DEFAULT_PRMN_PERTURB_STDDEV NAN
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MIN 2.3
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MAX 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_UM_SCALING 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_UM_SCALING 4.6
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_UM_ARRHENIUS_ACTIVATION_ENERGY 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_SCALING 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_SCALING 4.6
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_ARRHENIUS_ACTIVATION_ENERGY 2.3
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_STRESS_EXPONENT 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_YIELD_STRENGTH 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_YIELD_STRENGTH 4.6
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS_CONST 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_WEAK_FACTOR_INTERIOR 4.6
 #define RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV NAN
 
 /* global options */
@@ -87,15 +90,15 @@ rhea_inversion_param_add_options (
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone thickness",
   YMIR_OPTIONS_B, "activate-weakzone-thickness-generic-slab", '\0',
-    &(inv_param_opt->thickness_generic_slab_a),
+    &(inv_param_opt->thickness_class_slab_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone thickness of slabs",
   YMIR_OPTIONS_B, "activate-weakzone-thickness-generic-ridge", '\0',
-    &(inv_param_opt->thickness_generic_ridge_a),
+    &(inv_param_opt->thickness_class_ridge_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone thickness of slabs",
   YMIR_OPTIONS_B, "activate-weakzone-thickness-generic-fracture", '\0',
-    &(inv_param_opt->thickness_generic_fracture_a),
+    &(inv_param_opt->thickness_class_fracture_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone thickness of slabs",
 
@@ -104,15 +107,15 @@ rhea_inversion_param_add_options (
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone interior thickness (where min factor is reached)",
   YMIR_OPTIONS_B, "activate-weakzone-thickness-const-generic-slab", '\0',
-    &(inv_param_opt->thickness_const_generic_slab_a),
+    &(inv_param_opt->thickness_const_class_slab_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate interior thickness for slabs (where min factor is reached)",
   YMIR_OPTIONS_B, "activate-weakzone-thickness-const-generic-ridge", '\0',
-    &(inv_param_opt->thickness_const_generic_ridge_a),
+    &(inv_param_opt->thickness_const_class_ridge_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate interior thickness for ridges (where min factor is reached)",
   YMIR_OPTIONS_B, "activate-weakzone-thickness-const-generic-fracture", '\0',
-    &(inv_param_opt->thickness_const_generic_fracture_a),
+    &(inv_param_opt->thickness_const_class_fracture_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate interior thickness for fractures (where min factor is reached)",
 
@@ -121,15 +124,15 @@ rhea_inversion_param_add_options (
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone factor",
   YMIR_OPTIONS_B, "activate-weak-factor-interior-generic-slab", '\0',
-    &(inv_param_opt->weak_factor_interior_generic_slab_a),
+    &(inv_param_opt->weak_factor_interior_class_slab_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone factor of generic slabs",
   YMIR_OPTIONS_B, "activate-weak-factor-interior-generic-ridge", '\0',
-    &(inv_param_opt->weak_factor_interior_generic_ridge_a),
+    &(inv_param_opt->weak_factor_interior_class_ridge_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone factor of generic ridges",
   YMIR_OPTIONS_B, "activate-weak-factor-interior-generic-fracture", '\0',
-    &(inv_param_opt->weak_factor_interior_generic_fracture_a),
+    &(inv_param_opt->weak_factor_interior_class_fracture_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone factor of generic fractures",
 
@@ -188,6 +191,19 @@ rhea_inversion_param_add_options (
     RHEA_INVERSION_PARAM_DEFAULT_PRSD_YIELD_STRENGTH,
     "Prior std dev: plastic yielding",
 
+  YMIR_OPTIONS_D, "prior-stddev-weakzone-thickness", '\0',
+    &(inv_param_opt->prior_stddev_thickness),
+    RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS,
+    "Prior std dev: weak zone thickness",
+  YMIR_OPTIONS_D, "prior-stddev-weakzone-thickness-const", '\0',
+    &(inv_param_opt->prior_stddev_thickness_const),
+    RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS_CONST,
+    "Prior std dev: weak zone interior thickness (where min factor is reached)",
+  YMIR_OPTIONS_D, "prior-stddev-weak-factor-interior", '\0',
+    &(inv_param_opt->prior_stddev_weak_factor_interior),
+    RHEA_INVERSION_PARAM_DEFAULT_PRSD_WEAK_FACTOR_INTERIOR,
+    "Prior std dev: weak zone factor",
+
   /****** Initial Guess ******/
 
   YMIR_OPTIONS_D, "initial-guess-perturbation-stddev", '\0',
@@ -236,20 +252,20 @@ typedef enum
    */
 
   /* parameterization of weak zone geometry */
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS,
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB,
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE,
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE,
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST,
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB,
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE,
-  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE,
+  RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE,
 
   /* parameterization of generic max weakening in the interior of weak zones */
-  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR,
-  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB,
-  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE,
-  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE,
+  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE,
+  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB,
+  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE,
+  RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE,
 
   /* max number of global parameters (is greater than actual #parameters) */
   RHEA_INVERSION_PARAM_N_GLOBAL = 32,
@@ -315,75 +331,78 @@ rhea_inversion_param_activation_mask_new (
 
   /* set activation mask of weak zone thickness parameters */
   if (weak_exists && opt->thickness_a) {
-    active[RHEA_INVERSION_PARAM_WEAK_THICKNESS] = 1;
+    active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE] = 1;
 
-    if (opt->thickness_generic_slab_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB] = 1;
+    if (opt->thickness_class_slab_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB] = 1;
     }
-    if (opt->thickness_generic_ridge_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE] = 1;
+    if (opt->thickness_class_ridge_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE] = 1;
     }
-    if (opt->thickness_generic_fracture_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE] = 1;
+    if (opt->thickness_class_fracture_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE] = 1;
     }
   }
   if (weak_exists && opt->thickness_const_a) {
-    active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST] = 1;
+    active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE] = 1;
 
-    if (opt->thickness_const_generic_slab_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB] = 1;
+    if (opt->thickness_const_class_slab_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB] = 1;
     }
-    if (opt->thickness_const_generic_ridge_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE] = 1;
+    if (opt->thickness_const_class_ridge_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE] = 1;
     }
-    if (opt->thickness_const_generic_fracture_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE] = 1;
+    if (opt->thickness_const_class_fracture_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE] = 1;
     }
   }
 
   /* set activation mask of weak factors */
   if (weak_exists && opt->weak_factor_interior_a) {
-    int                 i;
+    int                 offset, idx;
 
-    active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR] = 1;
+    active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE] = 1;
 
     if (opt->weak_factor_interior_earth_slab_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR] = 0;
-      for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_SL; i++) {
-        active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB+i] = 1;
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE] = 0;
+      offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
+      for (idx = offset; idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N_SL; idx++) {
+        active[idx] = 1;
       }
     }
-    else if (opt->weak_factor_interior_generic_slab_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB] = 1;
+    else if (opt->weak_factor_interior_class_slab_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB] = 1;
     }
 
     if (opt->weak_factor_interior_earth_ridge_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR] = 0;
-      for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_RI; i++) {
-        active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_RIDGE+i] = 1;
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE] = 0;
+      offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_RIDGE;
+      for (idx = offset; idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N_RI; idx++) {
+        active[idx] = 1;
       }
     }
-    else if (opt->weak_factor_interior_generic_ridge_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE] = 1;
+    else if (opt->weak_factor_interior_class_ridge_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE] = 1;
     }
 
     if (opt->weak_factor_interior_earth_fracture_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR] = 0;
-      for (i = 0; i < RHEA_WEAKZONE_LABEL_EARTH_N_FZ; i++) {
-        active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_FRACTURE+i] = 1;
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE] = 0;
+      offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_FRACTURE;
+      for (idx = offset; idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N_FZ; idx++) {
+        active[idx] = 1;
       }
     }
-    else if (opt->weak_factor_interior_generic_fracture_a) {
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR] = 0;
-      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE] = 1;
+    else if (opt->weak_factor_interior_class_fracture_a) {
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE] = 0;
+      active[RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE] = 1;
     }
   }
 
@@ -508,13 +527,12 @@ rhea_inversion_param_destroy (rhea_inversion_param_t *inv_param)
 static int
 rhea_inversion_param_earth_weak_is_active (rhea_inversion_param_t *inv_param)
 {
-  int                 offset, total, i;
+  int                 offset, idx;
   int                 n = 0;
 
   offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
-  total = RHEA_WEAKZONE_LABEL_EARTH_N;
-  for (i = 0; i < total; i++) {
-    n += inv_param->active[offset+i];
+  for (idx = offset; idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N; idx++) {
+    n += inv_param->active[idx];
   }
 
   return n;
@@ -529,7 +547,7 @@ rhea_inversion_param_get_model_vals (ymir_vec_t *parameter_vec,
                                      rhea_inversion_param_t *inv_param)
 {
   const int          *active = inv_param->active;
-  double             *param = parameter_vec->meshfree->e[0];
+  double             *p = parameter_vec->meshfree->e[0];
   rhea_weakzone_options_t  *weak_options = inv_param->weak_options;
   rhea_viscosity_options_t *visc_options = inv_param->visc_options;
   int                 idx;
@@ -546,95 +564,75 @@ rhea_inversion_param_get_model_vals (ymir_vec_t *parameter_vec,
 
   /* get lower and upper bounds of the viscosity */
   idx = RHEA_INVERSION_PARAM_VISC_MIN;
-  if (active[idx]) param[idx] = visc_options->min;
+  if (active[idx]) p[idx] = visc_options->min;
   idx = RHEA_INVERSION_PARAM_VISC_MAX;
-  if (active[idx]) param[idx] = visc_options->max;
+  if (active[idx]) p[idx] = visc_options->max;
 
   /* get scaling factors and activation energy in Arrhenius relationship */
   idx = RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING;
-  if (active[idx]) param[idx] = visc_options->upper_mantle_scaling;
+  if (active[idx]) p[idx] = visc_options->upper_mantle_scaling;
   idx = RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY;
   if (active[idx]) {
-    param[idx] = visc_options->upper_mantle_arrhenius_activation_energy;
+    p[idx] = visc_options->upper_mantle_arrhenius_activation_energy;
   }
   idx = RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING;
-  if (active[idx]) param[idx] = visc_options->lower_mantle_scaling;
+  if (active[idx]) p[idx] = visc_options->lower_mantle_scaling;
   idx = RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY;
   if (active[idx]) {
-    param[idx] = visc_options->lower_mantle_arrhenius_activation_energy;
+    p[idx] = visc_options->lower_mantle_arrhenius_activation_energy;
   }
 
   /* get stress exponent that governs strain rate weakening */
   idx = RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT;
-  if (active[idx]) param[idx] = visc_options->stress_exponent;
+  if (active[idx]) p[idx] = visc_options->stress_exponent;
 
   /* get yield strength */
   idx = RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH;
-  if (active[idx]) param[idx] = visc_options->yield_strength;
+  if (active[idx]) p[idx] = visc_options->yield_strength;
 
   /*
    * Weak Zone Options
    */
 
   /* get weak zone geometry */
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS;
-  if (active[idx]) param[idx] = weak_options->thickness;
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB;
-  if (active[idx]) param[idx] = weak_options->thickness_generic_slab;
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE;
-  if (active[idx]) param[idx] = weak_options->thickness_generic_ridge;
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE;
-  if (active[idx]) param[idx] = weak_options->thickness_generic_fracture;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE;
+  if (active[idx]) p[idx] = weak_options->thickness;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB;
+  if (active[idx]) p[idx] = weak_options->thickness_class_slab;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE;
+  if (active[idx]) p[idx] = weak_options->thickness_class_ridge;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE;
+  if (active[idx]) p[idx] = weak_options->thickness_class_fracture;
 
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST;
-  if (active[idx]) param[idx] = weak_options->thickness_const;
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB;
-  if (active[idx]) param[idx] = weak_options->thickness_const_generic_slab;
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE;
-  if (active[idx]) param[idx] = weak_options->thickness_const_generic_ridge;
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE;
-  if (active[idx]) param[idx] = weak_options->thickness_const_generic_fracture;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE;
+  if (active[idx]) p[idx] = weak_options->thickness_const;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB;
+  if (active[idx]) p[idx] = weak_options->thickness_const_class_slab;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE;
+  if (active[idx]) p[idx] = weak_options->thickness_const_class_ridge;
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE;
+  if (active[idx]) p[idx] = weak_options->thickness_const_class_fracture;
 
   /* get generic max weakening in the interior of weak zones */
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR;
-  if (active[idx]) param[idx] = weak_options->weak_factor_interior;
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB;
-  if (active[idx]) {
-    param[idx] = weak_options->weak_factor_interior_generic_slab;
-  }
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE;
-  if (active[idx]) {
-    param[idx] = weak_options->weak_factor_interior_generic_ridge;
-  }
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE;
-  if (active[idx]) {
-    param[idx] = weak_options->weak_factor_interior_generic_fracture;
-  }
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE;
+  if (active[idx]) p[idx] = weak_options->weak_factor_interior;
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB;
+  if (active[idx]) p[idx] = weak_options->weak_factor_interior_class_slab;
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE;
+  if (active[idx]) p[idx] = weak_options->weak_factor_interior_class_ridge;
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE;
+  if (active[idx]) p[idx] = weak_options->weak_factor_interior_class_fracture;
 
   /* get earth's max weakening in the interior of weak zones */
   if (rhea_inversion_param_earth_weak_is_active (inv_param)) {
     const double       *weak_earth = weak_options->weak_factor_interior_earth;
-    int                 weak_earth_offset, offset;
+    int                 offset;
 
     RHEA_ASSERT (weak_options->weak_factor_interior_earth != NULL);
 
-    weak_earth_offset = 0;
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
-    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N_SL; idx++) {
-      if (active[idx]) param[offset+idx] = weak_earth[weak_earth_offset+idx];
-    }
-
-    weak_earth_offset = RHEA_WEAKZONE_LABEL_EARTH_N_SL;
-    offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_RIDGE;
-    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N_RI; idx++) {
-      if (active[idx]) param[offset+idx] = weak_earth[weak_earth_offset+idx];
-    }
-
-    weak_earth_offset = RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-                        RHEA_WEAKZONE_LABEL_EARTH_N_RI;
-    offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_FRACTURE;
-    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N_FZ; idx++) {
-      if (active[idx]) param[offset+idx] = weak_earth[weak_earth_offset+idx];
+    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N; idx++) {
+      if (active[offset+idx]) p[offset+idx] = weak_earth[idx];
     }
   }
 
@@ -647,7 +645,7 @@ rhea_inversion_param_set_model_vals (ymir_vec_t *parameter_vec,
                                      rhea_inversion_param_t *inv_param)
 {
   const int          *active = inv_param->active;
-  const double       *param = parameter_vec->meshfree->e[0];
+  const double       *p = parameter_vec->meshfree->e[0];
   rhea_weakzone_options_t  *weak_options = inv_param->weak_options;
   rhea_viscosity_options_t *visc_options = inv_param->visc_options;
   int                 idx;
@@ -662,95 +660,75 @@ rhea_inversion_param_set_model_vals (ymir_vec_t *parameter_vec,
 
   /* set lower and upper bounds of the viscosity */
   idx = RHEA_INVERSION_PARAM_VISC_MIN;
-  if (active[idx]) visc_options->min = param[idx];
+  if (active[idx]) visc_options->min = p[idx];
   idx = RHEA_INVERSION_PARAM_VISC_MAX;
-  if (active[idx]) visc_options->max = param[idx];
+  if (active[idx]) visc_options->max = p[idx];
 
   /* set scaling factors and activation energy in Arrhenius relationship */
   idx = RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING;
-  if (active[idx]) visc_options->upper_mantle_scaling = param[idx];
+  if (active[idx]) visc_options->upper_mantle_scaling = p[idx];
   idx = RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY;
   if (active[idx]) {
-    visc_options->upper_mantle_arrhenius_activation_energy = param[idx];
+    visc_options->upper_mantle_arrhenius_activation_energy = p[idx];
   }
   idx = RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING;
-  if (active[idx]) visc_options->lower_mantle_scaling = param[idx];
+  if (active[idx]) visc_options->lower_mantle_scaling = p[idx];
   idx = RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY;
   if (active[idx]) {
-    visc_options->lower_mantle_arrhenius_activation_energy = param[idx];
+    visc_options->lower_mantle_arrhenius_activation_energy = p[idx];
   }
 
   /* set stress exponent that governs strain rate weakening */
   idx = RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT;
-  if (active[idx]) visc_options->stress_exponent = param[idx];
+  if (active[idx]) visc_options->stress_exponent = p[idx];
 
   /* set yield strength */
   idx = RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH;
-  if (active[idx]) visc_options->yield_strength = param[idx];
+  if (active[idx]) visc_options->yield_strength = p[idx];
 
   /*
    * Weak Zone Options
    */
 
   /* set weak zone geometry */
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS;
-  if (active[idx]) weak_options->thickness = param[idx];
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB;
-  if (active[idx]) weak_options->thickness_generic_slab = param[idx];
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE;
-  if (active[idx]) weak_options->thickness_generic_ridge = param[idx];
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE;
-  if (active[idx]) weak_options->thickness_generic_fracture = param[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE;
+  if (active[idx]) weak_options->thickness = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB;
+  if (active[idx]) weak_options->thickness_class_slab = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE;
+  if (active[idx]) weak_options->thickness_class_ridge = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE;
+  if (active[idx]) weak_options->thickness_class_fracture = p[idx];
 
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST;
-  if (active[idx]) weak_options->thickness_const = param[idx];
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB;
-  if (active[idx]) weak_options->thickness_const_generic_slab = param[idx];
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE;
-  if (active[idx]) weak_options->thickness_const_generic_ridge = param[idx];
-  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE;
-  if (active[idx]) weak_options->thickness_const_generic_fracture = param[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE;
+  if (active[idx]) weak_options->thickness_const = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB;
+  if (active[idx]) weak_options->thickness_const_class_slab = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE;
+  if (active[idx]) weak_options->thickness_const_class_ridge = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE;
+  if (active[idx]) weak_options->thickness_const_class_fracture = p[idx];
 
   /* set generic max weakening in the interior of weak zones */
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR;
-  if (active[idx]) weak_options->weak_factor_interior = param[idx];
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB;
-  if (active[idx]) {
-    weak_options->weak_factor_interior_generic_slab = param[idx];
-  }
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE;
-  if (active[idx]) {
-    weak_options->weak_factor_interior_generic_ridge = param[idx];
-  }
-  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE;
-  if (active[idx]) {
-    weak_options->weak_factor_interior_generic_fracture = param[idx];
-  }
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE;
+  if (active[idx]) weak_options->weak_factor_interior = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB;
+  if (active[idx]) weak_options->weak_factor_interior_class_slab = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE;
+  if (active[idx]) weak_options->weak_factor_interior_class_ridge = p[idx];
+  idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE;
+  if (active[idx]) weak_options->weak_factor_interior_class_fracture = p[idx];
 
   /* set earth's max weakening in the interior of weak zones */
   if (rhea_inversion_param_earth_weak_is_active (inv_param)) {
     double             *weak_earth = weak_options->weak_factor_interior_earth;
-    int                 weak_earth_offset, offset;
+    int                 offset;
 
     RHEA_ASSERT (weak_options->weak_factor_interior_earth != NULL);
 
-    weak_earth_offset = 0;
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
-    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N_SL; idx++) {
-      if (active[idx]) weak_earth[weak_earth_offset+idx] = param[offset+idx];
-    }
-
-    weak_earth_offset = RHEA_WEAKZONE_LABEL_EARTH_N_SL;
-    offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_RIDGE;
-    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N_RI; idx++) {
-      if (active[idx]) weak_earth[weak_earth_offset+idx] = param[offset+idx];
-    }
-
-    weak_earth_offset = RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-                        RHEA_WEAKZONE_LABEL_EARTH_N_RI;
-    offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_FRACTURE;
-    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N_FZ; idx++) {
-      if (active[idx]) weak_earth[weak_earth_offset+idx] = param[offset+idx];
+    for (idx = 0; idx < RHEA_WEAKZONE_LABEL_EARTH_N; idx++) {
+      if (active[offset+idx]) weak_earth[idx] = p[offset+idx];
     }
   }
 }
@@ -846,9 +824,9 @@ rhea_inversion_param_convert_model_vals_to_params (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param = parameter_vec->meshfree->e[0];
+  double             *p = parameter_vec->meshfree->e[0];
   const int          *active = inv_param->active;
-  int                 offset, total, idx;
+  int                 offset, idx;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
@@ -868,26 +846,26 @@ rhea_inversion_param_convert_model_vals_to_params (
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE:
-        param[idx] = rhea_inversion_param_convert_from_model_pos (param[idx]);
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
+        p[idx] = rhea_inversion_param_convert_from_model_pos (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        param[idx] = rhea_inversion_param_convert_from_model_n (param[idx]);
+        p[idx] = rhea_inversion_param_convert_from_model_n (p[idx]);
         success = 1;
         break;
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR:
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB:
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE:
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE:
-        param[idx] = rhea_inversion_param_convert_from_model_weak (param[idx]);
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
+        p[idx] = rhea_inversion_param_convert_from_model_weak (p[idx]);
         success = 1;
         break;
       default:
@@ -897,12 +875,8 @@ rhea_inversion_param_convert_model_vals_to_params (
       /* look up indices in a range */
       if (!success) {
         offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
-        total = RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-                RHEA_WEAKZONE_LABEL_EARTH_N_RI +
-                RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
-        if (offset <= idx && idx < offset + total) {
-          param[idx] =
-            rhea_inversion_param_convert_from_model_weak (param[idx]);
+        if (offset <= idx && idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N) {
+          p[idx] = rhea_inversion_param_convert_from_model_weak (p[idx]);
           success = 1;
         }
       }
@@ -922,9 +896,9 @@ rhea_inversion_param_convert_params_to_model_vals (
                                             ymir_vec_t *parameter_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  double             *param = parameter_vec->meshfree->e[0];
+  double             *p = parameter_vec->meshfree->e[0];
   const int          *active = inv_param->active;
-  int                 offset, total, idx;
+  int                 offset, idx;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
@@ -944,26 +918,26 @@ rhea_inversion_param_convert_params_to_model_vals (
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE:
-      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE:
-        param[idx] = rhea_inversion_param_convert_to_model_pos (param[idx]);
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
+        p[idx] = rhea_inversion_param_convert_to_model_pos (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        param[idx] = rhea_inversion_param_convert_to_model_n (param[idx]);
+        p[idx] = rhea_inversion_param_convert_to_model_n (p[idx]);
         success = 1;
         break;
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR:
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB:
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE:
-      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE:
-        param[idx] = rhea_inversion_param_convert_to_model_weak (param[idx]);
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
+        p[idx] = rhea_inversion_param_convert_to_model_weak (p[idx]);
         success = 1;
         break;
       default:
@@ -973,11 +947,8 @@ rhea_inversion_param_convert_params_to_model_vals (
       /* look up indices in a range */
       if (!success) {
         offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
-        total = RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-                RHEA_WEAKZONE_LABEL_EARTH_N_RI +
-                RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
-        if (offset <= idx && idx < offset + total) {
-          param[idx] = rhea_inversion_param_convert_to_model_weak (param[idx]);
+        if (offset <= idx && idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N) {
+          p[idx] = rhea_inversion_param_convert_to_model_weak (p[idx]);
           success = 1;
         }
       }
@@ -1100,11 +1071,13 @@ rhea_inversion_param_set_initial_from_prior (ymir_vec_t *parameter_vec,
 
 static rhea_viscosity_param_derivative_t
 rhea_inversion_param_get_derivative_type (
-                                    const rhea_inversion_param_idx_t param_idx)
+                                    const rhea_inversion_param_idx_t param_idx,
+                                    rhea_weakzone_label_t *weak_label)
 {
-  int                 offset, total;
+  int                 offset;
 
-  /* look up single index */
+  /* look up indices related to viscosity parameters */
+  *weak_label = RHEA_WEAKZONE_LABEL_UNKNOWN;
   switch (param_idx) {
   case RHEA_INVERSION_PARAM_VISC_MIN:
     return RHEA_VISCOSITY_PARAM_DERIVATIVE_MIN;
@@ -1125,42 +1098,60 @@ rhea_inversion_param_get_derivative_type (
   case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
     return RHEA_VISCOSITY_PARAM_DERIVATIVE_YIELD_STRENGTH;
 
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS:
-    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS;
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_SLAB:
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_RIDGE:
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_GENERIC_FRACTURE:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
-
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST:
-    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST;
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_SLAB:
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_RIDGE:
-  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_GENERIC_FRACTURE:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
-
-  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR:
-    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR;
-  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB:
-  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE:
-  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
-
   default:
     break;
   }
 
-  /* look up indices in a range */
+  /* look up indices related to (generic) weak zone parameters */
+  switch (param_idx) {
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
+    *weak_label = RHEA_WEAKZONE_LABEL_CLASS_NONE;
+    break;
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
+    *weak_label = RHEA_WEAKZONE_LABEL_CLASS_SLAB;
+    break;
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
+    *weak_label = RHEA_WEAKZONE_LABEL_CLASS_RIDGE;
+    break;
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
+    *weak_label = RHEA_WEAKZONE_LABEL_CLASS_FRACTURE;
+    break;
+  default:
+    break;
+  }
+  switch (param_idx) {
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS;
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
+  case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_THICKNESS_CONST;
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
+  case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR;
+  default:
+    break;
+  }
+
+  /* look up indices related to earth's weak zone parameters */
   offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
-  total = RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-          RHEA_WEAKZONE_LABEL_EARTH_N_RI +
-          RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
-  if (offset <= param_idx && param_idx < offset + total) {
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    return RHEA_VISCOSITY_PARAM_DERIVATIVE_NONE;
+  if (offset <= param_idx && param_idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N) {
+    *weak_label = rhea_weakzone_label_earth_get_label (param_idx - offset);
+    return RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR;
   }
 
   /* unknown derivative type */
@@ -1315,30 +1306,48 @@ rhea_inversion_param_prior_get_stddev (ymir_vec_t *prior_stddev_vec,
   /*
    * Weak Zone Options
    */
-
-  //TODO
-
-  /* set nonzero parameter for weak zone factors */
   {
-    const double        prior_stddev_val =
-      rhea_inversion_param_convert_from_model_weak (0.5);
-    int                 offset, total;
+    const double        stddev_thickness = opt->prior_stddev_thickness;
+    const double        stddev_thickness_const =
+                          opt->prior_stddev_thickness_const;
+    const double        stddev_weak_factor_interior =
+                          opt->prior_stddev_weak_factor_interior;
+    int                 offset;
 
-    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR;
-    p[idx] = prior_stddev_val;
-    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_SLAB;
-    p[idx] = prior_stddev_val;
-    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_RIDGE;
-    p[idx] = prior_stddev_val;
-    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_GENERIC_FRACTURE;
-    p[idx] = prior_stddev_val;
+    /* set weak zone thickness */
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE;
+    p[idx] = stddev_thickness;
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB;
+    p[idx] = stddev_thickness;
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE;
+    p[idx] = stddev_thickness;
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE;
+    p[idx] = stddev_thickness;
 
+    /* set weak zone interior thickness */
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE;
+    p[idx] = stddev_thickness_const;
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB;
+    p[idx] = stddev_thickness_const;
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE;
+    p[idx] = stddev_thickness_const;
+    idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE;
+    p[idx] = stddev_thickness_const;
+
+    /* set weak zone factors */
+    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE;
+    p[idx] = stddev_weak_factor_interior;
+    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB;
+    p[idx] = stddev_weak_factor_interior;
+    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE;
+    p[idx] = stddev_weak_factor_interior;
+    idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE;
+    p[idx] = stddev_weak_factor_interior;
+
+    /* set earth's weak zone factors */
     offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
-    total = RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-            RHEA_WEAKZONE_LABEL_EARTH_N_RI +
-            RHEA_WEAKZONE_LABEL_EARTH_N_FZ;
-    for (idx = offset; idx < offset+total; idx++) {
-      p[idx] = prior_stddev_val;
+    for (idx = offset; idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N; idx++) {
+      p[idx] = stddev_weak_factor_interior;
     }
   }
 
@@ -1499,15 +1508,25 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   }
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
-      const rhea_inversion_param_idx_t idx = (rhea_inversion_param_idx_t) i;
+      const rhea_inversion_param_idx_t  idx = (rhea_inversion_param_idx_t) i;
+      rhea_viscosity_param_derivative_t deriv_type;
+      rhea_weakzone_label_t             weak_label;
 
       RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "param_idx=%i", i);
 
       /* compute parameter derivative of viscosity */
-      rhea_viscosity_param_derivative (
-          derivative, rhea_inversion_param_get_derivative_type (idx),
-          viscosity, bounds_marker, yielding_marker, temperature, weakzone,
-          forward_vel, inv_param->weak_options, inv_param->visc_options);
+      deriv_type = rhea_inversion_param_get_derivative_type (idx, &weak_label);
+      if (RHEA_WEAKZONE_LABEL_UNKNOWN == weak_label) {
+        rhea_viscosity_param_derivative (
+            derivative, deriv_type, viscosity, bounds_marker, yielding_marker,
+            temperature, forward_vel, inv_param->visc_options);
+      }
+      else {
+        rhea_viscosity_param_derivative_weakzone (
+            derivative, deriv_type, weak_label,
+            viscosity, bounds_marker, yielding_marker, weakzone,
+            inv_param->weak_options, inv_param->visc_options);
+      }
 
       /* transform to viscous stress coefficient */
       ymir_vec_scale (2.0, derivative);
@@ -1664,13 +1683,23 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
   ymir_vec_set_zero (rhs_vel_mass);
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i] && 0.0 < fabs (grad_dir[i])) {
-      const rhea_inversion_param_idx_t idx = (rhea_inversion_param_idx_t) i;
+      const rhea_inversion_param_idx_t  idx = (rhea_inversion_param_idx_t) i;
+      rhea_viscosity_param_derivative_t deriv_type;
+      rhea_weakzone_label_t             weak_label;
 
       /* compute parameter derivative of viscosity */
-      rhea_viscosity_param_derivative (
-          derivative, rhea_inversion_param_get_derivative_type (idx),
-          viscosity, bounds_marker, yielding_marker, temperature, weakzone,
-          forward_vel, inv_param->weak_options, inv_param->visc_options);
+      deriv_type = rhea_inversion_param_get_derivative_type (idx, &weak_label);
+      if (RHEA_WEAKZONE_LABEL_UNKNOWN == weak_label) {
+        rhea_viscosity_param_derivative (
+            derivative, deriv_type, viscosity, bounds_marker, yielding_marker,
+            temperature, forward_vel, inv_param->visc_options);
+      }
+      else {
+        rhea_viscosity_param_derivative_weakzone (
+            derivative, deriv_type, weak_label,
+            viscosity, bounds_marker, yielding_marker, weakzone,
+            inv_param->weak_options, inv_param->visc_options);
+      }
 
       /* transform to viscous stress coefficient */
       ymir_vec_scale (2.0, derivative);
