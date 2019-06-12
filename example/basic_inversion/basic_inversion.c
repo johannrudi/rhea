@@ -157,7 +157,7 @@ main (int argc, char **argv)
     "Bin file path for solver internals (e.g., iterations of Newton's method)",
 
   /* text file output */
-  YMIR_OPTIONS_S, "txt-write-inverse-solver-path", '\0',
+  YMIR_OPTIONS_S, "txt-write-inversion-solver-path", '\0',
     &(txt_inv_solver_path), NULL,
     "Text file path for solver internals of the inversion",
 
@@ -171,7 +171,7 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
-  YMIR_OPTIONS_S, "vtk-write-inverse-solver-path", '\0',
+  YMIR_OPTIONS_S, "vtk-write-inversion-solver-path", '\0',
     &(vtk_inv_solver_path), NULL,
     "VTK file path for solver internals of the inversion.",
 
