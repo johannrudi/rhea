@@ -220,19 +220,19 @@ sphere_inversion_vtk_write_param_derivatives (
         viscosity, bounds_marker, yielding_marker, weakzone,
         weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
-        deriv_weak_factor_1001, deriv_type, 1001 /* weak zone label */,
+        deriv_weak_factor_1001, deriv_type, (rhea_weakzone_label_t) 1001,
         viscosity, bounds_marker, yielding_marker, weakzone,
         weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
-        deriv_weak_factor_2001, deriv_type, 2001 /* weak zone label */,
+        deriv_weak_factor_2001, deriv_type, (rhea_weakzone_label_t) 2001,
         viscosity, bounds_marker, yielding_marker, weakzone,
         weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
-        deriv_weak_factor_3001, deriv_type, 3001 /* weak zone label */,
+        deriv_weak_factor_3001, deriv_type, (rhea_weakzone_label_t) 3001,
         viscosity, bounds_marker, yielding_marker, weakzone,
         weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
-        deriv_weak_factor_3002, deriv_type, 3002 /* weak zone label */,
+        deriv_weak_factor_3002, deriv_type, (rhea_weakzone_label_t) 3002,
         viscosity, bounds_marker, yielding_marker, weakzone,
         weak_options, visc_options);
 

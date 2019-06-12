@@ -245,10 +245,10 @@ main (int argc, char **argv)
 
   /* print performance statistics */
   rhea_performance_monitor_print (func_name,
-                                  1 /* print wtime */,
-                                  0 /* print #calls */,
-                                  0 /* print flops */,
-                                  0 /* print ymir */);
+                                  RHEA_PERFMON_PRINT_WTIME_ALL,
+                                  RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL,
+                                  RHEA_PERFMON_PRINT_FLOPS_NONE,
+                                  RHEA_PERFMON_PRINT_YMIR_NONE);
   rhea_performance_monitor_finalize ();
 
   /* destroy options */
