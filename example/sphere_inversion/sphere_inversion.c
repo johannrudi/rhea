@@ -342,7 +342,7 @@ main (int argc, char **argv)
     "Bin file path for solver internals (e.g., iterations of Newton's method)",
 
   /* text file output */
-  YMIR_OPTIONS_S, "txt-write-inverse-solver-path", '\0',
+  YMIR_OPTIONS_S, "txt-write-inversion-solver-path", '\0',
     &(txt_inv_solver_path), NULL,
     "Text file path for solver internals of the inversion",
 
