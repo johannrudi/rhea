@@ -89,52 +89,52 @@ rhea_inversion_param_add_options (
     &(inv_param_opt->thickness_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone thickness",
-  YMIR_OPTIONS_B, "activate-weakzone-thickness-generic-slab", '\0',
+  YMIR_OPTIONS_B, "activate-weakzone-thickness-class-slab", '\0',
     &(inv_param_opt->thickness_class_slab_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate weak zone thickness of slabs",
-  YMIR_OPTIONS_B, "activate-weakzone-thickness-generic-ridge", '\0',
+    "Activate weak zone thickness of all slabs",
+  YMIR_OPTIONS_B, "activate-weakzone-thickness-class-ridge", '\0',
     &(inv_param_opt->thickness_class_ridge_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate weak zone thickness of slabs",
-  YMIR_OPTIONS_B, "activate-weakzone-thickness-generic-fracture", '\0',
+    "Activate weak zone thickness of all ridges",
+  YMIR_OPTIONS_B, "activate-weakzone-thickness-class-fracture", '\0',
     &(inv_param_opt->thickness_class_fracture_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate weak zone thickness of slabs",
+    "Activate weak zone thickness of all fractures",
 
   YMIR_OPTIONS_B, "activate-weakzone-thickness-const", '\0',
     &(inv_param_opt->thickness_const_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone interior thickness (where min factor is reached)",
-  YMIR_OPTIONS_B, "activate-weakzone-thickness-const-generic-slab", '\0',
+  YMIR_OPTIONS_B, "activate-weakzone-thickness-const-class-slab", '\0',
     &(inv_param_opt->thickness_const_class_slab_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate interior thickness for slabs (where min factor is reached)",
-  YMIR_OPTIONS_B, "activate-weakzone-thickness-const-generic-ridge", '\0',
+    "Activate interior thickness for all slabs",
+  YMIR_OPTIONS_B, "activate-weakzone-thickness-const-class-ridge", '\0',
     &(inv_param_opt->thickness_const_class_ridge_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate interior thickness for ridges (where min factor is reached)",
-  YMIR_OPTIONS_B, "activate-weakzone-thickness-const-generic-fracture", '\0',
+    "Activate interior thickness for all ridges",
+  YMIR_OPTIONS_B, "activate-weakzone-thickness-const-class-fracture", '\0',
     &(inv_param_opt->thickness_const_class_fracture_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate interior thickness for fractures (where min factor is reached)",
+    "Activate interior thickness for all fractures",
 
   YMIR_OPTIONS_B, "activate-weak-factor-interior", '\0',
     &(inv_param_opt->weak_factor_interior_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone factor",
-  YMIR_OPTIONS_B, "activate-weak-factor-interior-generic-slab", '\0',
+  YMIR_OPTIONS_B, "activate-weak-factor-interior-class-slab", '\0',
     &(inv_param_opt->weak_factor_interior_class_slab_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate weak zone factor of generic slabs",
-  YMIR_OPTIONS_B, "activate-weak-factor-interior-generic-ridge", '\0',
+    "Activate weak zone factor of all slabs",
+  YMIR_OPTIONS_B, "activate-weak-factor-interior-class-ridge", '\0',
     &(inv_param_opt->weak_factor_interior_class_ridge_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate weak zone factor of generic ridges",
-  YMIR_OPTIONS_B, "activate-weak-factor-interior-generic-fracture", '\0',
+    "Activate weak zone factor of all ridges",
+  YMIR_OPTIONS_B, "activate-weak-factor-interior-class-fracture", '\0',
     &(inv_param_opt->weak_factor_interior_class_fracture_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
-    "Activate weak zone factor of generic fractures",
+    "Activate weak zone factor of all fractures",
 
   YMIR_OPTIONS_B, "activate-weak-factor-interior-earth-slab", '\0',
     &(inv_param_opt->weak_factor_interior_earth_slab_a),
@@ -261,7 +261,7 @@ typedef enum
   RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE,
   RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE,
 
-  /* parameterization of generic max weakening in the interior of weak zones */
+  /* parameterization of max weakening factor (in the interior of weak zones) */
   RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE,
   RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB,
   RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE,
@@ -613,7 +613,7 @@ rhea_inversion_param_get_model_vals (ymir_vec_t *parameter_vec,
   idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE;
   if (active[idx]) p[idx] = weak_options->thickness_const_class_fracture;
 
-  /* get generic max weakening in the interior of weak zones */
+  /* get max weakening factor */
   idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE;
   if (active[idx]) p[idx] = weak_options->weak_factor_interior;
   idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB;
@@ -709,7 +709,7 @@ rhea_inversion_param_set_model_vals (ymir_vec_t *parameter_vec,
   idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE;
   if (active[idx]) weak_options->thickness_const_class_fracture = p[idx];
 
-  /* set generic max weakening in the interior of weak zones */
+  /* set max weakening factor */
   idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE;
   if (active[idx]) weak_options->weak_factor_interior = p[idx];
   idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB;
@@ -1102,7 +1102,7 @@ rhea_inversion_param_get_derivative_type (
     break;
   }
 
-  /* look up indices related to (generic) weak zone parameters */
+  /* look up indices related to (general) weak zone parameters */
   switch (param_idx) {
   case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
   case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
