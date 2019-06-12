@@ -1945,14 +1945,20 @@ int
 rhea_viscosity_has_strain_rate_weakening (rhea_viscosity_options_t *opt)
 {
   const int           is_valid = (isfinite (opt->stress_exponent) &&
-                                  1.0 <= opt->stress_exponent &&
-                                  SC_EPS < fabs (1.0 - opt->stress_exponent));
+                                  (1.0 + SC_EPS) <= opt->stress_exponent);
 
-  switch (opt->type_nonlinear) {
-  case RHEA_VISCOSITY_NONLINEAR_SRW:      return is_valid;
-  case RHEA_VISCOSITY_NONLINEAR_YLD:      return 0;
-  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:  return is_valid;
-  default: /* unknown nonlinear viscosity type */
+  switch (opt->type) {
+  case RHEA_VISCOSITY_LINEAR:
+    return 0;
+  case RHEA_VISCOSITY_NONLINEAR:
+    switch (opt->type_nonlinear) {
+    case RHEA_VISCOSITY_NONLINEAR_SRW:      return is_valid;
+    case RHEA_VISCOSITY_NONLINEAR_YLD:      return 0;
+    case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:  return is_valid;
+    default: /* unknown nonlinear viscosity type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  default: /* unknown viscosity type */
     RHEA_ABORT_NOT_REACHED ();
   }
 }
@@ -1974,11 +1980,18 @@ rhea_viscosity_has_yielding (rhea_viscosity_options_t *opt)
   const int           is_valid = (isfinite (opt->yield_strength) &&
                                   0.0 < opt->yield_strength);
 
-  switch (opt->type_nonlinear) {
-  case RHEA_VISCOSITY_NONLINEAR_SRW:      return 0;
-  case RHEA_VISCOSITY_NONLINEAR_YLD:      return is_valid;
-  case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:  return is_valid;
-  default: /* unknown nonlinear viscosity type */
+  switch (opt->type) {
+  case RHEA_VISCOSITY_LINEAR:
+    return 0;
+  case RHEA_VISCOSITY_NONLINEAR:
+    switch (opt->type_nonlinear) {
+    case RHEA_VISCOSITY_NONLINEAR_SRW:      return 0;
+    case RHEA_VISCOSITY_NONLINEAR_YLD:      return is_valid;
+    case RHEA_VISCOSITY_NONLINEAR_SRW_YLD:  return is_valid;
+    default: /* unknown nonlinear viscosity type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
+  default: /* unknown viscosity type */
     RHEA_ABORT_NOT_REACHED ();
   }
 }
