@@ -180,7 +180,7 @@ rhea_weakzone_label_get_class (const rhea_weakzone_label_t label)
   }
 
   /* calculate class from label */
-  class_id = (rhea_weakzone_label_t) ((int) label) / 1000;
+  class_id = (rhea_weakzone_label_t) ((int) label / 1000);
   if (RHEA_WEAKZONE_LABEL_CLASS_NONE <= class_id &&
       class_id <= RHEA_WEAKZONE_LABEL_CLASS_N) {
     return class_id;
@@ -233,7 +233,7 @@ static inline int
 rhea_weakzone_label_earth_get_idx (const rhea_weakzone_label_t label)
 {
   const rhea_weakzone_label_t class_id = (rhea_weakzone_label_t)
-                                         ((int) label) / 1000;
+                                         ((int) label / 1000);
 
   switch (class_id) {
   case RHEA_WEAKZONE_LABEL_CLASS_SLAB:
