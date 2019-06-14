@@ -49,6 +49,7 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 static void
 sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                      ymir_vec_t *sol_vel_press,
+                                     const int vel_obs_euler_pole,
                                      const double vel_obs_add_noise_stddev,
                                      rhea_stokes_problem_t *stokes_problem)
 {
@@ -73,6 +74,26 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   /* project velocity from volume to surface */
   vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
   rhea_velocity_surface_interpolate (vel_obs_surf, vel_sol);
+
+  /* set up observations from Euler pole */
+  if (vel_obs_euler_pole) {
+    rhea_plate_options_t *plate_options =
+      rhea_stokes_problem_get_plate_options (stokes_problem);
+    const int           plate_label = 0;
+    double              rot_axis[3];
+
+    /* calculate rotational axis */
+    rhea_plate_velocity_evaluate_rotation (rot_axis, vel_obs_surf, plate_label,
+                                           1 /* project_out_mean_rot */,
+                                           plate_options);
+    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "vel_obs_rot_axis=(%g, %g, %g)",
+                              rot_axis[0], rot_axis[1], rot_axis[2]);
+
+    /* generate velocity field from rotation */
+    rhea_plate_velocity_generate_from_rotation (vel_obs_surf, rot_axis,
+                                                plate_options);
+    rhea_plate_apply_filter_vec (vel_obs_surf, plate_label, plate_options);
+  }
 
   /* run solver */
   rhea_inversion_solve_with_vel_obs (
@@ -289,6 +310,7 @@ main (int argc, char **argv)
   /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
+  int                 vel_obs_euler_pole;
   double              vel_obs_add_noise_stddev;
   char               *bin_solver_path;
   char               *txt_inv_solver_path;
@@ -332,6 +354,9 @@ main (int argc, char **argv)
     "Relative tolerance for Stokes solver",
 
   /* inversion options */
+  YMIR_OPTIONS_B, "velocity-observations-euler-pole", '\0',
+    &(vel_obs_euler_pole), 0,
+    "Velocity observations are generated from rotation of manufactured solution",
   YMIR_OPTIONS_D, "velocity-observations-add-noise-stddev", '\0',
     &(vel_obs_add_noise_stddev), NAN,
     "Standard deviation of noise added to manufactured velocity observations",
@@ -463,6 +488,7 @@ main (int argc, char **argv)
   /* run inversion solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
   sphere_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
+                                       vel_obs_euler_pole,
                                        vel_obs_add_noise_stddev,
                                        stokes_problem);
   rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
