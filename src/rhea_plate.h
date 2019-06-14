@@ -215,6 +215,15 @@ void                rhea_plate_apply_filter_all_vec (ymir_vec_t *vec,
 
 /**
  * Generates plate velocity at all coordinates in the plate's interior from
+ * a rotational axis.
+ */
+void                rhea_plate_velocity_generate_from_rotation (
+                                                  ymir_vec_t *vel,
+                                                  const double rot_axis[3],
+                                                  rhea_plate_options_t *opt);
+
+/**
+ * Generates plate velocity at all coordinates in the plate's interior from
  * (Euler pole) data.  Velocity is zero outside of the plate.
  */
 void                rhea_plate_velocity_generate (ymir_vec_t *vel,
@@ -223,14 +232,24 @@ void                rhea_plate_velocity_generate (ymir_vec_t *vel,
 
 /**
  * Generates velocities of all plates at all coordinates from (Euler pole)
- * data.  Velocity is zero outside if outside of any plate.
+ * data.  Velocity is zero if outside of any plate.
  */
 void                rhea_plate_velocity_generate_all (
-                                                    ymir_vec_t *vel,
-                                                    rhea_plate_options_t *opt);
+                                                  ymir_vec_t *vel,
+                                                  rhea_plate_options_t *opt);
 
 /**
- * Computes the mean velocity of a plate given the velocity `vel`.
+ * Computes the rotational axis of a plate from the given velocity `vel`.
+ */
+void                rhea_plate_velocity_evaluate_rotation (
+                                                double rot_axis[3],
+                                                ymir_vec_t *vel,
+                                                const int plate_label,
+                                                const int project_out_mean_rot,
+                                                rhea_plate_options_t *opt);
+
+/**
+ * Computes the mean velocity of a plate from the given velocity `vel`.
  */
 double              rhea_plate_velocity_get_mean_magnitude (
                                                 ymir_vec_t *vel,
@@ -239,7 +258,7 @@ double              rhea_plate_velocity_get_mean_magnitude (
                                                 rhea_plate_options_t *opt);
 
 /**
- * Computes mean velocities of all plates given the velocity `vel`.
+ * Computes mean velocities of all plates from the given velocity `vel`.
  */
 void                rhea_plate_velocity_get_mean_magnitude_all (
                                                 double *mean_vel_magn,

@@ -1346,7 +1346,7 @@ rhea_plate_velocity_earth_apply_dim_scal (double rot_spherical[3],
     RHEA_ASSERT (0.0 <= rot_spherical[0]);
     RHEA_ASSERT (0.0 <= rot_spherical[1] && rot_spherical[1] <= 2.0*M_PI);
     RHEA_ASSERT (0.0 <= rot_spherical[2] && rot_spherical[2] <= M_PI);
-    rot_spherical[0] = rot_spherical[0]/M_PI * 180.0;
+    rot_spherical[0] /= M_PI / 180.0;
     rot_spherical[0] /= radius_m / (thermal_diffus_m2_s/radius_m);
     rot_spherical[0] /= 1.0 / (1.0e6*sec_per_yr);
     rot_spherical[1] = rot_spherical[1]/M_PI * 180.0 - 180.0;
@@ -1356,7 +1356,7 @@ rhea_plate_velocity_earth_apply_dim_scal (double rot_spherical[3],
     RHEA_ASSERT (0.0 <= rot_spherical[0]);
     RHEA_ASSERT (-180.0 <= rot_spherical[1] && rot_spherical[1] <= 180.0);
     RHEA_ASSERT (- 90.0 <= rot_spherical[2] && rot_spherical[2] <=  90.0);
-    rot_spherical[0] = rot_spherical[0]/180.0 * M_PI;
+    rot_spherical[0] *= M_PI / 180.0;
     rot_spherical[0] *= radius_m / (thermal_diffus_m2_s/radius_m);
     rot_spherical[0] *= 1.0 / (1.0e6*sec_per_yr);
     rot_spherical[1] = (rot_spherical[1] + 180.0)/180.0 * M_PI;
@@ -1368,9 +1368,9 @@ rhea_plate_velocity_earth_apply_dim_scal (double rot_spherical[3],
  * Assigns angular velocity of plate `plate_label`.
  */
 static void
-rhea_plate_velocity_get_angular_velocity (double rot_axis[3],
-                                          const int plate_label,
-                                          rhea_plate_options_t *opt)
+rhea_plate_velocity_lookup_angular_velocity (double rot_axis[3],
+                                             const int plate_label,
+                                             rhea_plate_options_t *opt)
 {
   /* check input */
   RHEA_ASSERT (RHEA_PLATE_NONE < plate_label &&
@@ -1413,10 +1413,19 @@ rhea_plate_velocity_get_angular_velocity (double rot_axis[3],
 }
 
 void
+rhea_plate_velocity_generate_from_rotation (ymir_vec_t *vel,
+                                            const double rot_axis[3],
+                                            rhea_plate_options_t *opt)
+{
+  ymir_velocity_vec_generate_rotation (vel, opt->domain_options->center,
+                                       rot_axis);
+}
+
+void
 rhea_plate_velocity_generate (ymir_vec_t *vel, const int plate_label,
                               rhea_plate_options_t *opt)
 {
-  double              rot_center[3], rot_axis[3];
+  double              rot_axis[3];
 
   /* check input */
   RHEA_ASSERT (opt != NULL);
@@ -1428,21 +1437,16 @@ rhea_plate_velocity_generate (ymir_vec_t *vel, const int plate_label,
     ymir_vec_set_value (vel, NAN);
     return;
   }
-  else if (RHEA_PLATE_NONE == plate_label ) {
+  else if (RHEA_PLATE_NONE == plate_label) {
     ymir_vec_set_value (vel, 0.0);
     return;
   }
 
-  /* get center from options */
-  rot_center[0] = opt->domain_options->center[0];
-  rot_center[1] = opt->domain_options->center[1];
-  rot_center[2] = opt->domain_options->center[2];
-
   /* assign angular velocity */
-  rhea_plate_velocity_get_angular_velocity (rot_axis, plate_label, opt);
+  rhea_plate_velocity_lookup_angular_velocity (rot_axis, plate_label, opt);
 
   /* generate velocity field and apply filter for the plate's interior */
-  ymir_velocity_vec_generate_rotation (vel, rot_center, rot_axis);
+  rhea_plate_velocity_generate_from_rotation (vel, rot_axis, opt);
   rhea_plate_apply_filter_vec (vel, plate_label, opt);
 }
 
@@ -1484,6 +1488,84 @@ rhea_plate_velocity_generate_all (ymir_vec_t *vel, rhea_plate_options_t *opt)
 #ifdef RHEA_ENABLE_DEBUG
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 #endif
+}
+
+void
+rhea_plate_velocity_evaluate_rotation (double rot_axis[3],
+                                       ymir_vec_t *vel,
+                                       const int plate_label,
+                                       const int project_out_mean_rot,
+                                       rhea_plate_options_t *opt)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel);
+  ymir_vec_t         *vel_surf;
+  double              rot_scale = 1.0;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel) ||
+               rhea_velocity_surface_check_vec_type (vel));
+  RHEA_ASSERT (opt != NULL);
+
+  /* create surface velocity */
+  if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
+    vel_surf = rhea_velocity_surface_new_from_vol (vel);
+  }
+  else { /* if face vector */
+    vel_surf = rhea_velocity_surface_new (ymir_mesh);
+    ymir_vec_copy (vel, vel_surf);
+  }
+
+  /* project out mean rotation (no net rotation) */
+  if (project_out_mean_rot) {
+    rhea_plate_velocity_project_out_mean_rotation (vel_surf, opt);
+  }
+
+  /* filter plate area */
+  if (RHEA_PLATE_NONE != plate_label) {
+    const ymir_topidx_t face_surf = RHEA_DOMAIN_BOUNDARY_FACE_TOP;
+    ymir_vec_t         *filter_surf, *filter_surf_mass;
+    double              total_area;
+    double              filter_area;
+
+    RHEA_ASSERT (rhea_plate_data_exitst (opt));
+
+    /* create work variables */
+    filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+    filter_surf_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+
+    /* calculate total area */
+    ymir_vec_set_value (filter_surf, 1.0);
+    ymir_mass_apply (filter_surf, filter_surf_mass);
+    total_area = ymir_vec_innerprod (filter_surf_mass, filter_surf);
+
+    /* calculate filtered area */
+    rhea_plate_apply_filter_vec (filter_surf, plate_label, opt);
+    ymir_mass_apply (filter_surf, filter_surf_mass);
+    filter_area = ymir_vec_innerprod (filter_surf_mass, filter_surf);
+
+    /* set scaling of rotation */
+    rot_scale = total_area / filter_area;
+
+    /* filter plate velocity */
+    ymir_vec_multiply_in (filter_surf, vel_surf);
+
+    /* destroy */
+    ymir_vec_destroy (filter_surf);
+    ymir_vec_destroy (filter_surf_mass);
+  }
+
+  /* compute the mean rotation */
+  ymir_velocity_vec_compute_mean_rotation (
+      rot_axis, vel_surf, opt->domain_options->center,
+      opt->domain_options->moment_of_inertia_surface, 0 /* !residual_space */);
+
+  /* scale by plate area */
+  rot_axis[0] *= rot_scale;
+  rot_axis[1] *= rot_scale;
+  rot_axis[2] *= rot_scale;
+
+  /* destroy */
+  rhea_velocity_surface_destroy (vel_surf);
 }
 
 static double
