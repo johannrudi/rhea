@@ -1497,14 +1497,16 @@ rhea_plate_velocity_evaluate_rotation (double rot_axis[3],
                                        const int project_out_mean_rot,
                                        rhea_plate_options_t *opt)
 {
+  const double       *center = opt->domain_options->center;
+  double              moment_of_inertia[3];
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel);
   ymir_vec_t         *vel_surf;
-  double              rot_scale = 1.0;
 
   /* check input */
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel) ||
                rhea_velocity_surface_check_vec_type (vel));
   RHEA_ASSERT (opt != NULL);
+  RHEA_ASSERT (RHEA_PLATE_NONE == plate_label || rhea_plate_data_exitst (opt));
 
   /* create surface velocity */
   if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
@@ -1520,52 +1522,40 @@ rhea_plate_velocity_evaluate_rotation (double rot_axis[3],
     rhea_plate_velocity_project_out_mean_rotation (vel_surf, opt);
   }
 
-  /* filter plate area */
+  /* filter plate */
   if (RHEA_PLATE_NONE != plate_label) {
     const ymir_topidx_t face_surf = RHEA_DOMAIN_BOUNDARY_FACE_TOP;
-    ymir_vec_t         *filter_surf, *filter_surf_mass;
-    double              total_area;
-    double              filter_area;
-
-    RHEA_ASSERT (rhea_plate_data_exitst (opt));
-
-    /* create work variables */
-    filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-    filter_surf_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-
-    /* calculate total area */
-    ymir_vec_set_value (filter_surf, 1.0);
-    ymir_mass_apply (filter_surf, filter_surf_mass);
-    total_area = ymir_vec_innerprod (filter_surf_mass, filter_surf);
-
-    /* calculate filtered area */
-    rhea_plate_apply_filter_vec (filter_surf, plate_label, opt);
-    ymir_mass_apply (filter_surf, filter_surf_mass);
-    filter_area = ymir_vec_innerprod (filter_surf_mass, filter_surf);
-
-    /* set scaling of rotation */
-    rot_scale = total_area / filter_area;
+    ymir_vec_t         *density;
 
     /* filter plate velocity */
-    ymir_vec_multiply_in (filter_surf, vel_surf);
+    rhea_plate_apply_filter_vec (vel_surf, plate_label, opt);
 
-    /* destroy */
-    ymir_vec_destroy (filter_surf);
-    ymir_vec_destroy (filter_surf_mass);
+    /* calculate the moment of inertia for the plate */
+    density = ymir_face_dvec_new (ymir_mesh, 1, face_surf, YMIR_GAUSS_NODE);
+    ymir_vec_set_value (density, 1.0);
+    rhea_plate_apply_filter_vec (density, plate_label, opt);
+    ymir_velocity_vec_compute_moment_of_inertia (moment_of_inertia, center,
+                                                 density, NULL /* unused */,
+                                                 -1 /* unused */);
+    ymir_vec_destroy (density);
+  }
+  else {
+    moment_of_inertia[0] = opt->domain_options->moment_of_inertia_surface[0];
+    moment_of_inertia[1] = opt->domain_options->moment_of_inertia_surface[1];
+    moment_of_inertia[2] = opt->domain_options->moment_of_inertia_surface[2];
   }
 
   /* compute the mean rotation */
   ymir_velocity_vec_compute_mean_rotation (
-      rot_axis, vel_surf, opt->domain_options->center,
-      opt->domain_options->moment_of_inertia_surface, 0 /* !residual_space */);
-
-  /* scale by plate area */
-  rot_axis[0] *= rot_scale;
-  rot_axis[1] *= rot_scale;
-  rot_axis[2] *= rot_scale;
+      rot_axis, vel_surf, center, moment_of_inertia, 0 /* !residual_space */);
 
   /* destroy */
   rhea_velocity_surface_destroy (vel_surf);
+
+  /* check output */
+  RHEA_ASSERT (isfinite (rot_axis[0]));
+  RHEA_ASSERT (isfinite (rot_axis[1]));
+  RHEA_ASSERT (isfinite (rot_axis[2]));
 }
 
 static double
