@@ -343,7 +343,8 @@ rhea_domain_compute_center_of_mass (rhea_domain_options_t *opt)
 }
 
 /**
- * Computes and stores the moment of inertia of a domain.
+ * Computes and stores the moment of inertia of a domain that has a "simple"
+ * geometric shape (sets output to NAN otherwise).
  */
 static void
 rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
@@ -358,11 +359,13 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
       opt->moment_of_inertia[1] = moment_of_inertia;
       opt->moment_of_inertia[2] = moment_of_inertia;
 
-      //TODO
-      opt->moment_of_inertia_surface[0] = 0.0;
-      opt->moment_of_inertia_surface[1] = 0.0;
-      opt->moment_of_inertia_surface[2] = 0.0;
+      opt->moment_of_inertia_surface[0] = NAN;
+      opt->moment_of_inertia_surface[1] = NAN;
+      opt->moment_of_inertia_surface[2] = NAN;
     }
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[0]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[1]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[2]));
     break;
 
   case RHEA_DOMAIN_BOX:
@@ -390,11 +393,13 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
       opt->moment_of_inertia[1] = vol/12.0 * (dx*dx + dz*dz);
       opt->moment_of_inertia[2] = vol/12.0 * (dx*dx + dy*dy);
 
-      //TODO
-      opt->moment_of_inertia_surface[0] = 0.0;
-      opt->moment_of_inertia_surface[1] = 0.0;
-      opt->moment_of_inertia_surface[2] = 0.0;
+      opt->moment_of_inertia_surface[0] = NAN;
+      opt->moment_of_inertia_surface[1] = NAN;
+      opt->moment_of_inertia_surface[2] = NAN;
     }
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[0]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[1]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[2]));
     break;
 
   case RHEA_DOMAIN_SHELL:
@@ -428,28 +433,27 @@ rhea_domain_compute_moment_of_inertia (rhea_domain_options_t *opt)
       opt->moment_of_inertia_surface[1] = moment_of_inertia;
       opt->moment_of_inertia_surface[2] = moment_of_inertia;
     }
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[0]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[1]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia[2]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[0]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[1]));
+    RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[2]));
     break;
 
   case RHEA_DOMAIN_CUBE_SPHERICAL:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    //TODO
-    opt->moment_of_inertia[0] = 0.0;
-    opt->moment_of_inertia[1] = 0.0;
-    opt->moment_of_inertia[2] = 0.0;
-    opt->moment_of_inertia_surface[0] = 0.0;
-    opt->moment_of_inertia_surface[1] = 0.0;
-    opt->moment_of_inertia_surface[2] = 0.0;
+    opt->moment_of_inertia[0] = NAN;
+    opt->moment_of_inertia[1] = NAN;
+    opt->moment_of_inertia[2] = NAN;
+    opt->moment_of_inertia_surface[0] = NAN;
+    opt->moment_of_inertia_surface[1] = NAN;
+    opt->moment_of_inertia_surface[2] = NAN;
     break;
 
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
   }
-  RHEA_ASSERT (isfinite (opt->moment_of_inertia[0]));
-  RHEA_ASSERT (isfinite (opt->moment_of_inertia[1]));
-  RHEA_ASSERT (isfinite (opt->moment_of_inertia[2]));
-  RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[0]));
-  RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[1]));
-  RHEA_ASSERT (isfinite (opt->moment_of_inertia_surface[2]));
 }
 
 /**
