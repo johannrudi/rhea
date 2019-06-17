@@ -727,12 +727,16 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   RHEA_GLOBAL_INFOF ("  LM-UM interface smoothing: %g (%g km)\n",
                      opt->lm_um_interface_smoothing_width,
                      opt->lm_um_interface_smoothing_width * scal_len_to_km);
-  RHEA_GLOBAL_INFOF ("  volume:            %g\n", opt->volume);
-  RHEA_GLOBAL_INFOF ("  center of mass:    %g, %g, %g\n",
+  RHEA_GLOBAL_INFOF ("  volume:                     %g\n", opt->volume);
+  RHEA_GLOBAL_INFOF ("  center of mass:             %g, %g, %g\n",
                      opt->center[0], opt->center[1], opt->center[2]);
-  RHEA_GLOBAL_INFOF ("  moment of inertia: %g, %g, %g\n",
+  RHEA_GLOBAL_INFOF ("  moment of inertia, volume:  %g, %g, %g\n",
                      opt->moment_of_inertia[0],  opt->moment_of_inertia[1],
                      opt->moment_of_inertia[2]);
+  RHEA_GLOBAL_INFOF ("  moment of inertia, surface: %g, %g, %g\n",
+                     opt->moment_of_inertia_surface[0],
+                     opt->moment_of_inertia_surface[1],
+                     opt->moment_of_inertia_surface[2]);
   RHEA_GLOBAL_INFO ("========================================\n");
 }
 
