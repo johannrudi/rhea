@@ -84,7 +84,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
     /* calculate rotational axis */
     rhea_plate_velocity_evaluate_rotation (rot_axis, vel_obs_surf, plate_label,
-                                           1 /* project_out_mean_rot */,
+                                           0 /* !project_out_mean_rot */,
                                            plate_options);
     RHEA_GLOBAL_INFOF_FN_TAG (__func__, "vel_obs_rot_axis=(%g, %g, %g)",
                               rot_axis[0], rot_axis[1], rot_axis[2]);
