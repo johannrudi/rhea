@@ -1531,7 +1531,7 @@ rhea_plate_velocity_evaluate_rotation (double rot_axis[3],
     rhea_plate_apply_filter_vec (vel_surf, plate_label, opt);
 
     /* calculate the moment of inertia for the plate */
-    density = ymir_face_dvec_new (ymir_mesh, 1, face_surf, YMIR_GAUSS_NODE);
+    density = ymir_face_dvec_new (ymir_mesh, face_surf, 1, YMIR_GAUSS_NODE);
     ymir_vec_set_value (density, 1.0);
     rhea_plate_apply_filter_vec (density, plate_label, opt);
     ymir_velocity_vec_compute_moment_of_inertia (moment_of_inertia, center,
