@@ -710,9 +710,13 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   inv_problem->vel_obs_weight_surf = ymir_face_cvec_new (
       ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
 
-  //TODO fill vel obs type, obs vec, and weight
+  /* fill observational data */
   ymir_vec_set_value (inv_problem->vel_obs_surf, NAN);
   ymir_vec_set_value (inv_problem->vel_obs_weight_surf, 1.0);
+  rhea_inversion_obs_velocity_generate (
+      inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
+      inv_problem->vel_obs_type,
+      rhea_stokes_problem_get_plate_options (stokes_problem));
 
   /* create (forward/adjoint) state variables */
   RHEA_ASSERT (inv_problem->forward_vel_press == NULL);
@@ -1770,9 +1774,6 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   rhea_inversion_problem_t *inv_problem;
 
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
-
-  /* check input */
-  //TODO
 
   /* initialize inverse problem */
   inv_problem = RHEA_ALLOC (rhea_inversion_problem_t, 1);
