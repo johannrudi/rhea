@@ -377,6 +377,81 @@ rhea_inversion_set_weight_prior (rhea_inversion_problem_t *inv_problem)
  * State Solvers
  *****************************************************************************/
 
+/**
+ * Creates mesh dependent data.
+ */
+static void
+rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
+{
+  rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t            *ymir_mesh;
+  ymir_pressure_elem_t   *press_elem;
+
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+
+  /* get mesh data */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+  /* create (forward/adjoint) state variables */
+  RHEA_ASSERT (inv_problem->forward_vel_press == NULL);
+  RHEA_ASSERT (inv_problem->adjoint_vel_press == NULL);
+  RHEA_ASSERT (inv_problem->incremental_forward_vel_press == NULL);
+  RHEA_ASSERT (inv_problem->incremental_adjoint_vel_press == NULL);
+  inv_problem->forward_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  inv_problem->adjoint_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  inv_problem->incremental_forward_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  inv_problem->incremental_adjoint_vel_press =
+    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  /* create observational data */
+  RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
+  RHEA_ASSERT (inv_problem->vel_obs_weight_surf == NULL);
+  inv_problem->vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
+  inv_problem->vel_obs_weight_surf = ymir_face_cvec_new (
+      ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+
+  /* fill observational data */
+  ymir_vec_set_value (inv_problem->vel_obs_surf, NAN);
+  ymir_vec_set_value (inv_problem->vel_obs_weight_surf, 1.0);
+  rhea_inversion_obs_velocity_generate (
+      inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
+      inv_problem->vel_obs_type,
+      rhea_stokes_problem_get_plate_options (stokes_problem));
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+}
+
+/**
+ * Destroys mesh dependent data.
+ */
+static void
+rhea_inversion_newton_clear_mesh_data (rhea_inversion_problem_t *inv_problem)
+{
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+
+  /* destroy (forward/adjoint) state variables */
+  rhea_velocity_pressure_destroy (inv_problem->forward_vel_press);
+  rhea_velocity_pressure_destroy (inv_problem->adjoint_vel_press);
+  rhea_velocity_pressure_destroy (inv_problem->incremental_forward_vel_press);
+  rhea_velocity_pressure_destroy (inv_problem->incremental_adjoint_vel_press);
+  inv_problem->forward_vel_press = NULL;
+  inv_problem->adjoint_vel_press = NULL;
+  inv_problem->incremental_forward_vel_press = NULL;
+  inv_problem->incremental_adjoint_vel_press = NULL;
+
+  /* destroy observational data */
+  rhea_velocity_surface_destroy (inv_problem->vel_obs_surf);
+  ymir_vec_destroy (inv_problem->vel_obs_weight_surf);
+  inv_problem->vel_obs_surf = NULL;
+  inv_problem->vel_obs_weight_surf = NULL;
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+}
+
 static char        *rhea_inversion_inner_solve_stats_cat (const char *a,
                                                           const char *b);
 
@@ -436,6 +511,7 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   const double        rtol = rhea_inversion_forward_solver_rtol;
   int                 stop_reason, n_iter;
   double              res_reduc;
+  ymir_mesh_t        *ymir_mesh;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
   ymir_perf_counter_start (
@@ -450,6 +526,9 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
         0 /* !override_rhs */, NULL, NULL, NULL, NULL);
   }
 
+  /* store reference to mesh before solve */
+  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+
   /* run Stokes solver */
   stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->forward_vel_press), nonzero_init, iter_max, rtol,
@@ -459,6 +538,12 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   /* write solver statistics */
   rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 0 /* forward */,
                                             n_iter, res_reduc, stop_reason);
+
+  /* recreate mesh dependent data */
+  if (ymir_mesh != rhea_stokes_problem_get_ymir_mesh (stokes_problem)) {
+    rhea_inversion_newton_clear_mesh_data (inv_problem);
+    rhea_inversion_newton_create_mesh_data (inv_problem);
+  }
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_FWD]);
@@ -681,8 +766,6 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
-  ymir_mesh_t              *ymir_mesh;
-  ymir_pressure_elem_t     *press_elem;
 
   /* exit if nothing to do */
   if (rhea_inversion_solver_data_exists (inv_problem)) {
@@ -699,38 +782,8 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   RHEA_ASSERT (solution == NULL ||
                rhea_inversion_param_vec_is_valid (solution, inv_param));
 
-  /* get mesh data */
-  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-
-  /* create observational data */
-  RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
-  RHEA_ASSERT (inv_problem->vel_obs_weight_surf == NULL);
-  inv_problem->vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
-  inv_problem->vel_obs_weight_surf = ymir_face_cvec_new (
-      ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-
-  /* fill observational data */
-  ymir_vec_set_value (inv_problem->vel_obs_surf, NAN);
-  ymir_vec_set_value (inv_problem->vel_obs_weight_surf, 1.0);
-  rhea_inversion_obs_velocity_generate (
-      inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
-      inv_problem->vel_obs_type,
-      rhea_stokes_problem_get_plate_options (stokes_problem));
-
-  /* create (forward/adjoint) state variables */
-  RHEA_ASSERT (inv_problem->forward_vel_press == NULL);
-  RHEA_ASSERT (inv_problem->adjoint_vel_press == NULL);
-  RHEA_ASSERT (inv_problem->incremental_forward_vel_press == NULL);
-  RHEA_ASSERT (inv_problem->incremental_adjoint_vel_press == NULL);
-  inv_problem->forward_vel_press =
-    rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  inv_problem->adjoint_vel_press =
-    rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  inv_problem->incremental_forward_vel_press =
-    rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  inv_problem->incremental_adjoint_vel_press =
-    rhea_velocity_pressure_new (ymir_mesh, press_elem);
+  /* create mesh dependent data */
+  rhea_inversion_newton_create_mesh_data (inv_problem);
 
   /* create Hessian matrix */
   if (rhea_inversion_assemble_hessian) {
@@ -767,31 +820,14 @@ rhea_inversion_newton_clear_solver_data_fn (void *data)
   /* check input */
   RHEA_ASSERT (rhea_inversion_solver_data_exists (inv_problem));
 
-  /* destroy (forward/adjoint) state variables */
-  rhea_velocity_pressure_destroy (inv_problem->forward_vel_press);
-  rhea_velocity_pressure_destroy (inv_problem->adjoint_vel_press);
-  rhea_velocity_pressure_destroy (inv_problem->incremental_forward_vel_press);
-  rhea_velocity_pressure_destroy (inv_problem->incremental_adjoint_vel_press);
-  inv_problem->forward_vel_press = NULL;
-  inv_problem->adjoint_vel_press = NULL;
-  inv_problem->incremental_forward_vel_press = NULL;
-  inv_problem->incremental_adjoint_vel_press = NULL;
-
   /* destroy Hessian matrix */
   if (inv_problem->hessian_matrix != NULL) {
     sc_dmatrix_destroy (inv_problem->hessian_matrix);
     inv_problem->hessian_matrix = NULL;
   }
 
-  /* destroy observational data */
-  if (inv_problem->vel_obs_surf != NULL) {
-    rhea_velocity_surface_destroy (inv_problem->vel_obs_surf);
-    inv_problem->vel_obs_surf = NULL;
-  }
-  if (inv_problem->vel_obs_weight_surf != NULL) {
-    ymir_vec_destroy (inv_problem->vel_obs_weight_surf);
-    inv_problem->vel_obs_weight_surf = NULL;
-  }
+  /* destroy mesh dependent data */
+  rhea_inversion_newton_clear_mesh_data (inv_problem);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
