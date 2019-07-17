@@ -947,7 +947,7 @@ rhea_domain_extract_lateral (double *coord_2d_1, double *coord_2d_2,
   case RHEA_DOMAIN_CUBE:
   case RHEA_DOMAIN_BOX:
     *coord_2d_1 = x;
-    *coord_2d_1 = y;
+    *coord_2d_2 = y;
     break;
   case RHEA_DOMAIN_SHELL:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
