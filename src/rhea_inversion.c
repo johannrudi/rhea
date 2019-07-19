@@ -334,7 +334,7 @@ struct rhea_inversion_problem
 };
 
 static int
-rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
+rhea_inversion_mesh_data_exists (rhea_inversion_problem_t *inv_problem)
 {
   int                 fwd_adj_states_exist;
   int                 vel_obs_exist;
@@ -346,6 +346,12 @@ rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
   vel_obs_exist = (inv_problem->vel_obs_surf != NULL);
 
   return (fwd_adj_states_exist && vel_obs_exist);
+}
+
+static int
+rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
+{
+  return rhea_inversion_mesh_data_exists (inv_problem);
 }
 
 static void
@@ -394,18 +400,25 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
   /* create (forward/adjoint) state variables */
-  RHEA_ASSERT (inv_problem->forward_vel_press == NULL);
+  if (inv_problem->forward_vel_press == NULL) {
+    inv_problem->forward_vel_press =
+      rhea_velocity_pressure_new (ymir_mesh, press_elem);
+    inv_problem->forward_is_outdated = 1;
+  }
   RHEA_ASSERT (inv_problem->adjoint_vel_press == NULL);
   RHEA_ASSERT (inv_problem->incremental_forward_vel_press == NULL);
   RHEA_ASSERT (inv_problem->incremental_adjoint_vel_press == NULL);
-  inv_problem->forward_vel_press =
-    rhea_velocity_pressure_new (ymir_mesh, press_elem);
   inv_problem->adjoint_vel_press =
     rhea_velocity_pressure_new (ymir_mesh, press_elem);
   inv_problem->incremental_forward_vel_press =
     rhea_velocity_pressure_new (ymir_mesh, press_elem);
   inv_problem->incremental_adjoint_vel_press =
     rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  /* reset flags for new state vectors */
+  inv_problem->adjoint_is_outdated = 1;
+  inv_problem->incremental_forward_is_outdated = 1;
+  inv_problem->incremental_adjoint_is_outdated = 1;
 
   /* create observational data */
   RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
@@ -429,16 +442,19 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
  * Destroys mesh dependent data.
  */
 static void
-rhea_inversion_newton_clear_mesh_data (rhea_inversion_problem_t *inv_problem)
+rhea_inversion_newton_clear_mesh_data (rhea_inversion_problem_t *inv_problem,
+                                       const int keep_forward_vel_press)
 {
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /* destroy (forward/adjoint) state variables */
-  rhea_velocity_pressure_destroy (inv_problem->forward_vel_press);
+  if (!keep_forward_vel_press) {
+    rhea_velocity_pressure_destroy (inv_problem->forward_vel_press);
+    inv_problem->forward_vel_press = NULL;
+  }
   rhea_velocity_pressure_destroy (inv_problem->adjoint_vel_press);
   rhea_velocity_pressure_destroy (inv_problem->incremental_forward_vel_press);
   rhea_velocity_pressure_destroy (inv_problem->incremental_adjoint_vel_press);
-  inv_problem->forward_vel_press = NULL;
   inv_problem->adjoint_vel_press = NULL;
   inv_problem->incremental_forward_vel_press = NULL;
   inv_problem->incremental_adjoint_vel_press = NULL;
@@ -541,7 +557,7 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
 
   /* recreate mesh dependent data */
   if (ymir_mesh != rhea_stokes_problem_get_ymir_mesh (stokes_problem)) {
-    rhea_inversion_newton_clear_mesh_data (inv_problem);
+    rhea_inversion_newton_clear_mesh_data (inv_problem, 1 /* keep forward */);
     rhea_inversion_newton_create_mesh_data (inv_problem);
   }
 
@@ -799,12 +815,6 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   /* set up Stokes solver for forward problem */
   rhea_stokes_problem_setup_solver (stokes_problem);
 
-  /* reset flags for all states */
-  inv_problem->forward_is_outdated = 1;
-  inv_problem->adjoint_is_outdated = 1;
-  inv_problem->incremental_forward_is_outdated = 1;
-  inv_problem->incremental_adjoint_is_outdated = 1;
-
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_SETUP_INV_SOLVER]);
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
@@ -827,7 +837,7 @@ rhea_inversion_newton_clear_solver_data_fn (void *data)
   }
 
   /* destroy mesh dependent data */
-  rhea_inversion_newton_clear_mesh_data (inv_problem);
+  rhea_inversion_newton_clear_mesh_data (inv_problem, 0 /* destroy forward */);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
