@@ -44,14 +44,17 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 static void
 basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                     ymir_vec_t *sol_vel_press,
+                                    const int vel_obs_euler_pole,
                                     const double vel_obs_add_noise_stddev,
                                     rhea_stokes_problem_t *stokes_problem)
 {
+  rhea_plate_options_t *plate_options =
+    rhea_stokes_problem_get_plate_options (stokes_problem);
+  const int             n_plates = rhea_plate_get_n_plates (plate_options);
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
   ymir_vec_t         *vel_sol;
   ymir_vec_t         *vel_obs_surf;
-  ymir_vec_t         *vel_obs_weight_surf = NULL;
 
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
@@ -69,10 +72,37 @@ basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
   rhea_velocity_surface_interpolate (vel_obs_surf, vel_sol);
 
-  /* run solver */
-  rhea_inversion_solve_with_vel_obs (
-      inv_problem, 0 /* no initial guess */, NULL /* no parameter vector */,
-      vel_obs_surf, vel_obs_weight_surf, vel_obs_add_noise_stddev);
+  /* run inversion */
+  if (0 < n_plates && vel_obs_euler_pole) { /* set up Euler poles */
+    double              rot_axis[3];
+    int                 pid;
+
+    /* calculate rotational axis */
+    RHEA_ASSERT (plate_options != NULL);
+    for (pid = 0; pid < n_plates; pid++) { /* loop over all plates */
+      rhea_plate_velocity_evaluate_rotation (rot_axis, vel_obs_surf, pid,
+                                             0 /* !project_out_mean_rot */,
+                                             plate_options);
+      plate_options->angular_velocity[3*pid    ] = rot_axis[0];
+      plate_options->angular_velocity[3*pid + 1] = rot_axis[1];
+      plate_options->angular_velocity[3*pid + 2] = rot_axis[2];
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          __func__, "plate_idx=%i, vel_obs_rot_axis=(%g, %g, %g)",
+          pid, rot_axis[0], rot_axis[1], rot_axis[2]);
+    }
+
+    /* run solver */
+    rhea_inversion_solve (inv_problem, 0 /* no initial guess */,
+                          NULL /* no parameter vector */);
+  }
+  else { /* use spacially varying surface velocity */
+    ymir_vec_t         *vel_obs_weight_surf = NULL;
+
+    /* run solver */
+    rhea_inversion_solve_with_vel_obs (
+        inv_problem, 0 /* no initial guess */, NULL /* no parameter vector */,
+        vel_obs_surf, vel_obs_weight_surf, vel_obs_add_noise_stddev);
+  }
 
   /* destroy */
   rhea_velocity_destroy (vel_sol);
@@ -105,6 +135,7 @@ main (int argc, char **argv)
   /* options local to this program */
   int                 solver_iter_max;
   double              solver_rel_tol;
+  int                 vel_obs_euler_pole;
   double              vel_obs_add_noise_stddev;
   char               *bin_solver_path;
   char               *txt_inv_solver_path;
@@ -147,6 +178,9 @@ main (int argc, char **argv)
     "Relative tolerance for Stokes solver",
 
   /* inversion options */
+  YMIR_OPTIONS_B, "velocity-observations-euler-pole", '\0',
+    &(vel_obs_euler_pole), 0,
+    "Velocity observations are generated from rotation of manufactured solution",
   YMIR_OPTIONS_D, "velocity-observations-add-noise-stddev", '\0',
     &(vel_obs_add_noise_stddev), NAN,
     "Standard deviation of noise added to manufactured velocity observations",
@@ -266,7 +300,9 @@ main (int argc, char **argv)
   /* run inversion solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
   basic_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
-                                      vel_obs_add_noise_stddev, stokes_problem);
+                                      vel_obs_euler_pole,
+                                      vel_obs_add_noise_stddev,
+                                      stokes_problem);
   rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
 
   /* destroy */
