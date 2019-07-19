@@ -53,7 +53,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_temperature_background_compute (background_temp, temp_options);
 
   /* get plate labels */
-  if (plate_options != NULL) {
+  if (0 < rhea_plate_get_n_plates (plate_options)) {
     plate_label = rhea_viscosity_surface_new (ymir_mesh);
     plate_vel = rhea_velocity_surface_new (ymir_mesh);
     rhea_plate_set_label_vec (plate_label, plate_options);
@@ -101,8 +101,10 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
                              background_temp, weakzone, viscosity,
                              bounds_marker, rhs_vel);
-  snprintf (path, BUFSIZ, "%s_obs", vtk_write_input_path);
-  rhea_vtk_write_observation_data (path, plate_label, plate_vel);
+  if (plate_label != NULL || plate_vel != NULL) {
+    snprintf (path, BUFSIZ, "%s_obs", vtk_write_input_path);
+    rhea_vtk_write_observation_data (path, plate_label, plate_vel);
+  }
 
   /* destroy */
   ymir_vec_destroy (temperature);
