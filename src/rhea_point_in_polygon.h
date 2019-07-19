@@ -13,7 +13,7 @@
  *                    otherwise.
  * \param[in] nvert   Number of vertices in the polygon. (Whether to repeat the
  *                    first vertex at the end is discussed below.)
- * \param[in] vertx   Array containing the y-coord's of the polygon's vertices.
+ * \param[in] vertx   Array containing the x-coord's of the polygon's vertices.
  * \param[in] verty   Array containing the y-coord's of the polygon's vertices.
  * \param[in] testx   X-coordinate of the test point.
  * \param[in] testy   Y-coordinate of the test point.
