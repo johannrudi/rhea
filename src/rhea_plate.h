@@ -130,6 +130,9 @@ typedef struct rhea_plate_options
   float               y_min;
   float               y_max;
 
+  /* plate velocities (Euler poles) */
+  double             *angular_velocity;
+
   /* options (not owned) */
   rhea_domain_options_t      *domain_options;
   rhea_temperature_options_t *temp_options;
