@@ -53,11 +53,13 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                      const double vel_obs_add_noise_stddev,
                                      rhea_stokes_problem_t *stokes_problem)
 {
+  rhea_plate_options_t *plate_options =
+    rhea_stokes_problem_get_plate_options (stokes_problem);
+  const int             n_plates = rhea_plate_get_n_plates (plate_options);
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
   ymir_vec_t         *vel_sol;
   ymir_vec_t         *vel_obs_surf;
-  ymir_vec_t         *vel_obs_weight_surf;
 
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
@@ -75,45 +77,55 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
   rhea_velocity_surface_interpolate (vel_obs_surf, vel_sol);
 
-  /* initialize weight function */
-  vel_obs_weight_surf = ymir_face_cvec_new (
-      ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-  ymir_vec_set_value (vel_obs_weight_surf, 1.0);
-
-  /* set up observations from Euler pole */
-  if (vel_obs_euler_pole) {
-    rhea_plate_options_t *plate_options =
-      rhea_stokes_problem_get_plate_options (stokes_problem);
-    const int           plate_label = 0;
+  /* run inversion */
+  if (0 < n_plates && vel_obs_euler_pole) { /* set up Euler poles */
     double              rot_axis[3];
+    int                 pid;
 
     /* calculate rotational axis */
-    rhea_plate_velocity_evaluate_rotation (rot_axis, vel_obs_surf, plate_label,
-                                           0 /* !project_out_mean_rot */,
-                                           plate_options);
-    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "vel_obs_rot_axis=(%g, %g, %g)",
-                              rot_axis[0], rot_axis[1], rot_axis[2]);
+    RHEA_ASSERT (plate_options != NULL);
+    for (pid = 0; pid < n_plates; pid++) { /* loop over all plates */
+      rhea_plate_velocity_evaluate_rotation (rot_axis, vel_obs_surf, pid,
+                                             0 /* !project_out_mean_rot */,
+                                             plate_options);
+      plate_options->angular_velocity[3*pid    ] = rot_axis[0];
+      plate_options->angular_velocity[3*pid + 1] = rot_axis[1];
+      plate_options->angular_velocity[3*pid + 2] = rot_axis[2];
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          __func__, "plate_idx=%i, vel_obs_rot_axis=(%g, %g, %g)",
+          pid, rot_axis[0], rot_axis[1], rot_axis[2]);
+    }
+
+    /* run solver */
+    rhea_inversion_solve (inv_problem,
+                          1 /* use model param's as initial guess */,
+                          NULL /* no parameter vector */);
+  }
+  else { /* use spacially varying surface velocity */
+    ymir_vec_t         *vel_obs_weight_surf;
 
     /* generate weight function */
-    rhea_plate_apply_filter_vec (vel_obs_weight_surf, plate_label,
-                                 plate_options);
+    vel_obs_weight_surf = ymir_face_cvec_new (
+        ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    ymir_vec_set_value (vel_obs_weight_surf, 1.0);
+    if (0 < n_plates) { /* if filter subducting plate */
+      rhea_plate_apply_filter_vec (vel_obs_weight_surf, 0 /* plate_label */,
+                                   plate_options);
+    }
 
-    /* generate velocity field from rotation */
-    rhea_plate_velocity_generate_from_rotation (vel_obs_surf, rot_axis,
-                                                plate_options);
-    ymir_vec_multiply_in1 (vel_obs_weight_surf, vel_obs_surf);
+    /* run solver */
+    rhea_inversion_solve_with_vel_obs (
+        inv_problem, 1 /* use model param's as initial guess */,
+        NULL /* no parameter vector */, vel_obs_surf, vel_obs_weight_surf,
+        vel_obs_add_noise_stddev);
+
+    /* destroy */
+    ymir_vec_destroy (vel_obs_weight_surf);
   }
-
-  /* run solver */
-  rhea_inversion_solve_with_vel_obs (
-      inv_problem, 1 /* use model param's as initial guess */,
-      NULL /* no parameter vector */, vel_obs_surf, vel_obs_weight_surf,
-      vel_obs_add_noise_stddev);
 
   /* destroy */
   rhea_velocity_destroy (vel_sol);
   rhea_velocity_surface_destroy (vel_obs_surf);
-  ymir_vec_destroy (vel_obs_weight_surf);
 }
 
 static void
