@@ -43,6 +43,7 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL (1.0e-6)
+#define RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE (0)
 #define RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL \
   (RHEA_INVERSION_PROJECT_OUT_NULL_NONE)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
@@ -76,6 +77,8 @@ int                 rhea_inversion_incremental_adjoint_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX;
 double              rhea_inversion_incremental_adjoint_solver_rtol =
                       RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL;
+int                 rhea_inversion_inner_solver_rtol_adaptive =
+                      RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE;
 int                 rhea_inversion_project_out_null =
                       RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL;
 int                 rhea_inversion_check_gradient =
@@ -142,19 +145,23 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "incremental-forward-solver-iter-max", '\0',
     &(rhea_inversion_incremental_forward_solver_iter_max),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_ITER_MAX,
-    "Incremental forward solver: Maximum number of iterations for Stokes solver",
+    "Incr. forward solver: Maximum number of iterations for Stokes solver",
   YMIR_OPTIONS_D, "incremental-forward-solver-rtol", '\0',
     &(rhea_inversion_incremental_forward_solver_rtol),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL,
-    "Incremental forward solver: Relative tolerance for Stokes solver",
+    "Incr. forward solver: Relative tolerance for Stokes solver",
   YMIR_OPTIONS_I, "incremental-adjoint-solver-iter-max", '\0',
     &(rhea_inversion_incremental_adjoint_solver_iter_max),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX,
-    "Incremental adjoint solver: Maximum number of iterations for Stokes solver",
+    "Incr. adjoint solver: Maximum number of iterations for Stokes solver",
   YMIR_OPTIONS_D, "incremental-adjoint-solver-rtol", '\0',
     &(rhea_inversion_incremental_adjoint_solver_rtol),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL,
-    "Incremental adjoint solver: Relative tolerance for Stokes solver",
+    "Incr. adjoint solver: Relative tolerance for Stokes solver",
+  YMIR_OPTIONS_B, "inner-solver-rtol-adaptive", '\0',
+    &(rhea_inversion_inner_solver_rtol_adaptive),
+    RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE,
+    "Inner solves: Use adaptive relative tolerance provided by Newton's method",
   YMIR_OPTIONS_I, "project-out-null", '\0',
     &(rhea_inversion_project_out_null),
     RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL,
@@ -301,6 +308,7 @@ struct rhea_inversion_problem
   int                 incremental_adjoint_is_outdated;
 
   /* options for inner solves */
+  double              inner_solver_adaptive_rtol_comp;
   rhea_inversion_project_out_null_t project_out_null;
 
   /* assembled Hessian matrix */
@@ -524,7 +532,8 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
   const int           nonzero_init = 0; //TODO 1?
   const int           iter_max = rhea_inversion_forward_solver_iter_max;
-  const double        rtol = rhea_inversion_forward_solver_rtol;
+  const double        rtol = rhea_inversion_forward_solver_rtol *
+                             inv_problem->inner_solver_adaptive_rtol_comp;
   int                 stop_reason, n_iter;
   double              res_reduc;
   ymir_mesh_t        *ymir_mesh;
@@ -575,7 +584,8 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
   rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
   const int           nonzero_init = 0; //TODO 1?
   const int           iter_max = rhea_inversion_adjoint_solver_iter_max;
-  const double        rtol = rhea_inversion_adjoint_solver_rtol;
+  const double        rtol = rhea_inversion_adjoint_solver_rtol *
+                             inv_problem->inner_solver_adaptive_rtol_comp;
   int                 stop_reason, n_iter;
   double              res_reduc;
 
@@ -655,7 +665,8 @@ rhea_inversion_inner_solve_incremental_forward (
   const int           iter_max =
                         rhea_inversion_incremental_forward_solver_iter_max;
   const double        rtol =
-                        rhea_inversion_incremental_forward_solver_rtol;
+                        rhea_inversion_incremental_forward_solver_rtol *
+                        inv_problem->inner_solver_adaptive_rtol_comp;
   int                 stop_reason, n_iter;
   double              res_reduc;
 
@@ -691,7 +702,8 @@ rhea_inversion_inner_solve_incremental_adjoint (
   const int           iter_max =
                         rhea_inversion_incremental_adjoint_solver_iter_max;
   const double        rtol =
-                        rhea_inversion_incremental_adjoint_solver_rtol;
+                        rhea_inversion_incremental_adjoint_solver_rtol *
+                        inv_problem->inner_solver_adaptive_rtol_comp;
   int                 stop_reason, n_iter;
   double              res_reduc;
 
@@ -1474,6 +1486,14 @@ rhea_inversion_newton_solve_hessian_system_fn (
   RHEA_ASSERT (!rhea_inversion_assemble_hessian ||
                inv_problem->hessian_matrix != NULL);
 
+  /* update relative tolerance for inner solves */
+  if (rhea_inversion_inner_solver_rtol_adaptive) {
+    inv_problem->inner_solver_adaptive_rtol_comp = lin_res_norm_rtol;
+  }
+  else {
+    inv_problem->inner_solver_adaptive_rtol_comp = 1.0;
+  }
+
   /* (approximately) invert the Hessian */
   if (!rhea_inversion_assemble_hessian) { /* if matrix not assembled */
     RHEA_ABORT_NOT_REACHED (); //TODO implement non-assembled case
@@ -1859,6 +1879,13 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
     rhea_inversion_param_vec_new (inv_problem->inv_param);
   inv_problem->newton_step_vec =
     rhea_inversion_param_vec_new (inv_problem->inv_param);
+  if (rhea_inversion_inner_solver_rtol_adaptive) {
+    inv_problem->inner_solver_adaptive_rtol_comp =
+      inv_problem->newton_options->lin_rtol_init;
+  }
+  else {
+    inv_problem->inner_solver_adaptive_rtol_comp = 1.0;
+  }
 
   /* create Newton problem */
   {
@@ -2067,6 +2094,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
         mean, variance, stddev);
 
     /* add noise to observations; weighted by the l2-norm of the observations */
+    //TODO make data noise independent of mesh size
     noise = ymir_vec_template (inv_problem->vel_obs_surf);
     ymir_vec_set_random_normal (noise, stddev, 0.0 /* mean */);
     ymir_vec_add (1.0, noise, inv_problem->vel_obs_surf);
