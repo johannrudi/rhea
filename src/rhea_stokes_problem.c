@@ -123,6 +123,7 @@ struct rhea_stokes_problem
   /* mesh (not owned) */
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
+  int                   mesh_modified_by_solver;
 
   /* state variables of the Stokes problem (not owned) */
   ymir_vec_t         *temperature;
@@ -209,6 +210,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->incompressible = 1;
   stokes_problem->ymir_mesh = NULL;
   stokes_problem->press_elem = NULL;
+  stokes_problem->mesh_modified_by_solver = 0;
 
   stokes_problem->temperature = NULL;
   stokes_problem->velocity_pressure = NULL;
@@ -2315,6 +2317,7 @@ rhea_stokes_problem_nonlinear_amr_fn (ymir_vec_t **solution, const int iter,
 
   /* (possibly) recover new vector for solution */
   if (0 < amr_iter) { /* if mesh was adapted */
+    stokes_problem_nl->mesh_modified_by_solver = 1;
     *solution = rhea_stokes_problem_get_velocity_pressure (stokes_problem_nl);
 
     /* project out null spaces in solution */
@@ -3090,6 +3093,9 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (*sol_vel_press));
 
+  /* initialize flag that tracks whether AMR was performed during solve */
+  stokes_problem_nl->mesh_modified_by_solver = 0;
+
   /* run Newton solver */
   newton_options->nonzero_initial_guess = nonzero_initial_guess;
   newton_options->iter_max = newton_options->iter_start + iter_max;
@@ -3285,7 +3291,8 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
                                rhea_stokes_problem_t *stokes_problem,
                                const int force_linear_solve,
                                int *num_iterations,
-                               double *residual_reduction)
+                               double *residual_reduction,
+                               int *mesh_modified_by_solver)
 {
   int                 stop_reason;
 
@@ -3316,6 +3323,11 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
     break;
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* return whether AMR was performed during solve */
+  if (mesh_modified_by_solver != NULL) {
+    *mesh_modified_by_solver = stokes_problem->mesh_modified_by_solver;
   }
 
   /* return stopping reason */
@@ -3351,7 +3363,8 @@ rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
 {
   return rhea_stokes_problem_solve_ext (
       sol_vel_press, nonzero_initial_guess, iter_max, rtol, stokes_problem,
-      0 /* !force_linear_solve */, NULL /* num_iter */, NULL /* res_reduc */);
+      0 /* !force_linear_solve */, NULL /* num_iter */, NULL /* res_reduc */,
+      NULL /* mesh_modified_by_solver */);
 }
 
 int

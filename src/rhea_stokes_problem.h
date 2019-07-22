@@ -139,7 +139,8 @@ int                 rhea_stokes_problem_solve_ext (
                                     rhea_stokes_problem_t *stokes_problem,
                                     const int force_linear_solve,
                                     int *num_iterations,
-                                    double *residual_reduction);
+                                    double *residual_reduction,
+                                    int *mesh_modified_by_solver);
 
 int                 rhea_stokes_problem_has_converged_ext (
                                     const int stop_reason,
