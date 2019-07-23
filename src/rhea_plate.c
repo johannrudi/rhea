@@ -1416,7 +1416,7 @@ rhea_plate_apply_filter_all_vec (ymir_vec_t *vec, rhea_plate_options_t *opt)
     /* filter vector at continuous GLL nodes */
     if (ymir_vec_has_cvec (vec)) {
       data.n_fields = vec->ncfields;
-      data.filter = ymir_face_cvec_new (ymir_mesh, 1, vec->meshnum);
+      data.filter = ymir_face_cvec_new (ymir_mesh, vec->meshnum, 1);
       rhea_plate_set_label_vec (data.filter, opt);
       ymir_face_cvec_set_function (
           vec, rhea_plate_apply_filter_all_face_node_fn, &data);
@@ -1605,12 +1605,12 @@ rhea_plate_velocity_compute_mean_magnitude_internal (
   RHEA_ASSERT (ymir_vec_is_face_vec (magn_surf));
   RHEA_ASSERT (ymir_vec_is_face_vec (filter_surf));
   RHEA_ASSERT (ymir_vec_is_face_vec (filter_surf_mass));
-  RHEA_ASSERT (magn_surf->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP);
-  RHEA_ASSERT (filter_surf->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP);
-  RHEA_ASSERT (filter_surf_mass->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP);
-  RHEA_ASSERT (magn_surf->ncfields == 1);
-  RHEA_ASSERT (filter_surf->ncfields == 1);
-  RHEA_ASSERT (filter_surf_mass->ncfields == 1);
+  RHEA_ASSERT (RHEA_DOMAIN_BOUNDARY_FACE_TOP == magn_surf->meshnum);
+  RHEA_ASSERT (RHEA_DOMAIN_BOUNDARY_FACE_TOP == filter_surf->meshnum);
+  RHEA_ASSERT (RHEA_DOMAIN_BOUNDARY_FACE_TOP == filter_surf_mass->meshnum);
+  RHEA_ASSERT (1 == magn_surf->ncfields);
+  RHEA_ASSERT (1 == filter_surf->ncfields);
+  RHEA_ASSERT (1 == filter_surf_mass->ncfields);
   RHEA_ASSERT (opt != NULL);
 
   /* generate filter for plate */
@@ -1652,9 +1652,9 @@ rhea_plate_velocity_get_mean_magnitude (ymir_vec_t *vel,
   }
 
   /* create work variables */
-  magn_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  filter_surf_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  magn_surf = ymir_face_cvec_new (ymir_mesh, face_surf, 1);
+  filter_surf = ymir_face_cvec_new (ymir_mesh, face_surf, 1);
+  filter_surf_mass = ymir_face_cvec_new (ymir_mesh, face_surf, 1);
 
   /* create surface velocity */
   if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
@@ -1711,9 +1711,9 @@ rhea_plate_velocity_get_mean_magnitude_all (double *mean_vel_magn,
   }
 
   /* create work variables */
-  magn_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  filter_surf = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
-  filter_surf_mass = ymir_face_cvec_new (ymir_mesh, 1, face_surf);
+  magn_surf = ymir_face_cvec_new (ymir_mesh, face_surf, 1);
+  filter_surf = ymir_face_cvec_new (ymir_mesh, face_surf, 1);
+  filter_surf_mass = ymir_face_cvec_new (ymir_mesh, face_surf, 1);
 
   /* create surface velocity */
   if (!ymir_vec_is_face_vec (vel)) { /* if volume vector */
