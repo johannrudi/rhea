@@ -152,17 +152,6 @@ rhea_inversion_obs_velocity_misfit_vec (
     ymir_vec_add (-1.0, vel_obs_surf, misfit_surf);
   }
 
-  /* apply weight to difference */
-  if (weight_surf != NULL) {
-    if (1 == weight_surf->ncfields) {
-      ymir_vec_multiply_in1 (weight_surf, misfit_surf);
-    }
-    else {
-      RHEA_ASSERT (3 == weight_surf->ncfields);
-      ymir_vec_multiply_in (weight_surf, misfit_surf);
-    }
-  }
-
   /* project out mean rotation (globally) */
   switch (obs_type) {
   case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
@@ -178,6 +167,17 @@ rhea_inversion_obs_velocity_misfit_vec (
     break;
   default: /* unknown observation type */
     RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* apply weight to difference */
+  if (weight_surf != NULL) {
+    if (1 == weight_surf->ncfields) {
+      ymir_vec_multiply_in1 (weight_surf, misfit_surf);
+    }
+    else {
+      RHEA_ASSERT (3 == weight_surf->ncfields);
+      ymir_vec_multiply_in (weight_surf, misfit_surf);
+    }
   }
 
   /* remove normal/tangential components (pointwise) */
