@@ -400,15 +400,12 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
   rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
   ymir_mesh_t            *ymir_mesh;
   ymir_pressure_elem_t   *press_elem;
-  sc_MPI_Comm         mpicomm;
-  int                 mpiret;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-  mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
 
   /* create (forward/adjoint) state variables */
   if (inv_problem->forward_vel_press == NULL) {
@@ -431,21 +428,16 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
 
-  /* create observational data */
+  /* create and generate observational data */
   RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
   RHEA_ASSERT (inv_problem->vel_obs_weight_surf == NULL);
   inv_problem->vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
   inv_problem->vel_obs_weight_surf = ymir_face_cvec_new (
       ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-
-  /* fill observational data */
-  ymir_vec_set_value (inv_problem->vel_obs_surf, NAN);
-  ymir_vec_set_value (inv_problem->vel_obs_weight_surf, 1.0);
   rhea_inversion_obs_velocity_generate (
       inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
       inv_problem->vel_obs_type,
       rhea_stokes_problem_get_plate_options (stokes_problem));
-  mpiret = sc_MPI_Barrier (mpicomm); SC_CHECK_MPI (mpiret);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -1032,8 +1024,6 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
-  ymir_mesh_t              *ymir_mesh;
-  ymir_pressure_elem_t     *press_elem;
   double              obs_misfit_weight;
   double              prior_weight;
   ymir_vec_t         *vel;
@@ -1059,16 +1049,19 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
     rhea_inversion_inner_solve_forward (inv_problem);
   }
 
-  /* get mesh data */
-  ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-  press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-
   /* retrieve velocity of the forward state */
-  vel = rhea_velocity_new (ymir_mesh);
-  rhea_velocity_pressure_copy_components (
-      vel, NULL, inv_problem->forward_vel_press, press_elem);
-  rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
-  RHEA_ASSERT (rhea_velocity_is_valid (vel));
+  {
+    ymir_mesh_t              *ymir_mesh =
+      rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+    ymir_pressure_elem_t     *press_elem =
+      rhea_stokes_problem_get_press_elem (stokes_problem);
+
+    vel = rhea_velocity_new (ymir_mesh);
+    rhea_velocity_pressure_copy_components (
+        vel, NULL, inv_problem->forward_vel_press, press_elem);
+    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    RHEA_ASSERT (rhea_velocity_is_valid (vel));
+  }
 
   /* compute the observation data misfit term */
   if (0.0 < obs_misfit_weight) {
