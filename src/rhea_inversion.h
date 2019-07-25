@@ -8,6 +8,17 @@
 
 #include <rhea_stokes_problem.h>
 
+/* types of linearization */
+typedef enum
+{
+  RHEA_INVERSION_KRYLOV_SOLVER_IDX_FORWARD,
+  RHEA_INVERSION_KRYLOV_SOLVER_IDX_ADJOINT,
+  RHEA_INVERSION_KRYLOV_SOLVER_IDX_INCR_FORWARD,
+  RHEA_INVERSION_KRYLOV_SOLVER_IDX_INCR_ADJOINT,
+  RHEA_INVERSION_KRYLOV_SOLVER_N
+}
+rhea_inversion_krylov_solver_idx_t;
+
 /******************************************************************************
  * Options
  *****************************************************************************/
