@@ -190,6 +190,15 @@ typedef struct rhea_newton_options
   double              step_reduction;
   double              step_descend_condition_relaxation;
 
+  /* options for resuming a nonlinear solve */
+  int                 resume;
+  double              resume_obj_init;
+  double              resume_obj_prev;
+  double              resume_obj_reduction_prev;
+  double              resume_grad_norm_init;
+  double              resume_grad_norm_prev;
+  double              resume_grad_norm_reduction_prev;
+
   /* output options */
   int                 status_verbosity;
   int                 print_summary;

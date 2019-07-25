@@ -107,6 +107,13 @@ rhea_newton_calculate_reduction (const double start_value,
 
 #define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
 #define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
+#define RHEA_NEWTON_DEFAULT_RESUME (0)
+#define RHEA_NEWTON_DEFAULT_RESUME_OBJ_INIT (NAN)
+#define RHEA_NEWTON_DEFAULT_RESUME_OBJ_PREV (NAN)
+#define RHEA_NEWTON_DEFAULT_RESUME_OBJ_REDUCTION_PREV (NAN)
+#define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_INIT (NAN)
+#define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_PREV (NAN)
+#define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_REDUCTION_PREV (NAN)
 #define RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY (0)
 
 /* global options */
@@ -273,6 +280,16 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->step_reduction       = RHEA_NEWTON_DEFAULT_STEP_REDUCTION;
   opt->step_descend_condition_relaxation =
     RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION;
+
+  opt->resume                = RHEA_NEWTON_DEFAULT_RESUME;
+  opt->resume_obj_init       = RHEA_NEWTON_DEFAULT_RESUME_OBJ_INIT;
+  opt->resume_obj_prev       = RHEA_NEWTON_DEFAULT_RESUME_OBJ_PREV;
+  opt->resume_obj_reduction_prev =
+    RHEA_NEWTON_DEFAULT_RESUME_OBJ_REDUCTION_PREV;
+  opt->resume_grad_norm_init = RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_INIT;
+  opt->resume_grad_norm_prev = RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_PREV;
+  opt->resume_grad_norm_reduction_prev =
+    RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_REDUCTION_PREV;
 
   opt->status_verbosity = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
   opt->print_summary    = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
@@ -858,6 +875,22 @@ rhea_newton_status_copy_curr_to_init (rhea_newton_status_t *status)
   status->grad_norm_init = status->grad_norm_curr;
 }
 
+static void
+rhea_newton_status_get_resume_init (rhea_newton_status_t *status,
+                                    rhea_newton_options_t *opt)
+{
+  status->obj_init       = opt->resume_obj_init;
+  status->grad_norm_init = opt->resume_grad_norm_init;
+}
+
+static void
+rhea_newton_status_set_resume_init (rhea_newton_options_t *opt,
+                                    rhea_newton_status_t *status)
+{
+  opt->resume_obj_init       = status->obj_init;
+  opt->resume_grad_norm_init = status->grad_norm_init;
+}
+
 /**
  * Copies status of the current iteration to the previous iteration.
  */
@@ -871,6 +904,26 @@ rhea_newton_status_copy_curr_to_prev (rhea_newton_status_t *status)
   /* copy valus pertaining to gradient norm(s) */
   status->grad_norm_prev = status->grad_norm_curr;
   status->grad_norm_reduction_prev = status->grad_norm_reduction_curr;
+}
+
+static void
+rhea_newton_status_get_resume_prev (rhea_newton_status_t *status,
+                                    rhea_newton_options_t *opt)
+{
+  status->obj_prev                 = opt->resume_obj_prev;
+  status->obj_reduction_prev       = opt->resume_obj_reduction_prev;
+  status->grad_norm_prev           = opt->resume_grad_norm_prev;
+  status->grad_norm_reduction_prev = opt->resume_grad_norm_reduction_prev;
+}
+
+static void
+rhea_newton_status_set_resume_prev (rhea_newton_options_t *opt,
+                                    rhea_newton_status_t *status)
+{
+  opt->resume_obj_prev                 = status->obj_prev;
+  opt->resume_obj_reduction_prev       = status->obj_reduction_prev;
+  opt->resume_grad_norm_prev           = status->grad_norm_prev;
+  opt->resume_grad_norm_reduction_prev = status->grad_norm_reduction_prev;
 }
 
 /* enumerator for convergence critera */
@@ -1314,10 +1367,10 @@ rhea_newton_status_summary_destroy (rhea_newton_status_summary_t *summary)
  * Adds current Newton status to the statistics summary.
  */
 static void
-rhea_newton_status_summary_write (rhea_newton_status_summary_t *summary,
-                                  rhea_newton_status_t *status,
-                                  const int evaluate_objective_exists,
-                                  rhea_newton_step_t *step)
+rhea_newton_status_summary_add (rhea_newton_status_summary_t *summary,
+                                rhea_newton_status_t *status,
+                                const int evaluate_objective_exists,
+                                rhea_newton_step_t *step)
 {
   double              obj, obj_reduction;
   double              grad_norm, grad_norm_reduction;
@@ -1694,6 +1747,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   /* copy previous solution and status */
   ymir_vec_copy (solution, solution_prev);
   rhea_newton_status_copy_curr_to_prev (status);
+  rhea_newton_status_set_resume_prev (opt, status);
 
   /* initialize step length */
   step->length = opt->step_length_max;
@@ -1818,14 +1872,23 @@ rhea_newton_solve (ymir_vec_t **solution,
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
                                        RHEA_NEWTON_CONV_CRITERION_ALL,
                                        *solution, iter_start, nl_problem);
+      if (opt->resume) { /* if resume a previously started solve */
+        rhea_newton_status_get_resume_init (&status, opt);
+        rhea_newton_status_get_resume_prev (&status, opt);
+      }
+      else {
+        rhea_newton_status_copy_curr_to_init (&status);
+        rhea_newton_status_set_resume_init (opt, &status);
+      }
     }
     else { /* if zero initial guess */
       ymir_vec_set_zero (*solution);
       rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
                                        RHEA_NEWTON_CONV_CRITERION_ALL,
                                        NULL, iter_start, nl_problem);
+      rhea_newton_status_copy_curr_to_init (&status);
+      rhea_newton_status_set_resume_init (opt, &status);
     }
-    rhea_newton_status_copy_curr_to_init (&status);
 
     /* create storage for summary */
     if (print_summary) {
@@ -1855,7 +1918,7 @@ rhea_newton_solve (ymir_vec_t **solution,
           &status, rhea_newton_problem_evaluate_objective_exists (nl_problem),
           iter, __func__);
       if (print_summary) {
-        rhea_newton_status_summary_write (
+        rhea_newton_status_summary_add (
             summary, &status,
             rhea_newton_problem_evaluate_objective_exists (nl_problem), &step);
       }
