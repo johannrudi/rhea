@@ -271,7 +271,8 @@ main (int argc, char **argv)
 
   /* setup Stokes solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_SOLVER);
-  rhea_stokes_problem_setup_solver (stokes_problem);
+  rhea_stokes_problem_setup_solver_ext (stokes_problem,
+                                        RHEA_INVERSION_KRYLOV_SOLVER_N);
   rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_SOLVER);
 
   /* initialize solution vector */
