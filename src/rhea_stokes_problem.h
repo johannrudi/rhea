@@ -116,6 +116,13 @@ void                rhea_stokes_problem_compute_and_update_coefficient (
                                     const int nonlinear_init);
 
 /**
+ * Sets up the solver of a Stokes problem.
+ */
+void                rhea_stokes_problem_setup_solver_ext (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    const int num_krylov_solvers);
+
+/**
  * Updates the solver of a Stokes problem.
  */
 void                rhea_stokes_problem_update_solver (
@@ -138,6 +145,7 @@ int                 rhea_stokes_problem_solve_ext (
                                     const double rtol,
                                     rhea_stokes_problem_t *stokes_problem,
                                     const int force_linear_solve,
+                                    const int krylov_solver_idx,
                                     int *num_iterations,
                                     double *residual_reduction,
                                     int *mesh_modified_by_solver);
@@ -281,6 +289,9 @@ void                rhea_stokes_problem_viscosity_compute (
                                     rhea_stokes_problem_t *stokes_problem);
 
 ymir_stokes_op_t   *rhea_stokes_problem_get_stokes_op (
+                                    rhea_stokes_problem_t *stokes_problem);
+
+int                 rhea_stokes_problem_get_num_krylov_solvers (
                                     rhea_stokes_problem_t *stokes_problem);
 
 /******************************************************************************
