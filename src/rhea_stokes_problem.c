@@ -3091,6 +3091,7 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
                                      const int iter_max,
                                      const double rtol,
                                      rhea_stokes_problem_t *stokes_problem_nl,
+                                     const int resume,
                                      int *num_iterations,
                                      double *residual_reduction)
 {
@@ -3110,6 +3111,7 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
 
   /* run Newton solver */
   newton_options->nonzero_initial_guess = nonzero_initial_guess;
+  newton_options->resume = (nonzero_initial_guess && resume);
   newton_options->iter_max = newton_options->iter_start + iter_max;
   newton_options->rtol = rtol;
   newton_options->status_verbosity = status_verbosity;
@@ -3312,6 +3314,7 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
                                const int iter_max,
                                const double rtol,
                                rhea_stokes_problem_t *stokes_problem,
+                               const int resume,
                                const int force_linear_solve,
                                const int krylov_solver_idx,
                                int *num_iterations,
@@ -3343,7 +3346,7 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
     else { /* otherwise run full nonlinear solve */
       stop_reason = rhea_stokes_problem_nonlinear_solve (
           sol_vel_press, nonzero_initial_guess, iter_max, rtol,
-          stokes_problem, num_iterations, residual_reduction);
+          stokes_problem, resume, num_iterations, residual_reduction);
     }
     break;
   default: /* unknown Stokes type */
@@ -3388,7 +3391,7 @@ rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
 {
   return rhea_stokes_problem_solve_ext (
       sol_vel_press, nonzero_initial_guess, iter_max, rtol, stokes_problem,
-      0 /* !force_linear_solve */, 0 /* krylov_solver_idx */,
+      0 /* !resume */, 0 /* !force_linear_solve */, 0 /* krylov_solver_idx */,
       NULL /* num_iter */, NULL /* res_reduc */,
       NULL /* mesh_modified_by_solver */);
 }

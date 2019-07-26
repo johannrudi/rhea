@@ -144,6 +144,7 @@ int                 rhea_stokes_problem_solve_ext (
                                     const int iter_max,
                                     const double rtol,
                                     rhea_stokes_problem_t *stokes_problem,
+                                    const int resume,
                                     const int force_linear_solve,
                                     const int krylov_solver_idx,
                                     int *num_iterations,
