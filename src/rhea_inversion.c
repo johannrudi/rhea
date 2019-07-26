@@ -300,6 +300,7 @@ struct rhea_inversion_problem
   ymir_vec_t         *adjoint_vel_press;
   int                 forward_is_outdated;
   int                 adjoint_is_outdated;
+  int                 forward_nonzero_init;
 
   /* incremental forward and adjoint states */
   ymir_vec_t         *incremental_forward_vel_press;
@@ -411,8 +412,8 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
   if (inv_problem->forward_vel_press == NULL) {
     inv_problem->forward_vel_press =
       rhea_velocity_pressure_new (ymir_mesh, press_elem);
-    ymir_vec_set_zero (inv_problem->forward_vel_press);
     inv_problem->forward_is_outdated = 1;
+    inv_problem->forward_nonzero_init = 0;
   }
   RHEA_ASSERT (inv_problem->adjoint_vel_press == NULL);
   RHEA_ASSERT (inv_problem->incremental_forward_vel_press == NULL);
@@ -527,13 +528,19 @@ static void
 rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
 {
   rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
-  const int           nonzero_init = 1;
+  const int           nonzero_init = inv_problem->forward_nonzero_init;
   const int           iter_max = rhea_inversion_forward_solver_iter_max;
   const double        rtol = rhea_inversion_forward_solver_rtol *
                              inv_problem->inner_solver_adaptive_rtol_comp;
+  const int           resume = inv_problem->forward_nonzero_init;
   int                 stop_reason, n_iter;
   double              res_reduc;
   int                 mesh_modified_by_solver;
+
+  /* exit if nothing to do */
+  if (!inv_problem->forward_is_outdated) {
+    return;
+  }
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
   ymir_perf_counter_start (
@@ -551,10 +558,11 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   /* run Stokes solver */
   stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->forward_vel_press), nonzero_init, iter_max, rtol,
-      stokes_problem, 0 /* !force linear solve */,
+      stokes_problem, resume, 0 /* !force linear solve */,
       RHEA_INVERSION_KRYLOV_SOLVER_IDX_FORWARD,
       &n_iter, &res_reduc, &mesh_modified_by_solver);
   inv_problem->forward_is_outdated = 0;
+  inv_problem->forward_nonzero_init = 1;
 
   /* write solver statistics */
   rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 0 /* forward */,
@@ -582,6 +590,7 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
   const int           iter_max = rhea_inversion_adjoint_solver_iter_max;
   const double        rtol = rhea_inversion_adjoint_solver_rtol *
                              inv_problem->inner_solver_adaptive_rtol_comp;
+  const int           resume = 0;
   int                 stop_reason, n_iter;
   double              res_reduc;
 
@@ -592,7 +601,7 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
   /* run Stokes solver */
   stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->adjoint_vel_press), nonzero_init, iter_max, rtol,
-      stokes_problem, 1 /* force linear solve */,
+      stokes_problem, resume, 1 /* force linear solve */,
       RHEA_INVERSION_KRYLOV_SOLVER_IDX_ADJOINT,
       &n_iter, &res_reduc, NULL /* mesh_modified_by_solver */);
   inv_problem->adjoint_is_outdated = 0;
@@ -665,6 +674,7 @@ rhea_inversion_inner_solve_incremental_forward (
   const double        rtol =
                         rhea_inversion_incremental_forward_solver_rtol *
                         inv_problem->inner_solver_adaptive_rtol_comp;
+  const int           resume = 0;
   int                 stop_reason, n_iter;
   double              res_reduc;
 
@@ -675,7 +685,7 @@ rhea_inversion_inner_solve_incremental_forward (
   /* run Stokes solver */
   stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->incremental_forward_vel_press), nonzero_init,
-      iter_max, rtol, stokes_problem, 1 /* force linear solve */,
+      iter_max, rtol, stokes_problem, resume, 1 /* force linear solve */,
       RHEA_INVERSION_KRYLOV_SOLVER_IDX_INCR_FORWARD,
       &n_iter, &res_reduc, NULL /* mesh_modified_by_solver */);
   inv_problem->incremental_forward_is_outdated = 0;
@@ -703,6 +713,7 @@ rhea_inversion_inner_solve_incremental_adjoint (
   const double        rtol =
                         rhea_inversion_incremental_adjoint_solver_rtol *
                         inv_problem->inner_solver_adaptive_rtol_comp;
+  const int           resume = 0;
   int                 stop_reason, n_iter;
   double              res_reduc;
 
@@ -713,7 +724,7 @@ rhea_inversion_inner_solve_incremental_adjoint (
   /* run Stokes solver */
   stop_reason = rhea_stokes_problem_solve_ext (
       &(inv_problem->incremental_adjoint_vel_press), nonzero_init,
-      iter_max, rtol, stokes_problem, 1 /* force linear solve */,
+      iter_max, rtol, stokes_problem, resume, 1 /* force linear solve */,
       RHEA_INVERSION_KRYLOV_SOLVER_IDX_INCR_ADJOINT,
       &n_iter, &res_reduc, NULL /* mesh_modified_by_solver */);
   inv_problem->incremental_adjoint_is_outdated = 0;
@@ -871,10 +882,8 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   RHEA_ASSERT (solution == NULL ||
                rhea_inversion_param_vec_is_valid (solution, inv_param));
 
-  /* solve for forward state */
-  if (inv_problem->forward_is_outdated) {
-    rhea_inversion_inner_solve_forward (inv_problem);
-  }
+  /* ensure the forward state is up-to-date */
+  rhea_inversion_inner_solve_forward (inv_problem);
 
   /* update inversion parameters */
   rhea_inversion_update_param (solution, inv_param);
@@ -1050,9 +1059,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_OBJ]);
 
   /* solve for forward state */
-  if (inv_problem->forward_is_outdated) {
-    rhea_inversion_inner_solve_forward (inv_problem);
-  }
+  rhea_inversion_inner_solve_forward (inv_problem);
 
   /* retrieve velocity of the forward state */
   {
@@ -1134,10 +1141,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (neg_gradient, inv_param));
 
-  /* solve for forward state */
-  if (inv_problem->forward_is_outdated) {
-    rhea_inversion_inner_solve_forward (inv_problem);
-  }
+  /* ensure the forward state is up-to-date */
+  rhea_inversion_inner_solve_forward (inv_problem);
 
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
@@ -1283,10 +1288,8 @@ rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
   const double        prior_weight = inv_problem->prior_weight;
   ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
 
-  /* solve for forward state */
-  if (inv_problem->forward_is_outdated) {
-    rhea_inversion_inner_solve_forward (inv_problem);
-  }
+  /* ensure the forward state is up-to-date */
+  rhea_inversion_inner_solve_forward (inv_problem);
 
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
@@ -1859,6 +1862,7 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->incremental_adjoint_vel_press = NULL;
   inv_problem->forward_is_outdated = 1;
   inv_problem->adjoint_is_outdated = 1;
+  inv_problem->forward_nonzero_init = 0;
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
   inv_problem->project_out_null =
