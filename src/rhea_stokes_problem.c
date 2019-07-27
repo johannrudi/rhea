@@ -489,73 +489,86 @@ rhea_stokes_problem_run_krylov_solver (ymir_vec_t *sol_vel_press,
                                        const int nonzero_initial_guess,
                                        const int iter_max,
                                        const double rtol,
-                                       rhea_stokes_problem_t *stokes_problem,
+                                       ymir_stokes_pc_t *stokes_pc,
+                                       ymir_stokes_op_t *stokes_op,
+                                       const int linearized,
+                                       const int incompressible,
                                        const int krylov_solver_idx,
+                                       ymir_pressure_elem_t *press_elem,
                                        int *num_iterations,
                                        double residual_reduction[3])
 {
   const double        atol = pow (SC_EPS, 2);
+#ifdef RHEA_ENABLE_DEBUG
+  const int           check_residual = 1;
+#else
   const int           check_residual = (NULL != residual_reduction);
+#endif
   ymir_vec_t         *residual_vel_press = NULL;
   int                 stop_reason, itn;
-  double              norm_res_init = NAN, norm_res = NAN;
+  double              norm_res_init = NAN, norm_res = NAN, norm_rhs = NAN;
   double              norm_res_init_vel = NAN, norm_res_vel = NAN;
   double              norm_res_init_press = NAN, norm_res_press = NAN;
-  double              res_reduction;
+  double              res_reduction, res_reduction_vs_rhs;
   double              res_reduction_vel, res_reduction_press;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
-      __func__, "iter_max=%i, rtol=%.1e, nonzero_init_guess=%i, krylov_idx=%i",
-      iter_max, rtol, nonzero_initial_guess, krylov_solver_idx);
+      __func__, "linearized=%i, incompressible=%i, krylov_idx=%i, "
+      "iter_max=%i, rtol=%.1e, nonzero_init_guess=%i",
+      linearized, incompressible, krylov_solver_idx,
+      iter_max, rtol, nonzero_initial_guess);
 
   /* check input */
-  RHEA_ASSERT (stokes_problem->stokes_op != NULL);
-  RHEA_ASSERT (stokes_problem->stokes_pc != NULL);
+  RHEA_ASSERT (stokes_op != NULL);
+  RHEA_ASSERT (stokes_pc != NULL);
+  RHEA_ASSERT (press_elem != NULL);
   RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (sol_vel_press));
 
   /* compute initial norm of (negative) residual (A*u - f) */
   if (check_residual) {
     residual_vel_press = ymir_vec_template (rhs_vel_press);
 
+    norm_res_init = norm_rhs = rhea_stokes_norm_compute (
+        &norm_res_init_vel, &norm_res_init_press, rhs_vel_press,
+        RHEA_STOKES_NORM_L2_VEC_SP, NULL, press_elem);
+
     if (nonzero_initial_guess) {
       RHEA_ASSERT (residual_vel_press != NULL);
       ymir_stokes_pc_apply_stokes_op (sol_vel_press, residual_vel_press,
-                                      stokes_problem->stokes_op, 0, 1);
+                                      stokes_op, linearized, 1 /* dirty */);
       ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
       norm_res_init = rhea_stokes_norm_compute (
           &norm_res_init_vel, &norm_res_init_press, residual_vel_press,
-          RHEA_STOKES_NORM_L2_VEC_SP, NULL, stokes_problem->press_elem);
-    }
-    else { /* if zero inital guess */
-      norm_res_init = rhea_stokes_norm_compute (
-          &norm_res_init_vel, &norm_res_init_press, rhs_vel_press,
-          RHEA_STOKES_NORM_L2_VEC_SP, NULL, stokes_problem->press_elem);
+          RHEA_STOKES_NORM_L2_VEC_SP, NULL, press_elem);
     }
   }
 
   /* run solver for Stokes */
-  stop_reason = ymir_stokes_pc_solve (rhs_vel_press, sol_vel_press,
-                                      stokes_problem->stokes_pc,
-                                      nonzero_initial_guess, rtol, atol,
-                                      iter_max, krylov_solver_idx, &itn);
+  stop_reason = ymir_stokes_pc_solve (
+      rhs_vel_press, sol_vel_press, stokes_pc, nonzero_initial_guess,
+      rtol, atol, iter_max, krylov_solver_idx, &itn);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (sol_vel_press));
 
   /* compute norm of (negative) residual (A*u - f) at solution */
   if (check_residual) {
+    char                func_name_stop[BUFSIZ];
+
     RHEA_ASSERT (residual_vel_press != NULL);
     ymir_stokes_pc_apply_stokes_op (sol_vel_press, residual_vel_press,
-                                    stokes_problem->stokes_op, 0, 1);
+                                    stokes_op, linearized, 1 /* dirty */);
     ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
     norm_res = rhea_stokes_norm_compute (
         &norm_res_vel, &norm_res_press, residual_vel_press,
-        RHEA_STOKES_NORM_L2_VEC_SP, NULL, stokes_problem->press_elem);
+        RHEA_STOKES_NORM_L2_VEC_SP, NULL, press_elem);
 
     /* calculate convergence (note: division by zero is possible) */
     res_reduction =
       rhea_stokes_problem_calculate_reduction (norm_res_init, norm_res);
+    res_reduction_vs_rhs =
+      rhea_stokes_problem_calculate_reduction (norm_rhs, norm_res);
     res_reduction_vel =
       rhea_stokes_problem_calculate_reduction (norm_res_init_vel, norm_res_vel);
-    if (stokes_problem->incompressible) {
+    if (incompressible) {
       res_reduction_press = norm_res_press;
     }
     else {
@@ -563,6 +576,13 @@ rhea_stokes_problem_run_krylov_solver (ymir_vec_t *sol_vel_press,
         rhea_stokes_problem_calculate_reduction (norm_res_init_press,
                                                  norm_res_press);
     }
+
+    /* print status */
+    snprintf (func_name_stop, BUFSIZ, "%s_status", __func__);
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (
+        func_name_stop, "reason=%i, iterations=%i, "
+        "residual_reduction=%.3e, residual_reduction_vs_rhs=%.3e",
+        stop_reason, itn, res_reduction, res_reduction_vs_rhs);
 
     ymir_vec_destroy (residual_vel_press);
   }
@@ -922,7 +942,7 @@ rhea_stokes_problem_linear_setup_solver (
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
   /* build Stokes preconditioner */
-  stokes_problem_lin->stokes_pc = ymir_stokes_pc_new_multi_solver (
+  stokes_problem_lin->stokes_pc = ymir_stokes_pc_new_multi_krylov (
       stokes_op, 0 /* !linearized */, stokes_problem_lin->num_krylov_solvers);
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
@@ -1058,7 +1078,10 @@ rhea_stokes_problem_linear_solve (ymir_vec_t **sol_vel_press,
   /* run Krylov solver */
   stop_reason = rhea_stokes_problem_run_krylov_solver (
       *sol_vel_press, rhs_vel_press, nonzero_initial_guess, iter_max, rtol,
-      stokes_problem_lin, krylov_solver_idx,
+      stokes_problem_lin->stokes_pc,
+      stokes_problem_lin->stokes_op, 0 /* !linearized */,
+      stokes_problem_lin->incompressible, krylov_solver_idx,
+      stokes_problem_lin->press_elem,
       &itn, (check_residual ?  res_reduction : NULL));
 
   /* project out nullspaces of solution */
@@ -1729,7 +1752,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 #if YMIR_WITH_PETSC
   if (stokes_problem_nl->stokes_pc == NULL) {
     /* create Stokes preconditioner */
-    stokes_problem_nl->stokes_pc = ymir_stokes_pc_new_multi_solver (
+    stokes_problem_nl->stokes_pc = ymir_stokes_pc_new_multi_krylov (
         stokes_op, 1 /* linearized */, stokes_problem_nl->num_krylov_solvers);
   }
   else {
@@ -1984,7 +2007,8 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient_fn (
      *   b --- right-hand side
      *   F --- Stokes operator
      *   x --- velocity-pressure vector */
-    ymir_stokes_pc_apply_stokes_op (solution, neg_gradient, stokes_op, 0, 1);
+    ymir_stokes_pc_apply_stokes_op (solution, neg_gradient, stokes_op,
+                                    0 /* !linearized */, 1 /* dirty */);
     ymir_vec_add (-1.0, rhs_vel_press, neg_gradient);
     ymir_vec_scale (-1.0, neg_gradient);
   }
@@ -2082,8 +2106,6 @@ rhea_stokes_problem_nonlinear_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_stokes_op_t   *stokes_op = stokes_problem_nl->stokes_op;
-  const int           linearized = 1;
-  const int           dirty = 1;
 
   /* check input */
 #ifdef RHEA_ENABLE_DEBUG
@@ -2100,7 +2122,8 @@ rhea_stokes_problem_nonlinear_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
 #endif
 
   /* apply */
-  ymir_stokes_pc_apply_stokes_op (in, out, stokes_op, linearized, dirty);
+  ymir_stokes_pc_apply_stokes_op (in, out, stokes_op, 1 /* linearized */,
+                                  1 /* dirty */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (out));
 }
 
@@ -2255,8 +2278,12 @@ rhea_stokes_problem_nonlinear_solve_hessian_system_fn (
   /* run Krylov solver for the linearized system */
   stop_reason = rhea_stokes_problem_run_krylov_solver (
       step, neg_gradient, nonzero_initial_guess, lin_iter_max,
-      lin_res_norm_rtol, stokes_problem_nl, krylov_solver_idx,
-      lin_iter_count, NULL /* residual_reduction */);
+      lin_res_norm_rtol,
+      stokes_problem_nl->stokes_pc,
+      stokes_problem_nl->stokes_op, 1 /* linearized */,
+      stokes_problem_nl->incompressible, krylov_solver_idx,
+      stokes_problem_nl->press_elem,
+      lin_iter_count, NULL /* res reduc */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (step));
 
   /* check for linearization-induced anisotropy in (neg.) gradient & step */
@@ -3337,7 +3364,10 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
       stop_reason = rhea_stokes_problem_run_krylov_solver (
           *sol_vel_press, stokes_problem->rhs_vel_press,
           nonzero_initial_guess, iter_max, rtol,
-          stokes_problem, krylov_solver_idx,
+          stokes_problem->stokes_pc,
+          stokes_problem->stokes_op, 1 /* linearized */,
+          stokes_problem->incompressible, krylov_solver_idx,
+          stokes_problem->press_elem,
           num_iterations, (check_residual ? res_reduction : NULL));
       if (check_residual) {
         *residual_reduction = res_reduction[0];
