@@ -8,6 +8,7 @@
 #include <ymir_mass_vec.h>
 #include <ymir_interp_vec.h>
 #include <ymir_stress_op.h>
+#include <fenv.h>
 
 /* definition of viscosity bounds and yielding markers */
 #define RHEA_VISCOSITY_BOUNDS_OFF (0.0)
@@ -370,12 +371,20 @@ static double
 rhea_viscosity_linear_arrhenius (const double activation_energy,
                                  const double temp)
 {
+  double              result;
+
   RHEA_ASSERT (isfinite (activation_energy));
   RHEA_ASSERT (isfinite (temp));
   RHEA_ASSERT (0.0 <= activation_energy);
   RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
 
-  return exp (activation_energy * (RHEA_TEMPERATURE_NEUTRAL_VALUE - temp));
+  feclearexcept (FE_ALL_EXCEPT);
+  result = exp (activation_energy * (RHEA_TEMPERATURE_NEUTRAL_VALUE - temp));
+  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
+    result = DBL_MAX;
+  }
+
+  return result;
 }
 
 /**
