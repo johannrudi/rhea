@@ -888,6 +888,16 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   /* update inversion parameters */
   rhea_inversion_update_param (solution, inv_param);
 
+  /* print updated parameters */
+#ifdef RHEA_ENABLE_DEBUG
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+  RHEA_GLOBAL_VERBOSE ("Inversion candidate parameters\n");
+  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  rhea_inversion_param_print (
+      solution, RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM, inv_param);
+  RHEA_GLOBAL_VERBOSE ("========================================\n");
+#endif
+
   /* update Stokes solver for forward problem
    * Note: The Stokes coefficient needs only to be updated for linear Stokes,
    *       since the nonlinear solver will re-compute the coefficient later. */
