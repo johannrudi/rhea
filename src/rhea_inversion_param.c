@@ -3,6 +3,7 @@
 #include <rhea_viscosity_param_derivative.h>
 #include <rhea_weakzone_label.h>
 #include <ymir_stress_pc.h>
+#include <fenv.h>
 
 /******************************************************************************
  * Options
@@ -24,6 +25,8 @@
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS_CONST 2.3
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_WEAK_FACTOR_INTERIOR 4.6
 #define RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV NAN
+
+#define RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN SC_EPS
 
 /* global options */
 rhea_inversion_param_options_t rhea_inversion_param_options_global;
@@ -726,21 +729,33 @@ rhea_inversion_param_set_model_vals (ymir_vec_t *parameter_vec,
 double
 rhea_inversion_param_convert_to_model_pos (const double inv_param_val)
 {
-  return exp (inv_param_val);
+  double              model_val;
+
+  feclearexcept (FE_ALL_EXCEPT);
+  model_val = exp (inv_param_val);
+  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
+    model_val = DBL_MAX;
+  }
+
+  return model_val;
 }
 
 double
 rhea_inversion_param_convert_to_model_pos_deriv (const double inv_param_val)
 {
-  return exp (inv_param_val);
+  return rhea_inversion_param_convert_to_model_pos (inv_param_val);
 }
 
 double
 rhea_inversion_param_convert_from_model_pos (const double model_val)
 {
+  double              inv_param_val;
+
   RHEA_ASSERT (0.0 <= model_val);
-  if (0.0 < model_val) {
-    return log (model_val);
+
+  inv_param_val = log (model_val);
+  if (isfinite (inv_param_val)) {
+    return inv_param_val;
   }
   else {
     return -DBL_MAX;
@@ -750,63 +765,85 @@ rhea_inversion_param_convert_from_model_pos (const double model_val)
 double
 rhea_inversion_param_convert_from_model_pos_deriv (const double model_val)
 {
+  RHEA_ASSERT (0.0 <= model_val);
   return model_val;
 }
 
 double
 rhea_inversion_param_convert_to_model_n (const double inv_param_val)
 {
-  return 1.0 + exp (inv_param_val);
+  return 1.0 + rhea_inversion_param_convert_to_model_pos (inv_param_val);
 }
 
 double
 rhea_inversion_param_convert_to_model_n_deriv (const double inv_param_val)
 {
-  return exp (inv_param_val);
+  return rhea_inversion_param_convert_to_model_pos (inv_param_val);
 }
 
 double
 rhea_inversion_param_convert_from_model_n (const double model_val)
 {
   RHEA_ASSERT (1.0 <= model_val);
-  if (1.0 < model_val) {
-    return log (model_val - 1.0);
-  }
-  else {
-    return -DBL_MAX;
-  }
+  return rhea_inversion_param_convert_from_model_pos (model_val - 1.0);
 }
 
 double
 rhea_inversion_param_convert_from_model_n_deriv (const double model_val)
 {
-  return model_val - 1.0;
+  RHEA_ASSERT (1.0 <= model_val);
+  return rhea_inversion_param_convert_from_model_pos_deriv (model_val - 1.0);
 }
 
 double
 rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
 {
-  return exp (-inv_param_val*inv_param_val);
+  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
+
+  return SC_MAX (weak_min, exp (-inv_param_val*inv_param_val));
 }
 
 double
 rhea_inversion_param_convert_to_model_weak_deriv (const double inv_param_val)
 {
-  return -2.0*inv_param_val * exp (-inv_param_val*inv_param_val);
+  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
+
+  if (weak_min < exp (-inv_param_val*inv_param_val)) {
+    return -2.0 * inv_param_val * exp (-inv_param_val*inv_param_val);
+  }
+  else {
+    return 0.0;
+  }
 }
 
 double
 rhea_inversion_param_convert_from_model_weak (const double model_val)
 {
-  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
-  return -sqrt (-log (model_val));
+  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
+
+  RHEA_ASSERT (0.0 <= model_val && model_val <= 1.0);
+
+  if (weak_min < model_val) {
+    return -sqrt (-log (model_val));
+  }
+  else {
+    return -sqrt (-log (weak_min));
+  }
 }
 
 double
 rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
 {
-  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
-  return 2.0 * sqrt (-log (model_val)) * model_val;
+  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
+
+  RHEA_ASSERT (0.0 <= model_val && model_val <= 1.0);
+
+  if (weak_min < model_val) {
+    return 2.0 * sqrt (-log (model_val)) * model_val;
+  }
+  else {
+    return 0.0;
+  }
 }
 
 static void

@@ -143,9 +143,18 @@ void                rhea_inversion_param_set_initial_from_prior (
  * Converts between model values and their corresponding inversion parameters
  * as well as first derivatives of the parametrization functions.
  *
- *   ..._pos ()   For model values that are positive.
- *   ..._n ()     For stress exponent `n`.
- *   ..._weak ()  For weak zone factors.
+ * Denote a model value by `m` and an inversion parameter value by `p`, then
+ *   m <- *_convert_to_model_* (p)
+ *   p <- *_convert_from_model_* (m)
+ * and
+ *   *_convert_to_model_*_deriv (p) = d/dp *_convert_to_model_* (p)
+ *   *_convert_from_model_*_deriv (m) =
+ *     (d/dp *_convert_to_model_*) (*_convert_from_model_* (m))
+ *
+ * Further
+ *   *_pos ()   Used for model values that are positive.
+ *   *_n ()     Used for stress exponent `n`.
+ *   *_weak ()  Used for weak zone factors.
  */
 double              rhea_inversion_param_convert_to_model_pos (
                                                   const double inv_param_val);
