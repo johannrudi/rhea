@@ -4034,9 +4034,7 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
   ymir_vec_t         *rhs_vel = stokes_problem->rhs_vel;
   ymir_vec_t         *rhs_vel_nonzero_dirichlet =
                         stokes_problem->rhs_vel_nonzero_dirichlet;
-  ymir_vec_t         *rhs_vel_press;
-  ymir_vec_t         *vel_press_nspfree;
-  ymir_vec_t         *residual_vel_press, *residual_vel;
+  ymir_vec_t         *residual_vel_press, *residual_vel, *tmp;
 
   /* check input */
   RHEA_ASSERT (rhea_stress_surface_check_vec_type (stress_norm_surf));
@@ -4057,34 +4055,47 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
     return 0;
   }
 
-  /* construct right-hand side for Stokes system */
-  rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  ymir_stokes_pc_construct_rhs (
-      rhs_vel_press,              /* output: right-hand side */
-      rhs_vel,                    /* input: volume forcing */
-      NULL,                       /* input: Neumann forcing */
-      rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
-      stokes_problem->incompressible, stokes_op, 0 /* !linearized */);
-  RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
-
-  /* project out null spaces */
-  vel_press_nspfree = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  ymir_vec_copy (vel_press, vel_press_nspfree);
-  rhea_stokes_problem_project_out_nullspace (vel_press_nspfree,
-                                             stokes_problem);
-
   /* compute residual without constraining Dirichlet BC's
    *   r_mom  = A * u + B^T * p - f
    *   r_mass = B * u
    */
   residual_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-  ymir_stokes_pc_apply_skip_dir_stokes_op (vel_press_nspfree,
-                                           residual_vel_press, stokes_op,
-                                           0 /* !linearized */, 1 /* dirty */);
-  ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
-  RHEA_ASSERT (rhea_velocity_pressure_is_valid (residual_vel_press));
-  rhea_velocity_pressure_destroy (rhs_vel_press);
-  rhea_velocity_pressure_destroy (vel_press_nspfree);
+  tmp = rhea_velocity_pressure_new (ymir_mesh, press_elem);
+
+  /* compute residual (1): apply Stokes operator */
+  {
+    const ymir_stress_op_rot_project_t  project_out_rot =
+                                          stokes_op->project_out_rot;
+    ymir_vec_t         *vel_press_nspfree = tmp;
+
+    ymir_vec_copy (vel_press, vel_press_nspfree);
+    rhea_stokes_problem_project_out_nullspace (vel_press_nspfree,
+                                               stokes_problem);
+
+    stokes_op->project_out_rot = YMIR_STRESS_OP_ROT_PROJECT_NONE;
+    ymir_stokes_pc_apply_skip_dir_stokes_op (vel_press_nspfree,
+                                             residual_vel_press, stokes_op,
+                                             0 /* !linearized */,
+                                             1 /* dirty */);
+    stokes_op->project_out_rot = project_out_rot;
+    RHEA_ASSERT (rhea_velocity_pressure_is_valid (residual_vel_press));
+  }
+
+  /* compute residual (2): subtract right-hand side */
+  {
+    ymir_vec_t         *rhs_vel_press = tmp;
+
+    ymir_stokes_pc_construct_rhs (
+        rhs_vel_press,              /* output: right-hand side */
+        rhs_vel,                    /* input: volume forcing */
+        NULL,                       /* input: Neumann forcing */
+        rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
+        stokes_problem->incompressible, stokes_op, 0 /* !linearized */);
+    RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
+
+    ymir_vec_add (-1.0, rhs_vel_press, residual_vel_press);
+    RHEA_ASSERT (rhea_velocity_pressure_is_valid (residual_vel_press));
+  }
 
   /* communicate shared node values */
   ymir_vec_share_owned (residual_vel_press);
@@ -4100,6 +4111,7 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
   rhea_stress_surface_extract_from_residual (stress_norm_surf, residual_vel);
   RHEA_ASSERT (rhea_velocity_surface_is_valid (stress_norm_surf));
   rhea_velocity_destroy (residual_vel);
+  rhea_velocity_destroy (tmp);
 
   return 1;
 }
