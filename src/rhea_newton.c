@@ -25,6 +25,7 @@ struct rhea_newton_problem
 
   rhea_newton_apply_hessian_fn_t        apply_hessian;
   rhea_newton_solve_hessian_system_fn_t solve_hessian_sys;
+  rhea_newton_modify_step_fn_t          modify_step_vec;
 
   rhea_newton_update_operator_fn_t        update_operator;
   rhea_newton_update_hessian_fn_t         update_hessian;
@@ -323,6 +324,7 @@ rhea_newton_problem_new (
   rhea_newton_problem_set_data_fn (NULL, NULL, NULL, nl_problem);
   rhea_newton_problem_set_evaluate_objective_fn (NULL, 0, nl_problem);
   rhea_newton_problem_set_apply_hessian_fn (NULL, nl_problem);
+  rhea_newton_problem_set_modify_step_fn (NULL, nl_problem);
   rhea_newton_problem_set_update_fn (NULL, NULL, NULL, nl_problem);
   rhea_newton_problem_set_setup_poststep_fn (NULL, nl_problem);
   rhea_newton_problem_set_output_fn (NULL, nl_problem);
@@ -391,6 +393,14 @@ rhea_newton_problem_set_apply_hessian_fn (
               rhea_newton_problem_t *nl_problem)
 {
   nl_problem->apply_hessian = apply_hessian;
+}
+
+void
+rhea_newton_problem_set_modify_step_fn (
+              rhea_newton_modify_step_fn_t modify_step_vec,
+              rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->modify_step_vec = modify_step_vec;
 }
 
 void
@@ -631,6 +641,22 @@ rhea_newton_problem_modify_hessian_system (ymir_vec_t *neg_gradient,
   if (rhea_newton_problem_modify_hessian_system_exists (nl_problem)) {
     nl_problem->modify_hessian_system (neg_gradient, solution,
                                        nl_problem->data);
+  }
+}
+
+static int
+rhea_newton_problem_modify_step_vec_exists (rhea_newton_problem_t *nl_problem)
+{
+  return (NULL != nl_problem->modify_step_vec);
+}
+
+static void
+rhea_newton_problem_modify_step_vec (rhea_newton_problem_t *nl_problem,
+                                     ymir_vec_t *solution)
+{
+  if (rhea_newton_problem_modify_step_vec_exists (nl_problem)) {
+    nl_problem->modify_step_vec (nl_problem->step_vec, solution,
+                                 nl_problem->data);
   }
 }
 
@@ -1998,6 +2024,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       rhea_newton_compute_step (
           /* out: */ &step,
           /* in:  */ nl_problem, opt);
+      rhea_newton_problem_modify_step_vec (nl_problem, *solution);
 
       /* perform line search to get the step length (updates the solution and
        * the nonlinear operator) */

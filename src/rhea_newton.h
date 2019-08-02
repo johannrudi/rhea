@@ -78,7 +78,7 @@ typedef void      (*rhea_newton_apply_hessian_fn_t) (
  * Applies inexact inverse of the Hessian operator.
  *
  * \return                            Stopping reason
- * \param [out] step                  Result of Hessian application
+ * \param [out] step                  Newton step
  * \param [in] neg_gradient           Negative gradient vector (serves as RHS)
  * \param [in] lin_iter_max           Max #iterations for iterative solver
  * \param [in] lin_res_norm_rtol      Relative tolerance for iterative solver
@@ -94,6 +94,17 @@ typedef int       (*rhea_newton_solve_hessian_system_fn_t) (
                                             const int nonzero_initial_guess,
                                             void *data,
                                             int *lin_iter_count);
+
+/**
+ * Modfies the Newton step after it has been.computed.
+ *
+ * \param [in/out] step Newton step (previously computed)
+ * \param [in] solution Current solution vector
+ * \param [in] data     User data
+ */
+typedef void      (*rhea_newton_modify_step_fn_t) (ymir_vec_t *step,
+                                                   ymir_vec_t *solution,
+                                                   void *data);
 
 /**
  * Updates the nonlinear operator at the current solution vector.
@@ -275,6 +286,14 @@ void                rhea_newton_problem_set_evaluate_objective_fn (
  */
 void                rhea_newton_problem_set_apply_hessian_fn (
               rhea_newton_apply_hessian_fn_t apply_hessian,
+              rhea_newton_problem_t *nl_problem);
+
+/**
+ * Sets callback function for modfiying the Newton step after it has
+ * been.computed.
+ */
+void                rhea_newton_problem_set_modify_step_fn (
+              rhea_newton_modify_step_fn_t modify_step_vec,
               rhea_newton_problem_t *nl_problem);
 
 /**
