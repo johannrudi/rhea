@@ -62,6 +62,7 @@ typedef struct rhea_inversion_param_options
 
   /* initial guess */
   double              initial_guess_perturb_stddev;
+  double              initial_guess_shift_by_prior_stddev;
 }
 rhea_inversion_param_options_t;
 
@@ -135,9 +136,6 @@ void                rhea_inversion_param_set_initial_from_model (
                                           ymir_vec_t *parameter_vec,
                                           rhea_inversion_param_t *inv_param,
                                           rhea_inversion_param_options_t *opt);
-void                rhea_inversion_param_set_initial_from_prior (
-                                          ymir_vec_t *parameter_vec,
-                                          rhea_inversion_param_t *inv_param);
 
 /**
  * Converts between model values and their corresponding inversion parameters
@@ -233,6 +231,16 @@ void                rhea_inversion_param_apply_hessian (
                                         ymir_vec_t *incr_forward_vel_press,
                                         ymir_vec_t *incr_adjoint_vel_press,
                                         const double prior_weight,
+                                        rhea_inversion_param_t *inv_param);
+
+/**
+ * Modifies the step such that the new parameter vector,
+ *   parameter_vec + step_vec,
+ * lies within the feasible set for the parameters.
+ */
+double              rhea_inversion_param_reduce_step_length_to_feasible (
+                                        ymir_vec_t *step_vec,
+                                        ymir_vec_t *parameter_vec,
                                         rhea_inversion_param_t *inv_param);
 
 /******************************************************************************

@@ -24,7 +24,8 @@
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS 2.3
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS_CONST 2.3
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_WEAK_FACTOR_INTERIOR 4.6
-#define RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV NAN
+#define RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV 0.0
+#define RHEA_INVERSION_PARAM_DEFAULT_GUESS_SHIFT_BY_PRIOR_STDDEV 0.0
 
 #define RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN SC_EPS
 
@@ -213,6 +214,11 @@ rhea_inversion_param_add_options (
     &(inv_param_opt->initial_guess_perturb_stddev),
     RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV,
     "Initial guess: standard deviation for perturbations",
+
+  YMIR_OPTIONS_D, "initial-guess-shift-by-prior-stddev", '\0',
+    &(inv_param_opt->initial_guess_shift_by_prior_stddev),
+    RHEA_INVERSION_PARAM_DEFAULT_GUESS_SHIFT_BY_PRIOR_STDDEV,
+    "Initial guess: scaling for elementwise shift by std. dev. of prior",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -726,6 +732,7 @@ rhea_inversion_param_set_model_vals (ymir_vec_t *parameter_vec,
   }
 }
 
+#if 0 //TODO remove unused code
 double
 rhea_inversion_param_convert_to_model_pos (const double inv_param_val)
 {
@@ -843,6 +850,124 @@ rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
   }
   else {
     return 0.0;
+  }
+}
+#endif
+
+double
+rhea_inversion_param_convert_to_model_pos (const double inv_param_val)
+{
+  RHEA_ASSERT (0.0 < inv_param_val);
+  return inv_param_val;
+}
+
+double
+rhea_inversion_param_convert_to_model_pos_deriv (const double inv_param_val)
+{
+  return 1.0;
+}
+
+double
+rhea_inversion_param_convert_from_model_pos (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val);
+  return model_val;
+}
+
+double
+rhea_inversion_param_convert_from_model_pos_deriv (const double model_val)
+{
+  return 1.0;
+}
+
+static double
+rhea_inversion_param_project_to_feasible_pos (const double inv_param_val)
+{
+  if (SC_EPS <= inv_param_val) {
+    return 0.0;
+  }
+  else {
+    return SC_EPS - inv_param_val;
+  }
+}
+
+double
+rhea_inversion_param_convert_to_model_n (const double inv_param_val)
+{
+  RHEA_ASSERT (1.0 <= inv_param_val);
+  return inv_param_val;
+}
+
+double
+rhea_inversion_param_convert_to_model_n_deriv (const double inv_param_val)
+{
+  return 1.0;
+}
+
+double
+rhea_inversion_param_convert_from_model_n (const double model_val)
+{
+  RHEA_ASSERT (1.0 <= model_val);
+  return model_val;
+}
+
+double
+rhea_inversion_param_convert_from_model_n_deriv (const double model_val)
+{
+  return 1.0;
+}
+
+static double
+rhea_inversion_param_project_to_feasible_n (const double inv_param_val)
+{
+  if (1.0 <= inv_param_val) {
+    return 0.0;
+  }
+  else {
+    return 1.0 - inv_param_val;
+  }
+}
+
+double
+rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
+{
+  RHEA_ASSERT (0.0 < inv_param_val && inv_param_val <= 1.0);
+  return inv_param_val;
+}
+
+double
+rhea_inversion_param_convert_to_model_weak_deriv (const double inv_param_val)
+{
+  return 1.0;
+}
+
+double
+rhea_inversion_param_convert_from_model_weak (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
+  return model_val;
+}
+
+double
+rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
+{
+  return 1.0;
+}
+
+static double
+rhea_inversion_param_project_to_feasible_weak (const double inv_param_val)
+{
+  if (SC_EPS <= inv_param_val && inv_param_val <= 1.0) {
+    return 0.0;
+  }
+  else if (inv_param_val < SC_EPS) {
+    return SC_EPS - inv_param_val;
+  }
+  else if (1.0 < inv_param_val) {
+    return 1.0 - inv_param_val;
+  }
+  else {
+    RHEA_ABORT_NOT_REACHED ();
   }
 }
 
@@ -990,6 +1115,105 @@ rhea_inversion_param_convert_params_to_model_vals (
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
 }
 
+double
+rhea_inversion_param_reduce_step_length_to_feasible (
+                                        ymir_vec_t *step_vec,
+                                        ymir_vec_t *parameter_vec,
+                                        rhea_inversion_param_t *inv_param)
+{
+  const double       *param = parameter_vec->meshfree->e[0];
+  const double       *step = step_vec->meshfree->e[0];
+  double              step_length = 1.0;
+  const int          *active = inv_param->active;
+  int                 offset, idx;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (step_vec, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (step_vec, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+
+  for (idx = 0; idx < inv_param->n_parameters; idx++) {
+    const double        p = param[idx];
+    const double        s = step[idx];
+    double              diff = 0.0;
+    int                 success = 0;
+
+    if (active[idx]) {
+      /* look up single index */
+      switch (idx) {
+      case RHEA_INVERSION_PARAM_VISC_MIN:
+      case RHEA_INVERSION_PARAM_VISC_MAX:
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
+        RHEA_ASSERT (
+            fabs (rhea_inversion_param_project_to_feasible_pos (p)) <= 0.0);
+        diff = rhea_inversion_param_project_to_feasible_pos (p + s);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
+        RHEA_ASSERT (
+            fabs (rhea_inversion_param_project_to_feasible_n (p)) <= 0.0);
+        diff = rhea_inversion_param_project_to_feasible_n (p + s);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
+        RHEA_ASSERT (
+            fabs (rhea_inversion_param_project_to_feasible_weak (p)) <= 0.0);
+        diff = rhea_inversion_param_project_to_feasible_weak (p + s);
+        success = 1;
+        break;
+      default:
+        break;
+      }
+
+      /* look up indices in a range */
+      if (!success) {
+        offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
+        if (offset <= idx && idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N) {
+          RHEA_ASSERT (
+              fabs (rhea_inversion_param_project_to_feasible_weak (p)) <= 0.0);
+          diff = rhea_inversion_param_project_to_feasible_weak (p + s);
+          success = 1;
+        }
+      }
+
+      /* otherwise the parameter index is unknown */
+      if (!success) {
+        RHEA_ABORT_NOT_REACHED ();
+      }
+
+      /* reduce step length */
+      if (0.0 < fabs (diff)) {
+        step_length = SC_MIN ((s + diff)/s, step_length);
+        RHEA_ASSERT (0.0 <= step_length);
+      }
+    }
+  }
+
+  /* reduce step */
+  if (step_length < 1.0) {
+    ymir_vec_scale (step_length, step_vec);
+  }
+
+  /* return new step length */
+  return step_length;
+}
+
 void
 rhea_inversion_param_pull_from_model (ymir_vec_t *parameter_vec,
                                       rhea_inversion_param_t *inv_param)
@@ -1021,8 +1245,17 @@ rhea_inversion_param_set_initial_from_model (
                                           rhea_inversion_param_options_t *opt)
 {
   const double        perturb_stddev = opt->initial_guess_perturb_stddev;
+  const double        shift_by_prior_stddev =
+                        opt->initial_guess_shift_by_prior_stddev;
 
-  /* get values from model parameters */
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+      __func__, "perturb_stddev=%g, shift_by_prior_stddev=%g",
+      perturb_stddev, shift_by_prior_stddev);
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
+
+  /* get parameter values from model */
   rhea_inversion_param_pull_from_model (parameter_vec, inv_param);
 
   /* apply perturbation */
@@ -1034,55 +1267,37 @@ rhea_inversion_param_set_initial_from_model (
     rhea_inversion_param_vec_destroy (perturb);
   }
 
-  /* print parameters */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
-  rhea_inversion_param_vec_print (parameter_vec, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+  /* apply shift */
+  if (isfinite (shift_by_prior_stddev) && 0.0 < fabs (shift_by_prior_stddev)) {
+    ymir_vec_t         *shift_vec = rhea_inversion_param_vec_new (inv_param);
 
-  /* check output */
-  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
-}
+    /* copy prior standard deviations; adjust the sign of some values */
+    ymir_vec_copy (inv_param->prior_stddev, shift_vec);
+    {
+      double             *shift = shift_vec->meshfree->e[0];
+      const int          *active = inv_param->active;
+      int                 idx;
 
-void
-rhea_inversion_param_set_initial_from_prior (ymir_vec_t *parameter_vec,
-                                             rhea_inversion_param_t *inv_param)
-{
-  RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "n_active=%i", inv_param->n_active);
+      /* adjust upper bounds of the viscosity */
+      idx = RHEA_INVERSION_PARAM_VISC_MAX;
+      if (active[idx]) shift[idx] *= -1.0;
 
-  /* check input */
-  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
+      /* adjust activation energy in Arrhenius relationship */
+      idx = RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY;
+      if (active[idx]) shift[idx] *= -1.0;
+      idx = RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY;
+      if (active[idx]) shift[idx] *= -1.0;
 
-  /* copy prior standard deviations */
-  ymir_vec_copy (inv_param->prior_stddev, parameter_vec);
+      /* adjust stress exponent that governs strain rate weakening */
+      idx = RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT;
+      if (active[idx]) shift[idx] *= -1.0;
+    }
 
-  /* adjust sign of some values */
-  {
-    double             *param = parameter_vec->meshfree->e[0];
-    const int          *active = inv_param->active;
-    int                 idx;
-
-    /* adjust upper bounds of the viscosity */
-    idx = RHEA_INVERSION_PARAM_VISC_MAX;
-    if (active[idx]) param[idx] *= -1.0;
-
-    /* adjust activation energy in Arrhenius relationship */
-    idx = RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY;
-    if (active[idx]) param[idx] *= -1.0;
-    idx = RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY;
-    if (active[idx]) param[idx] *= -1.0;
-
-    /* adjust stress exponent that governs strain rate weakening */
-    idx = RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT;
-    if (active[idx]) param[idx] *= -1.0;
+    /* shift parameters */
+    ymir_vec_add (shift_by_prior_stddev, shift_vec, parameter_vec);
+    rhea_inversion_param_vec_destroy (shift_vec);
   }
 
-  /* shift parameters with respect to their prior mean values */
-  ymir_vec_add (1.0, inv_param->prior_mean, parameter_vec);
-
   /* print parameters */
 #ifdef RHEA_ENABLE_DEBUG
   RHEA_GLOBAL_VERBOSE ("========================================\n");
@@ -1094,6 +1309,8 @@ rhea_inversion_param_set_initial_from_prior (ymir_vec_t *parameter_vec,
 
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 static rhea_viscosity_param_derivative_t
@@ -1231,7 +1448,7 @@ rhea_inversion_param_print (ymir_vec_t *parameter_vec,
 }
 
 /******************************************************************************
- * Prior for Parameters
+ * Prior Generation
  *****************************************************************************/
 
 /**
