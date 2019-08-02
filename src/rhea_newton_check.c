@@ -7,6 +7,7 @@
 #include <ymir_mass_vec.h>
 #include <ymir_pressure_vec.h>
 
+/* number of reductions of the perturbation for finite differences */
 #define RHEA_NEWTON_CHECK_N_TRIALS (6)
 
 static void
@@ -111,7 +112,7 @@ rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec,
                                sc_MPI_Comm mpicomm)
 {
   /* set to random values in [0,1] */
-  ymir_vec_set_random (dir_vec);
+  ymir_vec_set_random_uniform (dir_vec);
 
   /* communicate values in case of meshfree vectors */
   if (dir_vec->n_meshfree && mpicomm != MPI_COMM_NULL) {
