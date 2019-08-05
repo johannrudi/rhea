@@ -919,7 +919,7 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
-static void         rhea_inversion_newton_apply_hessian (
+static void         rhea_inversion_apply_hessian (
                                         ymir_vec_t *param_vec_out,
                                         ymir_vec_t *param_vec_in,
                                         rhea_inversion_problem_t *inv_problem,
@@ -977,7 +977,7 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
       param_vec_in->meshfree->e[0][i] = 1.0;
 
       /* apply unit vector to Hessian */
-      rhea_inversion_newton_apply_hessian (
+      rhea_inversion_apply_hessian (
           param_vec_out, param_vec_in, inv_problem,
           rhea_inversion_first_order_hessian_approx);
       rhea_inversion_param_vec_is_valid (param_vec_out, inv_param);
@@ -1283,10 +1283,10 @@ rhea_inversion_newton_compute_gradient_norm_fn (ymir_vec_t *neg_gradient,
 }
 
 static void
-rhea_inversion_newton_apply_hessian (ymir_vec_t *param_vec_out,
-                                     ymir_vec_t *param_vec_in,
-                                     rhea_inversion_problem_t *inv_problem,
-                                     const int first_order_approx)
+rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
+                              ymir_vec_t *param_vec_in,
+                              rhea_inversion_problem_t *inv_problem,
+                              const int first_order_approx)
 {
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
@@ -1444,7 +1444,7 @@ rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
 
   /* apply the Hessian */
   if (!rhea_inversion_assemble_hessian) { /* if call apply function */
-    rhea_inversion_newton_apply_hessian (
+    rhea_inversion_apply_hessian (
         out, in, inv_problem, rhea_inversion_first_order_hessian_approx);
   }
   else { /* otherwise use assembled Hessian matrix */
@@ -1473,6 +1473,34 @@ rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
+/**
+ * Applies prior preconditioner to Hessian--gradient system.
+ */
+static void
+rhea_inversion_apply_prior_preconditioner (sc_dmatrix_t *hessian_matrix,
+                                           sc_dmatrix_t *neg_gradient_rhs,
+                                           const sc_dmatrix_t *prior_icov)
+{
+  const size_t        n_rows = hessian_matrix->m;
+  const size_t        n_cols = hessian_matrix->n;
+  const double       *icov = prior_icov->e[0];
+  double            **hessian = hessian_matrix->e;
+  int                 row, col;
+
+  /* check input */
+  RHEA_ASSERT (hessian_matrix->m == prior_icov->m * prior_icov->n);
+
+  /* apply inverse covariance of prior to the right-hand side vector */
+  sc_dmatrix_dotmultiply (prior_icov, neg_gradient_rhs);
+
+  /* apply inverse covariance of prior to Hessian matrix */
+  for (row = 0; row < n_rows; row++) {
+    for (col = 0; col < n_cols; col++) {
+      hessian[row][col] *= icov[row];
+    }
+  }
+}
+
 static int
 rhea_inversion_newton_solve_hessian_system_fn (
                                             ymir_vec_t *step,
@@ -1484,6 +1512,7 @@ rhea_inversion_newton_solve_hessian_system_fn (
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
+  ymir_vec_t         *prior_icov = rhea_inversion_param_vec_new (inv_param);
   int                 itn, stop_reason;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
@@ -1500,6 +1529,9 @@ rhea_inversion_newton_solve_hessian_system_fn (
   RHEA_ASSERT (!rhea_inversion_assemble_hessian ||
                inv_problem->hessian_matrix != NULL);
 
+  /* calculate inverse prior covariance */
+  rhea_inversion_param_prior_inv_cov (prior_icov, inv_param);
+
   /* update relative tolerance for inner solves */
   if (rhea_inversion_inner_solver_rtol_adaptive) {
     inv_problem->inner_solver_adaptive_rtol_comp = lin_res_norm_rtol;
@@ -1515,26 +1547,36 @@ rhea_inversion_newton_solve_hessian_system_fn (
     itn = 0;
   }
   else { /* if Hessian matrix is assembled */
-    const sc_dmatrix_t *hessian_mat = inv_problem->hessian_matrix;
-    sc_dmatrix_t       *neg_grad_reduced, *step_reduced;
+    sc_dmatrix_t       *hessian;
+    sc_dmatrix_t       *neg_grad_reduced, *step_reduced, *icov_reduced;
 
-    /* create reduced parameter vectors */
+    /* create work variables */
+    hessian = sc_dmatrix_clone (inv_problem->hessian_matrix);
     neg_grad_reduced = rhea_inversion_param_vec_reduced_new (neg_gradient,
                                                              inv_param);
     step_reduced = rhea_inversion_param_vec_reduced_new (step, inv_param);
+    icov_reduced = rhea_inversion_param_vec_reduced_new (prior_icov, inv_param);
+
+    /* apply prior preconditioner to Hessian--gradient system */
+    rhea_inversion_apply_prior_preconditioner (hessian, neg_grad_reduced,
+                                               icov_reduced);
 
     /* run direct solver; copy entries to output */
-    sc_dmatrix_ldivide (SC_NO_TRANS, hessian_mat, neg_grad_reduced,
-                        step_reduced);
+    sc_dmatrix_ldivide (SC_NO_TRANS, hessian, neg_grad_reduced, step_reduced);
     ymir_vec_set_zero (step);
     rhea_inversion_param_vec_reduced_copy (step, step_reduced, inv_param);
     stop_reason = 1;
     itn = 1;
 
     /* destroy */
+    sc_dmatrix_destroy (hessian);
     rhea_inversion_param_vec_reduced_destroy (neg_grad_reduced);
     rhea_inversion_param_vec_reduced_destroy (step_reduced);
+    rhea_inversion_param_vec_reduced_destroy (icov_reduced);
   }
+
+  /* destroy */
+  rhea_inversion_param_vec_destroy (prior_icov);
 
   /* print step */
 #ifdef RHEA_ENABLE_DEBUG
@@ -1576,6 +1618,16 @@ rhea_inversion_newton_modify_step_fn (ymir_vec_t *step, ymir_vec_t *solution,
       step, solution, inv_problem->inv_param);
   if (new_step_length < 1.0) {
     RHEA_GLOBAL_INFOF_FN_TAG (__func__, "new_step_length=%g", new_step_length);
+
+    /* print step */
+#ifdef RHEA_ENABLE_DEBUG
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+    RHEA_GLOBAL_VERBOSEF ("Inversion feasible step, reduced by %.15e\n",
+                          new_step_length);
+    RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+    rhea_inversion_param_vec_print (step, inv_problem->inv_param);
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+#endif
   }
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
