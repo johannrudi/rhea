@@ -234,6 +234,20 @@ void                rhea_inversion_param_apply_hessian (
                                         rhea_inversion_param_t *inv_param);
 
 /**
+ * Computes the (diagonal) inverse covariance of the prior.
+ */
+void                rhea_inversion_param_prior_inv_cov (
+                                        ymir_vec_t *inverse_covariance,
+                                        rhea_inversion_param_t *inv_param);
+
+/**
+ * Projects the parameter to their feasible values (elementwise).
+ */
+void                rhea_inversion_param_project_to_feasible (
+                                        ymir_vec_t *parameter_vec,
+                                        rhea_inversion_param_t *inv_param);
+
+/**
  * Modifies the step such that the new parameter vector,
  *   parameter_vec + step_vec,
  * lies within the feasible set for the parameters.

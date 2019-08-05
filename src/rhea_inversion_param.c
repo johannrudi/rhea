@@ -883,11 +883,11 @@ rhea_inversion_param_convert_from_model_pos_deriv (const double model_val)
 static double
 rhea_inversion_param_project_to_feasible_pos (const double inv_param_val)
 {
-  if (SC_EPS <= inv_param_val) {
+  if (SC_1000_EPS <= inv_param_val) {
     return 0.0;
   }
   else {
-    return SC_EPS - inv_param_val;
+    return SC_1000_EPS - inv_param_val;
   }
 }
 
@@ -957,11 +957,11 @@ rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
 static double
 rhea_inversion_param_project_to_feasible_weak (const double inv_param_val)
 {
-  if (SC_EPS <= inv_param_val && inv_param_val <= 1.0) {
+  if (SC_1000_EPS <= inv_param_val && inv_param_val <= 1.0) {
     return 0.0;
   }
-  else if (inv_param_val < SC_EPS) {
-    return SC_EPS - inv_param_val;
+  else if (inv_param_val < SC_1000_EPS) {
+    return SC_1000_EPS - inv_param_val;
   }
   else if (1.0 < inv_param_val) {
     return 1.0 - inv_param_val;
@@ -1113,6 +1113,82 @@ rhea_inversion_param_convert_params_to_model_vals (
 
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+}
+
+void
+rhea_inversion_param_project_to_feasible (
+                                        ymir_vec_t *parameter_vec,
+                                        rhea_inversion_param_t *inv_param)
+{
+  double             *param = parameter_vec->meshfree->e[0];
+  const int          *active = inv_param->active;
+  int                 offset, idx;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+
+  for (idx = 0; idx < inv_param->n_parameters; idx++) {
+    const double        p = param[idx];
+    double              diff = 0.0;
+    int                 success = 0;
+
+    if (active[idx]) {
+      /* look up single index */
+      switch (idx) {
+      case RHEA_INVERSION_PARAM_VISC_MIN:
+      case RHEA_INVERSION_PARAM_VISC_MAX:
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
+        diff = rhea_inversion_param_project_to_feasible_pos (p);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
+        diff = rhea_inversion_param_project_to_feasible_n (p);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
+        diff = rhea_inversion_param_project_to_feasible_weak (p);
+        success = 1;
+        break;
+      default:
+        break;
+      }
+
+      /* look up indices in a range */
+      if (!success) {
+        offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
+        if (offset <= idx && idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N) {
+          diff = rhea_inversion_param_project_to_feasible_weak (p);
+          success = 1;
+        }
+      }
+
+      /* otherwise the parameter index is unknown */
+      if (!success) {
+        RHEA_ABORT_NOT_REACHED ();
+      }
+
+      /* project parameter value to feasible range */
+      if (0.0 < fabs (diff)) {
+        param[idx] = p + diff;
+      }
+    }
+  }
 }
 
 double
@@ -1297,6 +1373,9 @@ rhea_inversion_param_set_initial_from_model (
     ymir_vec_add (shift_by_prior_stddev, shift_vec, parameter_vec);
     rhea_inversion_param_vec_destroy (shift_vec);
   }
+
+  /* project parameters to feasible values */
+  rhea_inversion_param_project_to_feasible (parameter_vec, inv_param);
 
   /* print parameters */
 #ifdef RHEA_ENABLE_DEBUG
@@ -1629,6 +1708,15 @@ rhea_inversion_param_prior_misfit (ymir_vec_t *misfit_vec,
   ymir_vec_add (-1.0, inv_param->prior_mean, misfit_vec);
 }
 
+void
+rhea_inversion_param_prior_inv_cov (ymir_vec_t *inverse_covariance,
+                                    rhea_inversion_param_t *inv_param)
+{
+  ymir_vec_copy (inv_param->prior_stddev, inverse_covariance);
+  ymir_vec_multiply_in (inv_param->prior_stddev, inverse_covariance);
+  ymir_vec_reciprocal (inverse_covariance);
+}
+
 double
 rhea_inversion_param_prior (ymir_vec_t *parameter_vec,
                             rhea_inversion_param_t *inv_param)
@@ -1646,9 +1734,7 @@ rhea_inversion_param_prior (ymir_vec_t *parameter_vec,
   rhea_inversion_param_prior_misfit (prior_misfit, parameter_vec, inv_param);
 
   /* calculate inverse prior covariance */
-  ymir_vec_copy (inv_param->prior_stddev, prior_icov);
-  ymir_vec_multiply_in (inv_param->prior_stddev, prior_icov);
-  ymir_vec_reciprocal (prior_icov);
+  rhea_inversion_param_prior_inv_cov (prior_icov, inv_param);
 
   /* calculate inner product */
   for (i = 0; i < n_parameters; i++) {
@@ -1841,21 +1927,29 @@ double
 rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient_vec,
                                             rhea_inversion_param_t *inv_param)
 {
+  ymir_vec_t         *prior_icov = rhea_inversion_param_vec_new (inv_param);
   const int           n_parameters = inv_param->n_parameters;
   const int          *active = inv_param->active;
   const double       *grad = gradient_vec->meshfree->e[0];
+  const double       *icov = prior_icov->meshfree->e[0];
   double              sum_of_squares = 0.0;
   int                 i;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient_vec, inv_param));
 
+  /* calculate inverse prior covariance */
+  rhea_inversion_param_prior_inv_cov (prior_icov, inv_param);
+
   /* sum up (squares of) entries of the gradient vector that are active */
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
-      sum_of_squares += grad[i] * grad[i];
+      sum_of_squares += grad[i] * icov[i] * grad[i];
     }
   }
+
+  /* destroy */
+  rhea_inversion_param_vec_destroy (prior_icov);
 
   /* return l2-norm of active entries of the gradient vector */
   return sqrt (sum_of_squares / (double) inv_param->n_active);
