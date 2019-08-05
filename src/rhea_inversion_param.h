@@ -138,47 +138,22 @@ void                rhea_inversion_param_set_initial_from_model (
                                           rhea_inversion_param_options_t *opt);
 
 /**
- * Converts between model values and their corresponding inversion parameters
- * as well as first derivatives of the parametrization functions.
+ * Computes the derivative of the parametrization function.
  *
- * Denote a model value by `m` and an inversion parameter value by `p`, then
- *   m <- *_convert_to_model_* (p)
- *   p <- *_convert_from_model_* (m)
- * and
- *   *_convert_to_model_*_deriv (p) = d/dp *_convert_to_model_* (p)
- *   *_convert_from_model_*_deriv (m) =
- *     (d/dp *_convert_to_model_*) (*_convert_from_model_* (m))
+ *  (d/dp *_convert_to_model_*) (*_convert_from_model_* (m))
  *
- * Further
+ * where
  *   *_pos ()   Used for model values that are positive.
- *   *_n ()     Used for stress exponent `n`.
+ *   *_yield () Used for yield strength.
  *   *_weak ()  Used for weak zone factors.
  */
-double              rhea_inversion_param_convert_to_model_pos (
-                                                  const double inv_param_val);
-double              rhea_inversion_param_convert_to_model_pos_deriv (
-                                                  const double inv_param_val);
-double              rhea_inversion_param_convert_from_model_pos (
-                                                  const double model_val);
-double              rhea_inversion_param_convert_from_model_pos_deriv (
+double              rhea_inversion_param_derivative_pos (
                                                   const double model_val);
 
-double              rhea_inversion_param_convert_to_model_n (
-                                                  const double inv_param_val);
-double              rhea_inversion_param_convert_to_model_n_deriv (
-                                                  const double inv_param_val);
-double              rhea_inversion_param_convert_from_model_n (
-                                                  const double model_val);
-double              rhea_inversion_param_convert_from_model_n_deriv (
+double              rhea_inversion_param_derivative_yield (
                                                   const double model_val);
 
-double              rhea_inversion_param_convert_to_model_weak (
-                                                  const double inv_param_val);
-double              rhea_inversion_param_convert_to_model_weak_deriv (
-                                                  const double inv_param_val);
-double              rhea_inversion_param_convert_from_model_weak (
-                                                  const double model_val);
-double              rhea_inversion_param_convert_from_model_weak_deriv (
+double              rhea_inversion_param_derivative_weak (
                                                   const double model_val);
 
 /******************************************************************************

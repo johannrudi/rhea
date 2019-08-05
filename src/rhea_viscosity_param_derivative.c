@@ -136,7 +136,7 @@ rhea_viscosity_param_derivative_min (ymir_vec_t *derivative,
 {
   const double        scaling_prev = visc_options->min;
   const double        scaling_deriv =
-    rhea_inversion_param_convert_from_model_pos_deriv (scaling_prev);
+    rhea_inversion_param_derivative_pos (scaling_prev);
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -179,7 +179,7 @@ rhea_viscosity_param_derivative_max (ymir_vec_t *derivative,
 {
   const double        scaling_prev = visc_options->max;
   const double        scaling_deriv =
-    rhea_inversion_param_convert_from_model_pos_deriv (scaling_prev);
+    rhea_inversion_param_derivative_pos (scaling_prev);
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -235,8 +235,7 @@ rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
   /* remove previous scaling and multiply by value corresponding to deriv. */
   if (process_upper_mantle) { /* if upper mantle */
     scaling_prev = visc_options->upper_mantle_scaling;
-    scaling_deriv =
-      rhea_inversion_param_convert_from_model_pos_deriv (scaling_prev);
+    scaling_deriv = rhea_inversion_param_derivative_pos (scaling_prev);
     scaling_upper_mantle = scaling_deriv/scaling_prev;
   }
   else {
@@ -244,8 +243,7 @@ rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
   }
   if (process_lower_mantle) { /* if lower mantle */
     scaling_prev = visc_options->lower_mantle_scaling;
-    scaling_deriv =
-      rhea_inversion_param_convert_from_model_pos_deriv (scaling_prev);
+    scaling_deriv = rhea_inversion_param_derivative_pos (scaling_prev);
     scaling_lower_mantle = scaling_deriv/scaling_prev;
   }
   else {
@@ -300,8 +298,7 @@ rhea_viscosity_param_derivative_arrh (ymir_vec_t *derivative,
   /* multiply derivative by activation energy */
   if (process_upper_mantle) { /* if upper mantle */
     scaling_prev = visc_options->upper_mantle_arrhenius_activation_energy;
-    scaling_deriv =
-      rhea_inversion_param_convert_from_model_pos_deriv (scaling_prev);
+    scaling_deriv = rhea_inversion_param_derivative_pos (scaling_prev);
     scaling_upper_mantle = scaling_deriv;
   }
   else {
@@ -309,8 +306,7 @@ rhea_viscosity_param_derivative_arrh (ymir_vec_t *derivative,
   }
   if (process_lower_mantle) { /* if lower mantle */
     scaling_prev = visc_options->lower_mantle_arrhenius_activation_energy;
-    scaling_deriv =
-      rhea_inversion_param_convert_from_model_pos_deriv (scaling_prev);
+    scaling_deriv = rhea_inversion_param_derivative_pos (scaling_prev);
     scaling_lower_mantle = scaling_deriv;
   }
   else {
@@ -347,7 +343,7 @@ rhea_viscosity_param_derivative_stress_exp (
 {
   const double        stress_exp = visc_options->stress_exponent;
   const double        stress_exp_deriv =
-    rhea_inversion_param_convert_from_model_n_deriv (stress_exp);
+    rhea_inversion_param_derivative_pos (stress_exp);
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (derivative);
   ymir_vec_t         *strt_scal = rhea_strainrate_2inv_new (ymir_mesh);
   double              scal;
@@ -406,7 +402,7 @@ rhea_viscosity_param_derivative_yield_strength (
 {
   const double        scaling_prev = visc_options->yield_strength;
   const double        scaling_deriv =
-    rhea_inversion_param_convert_from_model_pos_deriv (scaling_prev);
+    rhea_inversion_param_derivative_yield (scaling_prev);
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -459,8 +455,7 @@ rhea_viscosity_param_derivative_weak_factor_interior (
                                                       weak_options);
 
   /* set scaling factor for the derivative */
-  scaling_deriv =
-    rhea_inversion_param_convert_from_model_weak_deriv (weak_factor);
+  scaling_deriv = rhea_inversion_param_derivative_weak (weak_factor);
 
   /* init derivative */
   rhea_viscosity_param_derivative_init (

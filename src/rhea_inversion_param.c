@@ -13,21 +13,19 @@
 #define RHEA_INVERSION_PARAM_DEFAULT_ACTIVATE 1
 #define RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE 0
 #define RHEA_INVERSION_PARAM_DEFAULT_PRMN_PERTURB_STDDEV NAN
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MIN 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MAX 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_UM_SCALING 4.6
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_UM_ARRHENIUS_ACTIVATION_ENERGY 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_SCALING 4.6
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_ARRHENIUS_ACTIVATION_ENERGY 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_STRESS_EXPONENT 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MIN 2.3 //TODO outdated
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MAX 2.3 //TODO outdated
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_UM_SCALING 100.0
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_UM_ARRHENIUS_ACTIVATION_ENERGY 5.0
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_SCALING 100.0
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_LM_ARRHENIUS_ACTIVATION_ENERGY 5.0
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_STRESS_EXPONENT 0.5
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_YIELD_STRENGTH 4.6
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS 2.3
-#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS_CONST 2.3
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS 2.3 //TODO outdated
+#define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS_CONST 2.3 //TODO outdated
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_WEAK_FACTOR_INTERIOR 4.6
 #define RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV 0.0
 #define RHEA_INVERSION_PARAM_DEFAULT_GUESS_SHIFT_BY_PRIOR_STDDEV 0.0
-
-#define RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN SC_EPS
 
 /* global options */
 rhea_inversion_param_options_t rhea_inversion_param_options_global;
@@ -802,6 +800,8 @@ rhea_inversion_param_convert_from_model_n_deriv (const double model_val)
   return rhea_inversion_param_convert_from_model_pos_deriv (model_val - 1.0);
 }
 
+#define RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN SC_1000_EPS
+
 double
 rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
 {
@@ -854,34 +854,39 @@ rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
 }
 #endif
 
-double
+/**
+ * Converts between model values and their corresponding inversion parameters.
+ *
+ * Denote a model value by `m` and an inversion parameter value by `p`, then
+ *   m <- *_convert_to_model_* (p)
+ *   p <- *_convert_from_model_* (m)
+ */
+static double
 rhea_inversion_param_convert_to_model_pos (const double inv_param_val)
 {
+  RHEA_ASSERT (isfinite (inv_param_val));
   RHEA_ASSERT (0.0 < inv_param_val);
   return inv_param_val;
 }
 
-double
-rhea_inversion_param_convert_to_model_pos_deriv (const double inv_param_val)
-{
-  return 1.0;
-}
-
-double
+static double
 rhea_inversion_param_convert_from_model_pos (const double model_val)
 {
+  RHEA_ASSERT (isfinite (model_val));
   RHEA_ASSERT (0.0 < model_val);
   return model_val;
 }
 
 double
-rhea_inversion_param_convert_from_model_pos_deriv (const double model_val)
+rhea_inversion_param_derivative_pos (const double model_val)
 {
+  RHEA_ASSERT (isfinite (model_val));
+  RHEA_ASSERT (0.0 < model_val);
   return 1.0;
 }
 
 static double
-rhea_inversion_param_project_to_feasible_pos (const double inv_param_val)
+rhea_inversion_param_diff_to_feasible_pos (const double inv_param_val)
 {
   if (SC_1000_EPS <= inv_param_val) {
     return 0.0;
@@ -891,83 +896,85 @@ rhea_inversion_param_project_to_feasible_pos (const double inv_param_val)
   }
 }
 
-double
-rhea_inversion_param_convert_to_model_n (const double inv_param_val)
+static double
+rhea_inversion_param_convert_to_model_yield (const double inv_param_val)
 {
-  RHEA_ASSERT (1.0 <= inv_param_val);
-  return inv_param_val;
-}
+  double              model_val;
 
-double
-rhea_inversion_param_convert_to_model_n_deriv (const double inv_param_val)
-{
-  return 1.0;
-}
+  RHEA_ASSERT (isfinite (inv_param_val));
 
-double
-rhea_inversion_param_convert_from_model_n (const double model_val)
-{
-  RHEA_ASSERT (1.0 <= model_val);
+  feclearexcept (FE_ALL_EXCEPT);
+  model_val = exp (inv_param_val);
+  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
+    model_val = DBL_MAX;
+  }
+
   return model_val;
 }
 
-double
-rhea_inversion_param_convert_from_model_n_deriv (const double model_val)
+static double
+rhea_inversion_param_convert_from_model_yield (const double model_val)
 {
-  return 1.0;
+  double              inv_param_val;
+
+  RHEA_ASSERT (isfinite (model_val));
+  RHEA_ASSERT (0.0 < model_val);
+
+  inv_param_val = log (model_val);
+  if (isfinite (inv_param_val)) {
+    return inv_param_val;
+  }
+  else {
+    return -DBL_MAX;
+  }
+}
+
+double
+rhea_inversion_param_derivative_yield (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val);
+  return model_val;
 }
 
 static double
-rhea_inversion_param_project_to_feasible_n (const double inv_param_val)
-{
-  if (1.0 <= inv_param_val) {
-    return 0.0;
-  }
-  else {
-    return 1.0 - inv_param_val;
-  }
-}
-
-double
 rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
 {
-  RHEA_ASSERT (0.0 < inv_param_val && inv_param_val <= 1.0);
-  return inv_param_val;
+  RHEA_ASSERT (isfinite (inv_param_val));
+  RHEA_ASSERT (inv_param_val <= 0.0);
+  return exp (inv_param_val);
 }
 
-double
-rhea_inversion_param_convert_to_model_weak_deriv (const double inv_param_val)
-{
-  return 1.0;
-}
-
-double
+static double
 rhea_inversion_param_convert_from_model_weak (const double model_val)
+{
+  double              inv_param_val;
+
+  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
+
+  inv_param_val = log (model_val);
+  if (isfinite (inv_param_val)) {
+    return inv_param_val;
+  }
+  else {
+    return -DBL_MAX;
+  }
+}
+
+double
+rhea_inversion_param_derivative_weak (const double model_val)
 {
   RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
   return model_val;
 }
 
-double
-rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
-{
-  return 1.0;
-}
-
 static double
-rhea_inversion_param_project_to_feasible_weak (const double inv_param_val)
+rhea_inversion_param_diff_to_feasible_weak (const double inv_param_val)
 {
-  if (SC_1000_EPS <= inv_param_val && inv_param_val <= 1.0) {
+  if (inv_param_val <= 0.0) {
     return 0.0;
   }
-  else if (inv_param_val < SC_1000_EPS) {
-    return SC_1000_EPS - inv_param_val;
-  }
-  else if (1.0 < inv_param_val) {
-    return 1.0 - inv_param_val;
-  }
   else {
-    RHEA_ABORT_NOT_REACHED ();
+    return -inv_param_val;
   }
 }
 
@@ -997,7 +1004,7 @@ rhea_inversion_param_convert_model_vals_to_params (
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1009,8 +1016,8 @@ rhea_inversion_param_convert_model_vals_to_params (
         p[idx] = rhea_inversion_param_convert_from_model_pos (p[idx]);
         success = 1;
         break;
-      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        p[idx] = rhea_inversion_param_convert_from_model_n (p[idx]);
+      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+        p[idx] = rhea_inversion_param_convert_from_model_yield (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
@@ -1069,7 +1076,7 @@ rhea_inversion_param_convert_params_to_model_vals (
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1081,8 +1088,8 @@ rhea_inversion_param_convert_params_to_model_vals (
         p[idx] = rhea_inversion_param_convert_to_model_pos (p[idx]);
         success = 1;
         break;
-      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        p[idx] = rhea_inversion_param_convert_to_model_n (p[idx]);
+      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+        p[idx] = rhea_inversion_param_convert_to_model_yield (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
@@ -1142,7 +1149,7 @@ rhea_inversion_param_project_to_feasible (
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1151,18 +1158,17 @@ rhea_inversion_param_project_to_feasible (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
-        diff = rhea_inversion_param_project_to_feasible_pos (p);
+        diff = rhea_inversion_param_diff_to_feasible_pos (p);
         success = 1;
         break;
-      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        diff = rhea_inversion_param_project_to_feasible_n (p);
+      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
-        diff = rhea_inversion_param_project_to_feasible_weak (p);
+        diff = rhea_inversion_param_diff_to_feasible_weak (p);
         success = 1;
         break;
       default:
@@ -1173,7 +1179,7 @@ rhea_inversion_param_project_to_feasible (
       if (!success) {
         offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
         if (offset <= idx && idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N) {
-          diff = rhea_inversion_param_project_to_feasible_weak (p);
+          diff = rhea_inversion_param_diff_to_feasible_weak (p);
           success = 1;
         }
       }
@@ -1224,7 +1230,7 @@ rhea_inversion_param_reduce_step_length_to_feasible (
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1234,14 +1240,11 @@ rhea_inversion_param_reduce_step_length_to_feasible (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
         RHEA_ASSERT (
-            fabs (rhea_inversion_param_project_to_feasible_pos (p)) <= 0.0);
-        diff = rhea_inversion_param_project_to_feasible_pos (p + s);
+            fabs (rhea_inversion_param_diff_to_feasible_pos (p)) <= 0.0);
+        diff = rhea_inversion_param_diff_to_feasible_pos (p + s);
         success = 1;
         break;
-      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
-        RHEA_ASSERT (
-            fabs (rhea_inversion_param_project_to_feasible_n (p)) <= 0.0);
-        diff = rhea_inversion_param_project_to_feasible_n (p + s);
+      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
@@ -1249,8 +1252,8 @@ rhea_inversion_param_reduce_step_length_to_feasible (
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
         RHEA_ASSERT (
-            fabs (rhea_inversion_param_project_to_feasible_weak (p)) <= 0.0);
-        diff = rhea_inversion_param_project_to_feasible_weak (p + s);
+            fabs (rhea_inversion_param_diff_to_feasible_weak (p)) <= 0.0);
+        diff = rhea_inversion_param_diff_to_feasible_weak (p + s);
         success = 1;
         break;
       default:
@@ -1262,8 +1265,8 @@ rhea_inversion_param_reduce_step_length_to_feasible (
         offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_EARTH_SLAB;
         if (offset <= idx && idx < offset + RHEA_WEAKZONE_LABEL_EARTH_N) {
           RHEA_ASSERT (
-              fabs (rhea_inversion_param_project_to_feasible_weak (p)) <= 0.0);
-          diff = rhea_inversion_param_project_to_feasible_weak (p + s);
+              fabs (rhea_inversion_param_diff_to_feasible_weak (p)) <= 0.0);
+          diff = rhea_inversion_param_diff_to_feasible_weak (p + s);
           success = 1;
         }
       }
