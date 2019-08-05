@@ -90,6 +90,7 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_ITER_START (0)
 #define RHEA_NEWTON_DEFAULT_ITER_MAX (10)
 #define RHEA_NEWTON_DEFAULT_RTOL (1.0e-6)
+#define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
 #define RHEA_NEWTON_DEFAULT_LIN_ITER_MAX (100)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER (1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT (1.0e-2)
@@ -107,7 +108,6 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY (0)
 
 #define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
-#define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
 #define RHEA_NEWTON_DEFAULT_RESUME (0)
 #define RHEA_NEWTON_DEFAULT_RESUME_OBJ_INIT (NAN)
 #define RHEA_NEWTON_DEFAULT_RESUME_OBJ_PREV (NAN)
@@ -153,6 +153,11 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
   YMIR_OPTIONS_D, "rtol", '\0',
     &(newton_opt->rtol), RHEA_NEWTON_DEFAULT_RTOL,
     "Relative tolerance",
+
+  YMIR_OPTIONS_B, "abort-if-step-search-failed", '\0',
+    &(newton_opt->abort_failed_step_search),
+    RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH,
+    "Stop Newton loop if the step search failed",
 
   YMIR_OPTIONS_I, "lin-iter-max", '\0',
     &(newton_opt->lin_iter_max), RHEA_NEWTON_DEFAULT_LIN_ITER_MAX,
@@ -228,6 +233,8 @@ rhea_newton_get_options (rhea_newton_options_t *opt)
   opt->iter_max   = rhea_newton_options.iter_max;
   opt->rtol       = rhea_newton_options.rtol;
 
+  opt->abort_failed_step_search = rhea_newton_options.abort_failed_step_search;
+
   opt->lin_iter_max                 = rhea_newton_options.lin_iter_max;
   opt->lin_rtol_init_n_iter         = rhea_newton_options.lin_rtol_init_n_iter;
   opt->lin_rtol_init                = rhea_newton_options.lin_rtol_init;
@@ -261,6 +268,8 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->iter_start = RHEA_NEWTON_DEFAULT_ITER_START;
   opt->iter_max   = RHEA_NEWTON_DEFAULT_ITER_MAX;
   opt->rtol       = RHEA_NEWTON_DEFAULT_RTOL;
+
+  opt->abort_failed_step_search = RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH;
 
   opt->lin_iter_max           = RHEA_NEWTON_DEFAULT_LIN_ITER_MAX;
   opt->lin_rtol_init_n_iter   = RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER;
@@ -1728,7 +1737,7 @@ rhea_newton_search_step_length_check_descend (
   /* print */
   if (print_condition) {
     RHEA_GLOBAL_INFOF_FN_TAG (
-        func_name, "descend_condition=\"reduction <= %.3e\"",
+        func_name, "descend_condition=\"reduction <= %.15e\"",
         descend_reduction);
   }
 
