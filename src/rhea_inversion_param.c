@@ -347,7 +347,7 @@ rhea_inversion_param_activation_mask_new (
     idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE;
     active[idx] = opt->thickness_class_fracture_a;
 
-    /* process weak zone thickness of the inerior */
+    /* process weak zone thickness of the interior */
     if (!opt->thickness_const_class_slab_a &&
         !opt->thickness_const_class_ridge_a &&
         !opt->thickness_const_class_fracture_a) {
@@ -494,6 +494,7 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
       inv_param_opt, inv_param->weak_options, inv_param->visc_options);
   inv_param->n_active = rhea_inversion_param_activation_mask_count (
       inv_param->active);
+  RHEA_ASSERT (0 < inv_param->n_active);
 
   /* create prior data */
   inv_param->prior_mean = rhea_inversion_param_vec_new (inv_param);
@@ -974,7 +975,7 @@ rhea_inversion_param_diff_to_feasible_weak (const double inv_param_val)
     return 0.0;
   }
   else {
-    return -inv_param_val;
+    return -(inv_param_val + SC_1000_EPS);
   }
 }
 
@@ -1744,6 +1745,8 @@ rhea_inversion_param_prior (ymir_vec_t *parameter_vec,
     if (active[i]) {
       RHEA_ASSERT (isfinite (misfit[i]));
       RHEA_ASSERT (isfinite (icov[i]));
+      RHEA_ASSERT (0.0 < fabs (misfit[i]));
+      RHEA_ASSERT (0.0 < icov[i]);
       obj_val += misfit[i] * icov[i] * misfit[i];
     }
   }
