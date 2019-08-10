@@ -10,6 +10,8 @@
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
 #include <ymir_comm.h>
+#include <ymir_velocity_vec.h>
+#include <sc_functions.h>
 
 /* include headers for testing purposes */
 #include <rhea_viscosity_param_derivative.h>
@@ -45,6 +47,83 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 /******************************************************************************
  * Inverse Problem
  *****************************************************************************/
+
+static void
+sphere_inversion_test_euler_pole_computation (
+                                        const int pid,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  rhea_plate_options_t *plate_options =
+    rhea_stokes_problem_get_plate_options (stokes_problem);
+  ymir_mesh_t        *ymir_mesh =
+    rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  const double        rot_center[3] = {0.0, 0.0, 0.0};
+  double              rot_axis_ref[3];
+  double              rot_axis_eval[3];
+  ymir_vec_t         *rot_surf;
+
+  /* create work variables */
+  rot_surf = rhea_velocity_surface_new (ymir_mesh);
+
+  /* test rotation about unit vector (1,0,0) */
+  rot_axis_ref[0] = 1.0;
+  rot_axis_ref[1] = 0.0;
+  rot_axis_ref[2] = 0.0;
+  ymir_velocity_vec_generate_rotation (rot_surf, rot_center, rot_axis_ref);
+  rhea_plate_velocity_evaluate_rotation (rot_axis_eval, rot_surf, pid,
+                                         0 /* !project_out_mean_rot */,
+                                         plate_options);
+  RHEA_GLOBAL_INFOF_FN_TAG (
+      __func__,
+      "plate_idx=%i, rot_axis_ref=(%g, %g, %g), rot_axis_eval=(%g, %g, %g)",
+      pid, rot_axis_ref[0], rot_axis_ref[1], rot_axis_ref[2],
+      rot_axis_eval[0], rot_axis_eval[1], rot_axis_eval[2]);
+
+  /* test rotation about unit vector (0,1,0) */
+  rot_axis_ref[0] = 0.0;
+  rot_axis_ref[1] = 1.0;
+  rot_axis_ref[2] = 0.0;
+  ymir_velocity_vec_generate_rotation (rot_surf, rot_center, rot_axis_ref);
+  rhea_plate_velocity_evaluate_rotation (rot_axis_eval, rot_surf, pid,
+                                         0 /* !project_out_mean_rot */,
+                                         plate_options);
+  RHEA_GLOBAL_INFOF_FN_TAG (
+      __func__,
+      "plate_idx=%i, rot_axis_ref=(%g, %g, %g), rot_axis_eval=(%g, %g, %g)",
+      pid, rot_axis_ref[0], rot_axis_ref[1], rot_axis_ref[2],
+      rot_axis_eval[0], rot_axis_eval[1], rot_axis_eval[2]);
+
+  /* test rotation about unit vector (0,0,1) */
+  rot_axis_ref[0] = 0.0;
+  rot_axis_ref[1] = 0.0;
+  rot_axis_ref[2] = 1.0;
+  ymir_velocity_vec_generate_rotation (rot_surf, rot_center, rot_axis_ref);
+  rhea_plate_velocity_evaluate_rotation (rot_axis_eval, rot_surf, pid,
+                                         0 /* !project_out_mean_rot */,
+                                         plate_options);
+  RHEA_GLOBAL_INFOF_FN_TAG (
+      __func__,
+      "plate_idx=%i, rot_axis_ref=(%g, %g, %g), rot_axis_eval=(%g, %g, %g)",
+      pid, rot_axis_ref[0], rot_axis_ref[1], rot_axis_ref[2],
+      rot_axis_eval[0], rot_axis_eval[1], rot_axis_eval[2]);
+
+  /* test rotation about random vector */
+  rot_axis_ref[0] = sc_rand_uniform ();
+  rot_axis_ref[1] = sc_rand_uniform ();
+  rot_axis_ref[2] = sc_rand_uniform ();
+  ymir_velocity_vec_generate_rotation (rot_surf, rot_center, rot_axis_ref);
+  rhea_plate_velocity_evaluate_rotation (rot_axis_eval, rot_surf, pid,
+                                         0 /* !project_out_mean_rot */,
+                                         plate_options);
+  RHEA_GLOBAL_INFOF_FN_TAG (
+      __func__,
+      "plate_idx=%i, rot_axis_ref=(%g, %g, %g), rot_axis_eval=(%g, %g, %g)",
+      pid, rot_axis_ref[0], rot_axis_ref[1], rot_axis_ref[2],
+      rot_axis_eval[0], rot_axis_eval[1], rot_axis_eval[2]);
+
+  /* destroy */
+  ymir_vec_destroy (rot_surf);
+}
 
 static void
 sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
@@ -85,6 +164,9 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
     /* calculate rotational axis */
     RHEA_ASSERT (plate_options != NULL);
     for (pid = 0; pid < n_plates; pid++) { /* loop over all plates */
+#ifdef RHEA_ENABLE_DEBUG
+      sphere_inversion_test_euler_pole_computation (pid, stokes_problem);
+#endif
       rhea_plate_velocity_evaluate_rotation (rot_axis, vel_obs_surf, pid,
                                              0 /* !project_out_mean_rot */,
                                              plate_options);
