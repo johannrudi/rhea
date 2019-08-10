@@ -1490,13 +1490,13 @@ rhea_inversion_apply_prior_preconditioner (sc_dmatrix_t *hessian_matrix,
   /* check input */
   RHEA_ASSERT (hessian_matrix->m == prior_icov->m * prior_icov->n);
 
-  /* apply inverse covariance of prior to the right-hand side vector */
-  sc_dmatrix_dotmultiply (prior_icov, neg_gradient_rhs);
+  /* apply covariance of prior to the right-hand side vector */
+  sc_dmatrix_dotdivide (prior_icov, neg_gradient_rhs);
 
-  /* apply inverse covariance of prior to Hessian matrix */
+  /* apply covariance of prior to Hessian matrix */
   for (row = 0; row < n_rows; row++) {
     for (col = 0; col < n_cols; col++) {
-      hessian[row][col] *= icov[row];
+      hessian[row][col] *= 1.0/icov[row];
     }
   }
 }
@@ -1610,12 +1610,13 @@ rhea_inversion_newton_modify_step_fn (ymir_vec_t *step, ymir_vec_t *solution,
                                       void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
+  rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   double              new_step_length;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   new_step_length = rhea_inversion_param_reduce_step_length_to_feasible (
-      step, solution, inv_problem->inv_param);
+      step, solution, inv_param);
   if (new_step_length < 1.0) {
     RHEA_GLOBAL_INFOF_FN_TAG (__func__, "new_step_length=%g", new_step_length);
 
@@ -1625,10 +1626,29 @@ rhea_inversion_newton_modify_step_fn (ymir_vec_t *step, ymir_vec_t *solution,
     RHEA_GLOBAL_VERBOSEF ("Inversion feasible step, reduced by %.15e\n",
                           new_step_length);
     RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
-    rhea_inversion_param_vec_print (step, inv_problem->inv_param);
+    rhea_inversion_param_vec_print (step, inv_param);
     RHEA_GLOBAL_VERBOSE ("========================================\n");
 #endif
   }
+
+  /* print relative step */
+#ifdef RHEA_ENABLE_DEBUG
+  {
+    ymir_vec_t         *rel_step = rhea_inversion_param_vec_new (inv_param);
+
+    ymir_vec_fabs (solution, rel_step);
+    ymir_vec_reciprocal (rel_step);
+    ymir_vec_multiply_in (step, rel_step);
+
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+    RHEA_GLOBAL_VERBOSE ("Inversion relative step\n");
+    RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+    rhea_inversion_param_vec_print (rel_step, inv_param);
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+
+    rhea_inversion_param_vec_destroy (rel_step);
+  }
+#endif
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
