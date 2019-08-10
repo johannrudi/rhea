@@ -937,6 +937,46 @@ rhea_inversion_param_derivative_yield (const double model_val)
   return model_val;
 }
 
+
+#if 0 //###DEV### //TODO remove unused code
+static double
+rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
+{
+  RHEA_ASSERT (0.0 < inv_param_val && inv_param_val <= 1.0);
+  return inv_param_val;
+}
+
+static double
+rhea_inversion_param_convert_from_model_weak (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
+  return model_val;
+}
+
+double
+rhea_inversion_param_derivative_weak (const double model_val)
+{
+  return 1.0;
+}
+
+static double
+rhea_inversion_param_diff_to_feasible_weak (const double inv_param_val)
+{
+  if (SC_1000_EPS <= inv_param_val && inv_param_val <= 1.0) {
+    return 0.0;
+  }
+  else if (inv_param_val < SC_1000_EPS) {
+    return SC_1000_EPS - inv_param_val;
+  }
+  else if (1.0 < inv_param_val) {
+    return 1.0 - inv_param_val;
+  }
+  else {
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+#endif
+#if 1 //###DEV###
 static double
 rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
 {
@@ -978,6 +1018,57 @@ rhea_inversion_param_diff_to_feasible_weak (const double inv_param_val)
     return -(inv_param_val + SC_1000_EPS);
   }
 }
+#endif
+#if 0 //###DEV### //TODO remove unused code
+static double
+rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
+{
+  const double        weak_min = SC_1000_EPS;
+
+  return SC_MAX (weak_min, exp (-inv_param_val*inv_param_val));
+}
+
+static double
+rhea_inversion_param_convert_from_model_weak (const double model_val)
+{
+  const double        weak_min = SC_1000_EPS;
+
+  RHEA_ASSERT (0.0 <= model_val && model_val <= 1.0);
+
+  if (weak_min < model_val) {
+    return -sqrt (-log (model_val));
+  }
+  else {
+    return -sqrt (-log (weak_min));
+  }
+}
+
+double
+rhea_inversion_param_derivative_weak (const double model_val)
+{
+  const double        weak_min = SC_1000_EPS;
+
+  RHEA_ASSERT (0.0 <= model_val && model_val <= 1.0);
+
+  if (weak_min < model_val) {
+    return 2.0 * sqrt (-log (model_val)) * model_val;
+  }
+  else {
+    return 0.0;
+  }
+}
+
+static double
+rhea_inversion_param_diff_to_feasible_weak (const double inv_param_val)
+{
+  if (inv_param_val <= 0.0) {
+    return 0.0;
+  }
+  else {
+    return -(inv_param_val + SC_1000_EPS);
+  }
+}
+#endif
 
 static void
 rhea_inversion_param_convert_model_vals_to_params (
@@ -1716,9 +1807,35 @@ void
 rhea_inversion_param_prior_inv_cov (ymir_vec_t *inverse_covariance,
                                     rhea_inversion_param_t *inv_param)
 {
+#ifdef RHEA_ENABLE_DEBUG
+  const double       *stddev = inv_param->prior_stddev->meshfree->e[0];
+  const double       *icov = inverse_covariance->meshfree->e[0];
+  const int          *active = inv_param->active;
+  const int           n_parameters = inv_param->n_parameters;
+  int                 i;
+
+  /* check input */
+  for (i = 0; i < n_parameters; i++) {
+    if (active[i]) {
+      RHEA_ASSERT (isfinite (stddev[i]));
+      RHEA_ASSERT (0.0 < stddev[i]);
+    }
+  }
+#endif
+
   ymir_vec_copy (inv_param->prior_stddev, inverse_covariance);
   ymir_vec_multiply_in (inv_param->prior_stddev, inverse_covariance);
   ymir_vec_reciprocal (inverse_covariance);
+
+#ifdef RHEA_ENABLE_DEBUG
+  /* check output */
+  for (i = 0; i < n_parameters; i++) {
+    if (active[i]) {
+      RHEA_ASSERT (isfinite (icov[i]));
+      RHEA_ASSERT (0.0 < icov[i]);
+    }
+  }
+#endif
 }
 
 double
@@ -1744,9 +1861,6 @@ rhea_inversion_param_prior (ymir_vec_t *parameter_vec,
   for (i = 0; i < n_parameters; i++) {
     if (active[i]) {
       RHEA_ASSERT (isfinite (misfit[i]));
-      RHEA_ASSERT (isfinite (icov[i]));
-      RHEA_ASSERT (0.0 < fabs (misfit[i]));
-      RHEA_ASSERT (0.0 < icov[i]);
       obj_val += misfit[i] * icov[i] * misfit[i];
     }
   }
@@ -1895,9 +2009,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
     rhea_inversion_param_prior_misfit (prior_misfit, parameter_vec, inv_param);
 
     /* calculate inverse prior covariance */
-    ymir_vec_copy (inv_param->prior_stddev, prior_icov);
-    ymir_vec_multiply_in (inv_param->prior_stddev, prior_icov);
-    ymir_vec_reciprocal (prior_icov);
+    rhea_inversion_param_prior_inv_cov (prior_icov, inv_param);
 
     /* add prior term to gradient */
     for (i = 0; i < n_parameters; i++) {
@@ -1950,6 +2062,7 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient_vec,
   /* sum up (squares of) entries of the gradient vector that are active */
   for (i = 0; i < n_parameters; i++) { /* loop over all (possible) parameters */
     if (active[i]) {
+      RHEA_ASSERT (isfinite (grad[i]));
       sum_of_squares += grad[i] * icov[i] * grad[i];
     }
   }
@@ -2114,10 +2227,8 @@ rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
     /* copy input */
     ymir_vec_copy (param_vec_in, prior_term);
 
-    /* apply inverse prior covariance */
-    ymir_vec_copy (inv_param->prior_stddev, prior_icov);
-    ymir_vec_multiply_in (inv_param->prior_stddev, prior_icov);
-    ymir_vec_reciprocal (prior_icov);
+    /* calculate inverse prior covariance */
+    rhea_inversion_param_prior_inv_cov (prior_icov, inv_param);
 
     /* add prior term to Hessian apply output */
     for (i = 0; i < n_parameters; i++) {
