@@ -130,7 +130,8 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                      ymir_vec_t *sol_vel_press,
                                      const int vel_obs_euler_pole,
                                      const double vel_obs_add_noise_stddev,
-                                     rhea_stokes_problem_t *stokes_problem)
+                                     rhea_stokes_problem_t *stokes_problem,
+                                     const char *vtk_inv_solver_path)
 {
   rhea_plate_options_t *plate_options =
     rhea_stokes_problem_get_plate_options (stokes_problem);
@@ -177,6 +178,31 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
           __func__, "plate_idx=%i, vel_obs_rot_axis=(%g, %g, %g)",
           pid, rot_axis[0], rot_axis[1], rot_axis[2]);
     }
+
+    /* write vtk output of Euler pole vs. exact velocity observations */
+#ifdef RHEA_ENABLE_DEBUG
+    if (vtk_inv_solver_path != NULL) {
+      ymir_vec_t         *vel_obs_euler, *vel_obs_diff;
+      char                path[BUFSIZ];
+
+      vel_obs_euler = rhea_velocity_surface_new (ymir_mesh);
+      rhea_plate_velocity_generate_all (vel_obs_euler, plate_options);
+
+      vel_obs_diff = rhea_velocity_surface_new (ymir_mesh);
+      ymir_vec_copy (vel_obs_surf, vel_obs_diff);
+      ymir_vec_add (-1.0, vel_obs_euler, vel_obs_diff);
+      rhea_plate_apply_filter_all_vec (vel_obs_diff, plate_options);
+
+      snprintf (path, BUFSIZ, "%s_vel_obs_eulerpole", vtk_inv_solver_path);
+      ymir_vtk_write (ymir_mesh, path,
+                      vel_obs_surf, "velocity_obs_exact",
+                      vel_obs_euler, "velocity_obs_eulerpole",
+                      vel_obs_diff, "velocity_obs_diff", NULL);
+
+      rhea_velocity_surface_destroy (vel_obs_surf);
+      rhea_velocity_surface_destroy (vel_obs_diff);
+    }
+#endif
 
     /* run solver */
     rhea_inversion_solve (inv_problem,
@@ -595,7 +621,7 @@ main (int argc, char **argv)
   sphere_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
                                        vel_obs_euler_pole,
                                        vel_obs_add_noise_stddev,
-                                       stokes_problem);
+                                       stokes_problem, vtk_inv_solver_path);
   rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
 
   /* destroy */
