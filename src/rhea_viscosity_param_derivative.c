@@ -204,8 +204,8 @@ rhea_viscosity_param_derivative_max (ymir_vec_t *derivative,
 
 /**
  * Computes derivative w.r.t. the scaling factor of upper/lower mantle:
- *   c = exp(param_c)
- *   deriv = visc
+ *   c = X(param_c)
+ *   deriv = (d X(param_c)) * visc / c
  */
 static void
 rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
@@ -258,8 +258,8 @@ rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
 
 /**
  * Computes derivative w.r.t. the activation energy in Arrhenius relationship:
- *   E_a = exp(param_E_a)
- *   deriv = E_a * (0.5 - T) * visc
+ *   E_a = X(param_E_a)
+ *   deriv = (d X(param_E_a)) * (0.5 - T) * visc
  */
 static void
 rhea_viscosity_param_derivative_arrh (ymir_vec_t *derivative,
@@ -329,8 +329,8 @@ rhea_viscosity_param_derivative_log_fn (double *val, double x, double y,
 
 /**
  * Computes derivative w.r.t. the stress exponent:
- *   n = 1 + exp(param_n)
- *   deriv = - log(strainrate - shift) * exp(param_n) / n^2 * visc
+ *   n = X(param_n)
+ *   deriv = (d X(param_n)) * (-log(strainrate - shift) / n^2) * visc
  */
 static void
 rhea_viscosity_param_derivative_stress_exp (
@@ -380,7 +380,7 @@ rhea_viscosity_param_derivative_stress_exp (
   rhea_strainrate_2inv_destroy (strt_scal);
 
   /* multiply by constant scaling */
-  scal = - SC_MAX (0.0, stress_exp_deriv) / (stress_exp*stress_exp);
+  scal = SC_MAX (0.0, stress_exp_deriv) / (-stress_exp*stress_exp);
   ymir_vec_scale (scal, derivative);
 
   /* check output */
@@ -389,8 +389,8 @@ rhea_viscosity_param_derivative_stress_exp (
 
 /**
  * Computes derivative w.r.t. the yield strength:
- *   n = exp(param_yield)
- *   deriv = visc
+ *   Y = X(param_Y)
+ *   deriv = (d X(param_Y) * visc / Y
  */
 static void
 rhea_viscosity_param_derivative_yield_strength (
@@ -427,9 +427,9 @@ rhea_viscosity_param_derivative_yield_strength (
 
 /**
  * Computes derivative w.r.t. the weak factor in the interior of a weak zone:
- *   weak_int = exp(-param_weak_int^2)
+ *   weak_int = X(param_weak_int)
  *   weak = 1 - (1 - weak_int) * weak_indicator
- *   deriv = -2*param_weak_int * weak_indicator * visc/weak
+ *   deriv = (d X(param_weak_int)) * weak_indicator * visc / weak
  */
 static void
 rhea_viscosity_param_derivative_weak_factor_interior (
