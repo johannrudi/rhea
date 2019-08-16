@@ -15,6 +15,11 @@
 # include <ymir_vtk.h>
 #endif
 
+/* AMR types */
+char                _amr_init_type_name[BUFSIZ];
+char                _amr_nonlinear_type_name[BUFSIZ];
+char                _amr_solution_type_name[BUFSIZ];
+
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -141,6 +146,35 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
   /* add these options as sub-options */
   ymir_options_add_suboptions (opt_sup, opt, opt_prefix);
   ymir_options_destroy (opt);
+}
+
+void
+rhea_stokes_problem_amr_process_options ()
+{
+  rhea_stokes_problem_amr_set_init_type_name (
+      rhea_stokes_problem_amr_init_type_name);
+  rhea_stokes_problem_amr_set_nonlinear_type_name (
+      rhea_stokes_problem_amr_nonlinear_type_name);
+  rhea_stokes_problem_amr_set_solution_type_name (
+      rhea_stokes_problem_amr_solution_type_name);
+}
+
+void
+rhea_stokes_problem_amr_set_init_type_name (const char *type_name)
+{
+  snprintf (_amr_init_type_name, BUFSIZ, "%s", type_name);
+}
+
+void
+rhea_stokes_problem_amr_set_nonlinear_type_name (const char *type_name)
+{
+  snprintf (_amr_nonlinear_type_name, BUFSIZ, "%s", type_name);
+}
+
+void
+rhea_stokes_problem_amr_set_solution_type_name (const char *type_name)
+{
+  snprintf (_amr_solution_type_name, BUFSIZ, "%s", type_name);
 }
 
 /******************************************************************************
@@ -1444,7 +1478,7 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
 }
 
 /******************************************************************************
- * AMR Main Functions
+ * Perform AMR
  *****************************************************************************/
 
 int
@@ -1452,7 +1486,7 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
                               p4est_t *p4est,
                               rhea_discretization_options_t *discr_options)
 {
-  const char         *type_name = rhea_stokes_problem_amr_init_type_name;
+  const char         *type_name = _amr_init_type_name;
   const double        tol_min = rhea_stokes_problem_amr_init_tol_min;
   const double        tol_max = rhea_stokes_problem_amr_init_tol_max;
   const int           n_cycles = rhea_stokes_problem_amr_n_cycles;
@@ -1533,7 +1567,7 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
                                    rhea_discretization_options_t *discr_options,
                                    const int nonlinear_iter)
 {
-  const char         *type_name = rhea_stokes_problem_amr_nonlinear_type_name;
+  const char         *type_name = _amr_nonlinear_type_name;
   const double        tol_min = rhea_stokes_problem_amr_nonlinear_tol_min;
   const double        tol_max = rhea_stokes_problem_amr_nonlinear_tol_max;
   const int           n_cycles = rhea_stokes_problem_amr_n_cycles;
@@ -1615,7 +1649,7 @@ rhea_stokes_problem_solution_amr (rhea_stokes_problem_t *stokes_problem,
   const int           amr_level_max =
                         rhea_stokes_problem_amr_solution_level_max;
 
-  const char         *type_name = rhea_stokes_problem_amr_solution_type_name;
+  const char         *type_name = _amr_solution_type_name;
   int                 n_cycles = opt_level_max - opt_level_min;
   const double        flagged_elements_thresh_begin = NAN; //TODO
   const double        flagged_elements_thresh_cycle = NAN; //TODO

@@ -178,6 +178,7 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
   rhea_viscosity_process_options (viscosity_options, domain_options);
   rhea_discretization_process_options (discr_options, domain_options,
                                        topography_options);
+  rhea_stokes_problem_process_options ();
 }
 
 void

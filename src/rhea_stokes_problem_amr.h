@@ -19,6 +19,10 @@
 #define RHEA_STOKES_PROBLEM_AMR_VERBOSE (1)
 #define RHEA_STOKES_PROBLEM_AMR_VERBOSE_VTK (0)
 
+/******************************************************************************
+ * Options
+ *****************************************************************************/
+
 /**
  * Defines options and adds them as sub-options.
  */
@@ -26,7 +30,28 @@ void                rhea_stokes_problem_amr_add_options (
                                                     ymir_options_t * opt_sup);
 
 /**
- *
+ * Processes options and stores them.
+ */
+void                rhea_stokes_problem_amr_process_options ();
+
+/**
+ * Sets AMR types.
+ */
+void                rhea_stokes_problem_amr_set_init_type_name (
+                                                      const char *type_name);
+
+void                rhea_stokes_problem_amr_set_nonlinear_type_name (
+                                                      const char *type_name);
+
+void                rhea_stokes_problem_amr_set_solution_type_name (
+                                                      const char *type_name);
+
+/******************************************************************************
+ * Perform AMR
+ *****************************************************************************/
+
+/**
+ * Runs AMR for the initial mesh.
  */
 int                 rhea_stokes_problem_init_amr (
                                 rhea_stokes_problem_t *stokes_problem,
@@ -34,7 +59,7 @@ int                 rhea_stokes_problem_init_amr (
                                 rhea_discretization_options_t *discr_options);
 
 /**
- *
+ * Runs AMR at nonlinear iterations.
  */
 int                 rhea_stokes_problem_nonlinear_amr (
                                 rhea_stokes_problem_t *stokes_problem,
@@ -43,7 +68,7 @@ int                 rhea_stokes_problem_nonlinear_amr (
                                 const int nonlinear_iter);
 
 /**
- *
+ * Runs AMR for the solution.
  */
 int                 rhea_stokes_problem_solution_amr (
                                 rhea_stokes_problem_t *stokes_problem,

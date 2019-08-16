@@ -38,6 +38,11 @@ rhea_stokes_problem_nonlinear_linearization_t;
  */
 void                rhea_stokes_problem_add_options (ymir_options_t * opt_sup);
 
+/**
+ * Processes options and stores them.
+ */
+void                rhea_stokes_problem_process_options ();
+
 /******************************************************************************
  * Stokes Problem
  *****************************************************************************/

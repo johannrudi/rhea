@@ -101,6 +101,12 @@ rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
   ymir_options_destroy (opt);
 }
 
+void
+rhea_stokes_problem_process_options ()
+{
+  rhea_stokes_problem_amr_process_options ();
+}
+
 /******************************************************************************
  * General Stokes Problem Structure
  *****************************************************************************/
