@@ -35,6 +35,8 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_FIRST_ORDER_HESSIAN_APPROX (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (0)
+#define RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV (2.0)
+#define RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE (0)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_ADJOINT_SOLVER_ITER_MAX (100)
@@ -43,7 +45,6 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL (1.0e-6)
-#define RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE (0)
 #define RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL \
   (RHEA_INVERSION_PROJECT_OUT_NULL_NONE)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
@@ -63,6 +64,8 @@ int                 rhea_inversion_assemble_hessian =
                       RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN;
 int                 rhea_inversion_assemble_hessian_enforce_symm =
                       RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM;
+double              rhea_inversion_restrict_step_to_prior_stddev =
+                      RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV;
 int                 rhea_inversion_forward_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX;
 double              rhea_inversion_forward_solver_rtol =
@@ -126,8 +129,16 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_assemble_hessian_enforce_symm),
     RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM,
     "Enforce symmetry of the assembled Hessian matrix",
+  YMIR_OPTIONS_D, "restrict-step-to-prior-stddev", '\0',
+    &(rhea_inversion_restrict_step_to_prior_stddev),
+    RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV,
+    "Restrict each Newton step to lie within the range of prior",
 
   /* inner solver options (i.e., forward/adjoint) */
+  YMIR_OPTIONS_B, "inner-solver-rtol-adaptive", '\0',
+    &(rhea_inversion_inner_solver_rtol_adaptive),
+    RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE,
+    "Inner solves: Use adaptive relative tolerance provided by Newton's method",
   YMIR_OPTIONS_I, "forward-solver-iter-max", '\0',
     &(rhea_inversion_forward_solver_iter_max),
     RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX,
@@ -160,10 +171,6 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_incremental_adjoint_solver_rtol),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL,
     "Incr. adjoint solver: Relative tolerance for Stokes solver",
-  YMIR_OPTIONS_B, "inner-solver-rtol-adaptive", '\0',
-    &(rhea_inversion_inner_solver_rtol_adaptive),
-    RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE,
-    "Inner solves: Use adaptive relative tolerance provided by Newton's method",
   YMIR_OPTIONS_I, "project-out-null", '\0',
     &(rhea_inversion_project_out_null),
     RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL,
@@ -1624,20 +1631,24 @@ rhea_inversion_newton_modify_step_fn (ymir_vec_t *step, ymir_vec_t *solution,
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
-  double              new_step_length;
+  const double        restrict_to_prior_stddev =
+                        rhea_inversion_restrict_step_to_prior_stddev;
+  int                 step_modified;
+  double              step_length_new;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
-  new_step_length = rhea_inversion_param_reduce_step_length_to_feasible (
-      step, solution, inv_param);
-  if (new_step_length < 1.0) {
-    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "new_step_length=%g", new_step_length);
+  step_modified = rhea_inversion_param_restrict_step_length_to_feasible (
+      step, solution, restrict_to_prior_stddev, inv_param, &step_length_new);
+  if (step_modified) {
+    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "step_modified=%i, step_length_new=%g",
+                              step_modified, step_length_new);
 
     /* print step */
 #ifdef RHEA_ENABLE_DEBUG
     RHEA_GLOBAL_VERBOSE ("========================================\n");
-    RHEA_GLOBAL_VERBOSEF ("Inversion feasible step, reduced by %.15e\n",
-                          new_step_length);
+    RHEA_GLOBAL_VERBOSEF ("Inversion feasible step, length reduced by %.15e\n",
+                          step_length_new);
     RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
     rhea_inversion_param_vec_print (step, inv_param);
     RHEA_GLOBAL_VERBOSE ("========================================\n");

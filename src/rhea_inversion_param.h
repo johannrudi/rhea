@@ -144,10 +144,14 @@ void                rhea_inversion_param_set_initial_from_model (
  *
  * where
  *   *_pos ()   Used for model values that are positive.
+ *   *_n ()     Used for stress exponent.
  *   *_yield () Used for yield strength.
  *   *_weak ()  Used for weak zone factors.
  */
 double              rhea_inversion_param_derivative_pos (
+                                                  const double model_val);
+
+double              rhea_inversion_param_derivative_n (
                                                   const double model_val);
 
 double              rhea_inversion_param_derivative_yield (
@@ -216,21 +220,24 @@ void                rhea_inversion_param_prior_inv_cov (
                                         rhea_inversion_param_t *inv_param);
 
 /**
- * Projects the parameter to their feasible values (elementwise).
+ * Restricts the parameters to their feasible values (elementwise).
  */
-void                rhea_inversion_param_project_to_feasible (
+int                 rhea_inversion_param_restrict_to_feasible (
                                         ymir_vec_t *parameter_vec,
+                                        const double restrict_to_prior_stddev,
                                         rhea_inversion_param_t *inv_param);
 
 /**
  * Modifies the step such that the new parameter vector,
  *   parameter_vec + step_vec,
- * lies within the feasible set for the parameters.
+ * lies within the feasible set associated with the inversion parameters.
  */
-double              rhea_inversion_param_reduce_step_length_to_feasible (
+int                 rhea_inversion_param_restrict_step_length_to_feasible (
                                         ymir_vec_t *step_vec,
                                         ymir_vec_t *parameter_vec,
-                                        rhea_inversion_param_t *inv_param);
+                                        const double restrict_to_prior_stddev,
+                                        rhea_inversion_param_t *inv_param,
+                                        double *step_length_new);
 
 /******************************************************************************
  * Parameter Vector
