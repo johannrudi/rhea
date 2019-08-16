@@ -6,6 +6,7 @@
  */
 
 #include <rhea.h>
+#include <rhea_stokes_problem_amr.h>
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
@@ -597,6 +598,9 @@ main (int argc, char **argv)
   /* write vtk of solution */
   example_share_vtk_write_solution (vtk_solution_path, sol_vel_press,
                                     stokes_problem);
+
+  /* deactivate AMR during nonlinear solve */
+  rhea_stokes_problem_amr_set_nonlinear_type_name ("NONE");
 
   /*
    * Test Derivatives of the Viscosity w.r.t. the Inversion Parameters
