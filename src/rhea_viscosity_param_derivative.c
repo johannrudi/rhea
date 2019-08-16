@@ -343,7 +343,7 @@ rhea_viscosity_param_derivative_stress_exp (
 {
   const double        stress_exp = visc_options->stress_exponent;
   const double        stress_exp_deriv =
-    rhea_inversion_param_derivative_pos (stress_exp);
+    rhea_inversion_param_derivative_n (stress_exp);
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (derivative);
   ymir_vec_t         *strt_scal = rhea_strainrate_2inv_new (ymir_mesh);
   double              scal;
