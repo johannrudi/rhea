@@ -2,6 +2,7 @@
 #include <rhea_base.h>
 #include <rhea_viscosity_param_derivative.h>
 #include <rhea_weakzone_label.h>
+#include <rhea_io_mpi.h>
 #include <ymir_stress_pc.h>
 #include <fenv.h>
 
@@ -24,6 +25,7 @@
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS (10.0e3)
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_THICKNESS_CONST (5.0e3)
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_WEAK_FACTOR_INTERIOR (1.0e-1)
+#define RHEA_INVERSION_PARAM_DEFAULT_GUESS_FILE_PATH_TXT NULL
 #define RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV (0.0)
 #define RHEA_INVERSION_PARAM_DEFAULT_GUESS_SHIFT_BY_PRIOR_STDDEV (0.0)
 
@@ -211,11 +213,15 @@ rhea_inversion_param_add_options (
 
   /****** Initial Guess ******/
 
+  YMIR_OPTIONS_S, "initial-guess-file-path-txt", '\0',
+    &(inv_param_opt->initial_guess_file_path_txt),
+    RHEA_INVERSION_PARAM_DEFAULT_GUESS_FILE_PATH_TXT,
+    "Path to a text file of inversion parameters for the initial guess",
+
   YMIR_OPTIONS_D, "initial-guess-perturbation-stddev", '\0',
     &(inv_param_opt->initial_guess_perturb_stddev),
     RHEA_INVERSION_PARAM_DEFAULT_GUESS_PERTURB_STDDEV,
     "Initial guess: standard deviation for perturbations",
-
   YMIR_OPTIONS_D, "initial-guess-shift-by-prior-stddev", '\0',
     &(inv_param_opt->initial_guess_shift_by_prior_stddev),
     RHEA_INVERSION_PARAM_DEFAULT_GUESS_SHIFT_BY_PRIOR_STDDEV,
@@ -1505,24 +1511,43 @@ rhea_inversion_param_push_to_model (ymir_vec_t *parameter_vec,
 }
 
 void
-rhea_inversion_param_set_initial_from_model (
-                                          ymir_vec_t *parameter_vec,
-                                          rhea_inversion_param_t *inv_param,
-                                          rhea_inversion_param_options_t *opt)
+rhea_inversion_param_set_initial_guess (ymir_vec_t *parameter_vec,
+                                        rhea_inversion_param_t *inv_param,
+                                        rhea_inversion_param_options_t *opt)
 {
+  const char         *file_path_txt = opt->initial_guess_file_path_txt;
   const double        perturb_stddev = opt->initial_guess_perturb_stddev;
   const double        shift_by_prior_stddev =
                         opt->initial_guess_shift_by_prior_stddev;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
-      __func__, "perturb_stddev=%g, shift_by_prior_stddev=%g",
-      perturb_stddev, shift_by_prior_stddev);
+      __func__, "file_path=%s, perturb_stddev=%g, shift_by_prior_stddev=%g",
+      file_path_txt, perturb_stddev, shift_by_prior_stddev);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
 
-  /* get parameter values from model */
-  rhea_inversion_param_pull_from_model (parameter_vec, inv_param);
+  /* get parameters */
+  if (file_path_txt != NULL) { /* if get values from file */
+    ymir_mesh_t        *ymir_mesh =
+      rhea_stokes_problem_get_ymir_mesh (inv_param->stokes_problem);
+    sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+    sc_dmatrix_t       *param_reduced;
+    int                 success_n = 0;
+
+    param_reduced = rhea_inversion_param_vec_reduced_new (parameter_vec,
+                                                          inv_param);
+    success_n = rhea_io_mpi_read_broadcast_double (
+        param_reduced->e[0], param_reduced->m * param_reduced->n,
+        NULL /* path bin */, file_path_txt, mpicomm);
+    RHEA_ASSERT (success_n == inv_param->n_active);
+    rhea_inversion_param_vec_reduced_copy (parameter_vec, param_reduced,
+                                           inv_param);
+    rhea_inversion_param_vec_reduced_destroy (param_reduced);
+  }
+  else { /* otherwise get values from model */
+    rhea_inversion_param_pull_from_model (parameter_vec, inv_param);
+  }
 
   /* apply perturbation */
   if (isfinite (perturb_stddev) && 0.0 < fabs (perturb_stddev)) {

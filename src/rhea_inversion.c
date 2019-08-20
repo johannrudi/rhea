@@ -2154,7 +2154,7 @@ rhea_inversion_solve (rhea_inversion_problem_t *inv_problem,
     ymir_vec_copy (inv_parameter_vec, parameter_vec);
   }
   else {
-    rhea_inversion_param_set_initial_from_model (
+    rhea_inversion_param_set_initial_guess (
         parameter_vec, inv_param, inv_problem->inv_param_options);
   }
 
@@ -2197,7 +2197,7 @@ rhea_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
     ymir_vec_copy (inv_parameter_vec, parameter_vec);
   }
   else {
-    rhea_inversion_param_set_initial_from_model (
+    rhea_inversion_param_set_initial_guess (
         parameter_vec, inv_param, inv_problem->inv_param_options);
   }
 

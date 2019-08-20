@@ -61,6 +61,7 @@ typedef struct rhea_inversion_param_options
   double              prior_stddev_weak_factor_interior;
 
   /* initial guess */
+  char               *initial_guess_file_path_txt;
   double              initial_guess_perturb_stddev;
   double              initial_guess_shift_by_prior_stddev;
 }
@@ -132,7 +133,7 @@ void                rhea_inversion_param_push_to_model (
 /**
  * Sets the inversion parameters to initial values.
  */
-void                rhea_inversion_param_set_initial_from_model (
+void                rhea_inversion_param_set_initial_guess (
                                           ymir_vec_t *parameter_vec,
                                           rhea_inversion_param_t *inv_param,
                                           rhea_inversion_param_options_t *opt);
