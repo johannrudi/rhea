@@ -11,6 +11,7 @@ include example/amr/Makefile.am
 include example/basic/Makefile.am
 include example/basic_inversion/Makefile.am
 include example/earth/Makefile.am
+include example/earth_inversion/Makefile.am
 include example/io/Makefile.am
 include example/newton_polynomial/Makefile.am
 include example/sphere_inversion/Makefile.am
