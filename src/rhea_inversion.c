@@ -5,6 +5,7 @@
 #include <rhea_newton.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
+#include <rhea_stokes_problem_amr.h>
 #include <rhea_io_std.h>
 #include <rhea_vtk.h>
 #include <ymir_perf_counter.h>
@@ -581,6 +582,9 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   if (mesh_modified_by_solver) {
     rhea_inversion_newton_clear_mesh_data (inv_problem, 1 /* keep forward */);
     rhea_inversion_newton_create_mesh_data (inv_problem);
+
+    /* deactivate AMR during future nonlinear solves */
+    rhea_stokes_problem_amr_set_nonlinear_type_name ("NONE");
   }
 
   ymir_perf_counter_stop_add (
