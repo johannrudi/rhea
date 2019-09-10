@@ -218,8 +218,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
         ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
     ymir_vec_set_value (vel_obs_weight_surf, 1.0);
     if (0 < n_plates) { /* if filter subducting plate */
-      rhea_plate_apply_filter_vec (vel_obs_weight_surf, 0 /* plate_label */,
-                                   plate_options);
+      rhea_plate_apply_filter_all_vec (vel_obs_weight_surf, plate_options);
     }
 
     /* run solver */
