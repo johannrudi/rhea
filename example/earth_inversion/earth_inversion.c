@@ -179,6 +179,12 @@ main (int argc, char **argv)
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
                                       &plate_options);
 
+  /* setup Stokes solver */
+  rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SETUP_STOKES);
+  rhea_stokes_problem_setup_solver_ext (stokes_problem,
+                                        RHEA_INVERSION_KRYLOV_SOLVER_N);
+  rhea_performance_monitor_stop_add (RHEA_MAIN_PERFMON_SETUP_STOKES);
+
   /*
    * Solve Inverse Problem
    */
