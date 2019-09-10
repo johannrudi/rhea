@@ -322,11 +322,11 @@ rhea_plate_process_vertices_cube (float **vertices_x,
 }
 
 static void
-rhea_plate_polygon_translation_shell_init (int bins_x[36],
-                                           int bins_y[180],
-                                           const float *vertices_x,
-                                           const float *vertices_y,
-                                           const size_t n_vertices)
+rhea_plate_modify_vertices_shell_init (int bins_x[36],
+                                       int bins_y[180],
+                                       const float *vertices_x,
+                                       const float *vertices_y,
+                                       const size_t n_vertices)
 {
   size_t              vid;
   int                 bx, by;
@@ -345,10 +345,11 @@ rhea_plate_polygon_translation_shell_init (int bins_x[36],
 }
 
 static void
-rhea_plate_polygon_translation_shell_set (float *translation_x,
-                                          float *translation_y,
-                                          const int bins_x[36],
-                                          const int bins_y[180])
+rhea_plate_modify_vertices_shell_set (float *translation_x,
+                                      float *translation_y,
+                                      float *insert_y,
+                                      const int bins_x[36],
+                                      const int bins_y[180])
 {
   int                 bin_east, bin_west, bin_south, bin_north;
   int                 i;
@@ -387,10 +388,10 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
     }
   }
   if (0 == bin_west && bin_east == 35) { /* if whole circle */
-    if (bin_north < 90 && bin_south < 90) { /* if polygon in south hemisph. */
+    if (bin_north < 90 && bin_south < 90) { /* if polygon in north hemisph. */
       bin_north = 0;
     }
-    else if (90 < bin_north && 90 < bin_south) { /* if polygon in north hemi. */
+    else if (90 < bin_north && 90 < bin_south) { /* if polygon in south hemi. */
       bin_south = 179;
     }
     else {
@@ -402,23 +403,25 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
   if (bin_west <= bin_east && 0 < bin_north && bin_south < 179) { /* no wrap */
     *translation_x = 0.0;
     *translation_y = 0.0;
+    *insert_y = NAN;
   }
   else if (0 < bin_north && bin_south < 179) { /* set translation in west dir */
     RHEA_ASSERT (bin_east < bin_west);
-    *translation_x = -10.0 * (double) bin_west;
+    *translation_x = -10.0 * (float) bin_west;
     *translation_y = 0.0;
+    *insert_y = NAN;
   }
-  else if (0 == bin_north) { /* set translation in south direction */
-    RHEA_ASSERT (bin_south <= 8);
+  else if (0 == bin_north) { /* insert north pole (0,0) and (360,0) */
+    RHEA_ASSERT (bin_south < 179);
     *translation_x = 0.0;
-  //*translation_y = +10.0 * (double) bin_south;
-    *translation_y = 0.0; //TODO add pts to data: (0,0) and (360,0)
+    *translation_y = 0.0;
+    *insert_y = 0.0;
   }
-  else if (bin_south == 179) { /* set translation in south direction */
-    RHEA_ASSERT (9 <= bin_north);
+  else if (bin_south == 179) { /* insert south pole (0,180) and (360,180) */
+    RHEA_ASSERT (0 < bin_north);
     *translation_x = 0.0;
-  //*translation_y = -10.0 * (double) bin_north;
-    *translation_y = 0.0; //TODO add pts to data: (0,180) and (360,180)
+    *translation_y = 0.0;
+    *insert_y = 180.0;
   }
   else {
     RHEA_ABORT_NOT_REACHED ();
@@ -426,13 +429,13 @@ rhea_plate_polygon_translation_shell_set (float *translation_x,
 
   RHEA_GLOBAL_VERBOSEF_FN_TAG (
       __func__, "west=%i, east=%i, north=%i, south=%i, "
-      "translation_x=%g, translation_y=%g",
+      "translation_x=%g, translation_y=%g, insert_y=%g",
       10*bin_west, 10*bin_east, bin_north, bin_south,
-      *translation_x, *translation_y);
+      *translation_x, *translation_y, *insert_y);
 }
 
 static void
-rhea_plate_polygon_translation_shell_apply (float *vertices_x,
+rhea_plate_modify_vertices_shell_translate (float *vertices_x,
                                             float *vertices_y,
                                             const size_t n_vertices,
                                             const float translation_x,
@@ -462,32 +465,114 @@ rhea_plate_polygon_translation_shell_apply (float *vertices_x,
   }
 }
 
+static size_t
+rhea_plate_modify_vertices_shell_insert (float **vertices_x,
+                                         float **vertices_y,
+                                         const size_t n_vertices,
+                                         const float insert_y)
+{
+  float              *vertices_old_x = *vertices_x;
+  float              *vertices_old_y = *vertices_y;
+  float               x, y, prev_x, prev_y;
+  size_t              vid;
+
+  /* create larger arrays */
+  *vertices_x = RHEA_ALLOC (float, n_vertices + 4);
+  *vertices_y = RHEA_ALLOC (float, n_vertices + 4);
+
+  /* copy vertices until wrapping occurs */
+  prev_x = vertices_old_x[0];
+  prev_y = vertices_old_y[0];
+  for (vid = 0; vid < n_vertices; vid++) {
+    x = vertices_old_x[vid];
+    y = vertices_old_y[vid];
+    if (fabs (x - prev_x) <= 10.0) {
+      (*vertices_x)[vid] = x;
+      (*vertices_y)[vid] = y;
+      prev_x = x;
+      prev_y = y;
+    }
+    else {
+      break;
+    }
+  }
+
+  /* insert new vertex coordinates */
+  if (x <= prev_x) { /* if wraps counter-clockwise */
+    (*vertices_x)[vid  ] = 360.0;
+    (*vertices_y)[vid  ] = prev_y;
+    (*vertices_x)[vid+1] = 360.0;
+    (*vertices_y)[vid+1] = insert_y;
+    (*vertices_x)[vid+2] = 0.0;
+    (*vertices_y)[vid+2] = insert_y;
+    (*vertices_x)[vid+3] = 0.0;
+    (*vertices_y)[vid+3] = prev_y;
+  }
+  else { /* otherwise wraps clockwise */
+    (*vertices_x)[vid  ] = 0.0;
+    (*vertices_y)[vid  ] = prev_y;
+    (*vertices_x)[vid+1] = 0.0;
+    (*vertices_y)[vid+1] = insert_y;
+    (*vertices_x)[vid+2] = 360.0;
+    (*vertices_y)[vid+2] = insert_y;
+    (*vertices_x)[vid+3] = 360.0;
+    (*vertices_y)[vid+3] = prev_y;
+  }
+
+  /* continue copying vertices */
+  prev_x = x;
+  prev_y = y;
+  for (/* resume */; vid < n_vertices; vid++) {
+    x = vertices_old_x[vid];
+    y = vertices_old_y[vid];
+    RHEA_ASSERT (fabs (x - prev_x) <= 10.0);
+    (*vertices_x)[vid+4] = x;
+    (*vertices_y)[vid+4] = y;
+    prev_x = x;
+    prev_y = y;
+  }
+
+  /* destroy old arrays */
+  RHEA_FREE (vertices_old_x);
+  RHEA_FREE (vertices_old_y);
+
+  /* return new #vertices */
+  return n_vertices + 4;
+}
+
 static void
-rhea_plate_translate_vertices_shell (float *translation_x,
-                                     float *translation_y,
-                                     float **vertices_x,
-                                     float **vertices_y,
-                                     const size_t *n_vertices,
-                                     const int n_plates)
+rhea_plate_modify_vertices_shell (float *translation_x,
+                                  float *translation_y,
+                                  float **vertices_x,
+                                  float **vertices_y,
+                                  size_t *n_vertices,
+                                  const int n_plates)
 {
   int                 bins_x[36], bins_y[180];
   int                 pid;
+  float               insert_y;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "n_plates=%i", n_plates);
 
   for (pid = 0; pid < n_plates; pid++) {
     /* populate bins */
-    rhea_plate_polygon_translation_shell_init (
+    rhea_plate_modify_vertices_shell_init (
         bins_x, bins_y, vertices_x[pid], vertices_y[pid], n_vertices[pid]);
 
     /* set translations */
-    rhea_plate_polygon_translation_shell_set (
-        &translation_x[pid], &translation_y[pid], bins_x, bins_y);
+    rhea_plate_modify_vertices_shell_set (
+        &translation_x[pid], &translation_y[pid], &insert_y, bins_x, bins_y);
 
     /* apply translations */
-    rhea_plate_polygon_translation_shell_apply (
+    rhea_plate_modify_vertices_shell_translate (
         vertices_x[pid], vertices_y[pid], n_vertices[pid],
         translation_x[pid], translation_y[pid]);
+
+    /* insert vertices */
+    if (isfinite (insert_y)) {
+      n_vertices[pid] = rhea_plate_modify_vertices_shell_insert (
+          &vertices_x[pid], &vertices_y[pid], n_vertices[pid], insert_y);
+    }
   }
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
@@ -870,20 +955,10 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
       if (opt->vertices_coarse_container_x != NULL &&
           opt->vertices_coarse_container_y != NULL &&
           opt->n_vertices_coarse_container != NULL) { /* use coarse vertices */
-        int                 pid;
-
-        rhea_plate_translate_vertices_shell (
-            opt->translation_x, opt->translation_y,
-            opt->vertices_coarse_container_x, opt->vertices_coarse_container_y,
-            opt->n_vertices_coarse_container, n_plates);
-        for (pid = 0; pid < n_plates; pid++) {
-          rhea_plate_polygon_translation_shell_apply (
-              opt->vertices_x[pid], opt->vertices_y[pid], opt->n_vertices[pid],
-              opt->translation_x[pid], opt->translation_y[pid]);
-        }
+        RHEA_ABORT_NOT_REACHED (); //TODO remove caorse containers
       }
       else { /* use vertices of (fine) polygon */
-        rhea_plate_translate_vertices_shell (
+        rhea_plate_modify_vertices_shell (
             opt->translation_x, opt->translation_y,
             opt->vertices_x, opt->vertices_y, opt->n_vertices, n_plates);
       }
