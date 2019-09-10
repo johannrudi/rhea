@@ -207,7 +207,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
     /* run solver */
     rhea_inversion_solve (inv_problem,
-                          1 /* use model param's as initial guess */,
+                          0 /* use model param's as initial guess */,
                           NULL /* no parameter vector */);
   }
   else { /* use spacially varying surface velocity */
@@ -224,7 +224,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
     /* run solver */
     rhea_inversion_solve_with_vel_obs (
-        inv_problem, 1 /* use model param's as initial guess */,
+        inv_problem, 0 /* use model param's as initial guess */,
         NULL /* no parameter vector */, vel_obs_surf, vel_obs_weight_surf,
         vel_obs_add_noise_stddev);
 
