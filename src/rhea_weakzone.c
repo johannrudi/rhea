@@ -850,8 +850,12 @@ rhea_weakzone_lookup_factor_interior (const int label,
   case RHEA_WEAKZONE_DATA_POINTS_LABELS: /* different label dependent factors */
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
     RHEA_ASSERT (rhea_weakzone_label_is_valid_int (label));
-    if (rhea_weakzone_label_is_class ((rhea_weakzone_label_t) label)) {
-      switch (label) {
+    if (rhea_weakzone_label_is_class ((rhea_weakzone_label_t) label) ||
+        opt->weak_factor_interior_earth == NULL) { /* if based on class */
+      const rhea_weakzone_label_t class_id =
+        rhea_weakzone_label_get_class ((rhea_weakzone_label_t) label);
+
+      switch (class_id) {
       case RHEA_WEAKZONE_LABEL_CLASS_NONE:
         return opt->weak_factor_interior;
       case RHEA_WEAKZONE_LABEL_CLASS_SLAB:
@@ -865,17 +869,15 @@ rhea_weakzone_lookup_factor_interior (const int label,
         return NAN;
       }
     }
-    else {
-      if (opt->weak_factor_interior_earth != NULL) {
-        const int           idx =
-          rhea_weakzone_label_earth_get_idx ((rhea_weakzone_label_t) label);
+    else if (opt->weak_factor_interior_earth != NULL) { /* if vals individual */
+      const int           idx =
+        rhea_weakzone_label_earth_get_idx ((rhea_weakzone_label_t) label);
 
-        RHEA_ASSERT (0 <= idx && idx < RHEA_WEAKZONE_LABEL_EARTH_N);
-        return opt->weak_factor_interior_earth[idx];
-      }
-      else {
-        return opt->weak_factor_interior;
-      }
+      RHEA_ASSERT (0 <= idx && idx < RHEA_WEAKZONE_LABEL_EARTH_N);
+      return opt->weak_factor_interior_earth[idx];
+    }
+    else { /* otherwise use generic value */
+      return opt->weak_factor_interior;
     }
 
   default: /* unknown weak zone type */
