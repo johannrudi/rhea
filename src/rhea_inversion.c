@@ -1035,6 +1035,8 @@ rhea_inversion_assemble_hessian_bfgs_init (
   const int           hessian_dim = inv_hessian_matrix->m;
   int                 k;
 
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "damping=%g", damping);
+
   /* check input */
   RHEA_ASSERT (inv_hessian_matrix->m == inv_hessian_matrix->n);
 
@@ -1080,7 +1082,6 @@ rhea_inversion_assemble_hessian_bfgs_init (
 
   /* apply damping to scaling factor */
   if (isfinite (damping) && 0.0 < damping) {
-    RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "damping=%g", damping);
     if (isfinite (scaling)) scaling *= damping;
     else                    scaling = damping;
   }
@@ -1097,6 +1098,8 @@ rhea_inversion_assemble_hessian_bfgs_init (
   rhea_inversion_param_vec_reduced_destroy (param_vec_reduced);
   rhea_inversion_param_vec_destroy (param_vec_in);
   rhea_inversion_param_vec_destroy (param_vec_out);
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 static double
@@ -1109,9 +1112,72 @@ rhea_inversion_assemble_hessian_bfgs_update (
                                         const int reconstruct_init_matrix)
 {
   rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+  ymir_vec_t         *hessian_step_prod_vec, *gradient_diff_mod_vec;
   sc_dmatrix_t       *vec_reduced;
   sc_dmatrix_t       *grad_diff_vec_reduced, *step_vec_reduced;
-  double              curvature;
+  const double        curvature_threshold = 0.2;
+  double              curvature_grad, curvature_hess, curvature_effective;
+
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+      __func__, "curvature_threshold=%g, reconstruct_init_matrix=%i",
+      curvature_threshold, reconstruct_init_matrix);
+
+  /* compute curvature based on gradient difference */
+  curvature_grad =
+    step_length * rhea_inversion_param_vec_reduced_inner_product (
+      step_vec, gradient_diff_vec, NULL /* weight */, inv_param,
+      0 /* !normalization wrt. size */);
+
+  /* compute matvec: H*s */
+  hessian_step_prod_vec = rhea_inversion_param_vec_new (inv_param);
+  rhea_inversion_param_vec_reduced_solve_matrix (
+      hessian_step_prod_vec, inv_hessian_matrix, step_vec, inv_param, NULL);
+  ymir_vec_scale (step_length, hessian_step_prod_vec);
+
+  /* compute curvature based on previous Hessian: s^T*H*s */
+  curvature_hess =
+    step_length * rhea_inversion_param_vec_reduced_inner_product (
+      step_vec, hessian_step_prod_vec, NULL /* weight */, inv_param,
+      0 /* !normalization wrt. size */);
+
+  /* set modified gradient difference */
+  gradient_diff_mod_vec = rhea_inversion_param_vec_new (inv_param);
+  if (curvature_threshold*curvature_hess <= curvature_grad) {
+    ymir_vec_copy (gradient_diff_vec, gradient_diff_mod_vec);
+    curvature_effective = curvature_grad;
+  }
+  else { /* otherwise enforce sufficiently positive curvature */
+    double              theta;
+
+    /* set correction factor for convex combination */
+    theta = (1.0 - curvature_threshold) * curvature_hess /
+            (curvature_hess - curvature_grad);
+    RHEA_ASSERT (0.0 < theta && theta <= 1.0);
+    /* set modified gradient difference: theta*gd + (1-theta)*H*s */
+    ymir_vec_set_zero (gradient_diff_mod_vec);
+    ymir_vec_add (theta, gradient_diff_vec, gradient_diff_mod_vec);
+    ymir_vec_add (1.0 - theta, hessian_step_prod_vec, gradient_diff_mod_vec);
+    /* set modified curvature: theta*s^T*gd + (1-theta)*s^T*H*s */
+    curvature_effective = theta*curvature_grad + (1.0 - theta)*curvature_hess;
+
+    RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "curvature_correction=%g", theta);
+  }
+
+  RHEA_GLOBAL_VERBOSEF_FN_TAG (
+      __func__, "curvature_grad=%g, curvature_hess=%g, curvature_effective=%g",
+      curvature_grad, curvature_hess, curvature_effective);
+
+  /* re-construct the initial BFGS approximation of inverse Hessian */
+  if (reconstruct_init_matrix) {
+    double              grad_diff_norm;
+
+    grad_diff_norm = sqrt (rhea_inversion_param_vec_reduced_inner_product (
+        gradient_diff_mod_vec, gradient_diff_mod_vec, NULL /* weight */,
+        inv_param, 0 /* !normalization wrt. size */));
+    rhea_inversion_assemble_hessian_bfgs_init (
+        inv_hessian_matrix, gradient_diff_mod_vec,
+        curvature_effective/grad_diff_norm /* damping */, inv_problem);
+  }
 
   /* create work vectors */
   vec_reduced = rhea_inversion_param_vec_reduced_new (NULL, inv_param);
@@ -1119,46 +1185,25 @@ rhea_inversion_assemble_hessian_bfgs_update (
   RHEA_ASSERT (vec_reduced->m == inv_hessian_matrix->n);
   RHEA_ASSERT (vec_reduced->n == 1);
   grad_diff_vec_reduced = rhea_inversion_param_vec_reduced_new (
-      gradient_diff_vec, inv_param);
+      gradient_diff_mod_vec, inv_param);
   step_vec_reduced = rhea_inversion_param_vec_reduced_new (
       step_vec, inv_param);
 
-  /* compute curvature */
-  curvature = step_length * rhea_inversion_param_vec_reduced_ip (
-      step_vec_reduced, grad_diff_vec_reduced, NULL /* weight */,
-      0 /* !normalization wrt. size */);
-
-  RHEA_GLOBAL_VERBOSEF_FN_TAG (
-      __func__, "curvature=%g, reconstruct_init_matrix=%i",
-      curvature, reconstruct_init_matrix);
-
-  /* re-construct the initial BFGS approximation of inverse Hessian */
-  if (reconstruct_init_matrix) {
-    double              grad_diff_norm;
-
-    grad_diff_norm = sqrt (rhea_inversion_param_vec_reduced_ip (
-        grad_diff_vec_reduced, grad_diff_vec_reduced, NULL /* weight */,
-        0 /* !normalization wrt. size */));
-    rhea_inversion_assemble_hessian_bfgs_init (
-        inv_hessian_matrix, gradient_diff_vec,
-        curvature/grad_diff_norm /* damping */, inv_problem);
-  }
-
   /* update the BFGS approximation of the inverse Hessian:
-   *   H^-1 <- (I - scal*s*y^T) * H^-1 * (I - scal*y*s^T) + scal*s*s^T
+   *   H^-1 <- (I - scal*s*gd^T) * H^-1 * (I - scal*gd*s^T) + scal*s*s^T
    * where
    *   s = step_length * step
-   *   y = grad - grad_prev
-   *   scal = 1 / s^T*y
+   *   gd = grad - grad_prev
+   *   scal = 1 / s^T*gd
    */
   {
-    const double        scal = 1.0/curvature;
+    const double        scal = 1.0/curvature_effective;
     const double       *s = step_vec_reduced->e[0];
     const double       *v = vec_reduced->e[0];
     double            **H = inv_hessian_matrix->e;
     int                 row, col;
 
-    /* compute: M <- (I - scal*s*y^T) * M */
+    /* compute: M <- (I - scal*s*gd^T) * M */
     sc_dmatrix_vector (
         SC_TRANS, SC_NO_TRANS, SC_NO_TRANS,
         1.0 /* factor for in vec */, inv_hessian_matrix, grad_diff_vec_reduced,
@@ -1169,7 +1214,7 @@ rhea_inversion_assemble_hessian_bfgs_update (
       }
     }
 
-    /* compute: M <- M * (I - scal*y*s^T) */
+    /* compute: M <- M * (I - scal*gd*s^T) */
     sc_dmatrix_vector (
         SC_NO_TRANS, SC_NO_TRANS, SC_NO_TRANS,
         1.0 /* factor for in vec */, inv_hessian_matrix, grad_diff_vec_reduced,
@@ -1189,12 +1234,16 @@ rhea_inversion_assemble_hessian_bfgs_update (
   }
 
   /* destroy */
+  rhea_inversion_param_vec_reduced_destroy (vec_reduced);
   rhea_inversion_param_vec_reduced_destroy (grad_diff_vec_reduced);
   rhea_inversion_param_vec_reduced_destroy (step_vec_reduced);
-  rhea_inversion_param_vec_reduced_destroy (vec_reduced);
+  rhea_inversion_param_vec_destroy (hessian_step_prod_vec);
+  rhea_inversion_param_vec_destroy (gradient_diff_mod_vec);
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 
   /* return curvature from BFGS method */
-  return curvature;
+  return curvature_effective;
 }
 
 static void
