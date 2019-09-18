@@ -213,6 +213,7 @@ typedef struct rhea_newton_options
   /* output options */
   int                 status_verbosity;
   int                 print_summary;
+  char               *print_summary_name;
 }
 rhea_newton_options_t;
 

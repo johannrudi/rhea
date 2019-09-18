@@ -106,6 +106,7 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_STEP_REDUCTION (0.5)
 #define RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION (1.0e-4)
 #define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY (0)
+#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME (NULL)
 
 #define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
 #define RHEA_NEWTON_DEFAULT_RESUME (0)
@@ -215,6 +216,9 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
   YMIR_OPTIONS_B, "print-summary", '\0',
     &(newton_opt->print_summary), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY,
     "Print summary of Newton iterations",
+  YMIR_OPTIONS_S, "print-summary-name", '\0',
+    &(newton_opt->print_summary_name), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME,
+    "Name for summary of Newton iterations",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -256,7 +260,8 @@ rhea_newton_get_options (rhea_newton_options_t *opt)
   opt->step_descend_condition_relaxation =
     rhea_newton_options.step_descend_condition_relaxation;
 
-  opt->print_summary = rhea_newton_options.print_summary;
+  opt->print_summary      = rhea_newton_options.print_summary;
+  opt->print_summary_name = rhea_newton_options.print_summary_name;
 }
 
 void
@@ -301,8 +306,9 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->resume_grad_norm_reduction_prev =
     RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_REDUCTION_PREV;
 
-  opt->status_verbosity = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
-  opt->print_summary    = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
+  opt->status_verbosity   = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
+  opt->print_summary      = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
+  opt->print_summary_name = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME;
 }
 
 /******************************************************************************
@@ -660,12 +666,12 @@ rhea_newton_problem_modify_step_vec_exists (rhea_newton_problem_t *nl_problem)
 }
 
 static void
-rhea_newton_problem_modify_step_vec (rhea_newton_problem_t *nl_problem,
+rhea_newton_problem_modify_step_vec (ymir_vec_t *step_vec,
+                                     rhea_newton_problem_t *nl_problem,
                                      ymir_vec_t *solution)
 {
   if (rhea_newton_problem_modify_step_vec_exists (nl_problem)) {
-    nl_problem->modify_step_vec (nl_problem->step_vec, solution,
-                                 nl_problem->data);
+    nl_problem->modify_step_vec (step_vec, solution, nl_problem->data);
   }
 }
 
@@ -1458,7 +1464,8 @@ rhea_newton_status_summary_add (rhea_newton_status_summary_t *summary,
  * Print statistics summary of a Newton solve.
  */
 static void
-rhea_newton_status_summary_print (rhea_newton_status_summary_t *summary)
+rhea_newton_status_summary_print (rhea_newton_status_summary_t *summary,
+                                  const char *name)
 {
   const int           n_iter = summary->iteration_current_idx - 1;
   int                 k;
@@ -1468,7 +1475,12 @@ rhea_newton_status_summary_print (rhea_newton_status_summary_t *summary)
 
   /* print summary */
   RHEA_GLOBAL_INFO ("========================================\n");
-  RHEA_GLOBAL_INFO ("Newton solve summary\n");
+  if (NULL != name) {
+    RHEA_GLOBAL_INFOF ("Newton solve summary: %s\n", name);
+  }
+  else {
+    RHEA_GLOBAL_INFO ("Newton solve summary\n");
+  }
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   for (k = 0; k < summary->iteration_current_idx; k++) {
     RHEA_GLOBAL_INFOF ("%s\n", summary->iteration_stats[k]);
@@ -1873,7 +1885,6 @@ rhea_newton_solve (ymir_vec_t **solution,
   int                 neg_gradient_updated;
   int                 solution_post_update = 0;
   int                 stop_reason = 0;
-  const int           print_summary = opt->print_summary;
   rhea_newton_step_t            step;
   rhea_newton_status_t          status;
   rhea_newton_status_summary_t *summary = NULL;
@@ -1926,7 +1937,7 @@ rhea_newton_solve (ymir_vec_t **solution,
     }
 
     /* create storage for summary */
-    if (print_summary) {
+    if (opt->print_summary) {
       summary = rhea_newton_status_summary_new (iter_max - iter_start + 1);
     }
   }
@@ -1952,7 +1963,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       rhea_newton_status_print_curr (
           &status, rhea_newton_problem_evaluate_objective_exists (nl_problem),
           iter, __func__);
-      if (print_summary) {
+      if (opt->print_summary) {
         rhea_newton_status_summary_add (
             summary, &status,
             rhea_newton_problem_evaluate_objective_exists (nl_problem), &step);
@@ -2013,7 +2024,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       }
 
       /* modify the right-hand side of the linear system, which originally is
-       * the previously computed (negative) gradient  */
+       * the previously computed (negative) gradient */
       if (iter == iter_start && !opt->nonzero_initial_guess) { /* if no sol. */
         rhea_newton_problem_modify_hessian_system (nl_problem->neg_gradient_vec,
                                                    NULL, nl_problem);
@@ -2033,7 +2044,8 @@ rhea_newton_solve (ymir_vec_t **solution,
       rhea_newton_compute_step (
           /* out: */ &step,
           /* in:  */ nl_problem, opt);
-      rhea_newton_problem_modify_step_vec (nl_problem, *solution);
+      rhea_newton_problem_modify_step_vec (
+          nl_problem->step_vec, nl_problem, *solution);
 
       /* perform line search to get the step length (updates the solution and
        * the nonlinear operator) */
@@ -2109,8 +2121,8 @@ rhea_newton_solve (ymir_vec_t **solution,
     rhea_newton_problem_data_clear (nl_problem);
 
     /* print summary */
-    if (print_summary) {
-      rhea_newton_status_summary_print (summary);
+    if (opt->print_summary) {
+      rhea_newton_status_summary_print (summary, opt->print_summary_name);
       rhea_newton_status_summary_destroy (summary);
     }
   }
