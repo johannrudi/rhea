@@ -296,6 +296,42 @@ void                rhea_inversion_param_vec_reduced_copy (
                                             sc_dmatrix_t *vec_reduced,
                                             rhea_inversion_param_t *inv_param);
 
+/**
+ * Applies a reduced matrix to a full parameter vector.
+ */
+void                rhea_inversion_param_vec_reduced_apply_matrix (
+                                            ymir_vec_t *out,
+                                            sc_dmatrix_t *matrix_reduced,
+                                            ymir_vec_t *in,
+                                            rhea_inversion_param_t *inv_param);
+
+/**
+ * Solves a linear system with a reduced matrix and a right-hand side given by
+ * a full parameter vector.
+ */
+int                 rhea_inversion_param_vec_reduced_solve_matrix (
+                                            ymir_vec_t *sol,
+                                            sc_dmatrix_t *matrix_reduced,
+                                            ymir_vec_t *rhs,
+                                            rhea_inversion_param_t *inv_param,
+                                            int *n_iterations);
+
+/**
+ * Computes inner product of two vectors.
+ */
+double              rhea_inversion_param_vec_reduced_inner_product (
+                                            ymir_vec_t *vecL,
+                                            ymir_vec_t *vecR,
+                                            ymir_vec_t *weight,
+                                            rhea_inversion_param_t *inv_param,
+                                            const int normalize_wrt_size);
+
+double              rhea_inversion_param_vec_reduced_ip (
+                                            sc_dmatrix_t *vecL_reduced,
+                                            sc_dmatrix_t *vecR_reduced,
+                                            sc_dmatrix_t *weight_reduced,
+                                            const int normalize_wrt_size);
+
 /******************************************************************************
  * Data Access
  *****************************************************************************/

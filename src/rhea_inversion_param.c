@@ -2188,14 +2188,10 @@ double
 rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient_vec,
                                             rhea_inversion_param_t *inv_param)
 {
-  const double       *grad = gradient_vec->meshfree->e[0];
-  const int          *active = inv_param->active;
   const int           weight_icov =
                         RHEA_INVERSION_PARAM_DEFAULT_GRADIENT_NORM_WEIGHT_ICOV;
-  ymir_vec_t         *prior_icov;
-  double             *icov;
-  double              sum_of_squares = 0.0;
-  int                 idx;
+  ymir_vec_t         *prior_icov = NULL;
+  double              norm;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient_vec, inv_param));
@@ -2203,23 +2199,13 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient_vec,
   /* calculate inverse prior covariance */
   if (weight_icov) {
     prior_icov = rhea_inversion_param_vec_new (inv_param);
-    icov = prior_icov->meshfree->e[0];
     rhea_inversion_param_prior_inv_cov (prior_icov, inv_param);
   }
 
-  /* sum up (squares of) entries of the gradient vector that are active */
-  for (idx = 0; idx < inv_param->n_parameters; idx++) {
-    if (active[idx]) {
-      double              weight = 1.0;
-
-      if (weight_icov) {
-        weight *= icov[idx];
-      }
-
-      RHEA_ASSERT (isfinite (grad[idx]));
-      sum_of_squares += grad[idx] * weight* grad[idx];
-    }
-  }
+  /* compute inner product */
+  norm = sqrt (rhea_inversion_param_vec_reduced_inner_product (
+      gradient_vec, gradient_vec, prior_icov, inv_param,
+      1 /* normalize wrt. size */));
 
   /* destroy */
   if (weight_icov) {
@@ -2227,7 +2213,7 @@ rhea_inversion_param_compute_gradient_norm (ymir_vec_t *gradient_vec,
   }
 
   /* return l2-norm of active entries of the gradient vector */
-  return sqrt (sum_of_squares / (double) inv_param->n_active);
+  return norm;
 }
 
 void
@@ -2359,26 +2345,37 @@ rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
                                     const double prior_weight,
                                     rhea_inversion_param_t *inv_param)
 {
-  const int           first_order_approx = (adjoint_vel_press == NULL);
+  const int           use_data_term = (forward_vel_press != NULL &&
+                                       incr_adjoint_vel_press != NULL);
+  const int           use_prior_term = (isfinite (prior_weight) &&
+                                        0.0 < prior_weight);
+  const int           use_first_order_approx = (adjoint_vel_press == NULL);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (param_vec_out, inv_param));
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (param_vec_in, inv_param));
-  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
-  RHEA_ASSERT (
-      rhea_velocity_pressure_check_vec_type (incr_adjoint_vel_press));
 
   /*
    * First-Order Derivative Terms (aka. Gauss-Newton Hessian)
    */
 
-  /* init output by "hijacking" the gradient function using incr. adj. vel. */
-  rhea_inversion_param_compute_gradient (
-      param_vec_out, param_vec_in, forward_vel_press, incr_adjoint_vel_press,
-      NAN /* no prior term */, inv_param, NULL, NULL);
+  /* compute data term */
+  if (use_data_term) {
+    RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
+    RHEA_ASSERT (
+        rhea_velocity_pressure_check_vec_type (incr_adjoint_vel_press));
+
+    /* "hijack" the gradient function using incr. adj. vel. */
+    rhea_inversion_param_compute_gradient (
+        param_vec_out, param_vec_in, forward_vel_press, incr_adjoint_vel_press,
+        NAN /* no prior term */, inv_param, NULL, NULL);
+  }
+  else {
+    ymir_vec_set_zero (param_vec_out);
+  }
 
   /* compute & add prior term */
-  if (isfinite (prior_weight) && 0.0 < prior_weight) {
+  if (use_prior_term) {
     ymir_vec_t         *prior_term = rhea_inversion_param_vec_new (inv_param);
     ymir_vec_t         *prior_icov = rhea_inversion_param_vec_new (inv_param);
     const int          *active = inv_param->active;
@@ -2410,7 +2407,8 @@ rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
    * Second-Order Derivative Terms
    */
 
-  if (!first_order_approx) { /* if full Hessian */
+  /* compute & add data term */
+  if (use_data_term && !use_first_order_approx) { /* if full Hessian */
     RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (adjoint_vel_press));
     RHEA_ASSERT (
         rhea_velocity_pressure_check_vec_type (incr_forward_vel_press));
@@ -2582,13 +2580,14 @@ rhea_inversion_param_vec_reduced_new (ymir_vec_t *vec,
   sc_dmatrix_t       *vec_reduced;
 
   /* check input */
-  RHEA_ASSERT (rhea_inversion_param_vec_check_type (vec, inv_param));
+  RHEA_ASSERT (NULL == vec ||
+               rhea_inversion_param_vec_check_type (vec, inv_param));
 
   /* create reduced parameter vector */
   vec_reduced = sc_dmatrix_new (inv_param->n_active, 1);
 
   /* fill entries */
-  {
+  if (NULL != vec) {
     const double       *v = vec->meshfree->e[0];
     double             *r = vec_reduced->e[0];
     int                 idx, row;
@@ -2635,6 +2634,159 @@ rhea_inversion_param_vec_reduced_copy (ymir_vec_t *vec,
       v[idx] = r[row];
       row++;
     }
+  }
+}
+
+void
+rhea_inversion_param_vec_reduced_apply_matrix (
+                                            ymir_vec_t *out,
+                                            sc_dmatrix_t *matrix_reduced,
+                                            ymir_vec_t *in,
+                                            rhea_inversion_param_t *inv_param)
+{
+  sc_dmatrix_t       *in_reduced, *out_reduced;
+
+  /* create reduced parameter vectors */
+  in_reduced = rhea_inversion_param_vec_reduced_new (in, inv_param);
+  out_reduced = rhea_inversion_param_vec_reduced_new (out, inv_param);
+
+  /* run matrix-vector multiply; copy entries to output */
+  sc_dmatrix_vector (SC_NO_TRANS, SC_NO_TRANS, SC_NO_TRANS,
+                     1.0 /* factor for in vec */, matrix_reduced, in_reduced,
+                     0.0 /* factor for out vec */, out_reduced);
+  ymir_vec_set_zero (out);
+  rhea_inversion_param_vec_reduced_copy (out, out_reduced, inv_param);
+
+  /* destroy */
+  rhea_inversion_param_vec_reduced_destroy (in_reduced);
+  rhea_inversion_param_vec_reduced_destroy (out_reduced);
+}
+
+int
+rhea_inversion_param_vec_reduced_solve_matrix (
+                                            ymir_vec_t *sol,
+                                            sc_dmatrix_t *matrix_reduced,
+                                            ymir_vec_t *rhs,
+                                            rhea_inversion_param_t *inv_param,
+                                            int *iter_count)
+{
+  sc_dmatrix_t       *sol_reduced, *rhs_reduced;
+
+  /* create work variables */
+  sol_reduced = rhea_inversion_param_vec_reduced_new (sol, inv_param);
+  rhs_reduced = rhea_inversion_param_vec_reduced_new (rhs, inv_param);
+
+  /* run direct solver; copy entries to output */
+  sc_dmatrix_ldivide (SC_NO_TRANS, matrix_reduced, rhs_reduced, sol_reduced);
+  ymir_vec_set_zero (sol);
+  rhea_inversion_param_vec_reduced_copy (sol, sol_reduced, inv_param);
+
+  /* destroy */
+  rhea_inversion_param_vec_reduced_destroy (sol_reduced);
+  rhea_inversion_param_vec_reduced_destroy (rhs_reduced);
+
+  /* return iteraton count and "stopping" reason */
+  if (iter_count != NULL) {
+    *iter_count = 1;
+  }
+  return 1;
+}
+
+double
+rhea_inversion_param_vec_reduced_inner_product (
+                                            ymir_vec_t *vecL,
+                                            ymir_vec_t *vecR,
+                                            ymir_vec_t *weight,
+                                            rhea_inversion_param_t *inv_param,
+                                            const int normalize_wrt_size)
+{
+  const double       *vecL_data = vecL->meshfree->e[0];
+  const double       *vecR_data = vecR->meshfree->e[0];
+  const double       *weight_data =
+                        (weight != NULL ? weight->meshfree->e[0] : NULL);
+  const int          *active = inv_param->active;
+  int                 idx;
+  double              sum_of_products = 0.0;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (vecL, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (vecR, inv_param));
+  RHEA_ASSERT (NULL == weight ||
+               rhea_inversion_param_vec_check_type (weight, inv_param));
+
+  /* sum up elementwise products of vector entries that are active */
+  if (NULL != weight) { /* if weight exists */
+    for (idx = 0; idx < inv_param->n_parameters; idx++) {
+      if (active[idx]) {
+        RHEA_ASSERT (isfinite (vecL_data[idx]));
+        RHEA_ASSERT (isfinite (vecR_data[idx]));
+        RHEA_ASSERT (isfinite (weight_data[idx]));
+        sum_of_products += vecL_data[idx] * weight_data[idx] * vecR_data[idx];
+      }
+    }
+  }
+  else {
+    for (idx = 0; idx < inv_param->n_parameters; idx++) {
+      if (active[idx]) {
+        RHEA_ASSERT (isfinite (vecL_data[idx]));
+        RHEA_ASSERT (isfinite (vecR_data[idx]));
+        sum_of_products += vecL_data[idx] * vecR_data[idx];
+      }
+    }
+  }
+
+  /* return scaled inner product */
+  if (normalize_wrt_size) {
+    return sum_of_products / (double) inv_param->n_active;
+  }
+  else {
+    return sum_of_products;
+  }
+}
+
+double
+rhea_inversion_param_vec_reduced_ip (sc_dmatrix_t *vecL_reduced,
+                                     sc_dmatrix_t *vecR_reduced,
+                                     sc_dmatrix_t *weight_reduced,
+                                     const int normalize_wrt_size)
+{
+  const double       *vecL_data = vecL_reduced->e[0];
+  const double       *vecR_data = vecR_reduced->e[0];
+  const double       *weight_data =
+                        (weight_reduced != NULL ? weight_reduced->e[0] : NULL);
+  const int           size = vecL_reduced->m * vecL_reduced->n;
+  int                 idx;
+  double              sum_of_products = 0.0;
+
+  /* check input */
+  RHEA_ASSERT (vecL_reduced->m * vecL_reduced->n ==
+               vecR_reduced->m * vecR_reduced->n);
+  RHEA_ASSERT (NULL == weight_reduced ||
+               size == weight_reduced->m * weight_reduced->n);
+
+  /* sum up elementwise products of vector entries */
+  if (NULL != weight_reduced) { /* if weight exists */
+    for (idx = 0; idx < size; idx++) {
+      RHEA_ASSERT (isfinite (vecL_data[idx]));
+      RHEA_ASSERT (isfinite (vecR_data[idx]));
+      RHEA_ASSERT (isfinite (weight_data[idx]));
+      sum_of_products += vecL_data[idx] * weight_data[idx] * vecR_data[idx];
+    }
+  }
+  else {
+    for (idx = 0; idx < size; idx++) {
+      RHEA_ASSERT (isfinite (vecL_data[idx]));
+      RHEA_ASSERT (isfinite (vecR_data[idx]));
+      sum_of_products += vecL_data[idx] * vecR_data[idx];
+    }
+  }
+
+  /* return scaled inner product */
+  if (normalize_wrt_size) {
+    return sum_of_products / (double) size;
+  }
+  else {
+    return sum_of_products;
   }
 }
 
