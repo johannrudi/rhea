@@ -2427,10 +2427,6 @@ rhea_inversion_param_vec_new (rhea_inversion_param_t *inv_param)
   return ymir_vec_new_meshfree (inv_param->n_parameters);
 }
 
-#ifdef RHEA_ENABLE_DEBUG
-unsigned int        rhea_inversion_param_vec_new_perturb_seed = 0;
-#endif
-
 ymir_vec_t *
 rhea_inversion_param_vec_new_perturb (rhea_inversion_param_t *inv_param,
                                       const double perturb_stddev)
@@ -2441,14 +2437,7 @@ rhea_inversion_param_vec_new_perturb (rhea_inversion_param_t *inv_param,
   ymir_vec_t         *perturb = rhea_inversion_param_vec_new (inv_param);
 
   /* set random values; add one to generate a (multiplicative) perturbation */
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_vec_set_random_normal_w_seed (
-      perturb, fabs (perturb_stddev), 0.0 /* mean */,
-      rhea_inversion_param_vec_new_perturb_seed);
-  rhea_inversion_param_vec_new_perturb_seed++;
-#else
   ymir_vec_set_random_normal (perturb, fabs (perturb_stddev), 0.0 /* mean */);
-#endif
   ymir_vec_shift (1.0, perturb);
 
   /* bound from below to a value greater zero */
