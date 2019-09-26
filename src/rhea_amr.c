@@ -721,7 +721,7 @@ rhea_amr (p4est_t *p4est,
       "change=%+.1f%% />\n", __func__, iter,
       (long long int) n_elements_begin, (long long int) n_elements_curr,
       (double) (n_elements_curr - n_elements_begin) /
-      (double) n_elements_curr * 100.0);
+      (double) n_elements_begin * 100.0);
   if (0 < iter) {
     int                 level_max = -1;
 
