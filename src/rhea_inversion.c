@@ -59,6 +59,7 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL \
   (RHEA_INVERSION_PROJECT_OUT_NULL_NONE)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
+#define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_HESSIAN (0)
 #define RHEA_INVERSION_DEFAULT_MONITOR_PERFORMANCE (0)
 
@@ -99,6 +100,8 @@ int                 rhea_inversion_project_out_null =
                       RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL;
 int                 rhea_inversion_check_gradient =
                       RHEA_INVERSION_DEFAULT_CHECK_GRADIENT;
+int                 rhea_inversion_check_gradient_elementwise =
+                      RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE;
 int                 rhea_inversion_check_hessian =
                       RHEA_INVERSION_DEFAULT_CHECK_HESSIAN;
 int                 rhea_inversion_monitor_performance =
@@ -187,10 +190,14 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     "Inner solves: Project out null spaces",
 
   /* derivative checks */
-  YMIR_OPTIONS_B, "check-gradient", '\0',
+  YMIR_OPTIONS_I, "check-gradient", '\0',
     &(rhea_inversion_check_gradient), RHEA_INVERSION_DEFAULT_CHECK_GRADIENT,
     "Check the gradient during Newton iterations",
-  YMIR_OPTIONS_B, "check-hessian", '\0',
+  YMIR_OPTIONS_B, "check-gradient-elementwise", '\0',
+    &(rhea_inversion_check_gradient_elementwise),
+    RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE,
+    "Check the gradient for each entry separately",
+  YMIR_OPTIONS_I, "check-hessian", '\0',
     &(rhea_inversion_check_hessian), RHEA_INVERSION_DEFAULT_CHECK_HESSIAN,
     "Check the Hessian during Newton iterations",
 
@@ -343,6 +350,8 @@ struct rhea_inversion_problem
   ymir_vec_t             *newton_gradient_prior_comp_vec;
   ymir_vec_t             *newton_gradient_diff_vec;
   int                     newton_gradient_diff_vec_update_count;
+  ymir_vec_t        **check_gradient_perturb_vec;
+  int                 check_gradient_perturb_n_vecs;
 
   /* statistics */
   char              **fwd_adj_solve_stats;
@@ -357,6 +366,11 @@ struct rhea_inversion_problem
   int                 ifwd_iadj_solve_stats_total_num_solves[2];
   int                 ifwd_iadj_solve_stats_total_iterations[2];
   int                 ifwd_iadj_solve_stats_total_stop_reason[2];
+
+  /* statistics for numerical errors */
+  double              error_stats_objective;
+  double              error_stats_gradient;
+  double              error_stats_hessian;
 
   /* output paths */
   char               *txt_path;
@@ -586,11 +600,12 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
       RHEA_INVERSION_KRYLOV_SOLVER_IDX_FORWARD,
       &n_iter, &res_reduc, &mesh_modified_by_solver);
   inv_problem->forward_is_outdated = 0;
-  inv_problem->forward_nonzero_init = 1;
+  //inv_problem->forward_nonzero_init = 1; //TODO
 
   /* write solver statistics */
   rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 0 /* forward */,
                                             n_iter, res_reduc, stop_reason);
+  inv_problem->error_stats_objective = res_reduc;
 
   /* recreate mesh dependent data */
   if (mesh_modified_by_solver) {
@@ -624,6 +639,24 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_ADJ]);
+
+  //###DEV###
+#if 0
+  if (nonzero_init) {
+    ymir_mesh_t          *ymir_mesh =
+      rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+    ymir_pressure_elem_t *press_elem =
+      rhea_stokes_problem_get_press_elem (stokes_problem);
+    ymir_vec_t         *vel = rhea_velocity_new (ymir_mesh);
+
+    ymir_vec_set_random (vel);
+    ymir_vec_set_zero (inv_problem->adjoint_vel_press);
+    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    rhea_velocity_pressure_set_components (inv_problem->adjoint_vel_press, vel,
+                                           NULL, press_elem);
+    rhea_velocity_destroy (vel);
+  }
+#endif
 
   /* run Stokes solver */
   stop_reason = rhea_stokes_problem_solve_ext (
@@ -1412,7 +1445,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   }
   rhea_velocity_destroy (vel);
 
-  /* compute & add prior term */
+  /* compute prior term */
   if (0.0 < prior_abs_weight) {
     obj_prior_misfit =
       0.5 * prior_abs_weight * rhea_inversion_param_prior (solution, inv_param);
@@ -1436,6 +1469,18 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
     obj_comp[1] = obj_prior_misfit;
   }
   return obj_val;
+}
+
+static int
+rhea_inversion_newton_evaluate_objective_err_fn (double *error_mean,
+                                                 double *error_stddev,
+                                                 void *data)
+{
+  rhea_inversion_problem_t *inv_problem = data;
+
+  *error_mean = inv_problem->error_stats_objective;
+  *error_stddev = NAN;
+  return 1;
 }
 
 static void
@@ -1591,6 +1636,38 @@ rhea_inversion_newton_compute_negative_gradient_fn (
 
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (neg_gradient, inv_param));
+
+  /* set up perturbations for the (elementwise) gradient check */
+  if (rhea_inversion_check_gradient &&
+      rhea_inversion_check_gradient_elementwise) {
+    const double        restrict_to_prior_stddev =
+                          rhea_inversion_restrict_step_to_prior_stddev;
+    const int          *active = rhea_inversion_param_get_active (inv_param);
+    ymir_vec_t        **perturb_vec = inv_problem->check_gradient_perturb_vec;
+    int                 vidx, i;
+
+    RHEA_ASSERT (NULL != inv_problem->check_gradient_perturb_vec);
+    RHEA_ASSERT (NULL != solution);
+
+    for (vidx = 0; vidx < inv_problem->check_gradient_perturb_n_vecs; vidx++) {
+      ymir_vec_set_zero (perturb_vec[vidx]);
+    }
+    vidx = 0;
+    for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
+      if (active[i]) {
+        RHEA_ASSERT (vidx < inv_problem->check_gradient_perturb_n_vecs);
+        perturb_vec[vidx]->meshfree->e[0][i] =
+            0.5 * fabs (solution->meshfree->e[0][i]);
+        vidx++;
+      }
+    }
+    RHEA_ASSERT (vidx == inv_problem->check_gradient_perturb_n_vecs);
+    for (vidx = 0; vidx < inv_problem->check_gradient_perturb_n_vecs; vidx++) {
+      rhea_inversion_param_restrict_step_length_to_feasible (
+          perturb_vec[vidx], solution, restrict_to_prior_stddev, inv_param,
+          NULL /* step_length_new */);
+    }
+  }
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_GRAD]);
@@ -2157,6 +2234,146 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
   RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "newton_iter=%i", iter);
 }
 
+static void
+rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
+{
+  rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+  rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t        *ymir_mesh =
+                        rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  const int           obj_n_components = 2;
+  rhea_newton_problem_t *newton_problem;
+
+
+  /* create vectors */
+  inv_problem->newton_neg_gradient_vec =
+    rhea_inversion_param_vec_new (inv_param);
+  inv_problem->newton_gradient_adjoint_comp_vec =
+    rhea_inversion_param_vec_new (inv_param);
+  inv_problem->newton_gradient_prior_comp_vec =
+    rhea_inversion_param_vec_new (inv_param);
+  inv_problem->newton_step_vec =
+    rhea_inversion_param_vec_new (inv_param);
+  switch (rhea_inversion_hessian_type) {
+  case RHEA_INVERSION_HESSIAN_FULL:
+  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+    inv_problem->newton_gradient_diff_vec = NULL;
+    inv_problem->newton_gradient_diff_vec_update_count = 0;
+    break;
+  case RHEA_INVERSION_HESSIAN_BFGS:
+    inv_problem->newton_gradient_diff_vec =
+      rhea_inversion_param_vec_new (inv_param);
+    inv_problem->newton_gradient_diff_vec_update_count = 0;
+    break;
+  default: /* unknown Hessian type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* create Newton problem */
+  newton_problem = rhea_newton_problem_new (
+      rhea_inversion_newton_compute_negative_gradient_fn,
+      rhea_inversion_newton_compute_gradient_norm_fn,
+      RHEA_INVERSION_GRAD_NORM_N_COMPONENTS,
+      rhea_inversion_newton_solve_hessian_system_fn);
+  inv_problem->newton_problem = newton_problem;
+  inv_problem->newton_options = &rhea_inversion_newton_options;
+
+  /* set vectors */
+  rhea_newton_problem_set_vectors (
+      inv_problem->newton_neg_gradient_vec,
+      inv_problem->newton_step_vec, newton_problem);
+
+  /* set functions */
+  rhea_newton_problem_set_data_fn (
+      inv_problem,
+      rhea_inversion_newton_create_solver_data_fn,
+      rhea_inversion_newton_clear_solver_data_fn, newton_problem);
+  rhea_newton_problem_set_evaluate_objective_fn (
+      rhea_inversion_newton_evaluate_objective_fn, obj_n_components,
+      rhea_inversion_newton_evaluate_objective_err_fn, newton_problem);
+  rhea_newton_problem_set_apply_hessian_fn (
+      rhea_inversion_newton_apply_hessian_fn, newton_problem);
+  rhea_newton_problem_set_modify_step_fn (
+      rhea_inversion_newton_modify_step_fn, newton_problem);
+  rhea_newton_problem_set_update_fn (
+      rhea_inversion_newton_update_operator_fn,
+      rhea_inversion_newton_update_hessian_fn,
+      NULL /*rhea_inversion_newton_modify_hessian_system_fn*/, newton_problem);
+//rhea_newton_problem_set_setup_poststep_fn (
+//    rhea_inversion_newton_amr_fn, newton_problem);
+  rhea_newton_problem_set_output_fn (
+      rhea_inversion_newton_output_prestep_fn, newton_problem);
+  rhea_newton_problem_set_mpicomm (
+      mpicomm, newton_problem);
+
+  /* set up derivative checks */
+  rhea_newton_problem_set_checks (
+      rhea_inversion_check_gradient, rhea_inversion_check_hessian,
+      newton_problem);
+  if (rhea_inversion_check_gradient &&
+      rhea_inversion_check_gradient_elementwise) {
+    const int          *active = rhea_inversion_param_get_active (inv_param);
+    const int           n_active =
+                          rhea_inversion_param_get_n_active (inv_param);
+    ymir_vec_t        **perturb_vec;
+    int                 vidx, i;
+
+    inv_problem->check_gradient_perturb_vec = perturb_vec =
+      RHEA_ALLOC (ymir_vec_t *, n_active);
+    inv_problem->check_gradient_perturb_n_vecs = n_active;
+    for (vidx = 0; vidx < inv_problem->check_gradient_perturb_n_vecs; vidx++) {
+      perturb_vec[vidx] = rhea_inversion_param_vec_new (inv_param);
+      ymir_vec_set_zero (perturb_vec[vidx]);
+    }
+
+    vidx = 0;
+    for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
+      if (active[i]) {
+        RHEA_ASSERT (vidx < inv_problem->check_gradient_perturb_n_vecs);
+        perturb_vec[vidx]->meshfree->e[0][i] = 1.0;
+        vidx++;
+      }
+    }
+    RHEA_ASSERT (vidx == inv_problem->check_gradient_perturb_n_vecs);
+  }
+  else {
+    inv_problem->check_gradient_perturb_vec = NULL;
+    inv_problem->check_gradient_perturb_n_vecs = 0;
+  }
+  rhea_newton_problem_check_gradient_set_perturbations (
+      inv_problem->check_gradient_perturb_vec,
+      inv_problem->check_gradient_perturb_n_vecs, newton_problem);
+}
+
+static void
+rhea_inversion_newton_problem_clear (rhea_inversion_problem_t *inv_problem)
+{
+  /* destroy Newton problem */
+  rhea_newton_problem_destroy (inv_problem->newton_problem);
+
+  /* destroy vectors */
+  rhea_inversion_param_vec_destroy (inv_problem->newton_neg_gradient_vec);
+  rhea_inversion_param_vec_destroy (inv_problem->newton_step_vec);
+  rhea_inversion_param_vec_destroy (
+      inv_problem->newton_gradient_adjoint_comp_vec);
+  rhea_inversion_param_vec_destroy (
+      inv_problem->newton_gradient_prior_comp_vec);
+  if (NULL != inv_problem->newton_gradient_diff_vec) {
+    rhea_inversion_param_vec_destroy (inv_problem->newton_gradient_diff_vec);
+  }
+  if (NULL != inv_problem->check_gradient_perturb_vec) {
+    int                 vidx;
+
+    RHEA_ASSERT (0 < inv_problem->check_gradient_perturb_n_vecs);
+    for (vidx = 0; vidx < inv_problem->check_gradient_perturb_n_vecs; vidx++) {
+      rhea_inversion_param_vec_destroy (
+          inv_problem->check_gradient_perturb_vec[vidx]);
+    }
+    RHEA_FREE (inv_problem->check_gradient_perturb_vec);
+  }
+}
+
 /******************************************************************************
  * Inversion Statistics
  *****************************************************************************/
@@ -2352,81 +2569,16 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->data_abs_weight = NAN;
   inv_problem->prior_abs_weight = NAN;
 
-  /* initialize Newton problem */
-  inv_problem->newton_options = &rhea_inversion_newton_options;
-  inv_problem->newton_neg_gradient_vec =
-    rhea_inversion_param_vec_new (inv_problem->inv_param);
-  inv_problem->newton_gradient_adjoint_comp_vec =
-    rhea_inversion_param_vec_new (inv_problem->inv_param);
-  inv_problem->newton_gradient_prior_comp_vec =
-    rhea_inversion_param_vec_new (inv_problem->inv_param);
-  inv_problem->newton_step_vec =
-    rhea_inversion_param_vec_new (inv_problem->inv_param);
-  switch (rhea_inversion_hessian_type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
-  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
-    inv_problem->newton_gradient_diff_vec = NULL;
-    inv_problem->newton_gradient_diff_vec_update_count = 0;
-    break;
-  case RHEA_INVERSION_HESSIAN_BFGS:
-    inv_problem->newton_gradient_diff_vec =
-      rhea_inversion_param_vec_new (inv_problem->inv_param);
-    inv_problem->newton_gradient_diff_vec_update_count = 0;
-    break;
-  default: /* unknown Hessian type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
+  /* create Newton problem */
+  rhea_inversion_newton_problem_create (inv_problem);
+
+  /* initialize adaptive relative tolerance for inner Stokes solves */
   if (rhea_inversion_inner_solver_rtol_adaptive) {
     inv_problem->inner_solver_adaptive_rtol_comp =
       inv_problem->newton_options->lin_rtol_init;
   }
   else {
     inv_problem->inner_solver_adaptive_rtol_comp = 1.0;
-  }
-
-  /* create Newton problem */
-  {
-    ymir_mesh_t        *ymir_mesh =
-                          rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-    sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
-    const int           obj_n_components = 2;
-    rhea_newton_problem_t *newton_problem;
-
-    newton_problem = rhea_newton_problem_new (
-        rhea_inversion_newton_compute_negative_gradient_fn,
-        rhea_inversion_newton_compute_gradient_norm_fn,
-        RHEA_INVERSION_GRAD_NORM_N_COMPONENTS,
-        rhea_inversion_newton_solve_hessian_system_fn);
-    inv_problem->newton_problem = newton_problem;
-
-    rhea_newton_problem_set_vectors (
-        inv_problem->newton_neg_gradient_vec,
-        inv_problem->newton_step_vec, newton_problem);
-
-    rhea_newton_problem_set_data_fn (
-        inv_problem,
-        rhea_inversion_newton_create_solver_data_fn,
-        rhea_inversion_newton_clear_solver_data_fn, newton_problem);
-    rhea_newton_problem_set_evaluate_objective_fn (
-        rhea_inversion_newton_evaluate_objective_fn, obj_n_components,
-        newton_problem);
-    rhea_newton_problem_set_apply_hessian_fn (
-        rhea_inversion_newton_apply_hessian_fn, newton_problem);
-    rhea_newton_problem_set_modify_step_fn (
-        rhea_inversion_newton_modify_step_fn, newton_problem);
-    rhea_newton_problem_set_update_fn (
-        rhea_inversion_newton_update_operator_fn,
-        rhea_inversion_newton_update_hessian_fn,
-        NULL /*rhea_inversion_newton_modify_hessian_system_fn*/, newton_problem);
-  //rhea_newton_problem_set_setup_poststep_fn (
-  //    rhea_inversion_newton_amr_fn, newton_problem);
-    rhea_newton_problem_set_output_fn (
-        rhea_inversion_newton_output_prestep_fn, newton_problem);
-    rhea_newton_problem_set_checks (
-        rhea_inversion_check_gradient, rhea_inversion_check_hessian,
-        newton_problem);
-    rhea_newton_problem_set_mpicomm (
-        mpicomm, newton_problem);
   }
 
   /* create statistics */
@@ -2436,6 +2588,11 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
 
     rhea_inversion_inner_solve_stats_create (inv_problem, max_n_iter);
   }
+
+  /* initialize error statistics */
+  inv_problem->error_stats_objective = NAN;
+  inv_problem->error_stats_gradient = NAN;
+  inv_problem->error_stats_hessian = NAN;
 
   /* initialize output paths */
   inv_problem->txt_path = NULL;
@@ -2460,18 +2617,7 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
   }
 
   /* destroy Newton problem */
-  rhea_newton_problem_destroy (inv_problem->newton_problem);
-
-  /* destroy vectors */
-  rhea_inversion_param_vec_destroy (inv_problem->newton_neg_gradient_vec);
-  rhea_inversion_param_vec_destroy (inv_problem->newton_step_vec);
-  rhea_inversion_param_vec_destroy (
-      inv_problem->newton_gradient_adjoint_comp_vec);
-  rhea_inversion_param_vec_destroy (
-      inv_problem->newton_gradient_prior_comp_vec);
-  if (NULL != inv_problem->newton_gradient_diff_vec) {
-    rhea_inversion_param_vec_destroy (inv_problem->newton_gradient_diff_vec);
-  }
+  rhea_inversion_newton_problem_clear (inv_problem);
 
   /* destroy parameters */
   rhea_inversion_param_destroy (inv_problem->inv_param);
