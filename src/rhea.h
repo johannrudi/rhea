@@ -4,6 +4,7 @@
 #define RHEA_H
 
 #include <rhea_base.h>
+#include <rhea_error_stats.h>
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>

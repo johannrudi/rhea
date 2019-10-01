@@ -6,6 +6,7 @@
 librhea_generated_headers = src/rhea_config.h
 librhea_installed_headers = \
         src/rhea_base.h \
+        src/rhea_error_stats.h \
         src/rhea_domain.h \
         src/rhea_domain_subset.h \
         src/rhea_discretization.h \
@@ -42,6 +43,7 @@ librhea_installed_headers = \
 librhea_internal_headers =
 librhea_compiled_sources = \
         src/rhea_base.c \
+        src/rhea_error_stats.c \
         src/rhea_domain.c \
         src/rhea_domain_subset.c \
         src/rhea_discretization.c \
