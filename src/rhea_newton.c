@@ -18,6 +18,7 @@ struct rhea_newton_problem
 
   /* callback functions for Newton algorithm */
   rhea_newton_evaluate_objective_fn_t         evaluate_objective;
+  rhea_error_stats_fn_t                       evaluate_objective_err;
   rhea_newton_compute_negative_gradient_fn_t  compute_neg_gradient;
   rhea_newton_compute_norm_of_gradient_fn_t   compute_gradient_norm;
   int                 obj_multi_components;
@@ -47,9 +48,13 @@ struct rhea_newton_problem
   int                 num_iterations;
   double              residual_reduction;
 
-  /* options */
+  /* derivative checks */
   int                 check_gradient;
   int                 check_hessian;
+  ymir_vec_t        **check_gradient_perturb_vec;
+  int                 check_gradient_perturb_n_vecs;
+  rhea_newton_check_gradient_innerprod_fn_t   gradient_innerprod_fn;
+  void                                       *gradient_innerprod_data;
   sc_MPI_Comm         mpicomm;
 };
 
@@ -337,13 +342,16 @@ rhea_newton_problem_new (
   nl_problem->solve_hessian_sys = solve_hessian_sys;
 
   rhea_newton_problem_set_data_fn (NULL, NULL, NULL, nl_problem);
-  rhea_newton_problem_set_evaluate_objective_fn (NULL, 0, nl_problem);
+  rhea_newton_problem_set_evaluate_objective_fn (NULL, 0, NULL, nl_problem);
   rhea_newton_problem_set_apply_hessian_fn (NULL, nl_problem);
   rhea_newton_problem_set_modify_step_fn (NULL, nl_problem);
   rhea_newton_problem_set_update_fn (NULL, NULL, NULL, nl_problem);
   rhea_newton_problem_set_setup_poststep_fn (NULL, nl_problem);
   rhea_newton_problem_set_output_fn (NULL, nl_problem);
+
   rhea_newton_problem_set_checks (0, 0, nl_problem);
+  rhea_newton_problem_check_gradient_set_perturbations (NULL, 0, nl_problem);
+  rhea_newton_problem_check_gradient_set_innerprod (NULL, NULL, nl_problem);
   rhea_newton_problem_set_mpicomm (MPI_COMM_NULL, nl_problem);
 
   nl_problem->status = NULL;
@@ -396,9 +404,11 @@ void
 rhea_newton_problem_set_evaluate_objective_fn (
               rhea_newton_evaluate_objective_fn_t evaluate_objective,
               const int obj_multi_components,
+              rhea_error_stats_fn_t error_stats_fn,
               rhea_newton_problem_t *nl_problem)
 {
   nl_problem->evaluate_objective = evaluate_objective;
+  nl_problem->evaluate_objective_err = error_stats_fn;
   nl_problem->obj_multi_components = obj_multi_components;
 }
 
@@ -451,8 +461,8 @@ rhea_newton_problem_set_checks (const int check_gradient,
                                 const int check_hessian,
                                 rhea_newton_problem_t *nl_problem)
 {
-  nl_problem->check_gradient = (0 < check_gradient);
-  nl_problem->check_hessian = (0 < check_hessian);
+  nl_problem->check_gradient = check_gradient;
+  nl_problem->check_hessian = check_hessian;
 }
 
 int
@@ -465,7 +475,7 @@ void
 rhea_newton_problem_set_check_gradient (const int check_gradient,
                                         rhea_newton_problem_t *nl_problem)
 {
-  nl_problem->check_gradient = (0 < check_gradient);
+  nl_problem->check_gradient = check_gradient;
 }
 
 int
@@ -478,7 +488,46 @@ void
 rhea_newton_problem_set_check_hessian (const int check_hessian,
                                        rhea_newton_problem_t *nl_problem)
 {
-  nl_problem->check_hessian = (0 < check_hessian);
+  nl_problem->check_hessian = check_hessian;
+}
+
+ymir_vec_t **
+rhea_newton_problem_check_gradient_get_perturbations (
+                                            int *n_vecs,
+                                            rhea_newton_problem_t *nl_problem)
+{
+  *n_vecs = nl_problem->check_gradient_perturb_n_vecs;
+  return nl_problem->check_gradient_perturb_vec;
+}
+
+void
+rhea_newton_problem_check_gradient_set_perturbations (
+                                            ymir_vec_t **perturb_vec,
+                                            const int n_vecs,
+                                            rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->check_gradient_perturb_vec    = perturb_vec;
+  nl_problem->check_gradient_perturb_n_vecs = n_vecs;
+}
+
+void
+rhea_newton_problem_check_gradient_get_innerprod (
+                                rhea_newton_check_gradient_innerprod_fn_t *fn,
+                                void **data,
+                                rhea_newton_problem_t *nl_problem)
+{
+  *fn   = nl_problem->gradient_innerprod_fn;
+  *data = nl_problem->gradient_innerprod_data;
+}
+
+void
+rhea_newton_problem_check_gradient_set_innerprod (
+                                rhea_newton_check_gradient_innerprod_fn_t fn,
+                                void *data,
+                                rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->gradient_innerprod_fn   = fn;
+  nl_problem->gradient_innerprod_data = data;
 }
 
 sc_MPI_Comm
@@ -559,6 +608,20 @@ rhea_newton_problem_evaluate_objective (ymir_vec_t *solution,
 {
   RHEA_ASSERT (rhea_newton_problem_evaluate_objective_exists (nl_problem));
   return nl_problem->evaluate_objective (solution, nl_problem->data, obj_comp);
+}
+
+int
+rhea_newton_problem_evaluate_objective_err (double *error_mean,
+                                            double *error_stddev,
+                                            rhea_newton_problem_t *nl_problem)
+{
+  if (NULL != nl_problem->evaluate_objective_err) {
+    return nl_problem->evaluate_objective_err (error_mean, error_stddev,
+                                               nl_problem->data);
+  }
+  else {
+    return rhea_error_stats_default_fn (error_mean, error_stddev, NULL);
+  }
 }
 
 int
@@ -1035,9 +1098,11 @@ rhea_newton_status_compute_curr (
     if (neg_gradient_updated != NULL) {
       *neg_gradient_updated = 1;
     }
-    if (nl_problem->check_gradient) {
-      rhea_newton_check_gradient (solution, neg_gradient, iter, nl_problem);
-    }
+    rhea_newton_check_gradient (solution, neg_gradient,
+                                nl_problem->check_gradient,
+                                nl_problem->check_gradient_perturb_vec,
+                                nl_problem->check_gradient_perturb_n_vecs,
+                                iter, nl_problem);
 
     /* compute norm of gradient */
     if (0 < status->grad_norm_multi_components) {
@@ -2004,10 +2069,11 @@ rhea_newton_solve (ymir_vec_t **solution,
       if (!neg_gradient_updated) { /* if (neg.) gradient not yet updated */
         rhea_newton_problem_compute_neg_gradient (nl_problem->neg_gradient_vec,
                                                   *solution, nl_problem);
-        if (nl_problem->check_gradient) {
-          rhea_newton_check_gradient (*solution, nl_problem->neg_gradient_vec,
-                                      iter, nl_problem);
-        }
+        rhea_newton_check_gradient (*solution, nl_problem->neg_gradient_vec,
+                                    nl_problem->check_gradient,
+                                    nl_problem->check_gradient_perturb_vec,
+                                    nl_problem->check_gradient_perturb_n_vecs,
+                                    iter, nl_problem);
       }
 
       /* update Hessian operator */
@@ -2017,10 +2083,9 @@ rhea_newton_solve (ymir_vec_t **solution,
       else { /* if step does exist */
         rhea_newton_problem_update_hessian (*solution, nl_problem->step_vec,
                                             step.length, nl_problem);
-        if (nl_problem->check_hessian) {
-          rhea_newton_check_hessian (*solution, nl_problem->neg_gradient_vec,
-                                     iter, nl_problem);
-        }
+        rhea_newton_check_hessian (*solution, nl_problem->neg_gradient_vec,
+                                   nl_problem->check_hessian, iter,
+                                   nl_problem);
       }
 
       /* modify the right-hand side of the linear system, which originally is

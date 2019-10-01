@@ -6,6 +6,7 @@
 #ifndef RHEA_NEWTON_H
 #define RHEA_NEWTON_H
 
+#include <rhea_error_stats.h>
 #include <ymir_vec_ops.h>
 
 /******************************************************************************
@@ -165,6 +166,19 @@ typedef void      (*rhea_newton_output_prestep_fn_t) (ymir_vec_t *solution,
                                                       const int iter,
                                                       void *data);
 
+/**
+ * Computes the inner product of the gradient and a (random) perturbation.
+ *
+ * \return                  Value of inner product
+ * \param [in] gradient     Vector on left-hand side of inner product
+ * \param [in] perturbation Vector on right-hand side of inner product
+ * \param [in] data         User data
+ */
+typedef double    (*rhea_newton_check_gradient_innerprod_fn_t) (
+                                            ymir_vec_t *gradient,
+                                            ymir_vec_t *perturbation,
+                                            void *data);
+
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -280,6 +294,7 @@ void                rhea_newton_problem_set_data_fn (
 void                rhea_newton_problem_set_evaluate_objective_fn (
               rhea_newton_evaluate_objective_fn_t evaluate_objective,
               const int obj_multi_components,
+              rhea_error_stats_fn_t error_stats_fn,
               rhea_newton_problem_t *nl_problem);
 
 /**
@@ -342,6 +357,28 @@ void                rhea_newton_problem_set_check_hessian (
                                             const int check_hessian,
                                             rhea_newton_problem_t *nl_problem);
 
+ymir_vec_t        **rhea_newton_problem_check_gradient_get_perturbations (
+                                            int *n_vecs,
+                                            rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_check_gradient_set_perturbations (
+                                            ymir_vec_t **perturb_vec,
+                                            const int n_vecs,
+                                            rhea_newton_problem_t *nl_problem);
+
+/**
+ * Gets/sets inner product for gradient check.
+ */
+void                rhea_newton_problem_check_gradient_get_innerprod (
+                                rhea_newton_check_gradient_innerprod_fn_t *fn,
+                                void **data,
+                                rhea_newton_problem_t *nl_problem);
+
+void                rhea_newton_problem_check_gradient_set_innerprod (
+                                rhea_newton_check_gradient_innerprod_fn_t fn,
+                                void *data,
+                                rhea_newton_problem_t *nl_problem);
+
 /**
  * Get/set MPI communicator.
  */
@@ -383,6 +420,10 @@ double              rhea_newton_problem_evaluate_objective (
                                             ymir_vec_t *solution,
                                             rhea_newton_problem_t *nl_problem,
                                             double *obj_comp);
+int                 rhea_newton_problem_evaluate_objective_err (
+                                            double *error_mean,
+                                            double *error_stddev,
+                                            rhea_newton_problem_t *nl_problem);
 
 int                 rhea_newton_problem_compute_gradient_norm_exists (
                                             rhea_newton_problem_t *nl_problem);

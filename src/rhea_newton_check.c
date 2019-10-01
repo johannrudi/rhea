@@ -104,21 +104,22 @@ rhea_newton_check_scale_meshfree (ymir_vec_t *scale, ymir_vec_t *source)
     if (1.0 < magn) {
       scl[i] *= magn;
     }
+    scl[i] *= 0.5;
   }
 }
 
 static void
-rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec,
-                               sc_MPI_Comm mpicomm)
+rhea_newton_check_set_perturb_vec (ymir_vec_t *perturb_vec, ymir_vec_t *sol_vec,
+                                   sc_MPI_Comm mpicomm)
 {
   /* set to random values in [0,1] */
-  ymir_vec_set_random_uniform (dir_vec);
+  ymir_vec_set_random_uniform (perturb_vec);
 
   /* communicate values in case of meshfree vectors */
-  if (dir_vec->n_meshfree && mpicomm != MPI_COMM_NULL) {
-    ymir_vec_meshfree_sync (dir_vec, 0 /* mpirank_master */, mpicomm);
+  if (perturb_vec->n_meshfree && mpicomm != MPI_COMM_NULL) {
+    ymir_vec_meshfree_sync (perturb_vec, 0 /* mpirank_master */, mpicomm);
   }
-  else if (dir_vec->n_meshfree) {
+  else if (perturb_vec->n_meshfree) {
     RHEA_GLOBAL_INFOF (
         "%s: Warning: meshfree direction is not equal across mpiranks; "
         "provide MPI communicator to Newton problem.\n", __func__);
@@ -131,37 +132,52 @@ rhea_newton_check_set_dir_vec (ymir_vec_t *dir_vec, ymir_vec_t *sol_vec,
 
   /* scale w.r.t. magnitude of solution vector */
   if (sol_vec->ncfields) {
-    rhea_newton_check_scale_cvec (dir_vec, sol_vec);
+    rhea_newton_check_scale_cvec (perturb_vec, sol_vec);
   }
   if (sol_vec->ndfields) {
-    rhea_newton_check_scale_dvec (dir_vec, sol_vec);
+    rhea_newton_check_scale_dvec (perturb_vec, sol_vec);
   }
   if (sol_vec->nefields) {
-    rhea_newton_check_scale_evec (dir_vec, sol_vec);
+    rhea_newton_check_scale_evec (perturb_vec, sol_vec);
   }
   if (sol_vec->n_meshfree) {
-    rhea_newton_check_scale_meshfree (dir_vec, sol_vec);
+    rhea_newton_check_scale_meshfree (perturb_vec, sol_vec);
   }
 }
 
 void
 rhea_newton_check_gradient (ymir_vec_t *solution,
                             ymir_vec_t *neg_gradient,
+                            int n_trials,
+                            ymir_vec_t **perturb_vec,
+                            int n_perturb_vecs,
                             const int iter,
                             rhea_newton_problem_t *nl_problem)
 {
-  ymir_vec_t         *sol_vec, *dir_vec, *perturb_vec;
+  ymir_vec_t         *sol_vec, *perturb_sol_vec;
+  const int           create_perturb_vec = (n_perturb_vecs <= 0);
   double              grad_dir_ref, grad_dir_fd;
   double              obj_val, perturb_obj_val;
+  int                 obj_err_exists;
+  double              obj_err_mean, obj_err_stddev;
   double              abs_error, rel_error;
-  sc_dmatrix_t       *result = sc_dmatrix_new (RHEA_NEWTON_CHECK_N_TRIALS, 5);
+  sc_dmatrix_t       *result;
   const int           exp_incr = 2;
   const int           exp_min = 0;
-  int                 n;
+  int                 vidx, tidx;
 
   /* check input */
   RHEA_ASSERT (NULL != neg_gradient);
   RHEA_ASSERT (NULL != rhea_newton_problem_get_step_vec (nl_problem));
+
+  /* exit if nothing to do */
+  if (n_trials <= 0) {
+    return;
+  }
+  /* if needs setting default #trials */
+  if (1 == n_trials) {
+    n_trials = RHEA_NEWTON_CHECK_N_TRIALS;
+  }
 
   /* exit if check cannot be executed */
   if (!rhea_newton_problem_evaluate_objective_exists (nl_problem)) {
@@ -182,63 +198,90 @@ rhea_newton_check_gradient (ymir_vec_t *solution,
     sol_vec = ymir_vec_template (solution);
     ymir_vec_copy (solution, sol_vec);
   }
-  dir_vec = ymir_vec_template (sol_vec);
-  perturb_vec = ymir_vec_template (sol_vec);
-
-  /* set direction vector */
-  rhea_newton_check_set_dir_vec (dir_vec, solution,
-                                 rhea_newton_problem_get_mpicomm (nl_problem));
-
-  /* compute the reference directional derivative */
-  grad_dir_ref = ymir_vec_innerprod (neg_gradient, dir_vec);
-  grad_dir_ref *= -1.0;
+  perturb_sol_vec = ymir_vec_template (sol_vec);
+  if (create_perturb_vec) {
+    n_perturb_vecs = 1;
+    perturb_vec = RHEA_ALLOC (ymir_vec_t *, 1);
+    perturb_vec[0] = ymir_vec_template (sol_vec);
+    rhea_newton_check_set_perturb_vec (
+        perturb_vec[0], solution,
+        rhea_newton_problem_get_mpicomm (nl_problem));
+  }
+  result = sc_dmatrix_new (n_trials, 7);
 
   /* set up the finite difference derivative */
   obj_val = rhea_newton_problem_evaluate_objective (solution, nl_problem,
                                                     NULL /* components */);
+  obj_err_exists = rhea_newton_problem_evaluate_objective_err (
+      &obj_err_mean, &obj_err_stddev, nl_problem);
 
-  /* compare reference with finite difference derivative */
-  for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
-    const int           exp = exp_min + exp_incr * n;
-    const double        eps = pow (10.0, (double) -exp);
+  for (vidx = 0; vidx < n_perturb_vecs; vidx++) {
+    /* compute the reference directional derivative */
+    grad_dir_ref = ymir_vec_innerprod (neg_gradient, perturb_vec[vidx]);
+    grad_dir_ref *= -1.0;
 
-    ymir_vec_copy (sol_vec, perturb_vec);
-    ymir_vec_add (eps, dir_vec, perturb_vec);
-    rhea_newton_problem_update_operator (perturb_vec, nl_problem);
-    perturb_obj_val = rhea_newton_problem_evaluate_objective (
-        perturb_vec, nl_problem, NULL /* components */);
-    grad_dir_fd = (perturb_obj_val - obj_val) / eps;
+    /* compare reference with finite difference derivative */
+    for (tidx = 0; tidx < n_trials; tidx++) {
+      const int           exp = exp_min + exp_incr * tidx;
+      const double        eps = pow (10.0, (double) -exp);
 
-    abs_error = fabs (grad_dir_ref - grad_dir_fd);
-    rel_error = abs_error / fabs (grad_dir_ref);
+      ymir_vec_copy (sol_vec, perturb_sol_vec);
+      ymir_vec_add (eps, perturb_vec[vidx], perturb_sol_vec);
+      rhea_newton_problem_update_operator (perturb_sol_vec, nl_problem);
+      perturb_obj_val = rhea_newton_problem_evaluate_objective (
+          perturb_sol_vec, nl_problem, NULL /* components */);
+      obj_err_exists = rhea_newton_problem_evaluate_objective_err (
+          &obj_err_mean, &obj_err_stddev, nl_problem);
+      grad_dir_fd = (perturb_obj_val - obj_val) / eps;
 
-    result->e[n][0] = eps;
-    result->e[n][1] = abs_error;
-    result->e[n][2] = rel_error;
-    result->e[n][3] = grad_dir_ref;
-    result->e[n][4] = grad_dir_fd;
+      abs_error = fabs (grad_dir_ref - grad_dir_fd);
+      rel_error = abs_error / fabs (grad_dir_ref);
+
+      result->e[tidx][0] = eps;
+      result->e[tidx][1] = abs_error;
+      result->e[tidx][2] = rel_error;
+      result->e[tidx][3] = grad_dir_ref;
+      result->e[tidx][4] = grad_dir_fd;
+      result->e[tidx][5] = obj_err_mean;
+      result->e[tidx][6] = obj_err_stddev;
+    }
+
+    /* print results */
+    RHEA_GLOBAL_INFO ("========================================\n");
+    RHEA_GLOBAL_INFOF ("%s, newton_iter=%i, perturb_vec_idx=%i\n",
+                       __func__, iter, vidx);
+    RHEA_GLOBAL_INFO ("----------------------------------------\n");
+    for (tidx = 0; tidx < n_trials; tidx++) {
+      if (obj_err_exists) {
+        RHEA_GLOBAL_INFOF (
+            "F.D. eps=%.1e ; error abs=%.1e, rel=%.1e ; "
+            "grad^T*dir ref=%.12e, F.D.=%.12e ; "
+            "obj eval err (%.1e,%.1e)\n",
+            result->e[tidx][0], result->e[tidx][1], result->e[tidx][2],
+            result->e[tidx][3], result->e[tidx][4],
+            result->e[tidx][5], result->e[tidx][6]);
+      }
+      else {
+        RHEA_GLOBAL_INFOF (
+            "F.D. eps=%.1e ; error abs=%.1e, rel=%.1e ; "
+            "grad^T*dir ref=%.12e, F.D.=%.12e\n",
+            result->e[tidx][0], result->e[tidx][1], result->e[tidx][2],
+            result->e[tidx][3], result->e[tidx][4]);
+      }
+    }
+    RHEA_GLOBAL_INFO ("========================================\n");
   }
 
-  /* restore */
+  /* restore operator */
   rhea_newton_problem_update_operator (solution, nl_problem);
-
-  /* print results */
-  RHEA_GLOBAL_INFO ("========================================\n");
-  RHEA_GLOBAL_INFOF ("%s, newton_iter=%i\n", __func__, iter);
-  RHEA_GLOBAL_INFO ("----------------------------------------\n");
-  for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
-    RHEA_GLOBAL_INFOF (
-        "F.D. eps=%.1e ; error abs=%.1e, rel=%.1e ; "
-        "grad^T*dir ref=%.12e, F.D.=%.12e\n",
-        result->e[n][0], result->e[n][1], result->e[n][2],
-        result->e[n][3], result->e[n][4]);
-  }
-  RHEA_GLOBAL_INFO ("========================================\n");
 
   /* destroy */
   ymir_vec_destroy (sol_vec);
-  ymir_vec_destroy (dir_vec);
-  ymir_vec_destroy (perturb_vec);
+  ymir_vec_destroy (perturb_sol_vec);
+  if (create_perturb_vec) {
+    ymir_vec_destroy (perturb_vec[0]);
+    RHEA_FREE (perturb_vec);
+  }
   sc_dmatrix_destroy (result);
 
   RHEA_GLOBAL_INFOF_FN_END (__func__, "newton_iter=%i", iter);
@@ -351,15 +394,16 @@ rhea_newton_check_hessian_compute_error (double *abs_error,
 void
 rhea_newton_check_hessian (ymir_vec_t *solution,
                            ymir_vec_t *neg_gradient,
+                           int n_trials,
                            const int iter,
                            rhea_newton_problem_t *nl_problem)
 {
   const int           check_gradient =
                         rhea_newton_problem_get_check_gradient (nl_problem);
-  ymir_vec_t         *dir_vec, *perturb_vec;
+  ymir_vec_t         *perturb_sol_vec, *perturb_vec;
   ymir_vec_t         *hess_dir_ref, *hess_dir_fd;
   double              abs_error, rel_error;
-  sc_dmatrix_t       *result = sc_dmatrix_new (RHEA_NEWTON_CHECK_N_TRIALS, 3);
+  sc_dmatrix_t       *result;
   const int           exp_incr = 2;
   const int           exp_min = 0;
   int                 n;
@@ -368,6 +412,15 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   RHEA_ASSERT (NULL != solution);
   RHEA_ASSERT (NULL != neg_gradient);
   RHEA_ASSERT (rhea_newton_problem_compute_neg_gradient_exists (nl_problem));
+
+  /* exit if nothing to do */
+  if (n_trials <= 0) {
+    return;
+  }
+  /* if needs setting default #trials */
+  if (1 == n_trials) {
+    n_trials = RHEA_NEWTON_CHECK_N_TRIALS;
+  }
 
   /* exit if check cannot be executed */
   if (!rhea_newton_problem_apply_hessian_exists (nl_problem)) {
@@ -380,30 +433,31 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
   /* create work vectors */
-  dir_vec = ymir_vec_template (solution);
+  perturb_sol_vec = ymir_vec_template (solution);
   perturb_vec = ymir_vec_template (solution);
   hess_dir_ref = ymir_vec_template (neg_gradient);
   hess_dir_fd = ymir_vec_template (neg_gradient);
+  result = sc_dmatrix_new (n_trials, 3);
 
   /* set direction vector */
-  rhea_newton_check_set_dir_vec (dir_vec, solution,
-                                 rhea_newton_problem_get_mpicomm (nl_problem));
+  rhea_newton_check_set_perturb_vec (
+      perturb_vec, solution, rhea_newton_problem_get_mpicomm (nl_problem));
 
   /* compute the reference directional derivative */
-  rhea_newton_problem_apply_hessian (hess_dir_ref, dir_vec, nl_problem);
+  rhea_newton_problem_apply_hessian (hess_dir_ref, perturb_vec, nl_problem);
 
   /* set up the finite difference derivative */
   rhea_newton_problem_set_check_gradient (0, nl_problem);
 
   /* compare reference with finite difference derivative */
-  for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
+  for (n = 0; n < n_trials; n++) {
     const int           exp = exp_min + exp_incr * n;
     const double        eps = pow (10.0, (double) -exp);
 
-    ymir_vec_copy (solution, perturb_vec);
-    ymir_vec_add (eps, dir_vec, perturb_vec);
-    rhea_newton_problem_update_operator (perturb_vec, nl_problem);
-    rhea_newton_problem_compute_neg_gradient (hess_dir_fd, perturb_vec,
+    ymir_vec_copy (solution, perturb_sol_vec);
+    ymir_vec_add (eps, perturb_vec, perturb_sol_vec);
+    rhea_newton_problem_update_operator (perturb_sol_vec, nl_problem);
+    rhea_newton_problem_compute_neg_gradient (hess_dir_fd, perturb_sol_vec,
                                               nl_problem);
     ymir_vec_scale (-1.0, hess_dir_fd);
     ymir_vec_add (1.0, neg_gradient, hess_dir_fd);
@@ -425,7 +479,7 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   RHEA_GLOBAL_INFO ("========================================\n");
   RHEA_GLOBAL_INFOF ("%s, newton_iter=%i\n", __func__, iter);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
-  for (n = 0; n < RHEA_NEWTON_CHECK_N_TRIALS; n++) {
+  for (n = 0; n < n_trials; n++) {
     RHEA_GLOBAL_INFOF (
         "F.D. eps=%.1e ; error abs=%.1e, rel=%.1e\n",
         result->e[n][0], result->e[n][1], result->e[n][2]);
@@ -433,7 +487,7 @@ rhea_newton_check_hessian (ymir_vec_t *solution,
   RHEA_GLOBAL_INFO ("========================================\n");
 
   /* destroy */
-  ymir_vec_destroy (dir_vec);
+  ymir_vec_destroy (perturb_sol_vec);
   ymir_vec_destroy (perturb_vec);
   ymir_vec_destroy (hess_dir_ref);
   ymir_vec_destroy (hess_dir_fd);
