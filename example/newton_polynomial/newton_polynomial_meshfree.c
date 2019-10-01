@@ -155,7 +155,7 @@ main (int argc, char **argv)
         nl_problem);
     rhea_newton_problem_set_evaluate_objective_fn (
         newton_polynomial_evaluate_objective, 0 /* no multi-component obj */,
-        nl_problem);
+        rhea_error_stats_default_fn, nl_problem);
     rhea_newton_problem_set_apply_hessian_fn (
         newton_polynomial_apply_hessian, nl_problem);
     rhea_newton_problem_set_update_fn (

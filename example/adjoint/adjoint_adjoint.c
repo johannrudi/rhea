@@ -180,7 +180,7 @@ adjoint_setup_newton (rhea_newton_problem_t **newton_problem,
     rhea_newton_problem_set_evaluate_objective_fn (
         adjoint_evaluate_objective,
         0 /* no multi-component obj */,
-        *newton_problem);
+        rhea_error_stats_default_fn, *newton_problem);
 
     rhea_newton_problem_set_apply_hessian_fn (
        /* adjoint_apply_hessian_fn */ NULL, *newton_problem);
