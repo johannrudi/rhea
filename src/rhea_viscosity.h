@@ -324,6 +324,13 @@ void                rhea_viscosity_filter_where_max (ymir_vec_t *vec,
                                                      const int invert_filter);
 
 /**
+ * Gets the scaling factor.
+ */
+double              rhea_viscosity_get_scaling (rhea_viscosity_options_t *opt,
+                                                const int is_in_upper_mantle,
+                                                const int restrict_min);
+
+/**
  * Returns whether temperature dependence via Arrhenius relationship is enabled.
  */
 int                 rhea_viscosity_has_arrhenius (

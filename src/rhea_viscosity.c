@@ -434,29 +434,20 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
     (restrict_to_bounds && rhea_viscosity_restrict_max (opt));
   const double        visc_min = opt->min;
   const double        visc_max = opt->max;
-  double              scaling;
-
-  /* set scaling */
-  if (is_in_upper_mantle) {
-    scaling = opt->upper_mantle_scaling;
-  }
-  else {
-    scaling = opt->lower_mantle_scaling;
-  }
 
   /* initialize marker that viscosity bounds are reached */
   *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
 
   /* compute linear viscosity component */
   *viscosity = rhea_viscosity_linear_comp (temp, opt, is_in_upper_mantle);
+  /* multiply by scaling factor */
+  *viscosity *= rhea_viscosity_get_scaling (opt, is_in_upper_mantle,
+                                            restrict_min);
 
   /* compose viscosity */
   switch (opt->model) {
   case RHEA_VISCOSITY_MODEL_UWYL:
     {
-      /* multiply by scaling factor */
-      *viscosity *= scaling;
-
       /* (U) restrict viscosity to upper bound */
       if (restrict_max && visc_max < *viscosity) {
         *viscosity = visc_max;
@@ -482,14 +473,6 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
     {
-      /* multiply by scaling factor */
-      if (restrict_min && visc_min < scaling) {
-        *viscosity *= (scaling - visc_min);
-      }
-      else {
-        *viscosity *= scaling;
-      }
-
       /* (U) restrict viscosity to upper bound */
       if (restrict_max && visc_max < *viscosity) {
         *viscosity = visc_max;
@@ -1017,8 +1000,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
   const int           restrict_max = rhea_viscosity_restrict_max (opt);
   const double        visc_min = opt->min;
   const double        visc_max = opt->max;
-  const double        scaling = opt->upper_mantle_scaling;
-  double              visc_lin = rhea_viscosity_linear_comp (temp, opt, 1);
+  double              visc_lin;
 
   const int           has_srw = rhea_viscosity_has_strain_rate_weakening (opt);
   const int           has_yld = rhea_viscosity_has_yielding (opt);
@@ -1031,21 +1013,24 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
     rhea_viscosity_get_nonlinear_projector_regularization (opt);
   double              srw_exp;
 
-  RHEA_ASSERT (restrict_max);
+  /* initialize marker that viscosity bounds are reached */
+  *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
+
+  /* compute linear viscosity component */
+  visc_lin = rhea_viscosity_linear_comp (temp, opt, 1 /* in upper mantle */);
+  /* multiply by scaling factor */
+  visc_lin *= rhea_viscosity_get_scaling (opt, 1 /* in upper mantle */,
+                                          restrict_min);
+
   RHEA_ASSERT (isfinite (visc_lin));
   RHEA_ASSERT (0.0 <= visc_lin);
   RHEA_ASSERT (0.0 < visc_lin || restrict_min);
-
-  /* initialize marker that viscosity bounds are reached */
-  *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
+  RHEA_ASSERT (restrict_max);
 
   /* compose viscosity */
   switch (opt->model) {
   case RHEA_VISCOSITY_MODEL_UWYL:
     {
-      /* multiply by scaling factor */
-      visc_lin *= scaling;
-
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
@@ -1092,14 +1077,6 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     {
-      /* multiply by scaling factor */
-      if (restrict_min && visc_min < scaling) {
-        visc_lin *= (scaling - visc_min);
-      }
-      else {
-        visc_lin *= scaling;
-      }
-
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         rhea_viscosity_nonlinear_strain_rate_weakening (
@@ -1146,14 +1123,6 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
 
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
     {
-      /* multiply by scaling factor */
-      if (restrict_min && visc_min < scaling) {
-        visc_lin *= (scaling - visc_min);
-      }
-      else {
-        visc_lin *= scaling;
-      }
-
       /* compute strain rate weakening viscosity */
       if (has_srw) {
         double              strainrate_min;
@@ -1942,6 +1911,43 @@ rhea_viscosity_filter_where_max (ymir_vec_t *vec,
 
   rhea_viscosity_filter_where_marker_active (vec, bounds_marker, active_range,
                                              invert_filter);
+}
+
+/**
+ * Generates scaling factor.
+ */
+double
+rhea_viscosity_get_scaling (rhea_viscosity_options_t *opt,
+                            const int is_in_upper_mantle,
+                            const int restrict_min)
+{
+  double              scaling;
+
+  /* get location dependent scaling */
+  if (is_in_upper_mantle) {
+    scaling = opt->upper_mantle_scaling;
+  }
+  else {
+    scaling = opt->lower_mantle_scaling;
+  }
+
+  /* return scaling factor */
+  switch (opt->model) {
+  case RHEA_VISCOSITY_MODEL_UWYL:
+    return scaling;
+    break;
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
+    if (restrict_min && opt->min < scaling) {
+      return (scaling - opt->min);
+    }
+    else {
+      return scaling;
+    }
+    break;
+  default: /* unknown viscosity model */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 int
