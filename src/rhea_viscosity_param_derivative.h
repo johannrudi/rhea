@@ -39,8 +39,7 @@ void                rhea_viscosity_param_derivative (
                             ymir_vec_t *derivative,
                             rhea_viscosity_param_derivative_t derivative_type,
                             ymir_vec_t *viscosity,
-                            ymir_vec_t *bounds_marker,
-                            ymir_vec_t *yielding_marker,
+                            ymir_vec_t *marker,
                             ymir_vec_t *temperature,
                             ymir_vec_t *velocity,
                             rhea_viscosity_options_t *visc_options);
@@ -54,8 +53,7 @@ void                rhea_viscosity_param_derivative_weakzone (
                             rhea_viscosity_param_derivative_t derivative_type,
                             rhea_weakzone_label_t weak_label,
                             ymir_vec_t *viscosity,
-                            ymir_vec_t *bounds_marker,
-                            ymir_vec_t *yielding_marker,
+                            ymir_vec_t *marker,
                             ymir_vec_t *weakzone,
                             rhea_weakzone_options_t *weak_options,
                             rhea_viscosity_options_t *visc_options);

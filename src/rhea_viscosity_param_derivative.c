@@ -69,13 +69,11 @@ rhea_viscosity_param_derivative_init (
                         const rhea_viscosity_param_derivative_filter_t filter,
                         ymir_vec_t *viscosity,
                         ymir_vec_t *marker,
-                        ymir_vec_t *yielding_marker, //TODO remove
                         rhea_viscosity_options_t *visc_options)
 {
   /* check input */
   RHEA_ASSERT (NULL != viscosity);
   RHEA_ASSERT (NULL != marker);
-  RHEA_ASSERT (NULL != yielding_marker);
   RHEA_ASSERT (NULL != visc_options);
   RHEA_ASSERT (visc_options->model == RHEA_VISCOSITY_MODEL_UWYL ||
                visc_options->model == RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT ||
@@ -112,8 +110,8 @@ rhea_viscosity_param_derivative_init (
   /* yielding */
   if (filter == RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_YLD) {
     if (rhea_viscosity_has_yielding (visc_options)) {
-      rhea_viscosity_filter_where_yielding (
-          derivative, yielding_marker, 0 /* !invert_filter */);
+      rhea_viscosity_filter_where_yielding (derivative, marker,
+                                            0 /* !invert */);
     }
     else { /* otherwise set to zero */
       ymir_vec_set_zero (derivative);
@@ -121,8 +119,8 @@ rhea_viscosity_param_derivative_init (
     return;
   }
   else if (rhea_viscosity_has_yielding (visc_options)) { /* remove yielding */
-    rhea_viscosity_filter_where_yielding (
-        derivative, yielding_marker, 1 /* invert_filter */);
+    rhea_viscosity_filter_where_yielding (derivative, marker,
+                                          1 /* invert */);
   }
 
   /* weak zone */
@@ -220,7 +218,6 @@ static void
 rhea_viscosity_param_derivative_min (ymir_vec_t *derivative,
                                      ymir_vec_t *viscosity,
                                      ymir_vec_t *marker,
-                                     ymir_vec_t *yielding_marker,
                                      rhea_viscosity_options_t *visc_options)
 {
   const double        scaling_curr = visc_options->min;
@@ -235,7 +232,7 @@ rhea_viscosity_param_derivative_min (ymir_vec_t *derivative,
   case RHEA_VISCOSITY_MODEL_UWYL:
     rhea_viscosity_param_derivative_init (
         derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_MIN,
-        viscosity, marker, yielding_marker, visc_options);
+        viscosity, marker, visc_options);
     ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
     break;
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
@@ -257,7 +254,6 @@ static void
 rhea_viscosity_param_derivative_max (ymir_vec_t *derivative,
                                      ymir_vec_t *viscosity,
                                      ymir_vec_t *marker,
-                                     ymir_vec_t *yielding_marker,
                                      rhea_viscosity_options_t *visc_options)
 {
   const double        scaling_curr = visc_options->max;
@@ -270,7 +266,7 @@ rhea_viscosity_param_derivative_max (ymir_vec_t *derivative,
   /* init derivative */
   rhea_viscosity_param_derivative_init (
       derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_MAX,
-      viscosity, marker, yielding_marker, visc_options);
+      viscosity, marker, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
   ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
@@ -288,7 +284,6 @@ static void
 rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
                                       ymir_vec_t *viscosity,
                                       ymir_vec_t *marker,
-                                      ymir_vec_t *yielding_marker,
                                       rhea_viscosity_options_t *visc_options,
                                       const int process_upper_mantle,
                                       const int process_lower_mantle)
@@ -329,7 +324,7 @@ rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
 
   /* init derivative */
   rhea_viscosity_param_derivative_init (
-      derivative, filter, viscosity, marker, yielding_marker, visc_options);
+      derivative, filter, viscosity, marker, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
   rhea_viscosity_param_derivative_scale_mantle (
@@ -348,7 +343,6 @@ static void
 rhea_viscosity_param_derivative_arrh (ymir_vec_t *derivative,
                                       ymir_vec_t *viscosity,
                                       ymir_vec_t *marker,
-                                      ymir_vec_t *yielding_marker,
                                       ymir_vec_t *temperature,
                                       rhea_viscosity_options_t *visc_options,
                                       const int process_upper_mantle,
@@ -385,8 +379,7 @@ rhea_viscosity_param_derivative_arrh (ymir_vec_t *derivative,
 
   /* init derivative */
   rhea_viscosity_param_derivative_init (
-      derivative, filter, viscosity, marker, yielding_marker,
-      visc_options);
+      derivative, filter, viscosity, marker, visc_options);
 
   /* multiply derivative by temperature difference term */
   ymir_interp_vec (temperature, scal);
@@ -421,7 +414,6 @@ rhea_viscosity_param_derivative_stress_exp (
                                         ymir_vec_t *derivative,
                                         ymir_vec_t *viscosity,
                                         ymir_vec_t *marker,
-                                        ymir_vec_t *yielding_marker,
                                         ymir_vec_t *velocity,
                                         rhea_viscosity_options_t *visc_options)
 {
@@ -438,7 +430,7 @@ rhea_viscosity_param_derivative_stress_exp (
   /* init derivative */
   rhea_viscosity_param_derivative_init (
       derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_SRW,
-      viscosity, marker, yielding_marker, visc_options);
+      viscosity, marker, visc_options);
 
   /* compute sqrt of the 2nd invariant of the strain rate */
   switch (visc_options->model) {
@@ -477,7 +469,6 @@ rhea_viscosity_param_derivative_yield_strength (
                                         ymir_vec_t *derivative,
                                         ymir_vec_t *viscosity,
                                         ymir_vec_t *marker,
-                                        ymir_vec_t *yielding_marker,
                                         rhea_viscosity_options_t *visc_options)
 {
   const double        scaling_curr = visc_options->yield_strength;
@@ -490,7 +481,7 @@ rhea_viscosity_param_derivative_yield_strength (
   /* init derivative */
   rhea_viscosity_param_derivative_init (
       derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_YLD,
-      viscosity, marker, yielding_marker, visc_options);
+      viscosity, marker, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
   ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
@@ -511,7 +502,6 @@ rhea_viscosity_param_derivative_weak_factor_interior (
                                         rhea_weakzone_label_t weak_label,
                                         ymir_vec_t *viscosity,
                                         ymir_vec_t *marker,
-                                        ymir_vec_t *yielding_marker,
                                         ymir_vec_t *weakzone,
                                         rhea_weakzone_options_t *weak_options,
                                         rhea_viscosity_options_t *visc_options)
@@ -534,7 +524,7 @@ rhea_viscosity_param_derivative_weak_factor_interior (
   /* init derivative */
   rhea_viscosity_param_derivative_init (
       derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_WKZ,
-      viscosity, marker, yielding_marker, visc_options);
+      viscosity, marker, visc_options);
 
   /* get indicator for weak zones */
   rhea_weakzone_compute_indicator (weak_indicator, (int) weak_label,
@@ -558,7 +548,6 @@ rhea_viscosity_param_derivative (
                             rhea_viscosity_param_derivative_t derivative_type,
                             ymir_vec_t *viscosity,
                             ymir_vec_t *marker,
-                            ymir_vec_t *yielding_marker, //TODO remove
                             ymir_vec_t *temperature,
                             ymir_vec_t *velocity,
                             rhea_viscosity_options_t *visc_options)
@@ -571,57 +560,56 @@ rhea_viscosity_param_derivative (
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_MIN:
     if (rhea_viscosity_restrict_min (visc_options)) {
       rhea_viscosity_param_derivative_min (
-          derivative, viscosity, marker, yielding_marker, visc_options);
+          derivative, viscosity, marker, visc_options);
     }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_MAX:
     if (rhea_viscosity_restrict_max (visc_options)) {
       rhea_viscosity_param_derivative_max (
-          derivative, viscosity, marker, yielding_marker, visc_options);
+          derivative, viscosity, marker, visc_options);
     }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_SCALING:
     rhea_viscosity_param_derivative_scal (
-        derivative, viscosity, marker, yielding_marker, visc_options,
+        derivative, viscosity, marker, visc_options,
         1 /* upper mantle */, 0 /* not lower mantle */);
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_ACTIVATION_ENERGY:
     if (rhea_viscosity_has_arrhenius (visc_options)) {
       rhea_viscosity_param_derivative_arrh (
-          derivative, viscosity, marker, yielding_marker, temperature,
-          visc_options, 1 /* upper mantle */, 0 /* not lower mantle */);
+          derivative, viscosity, marker, temperature, visc_options,
+          1 /* upper mantle */, 0 /* not lower mantle */);
     }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_SCALING:
     rhea_viscosity_param_derivative_scal (
-        derivative, viscosity, marker, yielding_marker, visc_options,
+        derivative, viscosity, marker, visc_options,
         0 /* not upper mantle */, 1 /* lower mantle */);
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_ACTIVATION_ENERGY:
     if (rhea_viscosity_has_arrhenius (visc_options)) {
       rhea_viscosity_param_derivative_arrh (
-          derivative, viscosity, marker, yielding_marker, temperature,
-          visc_options, 0 /* not upper mantle */, 1 /* lower mantle */);
+          derivative, viscosity, marker, temperature, visc_options,
+          0 /* not upper mantle */, 1 /* lower mantle */);
     }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_STRESS_EXPONENT:
     if (rhea_viscosity_has_strain_rate_weakening (visc_options)) {
       rhea_viscosity_param_derivative_stress_exp (
-          derivative, viscosity, marker, yielding_marker, velocity,
-          visc_options);
+          derivative, viscosity, marker, velocity, visc_options);
     }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_YIELD_STRENGTH:
     if (rhea_viscosity_has_yielding (visc_options)) {
       rhea_viscosity_param_derivative_yield_strength (
-          derivative, viscosity, marker, yielding_marker, visc_options);
+          derivative, viscosity, marker, visc_options);
     }
     break;
 
@@ -650,7 +638,6 @@ rhea_viscosity_param_derivative_weakzone (
                             rhea_weakzone_label_t weak_label,
                             ymir_vec_t *viscosity,
                             ymir_vec_t *marker,
-                            ymir_vec_t *yielding_marker, //TODO remove
                             ymir_vec_t *weakzone,
                             rhea_weakzone_options_t *weak_options,
                             rhea_viscosity_options_t *visc_options)
@@ -673,8 +660,8 @@ rhea_viscosity_param_derivative_weakzone (
     break;
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_WEAK_FACTOR_INTERIOR:
     rhea_viscosity_param_derivative_weak_factor_interior (
-        derivative, weak_label, viscosity, marker, yielding_marker,
-        weakzone, weak_options, visc_options);
+        derivative, weak_label, viscosity, marker, weakzone,
+        weak_options, visc_options);
     break;
   default: /* unknown derivative type */
     RHEA_ABORT_NOT_REACHED ();
