@@ -10,25 +10,6 @@
 #include <ymir_stress_op.h>
 #include <fenv.h>
 
-/* definition of markers for different physics in effective viscosity */
-#define RHEA_VISCOSITY_MARKER_MINCUT (-1.0)
-#define RHEA_VISCOSITY_MARKER_MINADD (-0.5)
-#define RHEA_VISCOSITY_MARKER_DEF    (+0.0)
-#define RHEA_VISCOSITY_MARKER_MAX    (+1.0)
-#define RHEA_VISCOSITY_MARKER_MAX_WKZ (+2.0)
-#define RHEA_VISCOSITY_MARKER_DEF_WKZ (+3.0)
-#define RHEA_VISCOSITY_MARKER_MAX_YLD     (+4.0)
-#define RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD (+5.0)
-#define RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD (+6.0)
-#define RHEA_VISCOSITY_MARKER_DEF_YLD     (+7.0)
-
-/* tolerance for marker checks */
-#define RHEA_VISCOSITY_MARKER_TOL (1.0e-2)
-
-/* check if marker is equal to a value */
-#define RHEA_VISCOSITY_MARKER_EQUAL(m,v) \
-  (fabs (m-v) < RHEA_VISCOSITY_MARKER_TOL)
-
 /* definition of viscosity bounds and yielding markers */
 #define RHEA_VISCOSITY_BOUNDS_OFF (0.0)
 #define RHEA_VISCOSITY_BOUNDS_MIN (-1.0)
@@ -357,6 +338,125 @@ rhea_viscosity_surface_interpolate (ymir_vec_t *visc_surf,
 }
 
 /******************************************************************************
+ * Viscosity Markers
+ *****************************************************************************/
+
+/* definition of (positive) markers for different physics in eff. viscosity */
+#define RHEA_VISCOSITY_MARKER_DEF (0.0)
+#define RHEA_VISCOSITY_MARKER_MAX (1.0)
+#define RHEA_VISCOSITY_MARKER_MAX_WKZ (2.0)
+#define RHEA_VISCOSITY_MARKER_DEF_WKZ (3.0)
+#define RHEA_VISCOSITY_MARKER_MAX_YLD     (4.0)
+#define RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD (5.0)
+#define RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD (6.0)
+#define RHEA_VISCOSITY_MARKER_DEF_YLD     (7.0)
+
+/* definition of (negative) markers for different physics in eff. viscosity */
+#define RHEA_VISCOSITY_MARKER_MIN \
+      (-RHEA_VISCOSITY_MARKER_MAX)
+#define RHEA_VISCOSITY_MARKER_MAX_WKZ_MIN \
+      (-RHEA_VISCOSITY_MARKER_MAX_WKZ)
+#define RHEA_VISCOSITY_MARKER_DEF_WKZ_MIN \
+      (-RHEA_VISCOSITY_MARKER_DEF_WKZ)
+#define RHEA_VISCOSITY_MARKER_MAX_YLD_MIN     \
+      (-RHEA_VISCOSITY_MARKER_MAX_YLD)
+#define RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD_MIN \
+      (-RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD)
+#define RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD_MIN \
+      (-RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD)
+#define RHEA_VISCOSITY_MARKER_DEF_YLD_MIN     \
+      (-RHEA_VISCOSITY_MARKER_DEF_YLD)
+
+/* tolerance for marker checks */
+#define RHEA_VISCOSITY_MARKER_TOL (1.0e-2)
+
+/* check if marker is equal to a value */
+#define RHEA_VISCOSITY_MARKER_EQUAL(m,v) \
+  (fabs (m-v) < RHEA_VISCOSITY_MARKER_TOL)
+
+static double
+rhea_viscosity_marker_set_default ()
+{
+  return RHEA_VISCOSITY_MARKER_DEF;
+}
+
+static double
+rhea_viscosity_marker_set_max (const double m)
+{
+  return RHEA_VISCOSITY_MARKER_MAX;
+}
+
+static double
+rhea_viscosity_marker_set_weak (const double m, const double weak)
+{
+  RHEA_ASSERT (isfinite (m));
+
+  if (weak < 0.5) { /* if weak factor is below a threshold */
+    if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_MAX)) {
+      return RHEA_VISCOSITY_MARKER_MAX_WKZ;
+    }
+    if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_DEF)) {
+      return RHEA_VISCOSITY_MARKER_DEF_WKZ;
+    }
+    RHEA_ABORT_NOT_REACHED ();
+  }
+  else { /* otherwise weak factor is above threshold */
+    return m;
+  }
+}
+
+static double
+rhea_viscosity_marker_set_yielding (const double m)
+{
+  RHEA_ASSERT (isfinite (m));
+
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_MAX)) {
+    return RHEA_VISCOSITY_MARKER_MAX_YLD;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_MAX_WKZ)) {
+    return RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_DEF_WKZ)) {
+    return RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_DEF)) {
+    return RHEA_VISCOSITY_MARKER_DEF_YLD;
+  }
+
+  RHEA_ABORT_NOT_REACHED ();
+}
+
+static double
+rhea_viscosity_marker_set_min (const double m)
+{
+  RHEA_ASSERT (isfinite (m));
+
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_DEF)) {
+    return RHEA_VISCOSITY_MARKER_MIN;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_MAX_WKZ)) {
+    return RHEA_VISCOSITY_MARKER_MAX_WKZ_MIN;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_DEF_WKZ)) {
+    return RHEA_VISCOSITY_MARKER_DEF_WKZ_MIN;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_MAX_YLD)) {
+    return RHEA_VISCOSITY_MARKER_MAX_YLD_MIN;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD)) {
+    return RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD_MIN;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD)) {
+    return RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD_MIN;
+  }
+  if (RHEA_VISCOSITY_MARKER_EQUAL (m, RHEA_VISCOSITY_MARKER_DEF_YLD)) {
+    return RHEA_VISCOSITY_MARKER_DEF_YLD_MIN;
+  }
+
+  RHEA_ABORT_NOT_REACHED ();
+}
+
+/******************************************************************************
  * Linear Viscosity Components and Model
  *****************************************************************************/
 
@@ -446,8 +546,10 @@ rhea_viscosity_linear_comp (const double temp,
  *                            visc_max  lower mantle lin visc
  */
 static void
-rhea_viscosity_linear_model (double *viscosity, double *marker,
-                             const double temp, const double weak,
+rhea_viscosity_linear_model (double *viscosity,
+                             double *marker,
+                             const double temp,
+                             const double weak,
                              rhea_viscosity_options_t *opt,
                              const int is_in_upper_mantle,
                              const int restrict_to_bounds)
@@ -460,7 +562,7 @@ rhea_viscosity_linear_model (double *viscosity, double *marker,
   const double        visc_max = opt->max;
 
   /* initialize marker */
-  *marker = RHEA_VISCOSITY_MARKER_DEF;
+  *marker = rhea_viscosity_marker_set_default ();
 
   /* compute linear viscosity component */
   *viscosity = rhea_viscosity_linear_comp (temp, opt, is_in_upper_mantle);
@@ -475,25 +577,17 @@ rhea_viscosity_linear_model (double *viscosity, double *marker,
       /* (U) restrict viscosity to upper bound */
       if (restrict_max && visc_max < *viscosity) {
         *viscosity = visc_max;
-        *marker = RHEA_VISCOSITY_MARKER_MAX;
+        *marker = rhea_viscosity_marker_set_max (*marker);
       }
 
       /* (W) multiply by weak zone */
       *viscosity *= weak;
-      /* change upper marker if weak zone is present */
-      if (weak < 0.5) {
-        if (RHEA_VISCOSITY_MARKER_EQUAL (*marker, RHEA_VISCOSITY_MARKER_MAX)) {
-          *marker = RHEA_VISCOSITY_MARKER_MAX_WKZ;
-        }
-        else {
-          *marker = RHEA_VISCOSITY_MARKER_DEF_WKZ;
-        }
-      }
+      *marker = rhea_viscosity_marker_set_weak (*marker, weak);
 
       /* (L) restrict viscosity to lower bound */
       if (restrict_min && *viscosity < visc_min) {
         *viscosity = visc_min;
-        *marker = RHEA_VISCOSITY_MARKER_MINCUT;
+        *marker = rhea_viscosity_marker_set_min (*marker);
       }
     }
     break;
@@ -504,25 +598,17 @@ rhea_viscosity_linear_model (double *viscosity, double *marker,
       /* (U) restrict viscosity to upper bound */
       if (restrict_max && visc_max < *viscosity) {
         *viscosity = visc_max;
-        *marker = RHEA_VISCOSITY_MARKER_MAX;
+        *marker = rhea_viscosity_marker_set_max (*marker);
       }
 
       /* (W) multiply by weak zone */
       *viscosity *= weak;
-      /* change upper marker if weak zone is present */
-      if (weak < 0.5) {
-        if (RHEA_VISCOSITY_MARKER_EQUAL (*marker, RHEA_VISCOSITY_MARKER_MAX)) {
-          *marker = RHEA_VISCOSITY_MARKER_MAX_WKZ;
-        }
-        else {
-          *marker = RHEA_VISCOSITY_MARKER_DEF_WKZ;
-        }
-      }
+      *marker = rhea_viscosity_marker_set_weak (*marker, weak);
 
       /* (L) restrict viscosity to lower bound */
       if (restrict_min) {
         if (*viscosity < visc_min) {
-          *marker = RHEA_VISCOSITY_MARKER_MINADD;
+          *marker = rhea_viscosity_marker_set_min (*marker);
         }
         *viscosity += visc_min;
       }
@@ -544,7 +630,7 @@ rhea_viscosity_linear_is_valid (const double *visc_elem,
                                 const int n_nodes)
 {
   const double        marker_range[2] =
-    {RHEA_VISCOSITY_MARKER_MINCUT - RHEA_VISCOSITY_MARKER_TOL,
+    {RHEA_VISCOSITY_MARKER_DEF_WKZ_MIN - RHEA_VISCOSITY_MARKER_TOL,
      RHEA_VISCOSITY_MARKER_DEF_WKZ + RHEA_VISCOSITY_MARKER_TOL};
   int                 nodeid;
 
@@ -603,7 +689,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
                         domain_options->lm_um_interface_smoothing_width;
 
   int                 is_in_upper_mantle;
-  double              m;
+  double              m = NAN;
   int                 nodeid;
 
   /* check input */
@@ -639,9 +725,9 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     if (0.0 < interface_smoothing_width &&
         fabs (r - interface_radius) < 0.5 * interface_smoothing_width) {
       const double        v1 = visc_elem[nodeid];
-      double              v2, bd2, c;
+      double              v2, m2, c;
 
-      rhea_viscosity_linear_model (&v2, &bd2, temp, weak, opt,
+      rhea_viscosity_linear_model (&v2, &m2, temp, weak, opt,
                                    !is_in_upper_mantle, restrict_to_bounds);
 
       c = (fabs (r - interface_radius) - 0.5 * interface_smoothing_width) /
@@ -878,10 +964,10 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
  * Applies upper bound to viscosity via cut-off.
  */
 static void
-rhea_viscosity_nonlinear_restrict_max (double *viscosity,     /* in/out */
-                                       double *proj_scal,     /* in/out */
-                                       double *bounds_active, /* out */
-                                       double *srw_exp,       /* out */
+rhea_viscosity_nonlinear_restrict_max (double *viscosity, /* in/out */
+                                       double *proj_scal, /* in/out */
+                                       double *marker,    /* out */
+                                       double *srw_exp,   /* out */
                                        const double visc_max)
 {
   RHEA_ASSERT (isfinite (*viscosity));
@@ -891,7 +977,7 @@ rhea_viscosity_nonlinear_restrict_max (double *viscosity,     /* in/out */
   if (visc_max < *viscosity) {
     *viscosity = visc_max;
     *proj_scal = 0.0;
-    *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+    *marker = rhea_viscosity_marker_set_max (*marker);
     *srw_exp = 1.0;
   }
 }
@@ -900,11 +986,11 @@ rhea_viscosity_nonlinear_restrict_max (double *viscosity,     /* in/out */
  * Applies lower bound to viscosity via cut-off.
  */
 static void
-rhea_viscosity_nonlinear_restrict_min (double *viscosity,     /* in/out */
-                                       double *proj_scal,     /* in/out */
-                                       double *bounds_active, /* out */
-                                       double *srw_exp,       /* out */
-                                       const double visc_min)
+rhea_viscosity_nonlinear_restrict_mincut (double *viscosity, /* in/out */
+                                          double *proj_scal, /* in/out */
+                                          double *marker,    /* out */
+                                          double *srw_exp,   /* out */
+                                          const double visc_min)
 {
   RHEA_ASSERT (isfinite (*viscosity));
   RHEA_ASSERT (isfinite (visc_min));
@@ -913,7 +999,7 @@ rhea_viscosity_nonlinear_restrict_min (double *viscosity,     /* in/out */
   if (*viscosity < visc_min) {
     *viscosity = visc_min;
     *proj_scal = 0.0;
-    *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
+    *marker = rhea_viscosity_marker_set_min (*marker);
     *srw_exp = 1.0;
   }
 }
@@ -922,16 +1008,16 @@ rhea_viscosity_nonlinear_restrict_min (double *viscosity,     /* in/out */
  * Applies lower bound to viscosity via addition.
  */
 static void
-rhea_viscosity_nonlinear_restrict_min_add (double *viscosity,     /* in/out */
-                                           double *bounds_active, /* out */
-                                           const double visc_min)
+rhea_viscosity_nonlinear_restrict_minadd (double *viscosity, /* in/out */
+                                          double *marker,    /* out */
+                                          const double visc_min)
 {
   RHEA_ASSERT (isfinite (*viscosity));
   RHEA_ASSERT (isfinite (visc_min));
   RHEA_ASSERT (0.0 < visc_min);
 
   if (*viscosity < visc_min) {
-    *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
+    *marker = rhea_viscosity_marker_set_min (*marker);
   }
   *viscosity += visc_min;
 }
@@ -940,30 +1026,25 @@ rhea_viscosity_nonlinear_restrict_min_add (double *viscosity,     /* in/out */
  * Multiplies weak factor.
  */
 static void
-rhea_viscosity_nonlinear_weak_factor (double *viscosity,     /* in/out */
-                                      double *bounds_active, /* in/out */
-                                      const double weak)
+rhea_viscosity_nonlinear_weakzone (double *viscosity,  /* in/out */
+                                   double *marker,     /* in/out */
+                                   const double weak)
 {
   RHEA_ASSERT (isfinite (weak));
   RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
   *viscosity *= weak;
-
-  /* change upper bound marker if weak zone is present */
-  if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
-      weak < 0.5) {
-    *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
-  }
+  *marker = rhea_viscosity_marker_set_weak (*marker, weak);
 }
 
 /**
  * Applies plastic yielding to viscosity.
  */
 static void
-rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
-                                   double *proj_scal,       /* out */
-                                   double *yielding_active, /* out */
-                                   double *srw_exp,         /* out */
+rhea_viscosity_nonlinear_yielding (double *viscosity, /* in/out */
+                                   double *proj_scal, /* out */
+                                   double *marker,    /* out */
+                                   double *srw_exp,   /* out */
                                    const double strainrate_sqrt_2inv,
                                    const double yield_strength)
 {
@@ -977,7 +1058,6 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
 
   /* exit if nothing to do */
   if ( !(isfinite (yield_strength) && 0.0 < yield_strength) ) {
-    *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
     return;
   }
 
@@ -996,7 +1076,7 @@ rhea_viscosity_nonlinear_yielding (double *viscosity,       /* in/out */
       *viscosity = 0.0;
     }
     *proj_scal = -1.0;
-    *yielding_active = RHEA_VISCOSITY_YIELDING_ACTIVE;
+    *marker = rhea_viscosity_marker_set_yielding (*marker);
     *srw_exp = 0.0;
   }
 
@@ -1030,9 +1110,11 @@ rhea_viscosity_nonlinear_projector_regularize (double *proj_scal, /* in/out */
  *                   yield    visc_max  lower mantle lin visc
  */
 static void
-rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
-                                double *bounds_active, double *yielding_active,
-                                const double temp, const double weak,
+rhea_viscosity_nonlinear_model (double *viscosity,
+                                double *proj_scal,
+                                double *marker,
+                                const double temp,
+                                const double weak,
                                 const double strainrate_sqrt_2inv,
                                 rhea_viscosity_options_t *opt)
 {
@@ -1053,8 +1135,8 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
     rhea_viscosity_get_nonlinear_projector_regularization (opt);
   double              srw_exp;
 
-  /* initialize marker that viscosity bounds are reached */
-  *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
+  /* initialize marker */
+  *marker = rhea_viscosity_marker_set_default ();
 
   /* compute linear viscosity component */
   visc_lin = rhea_viscosity_linear_comp (temp, opt, 1 /* in upper mantle */);
@@ -1086,26 +1168,23 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
       /* (U) apply upper bound to viscosity */
       if (restrict_max) {
         rhea_viscosity_nonlinear_restrict_max (
-            viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
+            viscosity, proj_scal, marker, &srw_exp, visc_max);
       }
 
       /* (W) multiply in weak factor */
-      rhea_viscosity_nonlinear_weak_factor (viscosity, bounds_active, weak);
+      rhea_viscosity_nonlinear_weakzone (viscosity, marker, weak);
 
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, proj_scal, yielding_active, &srw_exp,
+            viscosity, proj_scal, marker, &srw_exp,
             strainrate_sqrt_2inv, yield_strength);
-      }
-      else {
-        *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
       }
 
       /* (L) apply lower bound to viscosity */
       if (restrict_min) {
-        rhea_viscosity_nonlinear_restrict_min (
-            viscosity, proj_scal, bounds_active, &srw_exp, visc_min);
+        rhea_viscosity_nonlinear_restrict_mincut (
+            viscosity, proj_scal, marker, &srw_exp, visc_min);
       }
 
       /* apply regularization for projector */
@@ -1132,26 +1211,22 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
       /* (U) apply upper bound to viscosity */
       if (restrict_max) {
         rhea_viscosity_nonlinear_restrict_max (
-            viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
+            viscosity, proj_scal, marker, &srw_exp, visc_max);
       }
 
       /* (W) multiply in weak factor */
-      rhea_viscosity_nonlinear_weak_factor (viscosity, bounds_active, weak);
+      rhea_viscosity_nonlinear_weakzone (viscosity, marker, weak);
 
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, proj_scal, yielding_active, &srw_exp,
+            viscosity, proj_scal, marker, &srw_exp,
             strainrate_sqrt_2inv, yield_strength);
-      }
-      else {
-        *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
       }
 
       /* (L) apply lower bound to viscosity */
       if (restrict_min) {
-        rhea_viscosity_nonlinear_restrict_min_add (viscosity, bounds_active,
-                                                   visc_min);
+        rhea_viscosity_nonlinear_restrict_minadd (viscosity, marker, visc_min);
       }
 
       /* apply regularization for projector */
@@ -1209,7 +1284,7 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
 
         /* (U) apply upper bound */
         rhea_viscosity_nonlinear_restrict_max (
-            viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
+            viscosity, proj_scal, marker, &srw_exp, visc_max);
       }
       else {
         *viscosity = visc_lin;
@@ -1219,27 +1294,23 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
         /* (U) apply upper bound */
         if (restrict_max) {
           rhea_viscosity_nonlinear_restrict_max (
-              viscosity, proj_scal, bounds_active, &srw_exp, visc_max);
+              viscosity, proj_scal, marker, &srw_exp, visc_max);
         }
       }
 
       /* (W) multiply in weak factor */
-      rhea_viscosity_nonlinear_weak_factor (viscosity, bounds_active, weak);
+      rhea_viscosity_nonlinear_weakzone (viscosity, marker, weak);
 
       /* (Y) apply yielding */
       if (has_yld) {
         rhea_viscosity_nonlinear_yielding (
-            viscosity, proj_scal, yielding_active, &srw_exp,
+            viscosity, proj_scal, marker, &srw_exp,
             strainrate_sqrt_2inv, yield_strength);
-      }
-      else {
-        *yielding_active = RHEA_VISCOSITY_YIELDING_OFF;
       }
 
       /* (L) apply lower bound to viscosity */
       if (restrict_min) {
-        rhea_viscosity_nonlinear_restrict_min_add (viscosity, bounds_active,
-                                                   visc_min);
+        rhea_viscosity_nonlinear_restrict_minadd (viscosity, marker, visc_min);
       }
 
       /* apply regularization for projector */
@@ -1261,10 +1332,12 @@ rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
 static int
 rhea_viscosity_nonlinear_is_valid (const double *visc_elem,
                                    const double *proj_scal_elem,
-                                   const double *bounds_elem,
-                                   const double *yielding_elem,
+                                   const double *marker_elem,
                                    const int n_nodes)
 {
+  const double        marker_range[2] =
+    {RHEA_VISCOSITY_MARKER_DEF_YLD_MIN - RHEA_VISCOSITY_MARKER_TOL,
+     RHEA_VISCOSITY_MARKER_DEF_YLD + RHEA_VISCOSITY_MARKER_TOL};
   int                 nodeid;
 
   /* check input */
@@ -1290,24 +1363,13 @@ rhea_viscosity_nonlinear_is_valid (const double *visc_elem,
       }
     }
 
-    /* check bounds marker for valid range [-1,1] */
-    if (bounds_elem != NULL) {
-      if ( !isfinite (bounds_elem[nodeid]) ) {
+    /* check marker for valid range */
+    if (marker_elem != NULL) {
+      if ( !isfinite (marker_elem[nodeid]) ) {
         return 0;
       }
-      if ( !(RHEA_VISCOSITY_BOUNDS_MIN <= bounds_elem[nodeid] &&
-             bounds_elem[nodeid] <= RHEA_VISCOSITY_BOUNDS_MAX) ) {
-        return 0;
-      }
-    }
-
-    /* check yielding marker for valid range [0,1] */
-    if (yielding_elem != NULL) {
-      if ( !isfinite (yielding_elem[nodeid])) {
-        return 0;
-      }
-      if ( !(RHEA_VISCOSITY_YIELDING_OFF <= yielding_elem[nodeid] &&
-             yielding_elem[nodeid] <= RHEA_VISCOSITY_YIELDING_ACTIVE) ) {
+      if ( !(marker_range[0] <= marker_elem[nodeid] &&
+             marker_elem[nodeid] <= marker_range[1]) ) {
         return 0;
       }
     }
@@ -1323,8 +1385,7 @@ rhea_viscosity_nonlinear_is_valid (const double *visc_elem,
 static void
 rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
                                double *_sc_restrict proj_scal_elem,
-                               double *_sc_restrict bounds_elem,
-                               double *_sc_restrict yielding_elem,
+                               double *_sc_restrict marker_elem,
                                const double *_sc_restrict temp_elem,
                                const double *_sc_restrict weak_elem,
                                const double *_sc_restrict strt_sqrt_2inv_elem,
@@ -1348,8 +1409,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
                         domain_options->lm_um_interface_smoothing_width;
 
   double              ps = 0.0;
-  double              bd = RHEA_VISCOSITY_BOUNDS_OFF;
-  double              yld = RHEA_VISCOSITY_YIELDING_OFF;
+  double              m = NAN;
   int                 nodeid;
 
   /* check input */
@@ -1379,7 +1439,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       RHEA_ASSERT (0.0 <= strt);
 
       /* compute nonlinear viscosity in upper mantle */
-      rhea_viscosity_nonlinear_model (&visc_elem[nodeid], &ps, &bd, &yld,
+      rhea_viscosity_nonlinear_model (&visc_elem[nodeid], &ps, &m,
                                       temp, weak, strt, opt);
 
       /* update viscosity by applying a smooth transition close to the LM-UM
@@ -1387,9 +1447,9 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       if (0.0 < interface_smoothing_width &&
           fabs (r - interface_radius) < 0.5 * interface_smoothing_width) {
         const double        v1 = visc_elem[nodeid];
-        double              v2, bd2, c;
+        double              v2, m2, c;
 
-        rhea_viscosity_linear_model (&v2, &bd2, temp, weak, opt,
+        rhea_viscosity_linear_model (&v2, &m2, temp, weak, opt,
                                      0 /* lower mantle */, 1 /* bounds on */);
 
         c = (fabs (r - interface_radius) - 0.5 * interface_smoothing_width) /
@@ -1403,11 +1463,8 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       if (proj_scal_elem != NULL) {
         proj_scal_elem[nodeid] = ps;
       }
-      if (bounds_elem != NULL) {
-        bounds_elem[nodeid] = bd;
-      }
-      if (yielding_elem != NULL) {
-        yielding_elem[nodeid] = yld;
+      if (marker_elem != NULL) {
+        marker_elem[nodeid] = m;
       }
     }
   }
@@ -1427,7 +1484,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
       /* compute linear viscosity in lower mantle */
-      rhea_viscosity_linear_model (&visc_elem[nodeid], &bd, temp, weak, opt,
+      rhea_viscosity_linear_model (&visc_elem[nodeid], &m, temp, weak, opt,
                                    0 /* lower mantle */, 1 /* bounds on */);
 
       /* update viscosity by applying a smooth transition close to the LM-UM
@@ -1437,11 +1494,11 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
         const double        strt = (in_strt ? strt_sqrt_2inv_elem[nodeid] :
                                               strt_default);
         const double        v1 = visc_elem[nodeid];
-        double              v2, ps_2, bd2, yld2, c;
+        double              v2, ps_2, m2, c;
 
         RHEA_ASSERT (isfinite (strt));
         RHEA_ASSERT (0.0 <= strt);
-        rhea_viscosity_nonlinear_model (&v2, &ps_2, &bd2, &yld2,
+        rhea_viscosity_nonlinear_model (&v2, &ps_2, &m2,
                                         temp, weak, strt, opt);
 
         c = (fabs (r - interface_radius) - 0.5 * interface_smoothing_width) /
@@ -1455,19 +1512,15 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
       if (proj_scal_elem != NULL) {
         proj_scal_elem[nodeid] = ps;
       }
-      if (bounds_elem != NULL) {
-        bounds_elem[nodeid] = bd;
-      }
-      if (yielding_elem != NULL) {
-        yielding_elem[nodeid] = yld;
+      if (marker_elem != NULL) {
+        marker_elem[nodeid] = m;
       }
     }
   }
 
   /* check results */
   RHEA_ASSERT (rhea_viscosity_nonlinear_is_valid (visc_elem, proj_scal_elem,
-                                                  bounds_elem, yielding_elem,
-                                                  n_nodes));
+                                                  marker_elem, n_nodes));
 }
 
 /**
@@ -1476,8 +1529,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
 static void
 rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
                               ymir_vec_t *proj_scal_vec,
-                              ymir_vec_t *bounds_vec,
-                              ymir_vec_t *yielding_vec,
+                              ymir_vec_t *marker_vec,
                               ymir_vec_t *temp_vec,
                               ymir_vec_t *weak_vec,
                               ymir_vec_t *vel_vec,
@@ -1491,16 +1543,13 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   const int           in_temp = (temp_vec != NULL);
   const int           in_weak = (weak_vec != NULL);
   const int           out_proj = (proj_scal_vec != NULL);
-  const int           out_bounds = (bounds_vec != NULL);
-  const int           out_yielding = (yielding_vec != NULL);
+  const int           out_marker = (marker_vec != NULL);
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat, *vel_el_mat,
                      *strt_sqrt_2inv_el_mat;
   double             *temp_el_data, *weak_el_data, *strt_sqrt_2inv_el_data;
-  sc_dmatrix_t       *visc_el_mat, *proj_scal_el_mat,
-                     *bounds_el_mat, *yielding_el_mat;
-  double             *visc_el_data, *proj_scal_el_data,
-                     *bounds_el_data, *yielding_el_data;
+  sc_dmatrix_t       *visc_el_mat, *proj_scal_el_mat, *marker_el_mat;
+  double             *visc_el_data, *proj_scal_el_data, *marker_el_data;
   sc_dmatrix_t       *tmp_grad_vel, *tmp_dvel, *tmp_vel;
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t       elid;
@@ -1518,9 +1567,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   strt_sqrt_2inv_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
   visc_el_mat      = sc_dmatrix_new (n_nodes_per_el, 1);
   proj_scal_el_mat = (out_proj ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
-  bounds_el_mat    = (out_bounds ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
-  yielding_el_mat  = (out_yielding ? sc_dmatrix_new (n_nodes_per_el, 1) :
-                                     NULL);
+  marker_el_mat    = (out_marker ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   tmp_grad_vel = sc_dmatrix_new (n_nodes_per_el, 9);
   tmp_dvel     = sc_dmatrix_new (n_nodes_per_el, 3);
   tmp_vel      = sc_dmatrix_new (n_nodes_per_el, 3);
@@ -1534,8 +1581,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   strt_sqrt_2inv_el_data = strt_sqrt_2inv_el_mat->e[0];
   visc_el_data      = visc_el_mat->e[0];
   proj_scal_el_data = (out_proj ? proj_scal_el_mat->e[0] : NULL);
-  bounds_el_data    = (out_bounds ? bounds_el_mat->e[0] : NULL);
-  yielding_el_data  = (out_yielding ? yielding_el_mat->e[0] : NULL);
+  marker_el_data    = (out_marker ? marker_el_mat->e[0] : NULL);
   /* *INDENT-ON* */
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
@@ -1558,7 +1604,7 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 
     /* compute nonlinear viscosity */
     rhea_viscosity_nonlinear_elem (
-        visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
+        visc_el_data, proj_scal_el_data, marker_el_data,
         temp_el_data, weak_el_data, strt_sqrt_2inv_el_data, x, y, z,
         n_nodes_per_el, Vmask, opt);
 
@@ -1568,12 +1614,8 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
       rhea_viscosity_proj_scal_set_elem_gauss (proj_scal_vec, proj_scal_el_mat,
                                                elid);
     }
-    if (out_bounds) {
-      rhea_viscosity_marker_set_elem_gauss (bounds_vec, bounds_el_mat, elid);
-    }
-    if (out_yielding) {
-      rhea_viscosity_marker_set_elem_gauss (yielding_vec, yielding_el_mat,
-                                            elid);
+    if (out_marker) {
+      rhea_viscosity_marker_set_elem_gauss (marker_vec, marker_el_mat, elid);
     }
   }
 
@@ -1590,11 +1632,8 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
   if (out_proj) {
     sc_dmatrix_destroy (proj_scal_el_mat);
   }
-  if (out_bounds) {
-    sc_dmatrix_destroy (bounds_el_mat);
-  }
-  if (out_yielding) {
-    sc_dmatrix_destroy (yielding_el_mat);
+  if (out_marker) {
+    sc_dmatrix_destroy (marker_el_mat);
   }
   sc_dmatrix_destroy (tmp_grad_vel);
   sc_dmatrix_destroy (tmp_dvel);
@@ -1630,15 +1669,11 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
     if (proj_scal != NULL) {
       ymir_dvec_set_zero (proj_scal);
     }
-    if (yielding_marker != NULL) {
-      ymir_dvec_set_value (yielding_marker, RHEA_VISCOSITY_YIELDING_OFF);
-    }
     break;
 
   case RHEA_VISCOSITY_NONLINEAR:
     /* compute nonlinear viscosity */
     rhea_viscosity_nonlinear_vec (viscosity, proj_scal, marker,
-                                  yielding_marker,
                                   temperature, weakzone, velocity, opt);
     break;
 
@@ -1683,9 +1718,6 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
     if (proj_scal != NULL) {
       ymir_dvec_set_zero (proj_scal);
     }
-    if (yielding_marker != NULL) {
-      ymir_dvec_set_value (yielding_marker, RHEA_VISCOSITY_YIELDING_OFF);
-    }
     break;
 
   case RHEA_VISCOSITY_NONLINEAR_INIT_LIN_RESCALE_UM:
@@ -1701,9 +1733,6 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
       /* set all other output vectors to zero */
       if (proj_scal != NULL) {
         ymir_dvec_set_zero (proj_scal);
-      }
-      if (yielding_marker != NULL) {
-        ymir_dvec_set_value (yielding_marker, RHEA_VISCOSITY_YIELDING_OFF);
       }
     }
     break;
@@ -1744,17 +1773,12 @@ rhea_viscosity_compute_elem (double *_sc_restrict visc_elem,
         proj_scal_elem[nodeid] = 0.0;
       }
     }
-    if (yielding_elem != NULL) {
-      for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-        yielding_elem[nodeid] = RHEA_VISCOSITY_YIELDING_OFF;
-      }
-    }
     break;
 
   case RHEA_VISCOSITY_NONLINEAR:
     /* compute nonlinear viscosity */
     rhea_viscosity_nonlinear_elem (
-        visc_elem, proj_scal_elem, marker_elem, yielding_elem,
+        visc_elem, proj_scal_elem, marker_elem,
         temp_elem, weak_elem, strt_sqrt_2inv_elem, x, y, z,
         n_nodes, Vmask, opt);
     break;
@@ -1803,11 +1827,6 @@ rhea_viscosity_compute_nonlinear_init_elem (
         proj_scal_elem[nodeid] = 0.0;
       }
     }
-    if (yielding_elem != NULL) {
-      for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-        yielding_elem[nodeid] = RHEA_VISCOSITY_YIELDING_OFF;
-      }
-    }
     break;
 
   case RHEA_VISCOSITY_NONLINEAR_INIT_LIN_RESCALE_UM:
@@ -1825,11 +1844,6 @@ rhea_viscosity_compute_nonlinear_init_elem (
       if (proj_scal_elem != NULL) {
         for (nodeid = 0; nodeid < n_nodes; nodeid++) {
           proj_scal_elem[nodeid] = 0.0;
-        }
-      }
-      if (yielding_elem != NULL) {
-        for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-          yielding_elem[nodeid] = RHEA_VISCOSITY_YIELDING_OFF;
         }
       }
     }
@@ -1931,8 +1945,8 @@ rhea_viscosity_filter_where_min (ymir_vec_t *vec,
                                  ymir_vec_t *marker,
                                  const int invert_filter)
 {
-  double              active_range[2] = {RHEA_VISCOSITY_MARKER_MINCUT,
-                                         RHEA_VISCOSITY_MARKER_MINADD};
+  double              active_range[2] = {RHEA_VISCOSITY_MARKER_MIN,
+                                         RHEA_VISCOSITY_MARKER_DEF_YLD_MIN};
 
   rhea_viscosity_filter_where_marker_active (vec, marker, active_range,
                                              invert_filter);
