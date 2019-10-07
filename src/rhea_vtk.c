@@ -22,8 +22,7 @@
 
 #define RHEA_VTK_NAME_WEAKZONE "weakzone"
 #define RHEA_VTK_NAME_VISCOSITY "viscosity"
-#define RHEA_VTK_NAME_BOUNDS_MARKER "bounds_marker"
-#define RHEA_VTK_NAME_YIELDING_MARKER "yielding_marker"
+#define RHEA_VTK_NAME_MARKER "marker"
 
 #define RHEA_VTK_NAME_PLATE_LABEL "plate_label"
 #define RHEA_VTK_NAME_PLATE_VEL "plate_velocity"
@@ -37,13 +36,13 @@ rhea_vtk_write_input_data (const char *filepath,
                            ymir_vec_t *background_temp,
                            ymir_vec_t *weakzone,
                            ymir_vec_t *viscosity,
-                           ymir_vec_t *bounds_marker,
+                           ymir_vec_t *marker,
                            ymir_vec_t *rhs_vel)
 {
   const int           in_temp = (temperature != NULL);
   const int           in_back = (background_temp != NULL);
   const int           in_weak = (weakzone != NULL);
-  const int           in_bounds = (bounds_marker != NULL);
+  const int           in_marker = (marker != NULL);
   ymir_mesh_t        *ymir_mesh;
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
@@ -73,13 +72,13 @@ rhea_vtk_write_input_data (const char *filepath,
     weakzone = rhea_weakzone_new (ymir_mesh);
     ymir_vec_set_value (weakzone, -1.0);
   }
-  if (!in_bounds) {
-    bounds_marker = rhea_viscosity_new (ymir_mesh);
-    ymir_vec_set_value (bounds_marker, 0.0);
+  if (!in_marker) {
+    marker = rhea_viscosity_new (ymir_mesh);
+    ymir_vec_set_value (marker, 0.0);
   }
 
   /* write vtk file fields (reduce output for common use cases) */
-  if (!in_temp && !in_back && !in_weak && !in_bounds) {
+  if (!in_temp && !in_back && !in_weak && !in_marker) {
     ymir_vtk_write (ymir_mesh, filepath,
                     viscosity, RHEA_VTK_NAME_VISCOSITY,
                     rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS, NULL);
@@ -89,9 +88,9 @@ rhea_vtk_write_input_data (const char *filepath,
                     viscosity, RHEA_VTK_NAME_VISCOSITY,
                     rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
                     weakzone, RHEA_VTK_NAME_WEAKZONE,
-                    bounds_marker, RHEA_VTK_NAME_BOUNDS_MARKER, NULL);
+                    marker, RHEA_VTK_NAME_MARKER, NULL);
   }
-  else if (!in_weak && !in_bounds) {
+  else if (!in_weak && !in_marker) {
     ymir_vtk_write (ymir_mesh, filepath,
                     viscosity, RHEA_VTK_NAME_VISCOSITY,
                     rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
@@ -99,7 +98,7 @@ rhea_vtk_write_input_data (const char *filepath,
                     background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
                     NULL);
   }
-  else if (!in_bounds) {
+  else if (!in_marker) {
     ymir_vtk_write (ymir_mesh, filepath,
                     viscosity, RHEA_VTK_NAME_VISCOSITY,
                     rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
@@ -114,7 +113,7 @@ rhea_vtk_write_input_data (const char *filepath,
                     temperature, RHEA_VTK_NAME_TEMPERATURE,
                     background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
                     weakzone, RHEA_VTK_NAME_WEAKZONE,
-                    bounds_marker, RHEA_VTK_NAME_BOUNDS_MARKER, NULL);
+                    marker, RHEA_VTK_NAME_MARKER, NULL);
   }
 
   /* destroy */
@@ -127,8 +126,8 @@ rhea_vtk_write_input_data (const char *filepath,
   if (!in_weak) {
     rhea_weakzone_destroy (weakzone);
   }
-  if (!in_bounds) {
-    rhea_viscosity_destroy (bounds_marker);
+  if (!in_marker) {
+    rhea_viscosity_destroy (marker);
   }
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
@@ -331,8 +330,7 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
                                            ymir_vec_t *velocity,
                                            ymir_vec_t *pressure,
                                            ymir_vec_t *viscosity,
-                                           ymir_vec_t *bounds_marker,
-                                           ymir_vec_t *yielding_marker)
+                                           ymir_vec_t *marker)
 {
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *strainrate_sqrt_2inv;
@@ -343,8 +341,7 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
   RHEA_ASSERT (velocity != NULL);
   RHEA_ASSERT (pressure != NULL);
   RHEA_ASSERT (viscosity != NULL);
-  RHEA_ASSERT (bounds_marker != NULL);
-  RHEA_ASSERT (yielding_marker != NULL);
+  RHEA_ASSERT (marker != NULL);
 
   /* create work variables */
   ymir_mesh = ymir_vec_get_mesh (viscosity);
@@ -359,8 +356,7 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
                   pressure, RHEA_VTK_NAME_PRESSURE,
                   strainrate_sqrt_2inv, RHEA_VTK_NAME_STRAINRATE_SQRT_2INV,
                   viscosity, RHEA_VTK_NAME_VISCOSITY,
-                  bounds_marker, RHEA_VTK_NAME_BOUNDS_MARKER,
-                  yielding_marker, RHEA_VTK_NAME_YIELDING_MARKER, NULL);
+                  marker, RHEA_VTK_NAME_MARKER, NULL);
 
   /* destroy */
   rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);
