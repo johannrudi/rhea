@@ -7,6 +7,7 @@
 #include <rhea_velocity_pressure.h>
 #include <rhea_stress.h>
 #include <rhea_vtk.h>
+#include <ymir_interp_vec.h>
 
 void
 example_share_vtk_write_input_data (const char *vtk_write_input_path,
@@ -133,8 +134,9 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   rhea_viscosity_options_t   *visc_options;
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
-  ymir_vec_t         *velocity, *pressure, *viscosity;
-  ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf;
+  ymir_vec_t         *velocity, *pressure, *viscosity, *marker;
+  ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf,
+                     *marker_surf;
 
   /* exit if nothing to do */
   if (vtk_write_solution_path == NULL) {
@@ -157,6 +159,7 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   velocity = rhea_velocity_new (ymir_mesh);
   pressure = rhea_pressure_new (ymir_mesh, press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
+  marker = rhea_viscosity_new (ymir_mesh);
 
   /* get volume fields */
   rhea_velocity_pressure_copy_components (velocity, pressure, sol_vel_press,
@@ -167,6 +170,7 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   velocity_surf = rhea_velocity_surface_new (ymir_mesh);
   stress_norm_surf = rhea_stress_surface_new (ymir_mesh);
   viscosity_surf = rhea_viscosity_surface_new (ymir_mesh);
+  marker_surf = rhea_viscosity_surface_new (ymir_mesh);
 
   /* get surface fields */
   rhea_velocity_surface_interpolate (velocity_surf, velocity);
@@ -175,6 +179,7 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
                                                         stokes_problem);
   rhea_viscosity_surface_interpolate (viscosity_surf, viscosity,
                                       visc_options->min, visc_options->max);
+  ymir_interp_vec (marker, marker_surf);
 
   /* convert to physical dimensions */
   rhea_velocity_convert_to_dimensional_mm_yr (velocity, domain_options,
@@ -190,17 +195,19 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
 
   /* write vtk */
   rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
-                           viscosity);
+                           viscosity, marker);
   rhea_vtk_write_solution_surf (vtk_write_solution_path, velocity_surf,
-                                stress_norm_surf, viscosity_surf);
+                                stress_norm_surf, viscosity_surf, marker_surf);
 
   /* destroy */
   rhea_velocity_destroy (velocity);
   rhea_pressure_destroy (pressure);
   rhea_viscosity_destroy (viscosity);
+  rhea_viscosity_destroy (marker);
   rhea_velocity_surface_destroy (velocity_surf);
   rhea_stress_surface_destroy (stress_norm_surf);
   rhea_viscosity_surface_destroy (viscosity_surf);
+  rhea_viscosity_surface_destroy (marker_surf);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
