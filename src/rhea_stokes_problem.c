@@ -160,8 +160,7 @@ struct rhea_stokes_problem
   /* coefficient (mesh data) */
   ymir_vec_t         *coeff;            /* out: linear & nonlinear Stokes */
   ymir_vec_t         *proj_scal;        /* out: nonlinear Stokes only */
-  ymir_vec_t         *bounds_marker;    /* out: nonlinear Stokes only */
-  ymir_vec_t         *yielding_marker;  /* out: nonlinear Stokes only */
+  ymir_vec_t         *marker;           /* out: linear & nonlinear Stokes */
   ymir_vec_t         *weakzone;         /* in: linear & nonlinear Stokes */
   ymir_vec_t         *sol_vel;          /* in: nonlinear Stokes only */
   ymir_vec_t         *proj_tens;        /* in: deprecated TODO */
@@ -232,8 +231,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
 
   stokes_problem->coeff = NULL;
   stokes_problem->proj_scal = NULL;
-  stokes_problem->bounds_marker = NULL;
-  stokes_problem->yielding_marker = NULL;
+  stokes_problem->marker = NULL;
   stokes_problem->weakzone = NULL;
   stokes_problem->sol_vel = NULL;
   stokes_problem->proj_tens = NULL;
@@ -376,17 +374,17 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
 {
   rhea_viscosity_options_t *visc_options = stokes_problem->visc_options;
   /* input vectors */
-  ymir_vec_t         *temperature     = stokes_problem->temperature;
-  ymir_vec_t         *weakzone        = stokes_problem->weakzone;
-  ymir_vec_t         *vel             = NULL;
+  ymir_vec_t         *temperature = stokes_problem->temperature;
+  ymir_vec_t         *weakzone    = stokes_problem->weakzone;
+  ymir_vec_t         *vel         = NULL;
   /* output vectors */
-  ymir_vec_t         *coeff           = stokes_problem->coeff;
-  ymir_vec_t         *proj_scal       = stokes_problem->proj_scal;
-  ymir_vec_t         *bounds_marker   = stokes_problem->bounds_marker;
-  ymir_vec_t         *yielding_marker = stokes_problem->yielding_marker;
+  ymir_vec_t         *coeff       = stokes_problem->coeff;
+  ymir_vec_t         *proj_scal   = stokes_problem->proj_scal;
+  ymir_vec_t         *marker      = stokes_problem->marker;
 
   /* check input */
   RHEA_ASSERT (stokes_problem->coeff != NULL);
+  RHEA_ASSERT (stokes_problem->marker != NULL);
   RHEA_ASSERT (stokes_problem->visc_options != NULL);
 
   /* compute viscosity */
@@ -394,16 +392,14 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
   case RHEA_STOKES_PROBLEM_LINEAR:
     RHEA_ASSERT (visc_options->type == RHEA_VISCOSITY_LINEAR);
     rhea_stokes_problem_viscosity_compute (
-        /* out: */ coeff, NULL, NULL, NULL,
+        /* out: */ coeff, NULL, marker,
         /* in:  */ temperature, weakzone, NULL, stokes_problem);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     RHEA_ASSERT (visc_options->type == RHEA_VISCOSITY_NONLINEAR);
-    RHEA_ASSERT (stokes_problem->bounds_marker != NULL);
-    RHEA_ASSERT (stokes_problem->yielding_marker != NULL);
     if (nonlinear_init) {
       rhea_viscosity_compute_nonlinear_init (
-          /* out: */ coeff, proj_scal, bounds_marker, yielding_marker,
+          /* out: */ coeff, proj_scal, marker,
           /* in:  */ temperature, weakzone, visc_options);
     }
     else {
@@ -415,7 +411,7 @@ rhea_stokes_problem_compute_coefficient (rhea_stokes_problem_t *stokes_problem,
       vel = rhea_stokes_problem_retrieve_velocity (
           stokes_problem->velocity_pressure, stokes_problem);
       rhea_stokes_problem_viscosity_compute (
-          /* out: */ coeff, proj_scal, bounds_marker, yielding_marker,
+          /* out: */ coeff, proj_scal, marker,
           /* in:  */ temperature, weakzone, vel, stokes_problem);
     }
     break;
@@ -628,6 +624,7 @@ rhea_stokes_problem_linear_mesh_data_exists (
       stokes_problem_lin->press_elem != NULL);
   vectors_exist = (
       stokes_problem_lin->coeff != NULL &&
+      stokes_problem_lin->marker != NULL &&
       stokes_problem_lin->rhs_vel != NULL &&
       stokes_problem_lin->rhs_vel_press != NULL);
 
@@ -672,6 +669,7 @@ rhea_stokes_problem_linear_create_mesh_data (
     stokes_problem_lin->weakzone = rhea_weakzone_new (ymir_mesh);
   }
   stokes_problem_lin->coeff = rhea_viscosity_new (ymir_mesh);
+  stokes_problem_lin->marker = rhea_viscosity_new (ymir_mesh);
 
   /* create right-hand side vectors */
   stokes_problem_lin->rhs_vel = rhea_velocity_new (ymir_mesh);
@@ -718,9 +716,11 @@ rhea_stokes_problem_linear_clear_mesh_data (
 
   /* destroy vectors */
   rhea_viscosity_destroy (stokes_problem_lin->coeff);
+  rhea_viscosity_destroy (stokes_problem_lin->marker);
   rhea_velocity_destroy (stokes_problem_lin->rhs_vel);
   rhea_velocity_pressure_destroy (stokes_problem_lin->rhs_vel_press);
   stokes_problem_lin->coeff = NULL;
+  stokes_problem_lin->marker = NULL;
   stokes_problem_lin->rhs_vel = NULL;
   stokes_problem_lin->rhs_vel_press = NULL;
   if (stokes_problem_lin->weakzone != NULL) {
@@ -1328,7 +1328,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
           /* compute viscosity corresponding to prev solution */
           rhea_stokes_problem_viscosity_compute (
-              prev_coeff, NULL, NULL, NULL,
+              prev_coeff, NULL, NULL,
               temperature, weakzone, prev_vel, stokes_problem_nl);
 
           /* replace coefficient in viscous stress operator (reverted below) */
@@ -2396,8 +2396,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 
   /* check input */
   RHEA_ASSERT (stokes_problem_nl->type == RHEA_STOKES_PROBLEM_NONLINEAR);
-  RHEA_ASSERT (stokes_problem_nl->bounds_marker != NULL);
-  RHEA_ASSERT (stokes_problem_nl->yielding_marker != NULL);
+  RHEA_ASSERT (stokes_problem_nl->marker != NULL);
 
   /* get volume fields */
   rhea_velocity_pressure_create_components (&velocity, &pressure, solution,
@@ -2538,9 +2537,9 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
                                        stokes_problem_nl->visc_options);
 
     rhea_viscosity_stats_get_bounds_volume (
-        &bounds_vol_min, &bounds_vol_max, stokes_problem_nl->bounds_marker);
-    yielding_vol = rhea_viscosity_stats_get_yielding_volume (
-        stokes_problem_nl->yielding_marker);
+        &bounds_vol_min, &bounds_vol_max, stokes_problem_nl->marker);
+  //yielding_vol = rhea_viscosity_stats_get_yielding_volume (
+  //    stokes_problem_nl->yielding_marker);
     lith_vol = rhea_viscosity_stats_get_lithosphere_volume (
         viscosity, stokes_problem_nl->visc_options);
     asth_vol = rhea_viscosity_stats_get_asthenosphere_volume (
@@ -2630,8 +2629,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 
     /* write VTK */
     rhea_vtk_write_nonlinear_stokes_iteration (
-        path, velocity, pressure, viscosity,
-        stokes_problem_nl->bounds_marker, stokes_problem_nl->yielding_marker);
+        path, velocity, pressure, viscosity, stokes_problem_nl->marker);
     rhea_vtk_write_nonlinear_stokes_iteration_surf (
         path, velocity_surf, stress_norm_surf, viscosity_surf);
 
@@ -2674,8 +2672,7 @@ rhea_stokes_problem_nonlinear_mesh_data_exists (
       stokes_problem_nl->press_elem != NULL);
   vectors_exist = (
       stokes_problem_nl->coeff != NULL &&
-      stokes_problem_nl->bounds_marker != NULL &&
-      stokes_problem_nl->yielding_marker != NULL &&
+      stokes_problem_nl->marker != NULL &&
       stokes_problem_nl->rhs_vel != NULL &&
       stokes_problem_nl->rhs_vel_press != NULL);
 
@@ -2744,8 +2741,7 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
     stokes_problem_nl->weakzone = rhea_weakzone_new (ymir_mesh);
   }
   stokes_problem_nl->coeff = rhea_viscosity_new (ymir_mesh);
-  stokes_problem_nl->bounds_marker = rhea_viscosity_new (ymir_mesh);
-  stokes_problem_nl->yielding_marker = rhea_viscosity_new (ymir_mesh);
+  stokes_problem_nl->marker = rhea_viscosity_new (ymir_mesh);
 
   /* create right-hand side vectors */
   stokes_problem_nl->rhs_vel = rhea_velocity_new (ymir_mesh);
@@ -2856,13 +2852,11 @@ rhea_stokes_problem_nonlinear_clear_mesh_data (
 
   /* destroy vectors */
   rhea_viscosity_destroy (stokes_problem_nl->coeff);
-  rhea_viscosity_destroy (stokes_problem_nl->bounds_marker);
-  rhea_viscosity_destroy (stokes_problem_nl->yielding_marker);
+  rhea_viscosity_destroy (stokes_problem_nl->marker);
   rhea_velocity_destroy (stokes_problem_nl->rhs_vel);
   rhea_velocity_pressure_destroy (stokes_problem_nl->rhs_vel_press);
   stokes_problem_nl->coeff = NULL;
-  stokes_problem_nl->bounds_marker = NULL;
-  stokes_problem_nl->yielding_marker = NULL;
+  stokes_problem_nl->marker = NULL;
   stokes_problem_nl->rhs_vel = NULL;
   stokes_problem_nl->rhs_vel_press = NULL;
   if (stokes_problem_nl->weakzone != NULL) {
@@ -3830,8 +3824,7 @@ rhea_stokes_problem_weakzone_compute (ymir_vec_t *weakzone,
 void
 rhea_stokes_problem_viscosity_compute (ymir_vec_t *viscosity,
                                        ymir_vec_t *proj_scal,
-                                       ymir_vec_t *bounds_marker,
-                                       ymir_vec_t *yielding_marker,
+                                       ymir_vec_t *marker,
                                        ymir_vec_t *temperature,
                                        ymir_vec_t *weakzone,
                                        ymir_vec_t *velocity,
@@ -3839,7 +3832,7 @@ rhea_stokes_problem_viscosity_compute (ymir_vec_t *viscosity,
 {
   RHEA_ASSERT (stokes_problem->viscosity_compute_fn != NULL);
   stokes_problem->viscosity_compute_fn (
-      /* out: */ viscosity, proj_scal, bounds_marker, yielding_marker,
+      /* out: */ viscosity, proj_scal, marker,
       /* in:  */ temperature, weakzone, velocity,
       stokes_problem->viscosity_compute_fn_data);
 }

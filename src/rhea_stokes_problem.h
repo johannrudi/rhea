@@ -287,8 +287,7 @@ void                rhea_stokes_problem_weakzone_compute (
 void                rhea_stokes_problem_viscosity_compute (
                                     ymir_vec_t *viscosity,
                                     ymir_vec_t *proj_scal,
-                                    ymir_vec_t *bounds_marker,
-                                    ymir_vec_t *yielding_marker,
+                                    ymir_vec_t *marker,
                                     ymir_vec_t *temperature,
                                     ymir_vec_t *weakzone,
                                     ymir_vec_t *velocity,

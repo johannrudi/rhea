@@ -812,8 +812,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (
   sc_dmatrix_t       *strt_el_mat = NULL, *geo_el_mat = NULL;
   sc_dmatrix_t       *ur_el_mat, *us_el_mat, *ut_el_mat;
   sc_dmatrix_t       *visc_el_mat;
-  double             *visc_el_data, *proj_scal_el_data,
-                     *bounds_el_data, *yielding_el_data;
+  double             *visc_el_data, *proj_scal_el_data, *marker_el_data;
   double             *x = NULL, *y = NULL, *z = NULL;
   double             *tmp_data = NULL;
 #if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
@@ -877,8 +876,7 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (
   visc_el_mat       = sc_dmatrix_new (n_nodes_per_el, 1);
   visc_el_data      = visc_el_mat->e[0];
   proj_scal_el_data = NULL;
-  bounds_el_data    = NULL;
-  yielding_el_data  = NULL;
+  marker_el_data    = NULL;
   /* *INDENT-ON* */
 
   /* flag quadrants */
@@ -935,13 +933,13 @@ rhea_stokes_problem_amr_flag_viscosity_peclet_fn (
         switch (nonlinear_init) {
         case 0:
           rhea_viscosity_compute_elem (
-              visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
+              visc_el_data, proj_scal_el_data, marker_el_data,
               temp_el_data, weak_el_data, strt_sqrt_2inv_el_data, x, y, z,
               n_nodes_per_el, Vmask, visc_options);
           break;
         case 1:
           rhea_viscosity_compute_nonlinear_init_elem (
-              visc_el_data, proj_scal_el_data, bounds_el_data, yielding_el_data,
+              visc_el_data, proj_scal_el_data, marker_el_data,
               temp_el_data, weak_el_data, x, y, z,
               n_nodes_per_el, Vmask, visc_options);
           break;
