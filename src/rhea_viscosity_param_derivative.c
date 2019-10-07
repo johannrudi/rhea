@@ -85,7 +85,7 @@ rhea_viscosity_param_derivative_init (
   /* lower viscosity bound */
   if (filter == RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_MIN) {
     if (rhea_viscosity_restrict_min (visc_options)) {
-      rhea_viscosity_filter_where_min (derivative, marker, 0 /* !invert */);
+      rhea_viscosity_marker_filter_min (derivative, marker, 0 /* !invert */);
     }
     else { /* otherwise set to zero */
       ymir_vec_set_zero (derivative);
@@ -95,7 +95,7 @@ rhea_viscosity_param_derivative_init (
   else if (rhea_viscosity_restrict_min (visc_options)) { /* remove min bound */
     switch (visc_options->model) {
     case RHEA_VISCOSITY_MODEL_UWYL:
-      rhea_viscosity_filter_where_min (derivative, marker, 1 /* invert */);
+      rhea_viscosity_marker_filter_min (derivative, marker, 1 /* invert */);
       break;
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
@@ -110,8 +110,8 @@ rhea_viscosity_param_derivative_init (
   /* yielding */
   if (filter == RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_YLD) {
     if (rhea_viscosity_has_yielding (visc_options)) {
-      rhea_viscosity_filter_where_yielding (derivative, marker,
-                                            0 /* !invert */);
+      rhea_viscosity_marker_filter_yielding (derivative, marker,
+                                             0 /* !invert */);
     }
     else { /* otherwise set to zero */
       ymir_vec_set_zero (derivative);
@@ -119,8 +119,8 @@ rhea_viscosity_param_derivative_init (
     return;
   }
   else if (rhea_viscosity_has_yielding (visc_options)) { /* remove yielding */
-    rhea_viscosity_filter_where_yielding (derivative, marker,
-                                          1 /* invert */);
+    rhea_viscosity_marker_filter_yielding (derivative, marker,
+                                           1 /* invert */);
   }
 
   /* weak zone */
@@ -131,7 +131,7 @@ rhea_viscosity_param_derivative_init (
   /* upper viscosity bound */
   if (filter == RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_MAX) {
     if (rhea_viscosity_restrict_max (visc_options)) {
-      rhea_viscosity_filter_where_max (derivative, marker, 0 /* !invert */);
+      rhea_viscosity_marker_filter_max (derivative, marker, 0 /* !invert */);
     }
     else { /* otherwise set to zero */
       ymir_vec_set_zero (derivative);
@@ -139,7 +139,7 @@ rhea_viscosity_param_derivative_init (
     return;
   }
   else if (rhea_viscosity_restrict_max (visc_options)) { /* remove max bound */
-    rhea_viscosity_filter_where_max (derivative, marker, 1 /* invert */);
+    rhea_viscosity_marker_filter_max (derivative, marker, 1 /* invert */);
   }
 
   /* strain rate weakening */

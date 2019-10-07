@@ -304,18 +304,6 @@ int                 rhea_viscosity_restrict_min (rhea_viscosity_options_t *opt);
 int                 rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt);
 
 /**
- * Filters a vector where the min/max viscosity bound is active, otherwise sets
- * the values at nodes away from min/max bound to zero.
- */
-void                rhea_viscosity_filter_where_min (ymir_vec_t *vec,
-                                                     ymir_vec_t *marker,
-                                                     const int invert_filter);
-
-void                rhea_viscosity_filter_where_max (ymir_vec_t *vec,
-                                                     ymir_vec_t *marker,
-                                                     const int invert_filter);
-
-/**
  * Gets the scaling factor.
  */
 double              rhea_viscosity_get_scaling (rhea_viscosity_options_t *opt,
@@ -351,15 +339,6 @@ int                 rhea_viscosity_has_yielding (rhea_viscosity_options_t *opt);
  */
 double              rhea_viscosity_get_yield_strength (
                                                 rhea_viscosity_options_t *opt);
-
-/**
- * Filters a vector where yielding occurs, and otherwise sets the values at
- * nodes without yielding to zero.
- */
-void                rhea_viscosity_filter_where_yielding (
-                                                  ymir_vec_t *vec,
-                                                  ymir_vec_t *marker,
-                                                  const int invert_filter);
 
 /**
  * Returns whether regularization for the projector of the nonlinear viscosity
@@ -436,6 +415,31 @@ void                rhea_viscosity_marker_set_elem_gauss (
                                                   ymir_vec_t *marker_vec,
                                                   sc_dmatrix_t *marker_el_mat,
                                                   const ymir_locidx_t elid);
+
+/******************************************************************************
+ * Markers
+ *****************************************************************************/
+
+/**
+ * Filters a vector where the min/max viscosity bound is active, otherwise sets
+ * the values at nodes away from min/max bound to zero.
+ */
+void                rhea_viscosity_marker_filter_min (ymir_vec_t *vec,
+                                                      ymir_vec_t *marker,
+                                                      const int invert_filter);
+
+void                rhea_viscosity_marker_filter_max (ymir_vec_t *vec,
+                                                      ymir_vec_t *marker,
+                                                      const int invert_filter);
+
+/**
+ * Filters a vector where yielding occurs, and otherwise sets the values at
+ * nodes without yielding to zero.
+ */
+void                rhea_viscosity_marker_filter_yielding (
+                                                   ymir_vec_t *vec,
+                                                   ymir_vec_t *marker,
+                                                   const int invert_filter);
 
 /******************************************************************************
  * Filter
