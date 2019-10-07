@@ -234,8 +234,10 @@ rhea_vtk_write_primary (const char *filepath,
 static int
 rhea_vtk_write_secondary (const char *filepath,
                           ymir_vec_t *viscosity,
+                          ymir_vec_t *marker,
                           ymir_vec_t *velocity)
 {
+  const int           in_marker = (marker != NULL);
   const int           in_vel = (velocity != NULL);
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *strainrate_sqrt_2inv;
@@ -255,10 +257,16 @@ rhea_vtk_write_secondary (const char *filepath,
   }
 
   /* write vtk file */
-  if (in_vel) {
+  if (in_marker && in_vel) {
     ymir_vtk_write (ymir_mesh, filepath,
                     strainrate_sqrt_2inv, RHEA_VTK_NAME_STRAINRATE_SQRT_2INV,
-                    viscosity, RHEA_VTK_NAME_VISCOSITY, NULL);
+                    viscosity, RHEA_VTK_NAME_VISCOSITY,
+                    marker, RHEA_VTK_NAME_MARKER, NULL);
+  }
+  else if (in_marker) {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    viscosity, RHEA_VTK_NAME_VISCOSITY,
+                    marker, RHEA_VTK_NAME_MARKER, NULL);
   }
   else {
     ymir_vtk_write (ymir_mesh, filepath,
@@ -280,7 +288,8 @@ int
 rhea_vtk_write_solution (const char *filepath,
                          ymir_vec_t *velocity,
                          ymir_vec_t *pressure,
-                         ymir_vec_t *viscosity)
+                         ymir_vec_t *viscosity,
+                         ymir_vec_t *marker)
 {
   char                path[BUFSIZ];
   int                 success = 0;
@@ -291,7 +300,7 @@ rhea_vtk_write_solution (const char *filepath,
   success += rhea_vtk_write_primary (path, velocity, pressure);
 
   snprintf (path, BUFSIZ, "%s_secondary", filepath);
-  success += rhea_vtk_write_secondary (path, viscosity, velocity);
+  success += rhea_vtk_write_secondary (path, viscosity, marker, velocity);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 
@@ -302,8 +311,10 @@ int
 rhea_vtk_write_solution_surf (const char *filepath,
                               ymir_vec_t *velocity_surf,
                               ymir_vec_t *stress_norm_surf,
-                              ymir_vec_t *viscosity_surf)
+                              ymir_vec_t *viscosity_surf,
+                              ymir_vec_t *marker_surf)
 {
+  const int           in_marker = (marker_surf != NULL);
   ymir_mesh_t        *ymir_mesh;
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
@@ -313,12 +324,23 @@ rhea_vtk_write_solution_surf (const char *filepath,
   RHEA_ASSERT (stress_norm_surf != NULL);
   RHEA_ASSERT (viscosity_surf != NULL);
 
-  /* write vtk file */
+  /* get ymir mesh */
   ymir_mesh = ymir_vec_get_mesh (viscosity_surf);
-  ymir_vtk_write (ymir_mesh, filepath,
-                  velocity_surf, RHEA_VTK_NAME_VELOCITY,
-                  stress_norm_surf, RHEA_VTK_NAME_STRESS_NORM,
-                  viscosity_surf, RHEA_VTK_NAME_VISCOSITY, NULL);
+
+  /* write vtk file */
+  if (in_marker) {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    velocity_surf, RHEA_VTK_NAME_VELOCITY,
+                    stress_norm_surf, RHEA_VTK_NAME_STRESS_NORM,
+                    viscosity_surf, RHEA_VTK_NAME_VISCOSITY,
+                    marker_surf, RHEA_VTK_NAME_MARKER, NULL);
+  }
+  else {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    velocity_surf, RHEA_VTK_NAME_VELOCITY,
+                    stress_norm_surf, RHEA_VTK_NAME_STRESS_NORM,
+                    viscosity_surf, RHEA_VTK_NAME_VISCOSITY, NULL);
+  }
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 
