@@ -18,7 +18,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_viscosity_options_t   *visc_options;
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *temperature, *background_temp;
-  ymir_vec_t         *weakzone, *viscosity, *bounds_marker;
+  ymir_vec_t         *weakzone, *viscosity, *marker;
   ymir_vec_t         *rhs_vel;
 //ymir_vec_t         *rhs_vel_nonzero_dirichlet;
   ymir_vec_t         *plate_label, *plate_vel;
@@ -70,16 +70,16 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 
   /* compute viscosity */
   viscosity = rhea_viscosity_new (ymir_mesh);
-  bounds_marker = rhea_viscosity_new (ymir_mesh);
+  marker = rhea_viscosity_new (ymir_mesh);
   switch (visc_options->type) {
   case RHEA_VISCOSITY_LINEAR:
     rhea_stokes_problem_viscosity_compute (
-        /* out: */ viscosity, NULL, bounds_marker, NULL,
+        /* out: */ viscosity, NULL, marker,
         /* in:  */ temperature, weakzone, NULL, stokes_problem);
     break;
   case RHEA_VISCOSITY_NONLINEAR:
     rhea_viscosity_compute_nonlinear_init (
-        /* out: */ viscosity, NULL, bounds_marker, NULL,
+        /* out: */ viscosity, NULL, marker,
         /* in:  */ temperature, weakzone, visc_options);
     break;
   default: /* unknown viscosity type */
@@ -99,8 +99,8 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 
   /* write vtk */
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity,
-                             bounds_marker, rhs_vel);
+                             background_temp, weakzone, viscosity, marker,
+                             rhs_vel);
   if (plate_label != NULL || plate_vel != NULL) {
     snprintf (path, BUFSIZ, "%s_obs", vtk_write_input_path);
     rhea_vtk_write_observation_data (path, plate_label, plate_vel);
@@ -111,7 +111,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_temperature_destroy (background_temp);
   rhea_weakzone_destroy (weakzone);
   rhea_viscosity_destroy (viscosity);
-  rhea_viscosity_destroy (bounds_marker);
+  rhea_viscosity_destroy (marker);
   ymir_vec_destroy (rhs_vel);
   if (plate_label != NULL) {
     rhea_viscosity_surface_destroy (plate_label);

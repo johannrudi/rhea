@@ -255,7 +255,7 @@ sphere_inversion_vtk_write_param_derivatives (
   ymir_vec_t         *weakzone =
                         rhea_stokes_problem_get_weakzone (stokes_problem);
   ymir_vec_t         *vel_sol;
-  ymir_vec_t         *viscosity, *bounds_marker, *yielding_marker;
+  ymir_vec_t         *viscosity, *marker;
   char                path[BUFSIZ];
 
   /* retrieve velocity */
@@ -266,10 +266,9 @@ sphere_inversion_vtk_write_param_derivatives (
 
   /* compute viscosity and related fields */
   viscosity = rhea_viscosity_new (ymir_mesh);
-  bounds_marker = rhea_viscosity_new (ymir_mesh);
-  yielding_marker = rhea_viscosity_new (ymir_mesh);
+  marker = rhea_viscosity_new (ymir_mesh);
   rhea_viscosity_compute (
-      /* out: */ viscosity, NULL, bounds_marker, yielding_marker,
+      /* out: */ viscosity, NULL, marker,
       /* in:  */ temperature, weakzone, vel_sol, visc_options);
 
   /*
@@ -286,39 +285,37 @@ sphere_inversion_vtk_write_param_derivatives (
     ymir_vec_t         *deriv_yielding = rhea_viscosity_new (ymir_mesh);
 
     rhea_viscosity_param_derivative (
-        deriv_min,        RHEA_VISCOSITY_PARAM_DERIVATIVE_MIN,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        deriv_min,
+        RHEA_VISCOSITY_PARAM_DERIVATIVE_MIN,
+        viscosity, marker, temperature, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
-        deriv_max,        RHEA_VISCOSITY_PARAM_DERIVATIVE_MAX,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        deriv_max,
+        RHEA_VISCOSITY_PARAM_DERIVATIVE_MAX,
+        viscosity, marker, temperature, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
-        deriv_um_scal,    RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_SCALING,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        deriv_um_scal,
+        RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_SCALING,
+        viscosity, marker, temperature, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_um_Ea,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_ACTIVATION_ENERGY,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        viscosity, marker, temperature, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
-        deriv_lm_scal,    RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_SCALING,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        deriv_lm_scal,
+        RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_SCALING,
+        viscosity, marker, temperature, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_lm_Ea,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_ACTIVATION_ENERGY,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        viscosity, marker, temperature, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
-        deriv_stress_exp, RHEA_VISCOSITY_PARAM_DERIVATIVE_STRESS_EXPONENT,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        deriv_stress_exp,
+        RHEA_VISCOSITY_PARAM_DERIVATIVE_STRESS_EXPONENT,
+        viscosity, marker, temperature, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
-        deriv_yielding,   RHEA_VISCOSITY_PARAM_DERIVATIVE_YIELD_STRENGTH,
-        viscosity, bounds_marker, yielding_marker, temperature, vel_sol,
-        visc_options);
+        deriv_yielding,
+        RHEA_VISCOSITY_PARAM_DERIVATIVE_YIELD_STRENGTH,
+        viscosity, marker, temperature, vel_sol, visc_options);
 
     snprintf (path, BUFSIZ, "%s_visc_params", vtk_path);
     ymir_vtk_write (ymir_mesh, path,
@@ -360,32 +357,25 @@ sphere_inversion_vtk_write_param_derivatives (
 
     rhea_viscosity_param_derivative_weakzone (
         deriv_weak_factor_sl, deriv_type, RHEA_WEAKZONE_LABEL_CLASS_SLAB,
-        viscosity, bounds_marker, yielding_marker, weakzone,
-        weak_options, visc_options);
+        viscosity, marker, weakzone, weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
         deriv_weak_factor_ri, deriv_type, RHEA_WEAKZONE_LABEL_CLASS_RIDGE,
-        viscosity, bounds_marker, yielding_marker, weakzone,
-        weak_options, visc_options);
+        viscosity, marker, weakzone, weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
         deriv_weak_factor_fz, deriv_type, RHEA_WEAKZONE_LABEL_CLASS_FRACTURE,
-        viscosity, bounds_marker, yielding_marker, weakzone,
-        weak_options, visc_options);
+        viscosity, marker, weakzone, weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
         deriv_weak_factor_1001, deriv_type, (rhea_weakzone_label_t) 1001,
-        viscosity, bounds_marker, yielding_marker, weakzone,
-        weak_options, visc_options);
+        viscosity, marker, weakzone, weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
         deriv_weak_factor_2001, deriv_type, (rhea_weakzone_label_t) 2001,
-        viscosity, bounds_marker, yielding_marker, weakzone,
-        weak_options, visc_options);
+        viscosity, marker, weakzone, weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
         deriv_weak_factor_3001, deriv_type, (rhea_weakzone_label_t) 3001,
-        viscosity, bounds_marker, yielding_marker, weakzone,
-        weak_options, visc_options);
+        viscosity, marker, weakzone, weak_options, visc_options);
     rhea_viscosity_param_derivative_weakzone (
         deriv_weak_factor_3002, deriv_type, (rhea_weakzone_label_t) 3002,
-        viscosity, bounds_marker, yielding_marker, weakzone,
-        weak_options, visc_options);
+        viscosity, marker, weakzone, weak_options, visc_options);
 
     snprintf (path, BUFSIZ, "%s_weak_params", vtk_path);
     ymir_vtk_write (ymir_mesh, path,
@@ -410,8 +400,7 @@ sphere_inversion_vtk_write_param_derivatives (
   /* destroy */
   rhea_velocity_destroy (vel_sol);
   rhea_viscosity_destroy (viscosity);
-  rhea_viscosity_destroy (bounds_marker);
-  rhea_viscosity_destroy (yielding_marker);
+  rhea_viscosity_destroy (marker);
 }
 
 /******************************************************************************

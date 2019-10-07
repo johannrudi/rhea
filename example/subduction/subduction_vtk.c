@@ -73,7 +73,6 @@ subd_write_input_basic (rhea_stokes_problem_t *stokes_problem,
     rhea_viscosity_compute_nonlinear_init (viscosity,
                                            NULL /* nl. Stokes output */,
                                            bounds_marker,
-                                           NULL /* nl. Stokes output */,
                                            temperature, weakzone,
                                            visc_options);
     break;
