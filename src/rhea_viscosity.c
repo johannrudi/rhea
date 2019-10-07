@@ -1652,7 +1652,6 @@ void
 rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *proj_scal,
                         ymir_vec_t *marker,
-                        ymir_vec_t *yielding_marker, //TODO remove
                         ymir_vec_t *temperature,
                         ymir_vec_t *weakzone,
                         ymir_vec_t *velocity,
@@ -1687,7 +1686,6 @@ void
 rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
                                        ymir_vec_t *proj_scal,
                                        ymir_vec_t *marker,
-                                       ymir_vec_t *yielding_marker, //TODO remove
                                        ymir_vec_t *temperature,
                                        ymir_vec_t *weakzone,
                                        void *data)
@@ -1703,7 +1701,6 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
       /* compute nonlinear viscosity with zero velocity */
       ymir_vec_set_zero (velocity);
       rhea_viscosity_compute (viscosity, proj_scal, marker,
-                              yielding_marker,
                               temperature, weakzone, velocity, opt);
 
       ymir_vec_destroy (velocity);
@@ -1746,7 +1743,6 @@ void
 rhea_viscosity_compute_elem (double *_sc_restrict visc_elem,
                              double *_sc_restrict proj_scal_elem,
                              double *_sc_restrict marker_elem,
-                             double *_sc_restrict yielding_elem, //TODO remove
                              const double *_sc_restrict temp_elem,
                              const double *_sc_restrict weak_elem,
                              const double *_sc_restrict strt_sqrt_2inv_elem,
@@ -1793,7 +1789,6 @@ rhea_viscosity_compute_nonlinear_init_elem (
                                           double *_sc_restrict visc_elem,
                                           double *_sc_restrict proj_scal_elem,
                                           double *_sc_restrict marker_elem,
-                                          double *_sc_restrict yielding_elem,
                                           const double *_sc_restrict temp_elem,
                                           const double *_sc_restrict weak_elem,
                                           const double *_sc_restrict x,
@@ -1810,7 +1805,7 @@ rhea_viscosity_compute_nonlinear_init_elem (
   case RHEA_VISCOSITY_NONLINEAR_INIT_DEFAULT:
     /* compute nonlinear viscosity with zero strain rate */
     rhea_viscosity_compute_elem (
-        visc_elem, proj_scal_elem, marker_elem, yielding_elem,
+        visc_elem, proj_scal_elem, marker_elem,
         temp_elem, weak_elem, NULL, x, y, z,
         n_nodes, Vmask, opt);
     break;

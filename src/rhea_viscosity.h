@@ -205,8 +205,6 @@ void                rhea_viscosity_surface_interpolate (
  * \param [out] marker          Marker for different physics in the effective
  *                              viscosity
  *                                (Gauss quadrature nodes, may be NULL)
- * \param [out] yielding_marker Marker where yielding is applied
- *                                (Gauss quadrature nodes, may be NULL)
  * \param [in] temperature      Temperature (GLL nodes, may be NULL)
  * \param [in] weakzone         Weak zone factor (Gauss nodes, may be NULL)
  * \param [in] velocity         Velocity (GLL nodes, may be NULL)
@@ -216,7 +214,6 @@ void                rhea_viscosity_surface_interpolate (
 typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
                                                   ymir_vec_t *proj_scal,
                                                   ymir_vec_t *marker,
-                                                  ymir_vec_t *yielding_marker,
                                                   ymir_vec_t *temperature,
                                                   ymir_vec_t *weakzone,
                                                   ymir_vec_t *velocity,
@@ -231,8 +228,6 @@ typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
  * \param [out] marker          Marker for different physics in the effective
  *                              viscosity
  *                                (Gauss quadrature nodes, may be NULL)
- * \param [out] yielding_marker Marker where yielding is applied
- *                                (Gauss quadrature nodes, may be NULL)
  * \param [in] temperature      Temperature (GLL nodes, may be NULL)
  * \param [in] weakzone         Weak zone factor (Gauss nodes, may be NULL)
  * \param [in] velocity         Velocity (GLL nodes, may be NULL)
@@ -242,7 +237,6 @@ typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
 void                rhea_viscosity_compute (ymir_vec_t *viscosity,
                                             ymir_vec_t *proj_scal,
                                             ymir_vec_t *marker,
-                                            ymir_vec_t *yielding_marker,
                                             ymir_vec_t *temperature,
                                             ymir_vec_t *weakzone,
                                             ymir_vec_t *velocity,
@@ -257,8 +251,6 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
  * \param [out] marker          Marker for different physics in the effective
  *                              viscosity
  *                                (Gauss quadrature nodes, may be NULL)
- * \param [out] yielding_marker Marker where yielding is applied
- *                                (Gauss quadrature nodes, may be NULL)
  * \param [in] temperature      Temperature (GLL nodes, may be NULL)
  * \param [in] weakzone         Weak zone factor (Gauss nodes, may be NULL)
  * \param [in] opt              Viscosity options
@@ -267,7 +259,6 @@ void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *viscosity,
                                                ymir_vec_t *proj_scal,
                                                ymir_vec_t *marker,
-                                               ymir_vec_t *yielding_marker,
                                                ymir_vec_t *temperature,
                                                ymir_vec_t *weakzone,
                                                void *data);
@@ -278,8 +269,7 @@ void                rhea_viscosity_compute_nonlinear_init (
 void                rhea_viscosity_compute_elem (
                                 double *_sc_restrict visc_elem,
                                 double *_sc_restrict proj_scal_elem,
-                                double *_sc_restrict bounds_elem,
-                                double *_sc_restrict yielding_elem,
+                                double *_sc_restrict marker_elem,
                                 const double *_sc_restrict temp_elem,
                                 const double *_sc_restrict weak_elem,
                                 const double *_sc_restrict strt_sqrt_2inv_elem,
@@ -293,8 +283,7 @@ void                rhea_viscosity_compute_elem (
 void                rhea_viscosity_compute_nonlinear_init_elem (
                                 double *_sc_restrict visc_elem,
                                 double *_sc_restrict proj_scal_elem,
-                                double *_sc_restrict bounds_elem,
-                                double *_sc_restrict yielding_elem,
+                                double *_sc_restrict marker_elem,
                                 const double *_sc_restrict temp_elem,
                                 const double *_sc_restrict weak_elem,
                                 const double *_sc_restrict x,
