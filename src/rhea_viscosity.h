@@ -202,7 +202,8 @@ void                rhea_viscosity_surface_interpolate (
  * \param [out] viscosity       Viscosity (Gauss quadrature nodes)
  * \param [out] proj_scal       Scaling for rank-1 fourth-order tensor
  *                                (Gauss quadrature nodes, may be NULL)
- * \param [out] bounds_marker   Marker where min/max viscosity is reached
+ * \param [out] marker          Marker for different physics in the effective
+ *                              viscosity
  *                                (Gauss quadrature nodes, may be NULL)
  * \param [out] yielding_marker Marker where yielding is applied
  *                                (Gauss quadrature nodes, may be NULL)
@@ -214,7 +215,7 @@ void                rhea_viscosity_surface_interpolate (
  */
 typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
                                                   ymir_vec_t *proj_scal,
-                                                  ymir_vec_t *bounds_marker,
+                                                  ymir_vec_t *marker,
                                                   ymir_vec_t *yielding_marker,
                                                   ymir_vec_t *temperature,
                                                   ymir_vec_t *weakzone,
@@ -227,7 +228,8 @@ typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
  * \param [out] viscosity       Viscosity (Gauss quadrature nodes)
  * \param [out] proj_scal       Scaling for rank-1 fourth-order tensor
  *                                (Gauss quadrature nodes, may be NULL)
- * \param [out] bounds_marker   Marker where min/max viscosity is reached
+ * \param [out] marker          Marker for different physics in the effective
+ *                              viscosity
  *                                (Gauss quadrature nodes, may be NULL)
  * \param [out] yielding_marker Marker where yielding is applied
  *                                (Gauss quadrature nodes, may be NULL)
@@ -239,7 +241,7 @@ typedef void      (*rhea_viscosity_compute_fn_t) (ymir_vec_t *viscosity,
  */
 void                rhea_viscosity_compute (ymir_vec_t *viscosity,
                                             ymir_vec_t *proj_scal,
-                                            ymir_vec_t *bounds_marker,
+                                            ymir_vec_t *marker,
                                             ymir_vec_t *yielding_marker,
                                             ymir_vec_t *temperature,
                                             ymir_vec_t *weakzone,
@@ -252,7 +254,8 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
  * \param [out] viscosity       Viscosity (Gauss quadrature nodes)
  * \param [out] proj_scal       Scaling for rank-1 fourth-order tensor
  *                                (Gauss quadrature nodes, may be NULL)
- * \param [out] bounds_marker   Marker where min/max viscosity is reached
+ * \param [out] marker          Marker for different physics in the effective
+ *                              viscosity
  *                                (Gauss quadrature nodes, may be NULL)
  * \param [out] yielding_marker Marker where yielding is applied
  *                                (Gauss quadrature nodes, may be NULL)
@@ -263,7 +266,7 @@ void                rhea_viscosity_compute (ymir_vec_t *viscosity,
 void                rhea_viscosity_compute_nonlinear_init (
                                                ymir_vec_t *viscosity,
                                                ymir_vec_t *proj_scal,
-                                               ymir_vec_t *bounds_marker,
+                                               ymir_vec_t *marker,
                                                ymir_vec_t *yielding_marker,
                                                ymir_vec_t *temperature,
                                                ymir_vec_t *weakzone,
@@ -316,11 +319,11 @@ int                 rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt);
  * the values at nodes away from min/max bound to zero.
  */
 void                rhea_viscosity_filter_where_min (ymir_vec_t *vec,
-                                                     ymir_vec_t *bounds_marker,
+                                                     ymir_vec_t *marker,
                                                      const int invert_filter);
 
 void                rhea_viscosity_filter_where_max (ymir_vec_t *vec,
-                                                     ymir_vec_t *bounds_marker,
+                                                     ymir_vec_t *marker,
                                                      const int invert_filter);
 
 /**
@@ -366,7 +369,7 @@ double              rhea_viscosity_get_yield_strength (
  */
 void                rhea_viscosity_filter_where_yielding (
                                                   ymir_vec_t *vec,
-                                                  ymir_vec_t *yielding_marker,
+                                                  ymir_vec_t *marker,
                                                   const int invert_filter);
 
 /**
@@ -507,12 +510,21 @@ void                rhea_viscosity_stats_get_regional (
                                                 rhea_viscosity_options_t *opt);
 
 /**
+ * Computes the total volume where each marker is active.
+ */
+void                rhea_viscosity_stats_get_marker_volume (
+                                                  double *vol_min,
+                                                  double *vol_max,
+                                                  double *vol_yielding,
+                                                  ymir_vec_t *marker);
+
+/**
  * Computes the volume where bounds are active.
  */
 void                rhea_viscosity_stats_get_bounds_volume (
                                                   double *vol_min,
                                                   double *vol_max,
-                                                  ymir_vec_t *bounds_marker);
+                                                  ymir_vec_t *marker);
 
 /**
  * Computes the volume where yielding is active.

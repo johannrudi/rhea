@@ -10,6 +10,25 @@
 #include <ymir_stress_op.h>
 #include <fenv.h>
 
+/* definition of markers for different physics in effective viscosity */
+#define RHEA_VISCOSITY_MARKER_MINCUT (-1.0)
+#define RHEA_VISCOSITY_MARKER_MINADD (-0.5)
+#define RHEA_VISCOSITY_MARKER_DEF    (+0.0)
+#define RHEA_VISCOSITY_MARKER_MAX    (+1.0)
+#define RHEA_VISCOSITY_MARKER_MAX_WKZ (+2.0)
+#define RHEA_VISCOSITY_MARKER_DEF_WKZ (+3.0)
+#define RHEA_VISCOSITY_MARKER_MAX_YLD     (+4.0)
+#define RHEA_VISCOSITY_MARKER_MAX_WKZ_YLD (+5.0)
+#define RHEA_VISCOSITY_MARKER_DEF_WKZ_YLD (+6.0)
+#define RHEA_VISCOSITY_MARKER_DEF_YLD     (+7.0)
+
+/* tolerance for marker checks */
+#define RHEA_VISCOSITY_MARKER_TOL (1.0e-2)
+
+/* check if marker is equal to a value */
+#define RHEA_VISCOSITY_MARKER_EQUAL(m,v) \
+  (fabs (m-v) < RHEA_VISCOSITY_MARKER_TOL)
+
 /* definition of viscosity bounds and yielding markers */
 #define RHEA_VISCOSITY_BOUNDS_OFF (0.0)
 #define RHEA_VISCOSITY_BOUNDS_MIN (-1.0)
@@ -418,11 +437,16 @@ rhea_viscosity_linear_comp (const double temp,
 }
 
 /**
- * Calculates the linear viscosity according to a specified model.
- * Incorporates temperature, weak zones, and viscosity bounds.
+ * Calculates the linear viscosity according to a specified model, which
+ * incorporates temperature, weak zones, and viscosity bounds.
+ *
+ * visc <- visc_min <- * <- weak <- * <- * <- upper mantle lin visc
+ *                                  ^    ^
+ *                                  |    |
+ *                            visc_max  lower mantle lin visc
  */
 static void
-rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
+rhea_viscosity_linear_model (double *viscosity, double *marker,
                              const double temp, const double weak,
                              rhea_viscosity_options_t *opt,
                              const int is_in_upper_mantle,
@@ -435,8 +459,8 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
   const double        visc_min = opt->min;
   const double        visc_max = opt->max;
 
-  /* initialize marker that viscosity bounds are reached */
-  *bounds_active = RHEA_VISCOSITY_BOUNDS_OFF;
+  /* initialize marker */
+  *marker = RHEA_VISCOSITY_MARKER_DEF;
 
   /* compute linear viscosity component */
   *viscosity = rhea_viscosity_linear_comp (temp, opt, is_in_upper_mantle);
@@ -451,21 +475,25 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
       /* (U) restrict viscosity to upper bound */
       if (restrict_max && visc_max < *viscosity) {
         *viscosity = visc_max;
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+        *marker = RHEA_VISCOSITY_MARKER_MAX;
       }
 
       /* (W) multiply by weak zone */
       *viscosity *= weak;
-      /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
-          weak < 0.5) {
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
+      /* change upper marker if weak zone is present */
+      if (weak < 0.5) {
+        if (RHEA_VISCOSITY_MARKER_EQUAL (*marker, RHEA_VISCOSITY_MARKER_MAX)) {
+          *marker = RHEA_VISCOSITY_MARKER_MAX_WKZ;
+        }
+        else {
+          *marker = RHEA_VISCOSITY_MARKER_DEF_WKZ;
+        }
       }
 
       /* (L) restrict viscosity to lower bound */
       if (restrict_min && *viscosity < visc_min) {
         *viscosity = visc_min;
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
+        *marker = RHEA_VISCOSITY_MARKER_MINCUT;
       }
     }
     break;
@@ -476,21 +504,25 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
       /* (U) restrict viscosity to upper bound */
       if (restrict_max && visc_max < *viscosity) {
         *viscosity = visc_max;
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX;
+        *marker = RHEA_VISCOSITY_MARKER_MAX;
       }
 
       /* (W) multiply by weak zone */
       *viscosity *= weak;
-      /* change upper bound marker if weak zone is present */
-      if (fabs (*bounds_active - RHEA_VISCOSITY_BOUNDS_MAX) < SC_EPS &&
-          weak < 0.5) {
-        *bounds_active = RHEA_VISCOSITY_BOUNDS_MAX_WEAK;
+      /* change upper marker if weak zone is present */
+      if (weak < 0.5) {
+        if (RHEA_VISCOSITY_MARKER_EQUAL (*marker, RHEA_VISCOSITY_MARKER_MAX)) {
+          *marker = RHEA_VISCOSITY_MARKER_MAX_WKZ;
+        }
+        else {
+          *marker = RHEA_VISCOSITY_MARKER_DEF_WKZ;
+        }
       }
 
       /* (L) restrict viscosity to lower bound */
       if (restrict_min) {
         if (*viscosity < visc_min) {
-          *bounds_active = RHEA_VISCOSITY_BOUNDS_MIN;
+          *marker = RHEA_VISCOSITY_MARKER_MINADD;
         }
         *viscosity += visc_min;
       }
@@ -508,9 +540,12 @@ rhea_viscosity_linear_model (double *viscosity, double *bounds_active,
 
 static int
 rhea_viscosity_linear_is_valid (const double *visc_elem,
-                                const double *bounds_elem,
+                                const double *marker_elem,
                                 const int n_nodes)
 {
+  const double        marker_range[2] =
+    {RHEA_VISCOSITY_MARKER_MINCUT - RHEA_VISCOSITY_MARKER_TOL,
+     RHEA_VISCOSITY_MARKER_DEF_WKZ + RHEA_VISCOSITY_MARKER_TOL};
   int                 nodeid;
 
   /* check input */
@@ -525,13 +560,13 @@ rhea_viscosity_linear_is_valid (const double *visc_elem,
       return 0;
     }
 
-    /* check bounds marker for valid range [-1,1] */
-    if (bounds_elem != NULL) {
-      if ( !isfinite (bounds_elem[nodeid]) ) {
+    /* check marker for valid range */
+    if (marker_elem != NULL) {
+      if ( !isfinite (marker_elem[nodeid]) ) {
         return 0;
       }
-      if ( !(RHEA_VISCOSITY_BOUNDS_MIN <= bounds_elem[nodeid] &&
-             bounds_elem[nodeid] <= RHEA_VISCOSITY_BOUNDS_MAX) ) {
+      if ( !(marker_range[0] <= marker_elem[nodeid] &&
+             marker_elem[nodeid] <= marker_range[1]) ) {
         return 0;
       }
     }
@@ -546,7 +581,7 @@ rhea_viscosity_linear_is_valid (const double *visc_elem,
  */
 static void
 rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
-                            double *_sc_restrict bounds_elem,
+                            double *_sc_restrict marker_elem,
                             const double *_sc_restrict temp_elem,
                             const double *_sc_restrict weak_elem,
                             const double *_sc_restrict x,
@@ -568,7 +603,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
                         domain_options->lm_um_interface_smoothing_width;
 
   int                 is_in_upper_mantle;
-  double              bd;
+  double              m;
   int                 nodeid;
 
   /* check input */
@@ -596,7 +631,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     RHEA_ASSERT (0.0 < weak && weak <= 1.0);
 
     /* compute viscosity */
-    rhea_viscosity_linear_model (&visc_elem[nodeid], &bd, temp, weak, opt,
+    rhea_viscosity_linear_model (&visc_elem[nodeid], &m, temp, weak, opt,
                                  is_in_upper_mantle, restrict_to_bounds);
 
     /* update viscosity by applying a smooth transition close to the LM-UM
@@ -622,13 +657,13 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
     }
 
     /* store value in output array if it exists */
-    if (bounds_elem != NULL) {
-      bounds_elem[nodeid] = bd;
+    if (marker_elem != NULL) {
+      marker_elem[nodeid] = m;
     }
   }
 
   /* check results */
-  RHEA_ASSERT (rhea_viscosity_linear_is_valid (visc_elem, bounds_elem,
+  RHEA_ASSERT (rhea_viscosity_linear_is_valid (visc_elem, marker_elem,
                                                n_nodes));
 }
 
@@ -637,7 +672,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
  */
 static void
 rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
-                           ymir_vec_t *bounds_vec,
+                           ymir_vec_t *marker_vec,
                            ymir_vec_t *temp_vec,
                            ymir_vec_t *weak_vec,
                            rhea_viscosity_options_t *opt)
@@ -649,12 +684,12 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   const int          *Vmask = ymir_mesh_get_vertex_indices (mesh);
   const int           in_temp = (temp_vec != NULL);
   const int           in_weak = (weak_vec != NULL);
-  const int           out_bounds = (bounds_vec != NULL);
+  const int           out_marker = (marker_vec != NULL);
 
   sc_dmatrix_t       *temp_el_mat, *weak_el_mat;
   double             *temp_el_data, *weak_el_data;
-  sc_dmatrix_t       *visc_el_mat, *bounds_el_mat;
-  double             *visc_el_data, *bounds_el_data;
+  sc_dmatrix_t       *visc_el_mat, *marker_el_mat;
+  double             *visc_el_data, *marker_el_data;
   double             *x, *y, *z, *tmp_el;
   ymir_locidx_t       elid;
 
@@ -665,7 +700,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   temp_el_mat = (in_temp ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   weak_el_mat = (in_weak ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   visc_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
-  bounds_el_mat = (out_bounds ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
+  marker_el_mat = (out_marker ? sc_dmatrix_new (n_nodes_per_el, 1) : NULL);
   x = RHEA_ALLOC (double, n_nodes_per_el);
   y = RHEA_ALLOC (double, n_nodes_per_el);
   z = RHEA_ALLOC (double, n_nodes_per_el);
@@ -674,7 +709,7 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
   temp_el_data = NULL;
   weak_el_data = NULL;
   visc_el_data = visc_el_mat->e[0];
-  bounds_el_data = (out_bounds ? bounds_el_mat->e[0] : NULL);
+  marker_el_data = (out_marker ? marker_el_mat->e[0] : NULL);
 
   for (elid = 0; elid < n_elements; elid++) { /* loop over all elements */
     /* get coordinates at Gauss nodes */
@@ -690,15 +725,15 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
     }
 
     /* compute linear viscosity */
-    rhea_viscosity_linear_elem (visc_el_data, bounds_el_data,
+    rhea_viscosity_linear_elem (visc_el_data, marker_el_data,
                                 temp_el_data, weak_el_data,
                                 x, y, z, n_nodes_per_el, Vmask, opt,
                                 restrict_to_bounds);
 
     /* set viscosity and other output vectors */
     rhea_viscosity_set_elem_gauss (visc_vec, visc_el_mat, elid);
-    if (out_bounds) {
-      rhea_viscosity_marker_set_elem_gauss (bounds_vec, bounds_el_mat, elid);
+    if (out_marker) {
+      rhea_viscosity_marker_set_elem_gauss (marker_vec, marker_el_mat, elid);
     }
   }
 
@@ -710,8 +745,8 @@ rhea_viscosity_linear_vec (ymir_vec_t *visc_vec,
     sc_dmatrix_destroy (weak_el_mat);
   }
   sc_dmatrix_destroy (visc_el_mat);
-  if (out_bounds) {
-    sc_dmatrix_destroy (bounds_el_mat);
+  if (out_marker) {
+    sc_dmatrix_destroy (marker_el_mat);
   }
   RHEA_FREE (x);
   RHEA_FREE (y);
@@ -985,9 +1020,14 @@ rhea_viscosity_nonlinear_projector_regularize (double *proj_scal, /* in/out */
 }
 
 /**
- * Calculates the nonlinear viscosity according to a specified model.
- * Incorporates temperature, weak zones, viscosity bounds, strain rate
+ * Calculates the nonlinear viscosity according to a specified model, which
+ * incorporates temperature, weak zones, viscosity bounds, strain rate
  * weakening, and yielding.
+ *
+ * visc <- visc_min <- * <- weak <- * <- * <- strain <- upper mantle lin visc
+ *                     ^            ^    ^
+ *                     |            |    |
+ *                   yield    visc_max  lower mantle lin visc
  */
 static void
 rhea_viscosity_nonlinear_model (double *viscosity, double *proj_scal,
@@ -1572,8 +1612,8 @@ rhea_viscosity_nonlinear_vec (ymir_vec_t *visc_vec,
 void
 rhea_viscosity_compute (ymir_vec_t *viscosity,
                         ymir_vec_t *proj_scal,
-                        ymir_vec_t *bounds_marker,
-                        ymir_vec_t *yielding_marker,
+                        ymir_vec_t *marker,
+                        ymir_vec_t *yielding_marker, //TODO remove
                         ymir_vec_t *temperature,
                         ymir_vec_t *weakzone,
                         ymir_vec_t *velocity,
@@ -1583,9 +1623,8 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
 
   switch (opt->type) {
   case RHEA_VISCOSITY_LINEAR:
-    /* compute linear viscosity and set bounds marker */
-    rhea_viscosity_linear_vec (viscosity, bounds_marker,
-                               temperature, weakzone, opt);
+    /* compute linear viscosity and set marker */
+    rhea_viscosity_linear_vec (viscosity, marker, temperature, weakzone, opt);
 
     /* set default values pertaining to nonlinear viscosity */
     if (proj_scal != NULL) {
@@ -1598,8 +1637,8 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
 
   case RHEA_VISCOSITY_NONLINEAR:
     /* compute nonlinear viscosity */
-    rhea_viscosity_nonlinear_vec (viscosity, proj_scal,
-                                  bounds_marker, yielding_marker,
+    rhea_viscosity_nonlinear_vec (viscosity, proj_scal, marker,
+                                  yielding_marker,
                                   temperature, weakzone, velocity, opt);
     break;
 
@@ -1612,8 +1651,8 @@ rhea_viscosity_compute (ymir_vec_t *viscosity,
 void
 rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
                                        ymir_vec_t *proj_scal,
-                                       ymir_vec_t *bounds_marker,
-                                       ymir_vec_t *yielding_marker,
+                                       ymir_vec_t *marker,
+                                       ymir_vec_t *yielding_marker, //TODO remove
                                        ymir_vec_t *temperature,
                                        ymir_vec_t *weakzone,
                                        void *data)
@@ -1628,9 +1667,9 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
 
       /* compute nonlinear viscosity with zero velocity */
       ymir_vec_set_zero (velocity);
-      rhea_viscosity_compute (
-          viscosity, proj_scal, bounds_marker, yielding_marker,
-          temperature, weakzone, velocity, opt);
+      rhea_viscosity_compute (viscosity, proj_scal, marker,
+                              yielding_marker,
+                              temperature, weakzone, velocity, opt);
 
       ymir_vec_destroy (velocity);
     }
@@ -1638,8 +1677,7 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
 
   case RHEA_VISCOSITY_NONLINEAR_INIT_LIN:
     /* compute linear viscosity */
-    rhea_viscosity_linear_vec (viscosity, bounds_marker,
-                               temperature, weakzone, opt);
+    rhea_viscosity_linear_vec (viscosity, marker, temperature, weakzone, opt);
 
     /* set all other output vectors to zero */
     if (proj_scal != NULL) {
@@ -1656,8 +1694,8 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
 
       /* compute linear viscosity with rescaled upper mantle */
       opt->upper_mantle_scaling = opt->lower_mantle_scaling;
-      rhea_viscosity_linear_vec (viscosity, bounds_marker,
-                                 temperature, weakzone, opt);
+      rhea_viscosity_linear_vec (viscosity, marker, temperature, weakzone,
+                                 opt);
       opt->upper_mantle_scaling = upper_mantle_scaling;
 
       /* set all other output vectors to zero */
@@ -1678,8 +1716,8 @@ rhea_viscosity_compute_nonlinear_init (ymir_vec_t *viscosity,
 void
 rhea_viscosity_compute_elem (double *_sc_restrict visc_elem,
                              double *_sc_restrict proj_scal_elem,
-                             double *_sc_restrict bounds_elem,
-                             double *_sc_restrict yielding_elem,
+                             double *_sc_restrict marker_elem,
+                             double *_sc_restrict yielding_elem, //TODO remove
                              const double *_sc_restrict temp_elem,
                              const double *_sc_restrict weak_elem,
                              const double *_sc_restrict strt_sqrt_2inv_elem,
@@ -1695,9 +1733,9 @@ rhea_viscosity_compute_elem (double *_sc_restrict visc_elem,
 
   switch (opt->type) {
   case RHEA_VISCOSITY_LINEAR:
-    /* compute linear viscosity and set bounds marker */
+    /* compute linear viscosity and set marker */
     rhea_viscosity_linear_elem (
-        visc_elem, bounds_elem, temp_elem, weak_elem,
+        visc_elem, marker_elem, temp_elem, weak_elem,
         x, y, z, n_nodes, Vmask, opt, restrict_to_bounds);
 
     /* set default values pertaining to nonlinear viscosity */
@@ -1716,7 +1754,7 @@ rhea_viscosity_compute_elem (double *_sc_restrict visc_elem,
   case RHEA_VISCOSITY_NONLINEAR:
     /* compute nonlinear viscosity */
     rhea_viscosity_nonlinear_elem (
-        visc_elem, proj_scal_elem, bounds_elem, yielding_elem,
+        visc_elem, proj_scal_elem, marker_elem, yielding_elem,
         temp_elem, weak_elem, strt_sqrt_2inv_elem, x, y, z,
         n_nodes, Vmask, opt);
     break;
@@ -1730,7 +1768,7 @@ void
 rhea_viscosity_compute_nonlinear_init_elem (
                                           double *_sc_restrict visc_elem,
                                           double *_sc_restrict proj_scal_elem,
-                                          double *_sc_restrict bounds_elem,
+                                          double *_sc_restrict marker_elem,
                                           double *_sc_restrict yielding_elem,
                                           const double *_sc_restrict temp_elem,
                                           const double *_sc_restrict weak_elem,
@@ -1748,15 +1786,15 @@ rhea_viscosity_compute_nonlinear_init_elem (
   case RHEA_VISCOSITY_NONLINEAR_INIT_DEFAULT:
     /* compute nonlinear viscosity with zero strain rate */
     rhea_viscosity_compute_elem (
-        visc_elem, proj_scal_elem, bounds_elem, yielding_elem,
+        visc_elem, proj_scal_elem, marker_elem, yielding_elem,
         temp_elem, weak_elem, NULL, x, y, z,
         n_nodes, Vmask, opt);
     break;
 
   case RHEA_VISCOSITY_NONLINEAR_INIT_LIN:
-    /* compute linear viscosity and set bounds marker */
+    /* compute linear viscosity and set marker */
     rhea_viscosity_linear_elem (
-        visc_elem, bounds_elem, temp_elem, weak_elem,
+        visc_elem, marker_elem, temp_elem, weak_elem,
         x, y, z, n_nodes, Vmask, opt, restrict_to_bounds);
 
     /* set all other output vectors to zero */
@@ -1776,10 +1814,10 @@ rhea_viscosity_compute_nonlinear_init_elem (
     {
       const double        upper_mantle_scaling = opt->upper_mantle_scaling;
 
-      /* compute linear viscosity and set bounds marker */
+      /* compute linear viscosity and set marker */
       opt->upper_mantle_scaling = opt->lower_mantle_scaling;
       rhea_viscosity_linear_elem (
-          visc_elem, bounds_elem, temp_elem, weak_elem,
+          visc_elem, marker_elem, temp_elem, weak_elem,
           x, y, z, n_nodes, Vmask, opt, restrict_to_bounds);
       opt->upper_mantle_scaling = upper_mantle_scaling;
 
@@ -1819,18 +1857,17 @@ rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt)
 }
 
 static void
-rhea_viscosity_filter_where_active_correction_fn (double *filter, double x,
-                                                  double y, double z,
-                                                  ymir_locidx_t nodeid,
-                                                  void *data)
+rhea_viscosity_filter_where_marker_active_fn (double *filter, double x,
+                                              double y, double z,
+                                              ymir_locidx_t nodeid,
+                                              void *data)
 {
   const double       *active_range = data;
-  const double        rtol = 1.0e-1;
+  const double        tol = RHEA_VISCOSITY_MARKER_TOL;
 
   RHEA_ASSERT (active_range[0] <= active_range[1]);
 
-  if ( (active_range[0] - rtol * fabs (active_range[0])) <= *filter &&
-       *filter <= (active_range[1] + rtol * fabs (active_range[1])) ) {
+  if ((active_range[0]-tol) <= *filter && *filter <= (active_range[1]+tol)) {
     *filter = 1.0;
   }
   else {
@@ -1858,20 +1895,20 @@ rhea_viscosity_filter_where_marker_active (ymir_vec_t *vec,
     filter = ymir_cvec_new (ymir_mesh, 1);
     ymir_interp_vec (marker, filter);
     ymir_cvec_set_function (
-        filter, rhea_viscosity_filter_where_active_correction_fn, active_range);
+        filter, rhea_viscosity_filter_where_marker_active_fn, active_range);
   }
   else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GLL_NODE) {
     /* create filter for a discontinuous GLL vector */
     filter = ymir_dvec_new (ymir_mesh, 1, YMIR_GLL_NODE);
     ymir_interp_vec (marker, filter);
     ymir_dvec_set_function (
-        filter, rhea_viscosity_filter_where_active_correction_fn, active_range);
+        filter, rhea_viscosity_filter_where_marker_active_fn, active_range);
   }
   else if (ymir_vec_has_dvec (vec) && vec->node_type == YMIR_GAUSS_NODE) {
     /* create filter for a discontinuous Gauss vector */
     filter = ymir_vec_clone (marker);
     ymir_dvec_set_function (
-        filter, rhea_viscosity_filter_where_active_correction_fn, active_range);
+        filter, rhea_viscosity_filter_where_marker_active_fn, active_range);
   }
   else { /* vector is not supported */
     RHEA_ABORT_NOT_REACHED ();
@@ -1891,25 +1928,25 @@ rhea_viscosity_filter_where_marker_active (ymir_vec_t *vec,
 
 void
 rhea_viscosity_filter_where_min (ymir_vec_t *vec,
-                                 ymir_vec_t *bounds_marker,
+                                 ymir_vec_t *marker,
                                  const int invert_filter)
 {
-  double              active_range[2] = {RHEA_VISCOSITY_BOUNDS_MIN,
-                                         RHEA_VISCOSITY_BOUNDS_MIN};
+  double              active_range[2] = {RHEA_VISCOSITY_MARKER_MINCUT,
+                                         RHEA_VISCOSITY_MARKER_MINADD};
 
-  rhea_viscosity_filter_where_marker_active (vec, bounds_marker, active_range,
+  rhea_viscosity_filter_where_marker_active (vec, marker, active_range,
                                              invert_filter);
 }
 
 void
 rhea_viscosity_filter_where_max (ymir_vec_t *vec,
-                                 ymir_vec_t *bounds_marker,
+                                 ymir_vec_t *marker,
                                  const int invert_filter)
 {
-  double              active_range[2] = {RHEA_VISCOSITY_BOUNDS_MAX_WEAK,
-                                         RHEA_VISCOSITY_BOUNDS_MAX};
+  double              active_range[2] = {RHEA_VISCOSITY_MARKER_MAX,
+                                         RHEA_VISCOSITY_MARKER_MAX_WKZ};
 
-  rhea_viscosity_filter_where_marker_active (vec, bounds_marker, active_range,
+  rhea_viscosity_filter_where_marker_active (vec, marker, active_range,
                                              invert_filter);
 }
 
@@ -2024,14 +2061,14 @@ rhea_viscosity_get_yield_strength (rhea_viscosity_options_t *opt)
 
 void
 rhea_viscosity_filter_where_yielding (ymir_vec_t *vec,
-                                      ymir_vec_t *yielding_marker,
+                                      ymir_vec_t *marker,
                                       const int invert_filter)
 {
   double              active_range[2] = {RHEA_VISCOSITY_YIELDING_ACTIVE,
                                          RHEA_VISCOSITY_YIELDING_ACTIVE};
 
-  rhea_viscosity_filter_where_marker_active (vec, yielding_marker,
-                                             active_range, invert_filter);
+  rhea_viscosity_filter_where_marker_active (vec, marker, active_range,
+                                             invert_filter);
 }
 
 int
@@ -2555,15 +2592,24 @@ rhea_viscosity_stats_get_regional (double *upper_mantle_mean_Pas,
 }
 
 void
+rhea_viscosity_stats_get_marker_volume (double *vol_min,
+                                        double *vol_max,
+                                        double *vol_yielding,
+                                        ymir_vec_t *marker)
+{
+  //TODO
+}
+
+void
 rhea_viscosity_stats_get_bounds_volume (double *vol_min, double *vol_max,
-                                        ymir_vec_t *bounds_marker)
+                                        ymir_vec_t *marker)
 {
   const double        threshold = 1.0 - SC_1000_EPS;
-  ymir_vec_t         *bounds = ymir_vec_template (bounds_marker);
+  ymir_vec_t         *bounds = ymir_vec_template (marker);
 
   /* compute volume of active min bounds */
   if (vol_min != NULL) {
-    ymir_vec_copy (bounds_marker, bounds);
+    ymir_vec_copy (marker, bounds);
     ymir_vec_scale (1.0/RHEA_VISCOSITY_BOUNDS_MIN, bounds);
     rhea_viscosity_stats_filter_separate (bounds, threshold);
     *vol_min = rhea_viscosity_stats_filter_compute_volume (bounds);
@@ -2571,7 +2617,7 @@ rhea_viscosity_stats_get_bounds_volume (double *vol_min, double *vol_max,
 
   /* compute volume of active max bounds */
   if (vol_max != NULL) {
-    ymir_vec_copy (bounds_marker, bounds);
+    ymir_vec_copy (marker, bounds);
     ymir_vec_scale (1.0/RHEA_VISCOSITY_BOUNDS_MAX, bounds);
     rhea_viscosity_stats_filter_separate (bounds, threshold);
     *vol_max = rhea_viscosity_stats_filter_compute_volume (bounds);
