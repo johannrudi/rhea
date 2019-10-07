@@ -512,13 +512,13 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
   RHEA_ASSERT (0 < inv_param->n_active);
 
   /* create dimensional scaling factors from model parameters */
-  inv_param->dimensional_scaling = NULL;
   if (use_dim) {
-    ymir_vec_t         *dimensional_scaling_vec;
-
-    dimensional_scaling_vec = rhea_inversion_param_vec_new (inv_param);
-    rhea_inversion_param_set_dimensions (dimensional_scaling_vec, inv_param);
-    inv_param->dimensional_scaling = dimensional_scaling_vec;
+    inv_param->dimensional_scaling = rhea_inversion_param_vec_new (inv_param);
+    rhea_inversion_param_set_dimensions (inv_param->dimensional_scaling,
+                                         inv_param);
+  }
+  else {
+    inv_param->dimensional_scaling = NULL;
   }
 
   /* create mean and standard deviation of the Gaussian prior */
@@ -1234,11 +1234,15 @@ rhea_inversion_param_set_dimensions (ymir_vec_t *dimensional_scaling_vec,
   double             *dim = dimensional_scaling_vec->meshfree->e[0];
   const int          *active = inv_param->active;
   int                 idx;
+  ymir_vec_t         *restore_dimensional_scaling;
 
   /* initialize dimensional scaling to model values */
+  restore_dimensional_scaling = inv_param->dimensional_scaling;
+  inv_param->dimensional_scaling = NULL;
   rhea_inversion_param_get_model_vals (dimensional_scaling_vec, inv_param);
   rhea_inversion_param_convert_model_vals_to_params (dimensional_scaling_vec,
                                                      inv_param);
+  inv_param->dimensional_scaling = restore_dimensional_scaling;
 
   /* set dimensional scaling */
   for (idx = 0; idx < inv_param->n_parameters; idx++) {
@@ -2030,7 +2034,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   ymir_vec_t         *weakzone =
                         rhea_stokes_problem_get_weakzone (stokes_problem);
   ymir_vec_t         *forward_vel, *adjoint_vel, *op_out_vel;
-  ymir_vec_t         *viscosity, *bounds_marker, *yielding_marker;
+  ymir_vec_t         *viscosity, *marker;
   ymir_vel_dir_t     *vel_dir;
   ymir_stress_op_t   *stress_op;
 
@@ -2063,10 +2067,9 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
 
   /* compute viscosity and related fields */
   viscosity = rhea_viscosity_new (ymir_mesh);
-  bounds_marker = rhea_viscosity_new (ymir_mesh);
-  yielding_marker = rhea_viscosity_new (ymir_mesh);
+  marker = rhea_viscosity_new (ymir_mesh);
   rhea_viscosity_compute (
-      /* out: */ viscosity, NULL, bounds_marker, yielding_marker,
+      /* out: */ viscosity, NULL, marker,
       /* in:  */ temperature, weakzone, forward_vel, inv_param->visc_options);
 
   /* init derivative to use as viscous stress coefficient */
@@ -2105,13 +2108,12 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
           (rhea_inversion_param_idx_t) idx, &weak_label);
       if (RHEA_WEAKZONE_LABEL_UNKNOWN == weak_label) {
         rhea_viscosity_param_derivative (
-            derivative, deriv_type, viscosity, bounds_marker, yielding_marker,
-            temperature, forward_vel, inv_param->visc_options);
+            derivative, deriv_type, viscosity, marker, temperature,
+            forward_vel, inv_param->visc_options);
       }
       else {
         rhea_viscosity_param_derivative_weakzone (
-            derivative, deriv_type, weak_label,
-            viscosity, bounds_marker, yielding_marker, weakzone,
+            derivative, deriv_type, weak_label, viscosity, marker, weakzone,
             inv_param->weak_options, inv_param->visc_options);
       }
 
@@ -2177,8 +2179,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   ymir_vel_dir_destroy (vel_dir);
   rhea_viscosity_destroy (derivative);
   rhea_viscosity_destroy (viscosity);
-  rhea_viscosity_destroy (bounds_marker);
-  rhea_viscosity_destroy (yielding_marker);
+  rhea_viscosity_destroy (marker);
   rhea_velocity_destroy (forward_vel);
   rhea_velocity_destroy (adjoint_vel);
   rhea_velocity_destroy (op_out_vel);
@@ -2234,7 +2235,7 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
   ymir_vec_t         *weakzone =
                         rhea_stokes_problem_get_weakzone (stokes_problem);
   ymir_vec_t         *forward_vel, *op_out_vel;
-  ymir_vec_t         *viscosity, *bounds_marker, *yielding_marker;
+  ymir_vec_t         *viscosity, *marker;
   ymir_vel_dir_t     *vel_dir;
   ymir_stress_op_t   *stress_op;
 
@@ -2260,10 +2261,9 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
 
   /* compute viscosity and related fields */
   viscosity = rhea_viscosity_new (ymir_mesh);
-  bounds_marker = rhea_viscosity_new (ymir_mesh);
-  yielding_marker = rhea_viscosity_new (ymir_mesh);
+  marker = rhea_viscosity_new (ymir_mesh);
   rhea_viscosity_compute (
-      /* out: */ viscosity, NULL, bounds_marker, yielding_marker,
+      /* out: */ viscosity, NULL, marker,
       /* in:  */ temperature, weakzone, forward_vel, inv_param->visc_options);
 
   /* init derivative to use as viscous stress coefficient */
@@ -2292,13 +2292,13 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
           (rhea_inversion_param_idx_t) idx, &weak_label);
       if (RHEA_WEAKZONE_LABEL_UNKNOWN == weak_label) {
         rhea_viscosity_param_derivative (
-            derivative, deriv_type, viscosity, bounds_marker, yielding_marker,
+            derivative, deriv_type, viscosity, marker,
             temperature, forward_vel, inv_param->visc_options);
       }
       else {
         rhea_viscosity_param_derivative_weakzone (
             derivative, deriv_type, weak_label,
-            viscosity, bounds_marker, yielding_marker, weakzone,
+            viscosity, marker, weakzone,
             inv_param->weak_options, inv_param->visc_options);
       }
 
@@ -2329,8 +2329,7 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
   ymir_vel_dir_destroy (vel_dir);
   rhea_viscosity_destroy (derivative);
   rhea_viscosity_destroy (viscosity);
-  rhea_viscosity_destroy (bounds_marker);
-  rhea_viscosity_destroy (yielding_marker);
+  rhea_viscosity_destroy (marker);
   rhea_velocity_destroy (forward_vel);
   rhea_velocity_destroy (op_out_vel);
 }
