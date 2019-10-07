@@ -10,14 +10,6 @@
 #include <ymir_stress_op.h>
 #include <fenv.h>
 
-/* definition of viscosity bounds and yielding markers */
-#define RHEA_VISCOSITY_BOUNDS_OFF (0.0)
-#define RHEA_VISCOSITY_BOUNDS_MIN (-1.0)
-#define RHEA_VISCOSITY_BOUNDS_MAX (+1.0)
-#define RHEA_VISCOSITY_BOUNDS_MAX_WEAK (0.5)
-#define RHEA_VISCOSITY_YIELDING_OFF (0.0)
-#define RHEA_VISCOSITY_YIELDING_ACTIVE (1.0)
-
 /******************************************************************************
  * Options
  *****************************************************************************/
@@ -574,8 +566,8 @@ rhea_viscosity_marker_filter_min (ymir_vec_t *vec,
                                   ymir_vec_t *marker,
                                   const int invert_filter)
 {
-  double              filter[2] = {RHEA_VISCOSITY_MARKER_MIN,
-                                   RHEA_VISCOSITY_MARKER_DEF_YLD_MIN};
+  double              filter[2] = {RHEA_VISCOSITY_MARKER_DEF_YLD_MIN,
+                                   RHEA_VISCOSITY_MARKER_MIN};
 
   rhea_viscosity_marker_filter_range (vec, marker, filter, 1, invert_filter);
 }
@@ -602,6 +594,56 @@ rhea_viscosity_marker_filter_yielding (ymir_vec_t *vec,
                                    RHEA_VISCOSITY_MARKER_DEF_YLD};
 
   rhea_viscosity_marker_filter_range (vec, marker, filter, 1, invert_filter);
+}
+
+void
+rhea_viscosity_marker_get_volume (double *vol_min,
+                                  double *vol_max,
+                                  double *vol_yielding,
+                                  ymir_vec_t *marker)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (marker);
+  ymir_vec_t         *filter = rhea_viscosity_new (ymir_mesh);
+
+  /* compute volume of active min bounds */
+  if (vol_min != NULL) {
+    ymir_vec_set_value (filter, 1.0);
+    rhea_viscosity_marker_filter_min (filter, marker, 0 /* !invert */);
+    *vol_min = rhea_viscosity_filter_compute_volume (filter);
+  }
+
+  /* compute volume of active max bounds */
+  if (vol_max != NULL) {
+    ymir_vec_set_value (filter, 1.0);
+    rhea_viscosity_marker_filter_max (filter, marker, 0 /* !invert */);
+    *vol_max = rhea_viscosity_filter_compute_volume (filter);
+  }
+
+  /* compute volume where yielding is active */
+  if (vol_yielding != NULL) {
+    ymir_vec_set_value (filter, 1.0);
+    rhea_viscosity_marker_filter_yielding (filter, marker, 0 /* !invert */);
+    *vol_yielding = rhea_viscosity_filter_compute_volume (filter);
+  }
+
+  /* destroy */
+  rhea_viscosity_destroy (filter);
+}
+
+void
+rhea_viscosity_marker_get_bounds_volume (double *vol_min, double *vol_max,
+                                         ymir_vec_t *marker)
+{
+  rhea_viscosity_marker_get_volume (vol_min, vol_max, NULL, marker);
+}
+
+double
+rhea_viscosity_marker_get_yielding_volume (ymir_vec_t *marker)
+{
+  double              vol_yielding;
+
+  rhea_viscosity_marker_get_volume (NULL, NULL, &vol_yielding, marker);
+  return vol_yielding;
 }
 
 /******************************************************************************
@@ -2300,8 +2342,7 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
  *****************************************************************************/
 
 static void
-rhea_viscosity_stats_filter_separate (ymir_vec_t *filter,
-                                      const double threshold)
+rhea_viscosity_filter_separate (ymir_vec_t *filter, const double threshold)
 {
   /* separate filter values in case of cvec */
   if (ymir_vec_has_cvec (filter)) {
@@ -2356,7 +2397,7 @@ rhea_viscosity_stats_filter_separate (ymir_vec_t *filter,
 }
 
 static void
-rhea_viscosity_stats_filter_invert (ymir_vec_t *filter)
+rhea_viscosity_filter_invert (ymir_vec_t *filter)
 {
   /* compute element-wise: filter = 1 - filter */
   ymir_vec_scale_shift (-1.0, 1.0, filter);
@@ -2366,8 +2407,8 @@ rhea_viscosity_stats_filter_invert (ymir_vec_t *filter)
  * Computes the volume of a filter.  A filter is understood as a vector with
  * ones where the filter is active and zeros otherwise.
  */
-static double
-rhea_viscosity_stats_filter_compute_volume (ymir_vec_t *filter)
+double
+rhea_viscosity_filter_compute_volume (ymir_vec_t *filter)
 {
   ymir_vec_t         *unit = ymir_vec_template (filter);
   ymir_vec_t         *filter_mass = ymir_vec_template (filter);
@@ -2443,7 +2484,7 @@ rhea_viscosity_stats_filter_lower_mantle (ymir_vec_t *filter,
                                           rhea_domain_options_t *domain_options)
 {
   rhea_viscosity_stats_filter_upper_mantle (filter, domain_options);
-  rhea_viscosity_stats_filter_invert (filter);
+  rhea_viscosity_filter_invert (filter);
 }
 
 void
@@ -2481,7 +2522,7 @@ rhea_viscosity_stats_filter_lithosphere (ymir_vec_t *filter,
   }
 
   /* set filter from viscosity and threshold */
-  rhea_viscosity_stats_filter_separate (filter, max * threshold);
+  rhea_viscosity_filter_separate (filter, max * threshold);
 }
 
 void
@@ -2507,7 +2548,7 @@ rhea_viscosity_stats_filter_lithosphere_surf (ymir_vec_t *filter_surf,
   }
 
   /* enforce filter to be either `0` or `1` */
-  rhea_viscosity_stats_filter_separate (filter_surf, threshold);
+  rhea_viscosity_filter_separate (filter_surf, threshold);
 }
 
 void
@@ -2523,7 +2564,7 @@ rhea_viscosity_stats_filter_asthenosphere (ymir_vec_t *filter,
 
   /* invert lithosphere filter */
   rhea_viscosity_stats_filter_lithosphere (filter, viscosity, opt, threshold);
-  rhea_viscosity_stats_filter_invert (filter);
+  rhea_viscosity_filter_invert (filter);
 
   /* activate upper mantle only */
   rhea_viscosity_stats_filter_upper_mantle (filter_um, opt->domain_options);
@@ -2642,49 +2683,6 @@ rhea_viscosity_stats_get_regional (double *upper_mantle_mean_Pas,
   ymir_vec_destroy (filter);
 }
 
-void
-rhea_viscosity_stats_get_marker_volume (double *vol_min,
-                                        double *vol_max,
-                                        double *vol_yielding,
-                                        ymir_vec_t *marker)
-{
-  //TODO
-}
-
-void
-rhea_viscosity_stats_get_bounds_volume (double *vol_min, double *vol_max,
-                                        ymir_vec_t *marker)
-{
-  const double        threshold = 1.0 - SC_1000_EPS;
-  ymir_vec_t         *bounds = ymir_vec_template (marker);
-
-  /* compute volume of active min bounds */
-  if (vol_min != NULL) {
-    ymir_vec_copy (marker, bounds);
-    ymir_vec_scale (1.0/RHEA_VISCOSITY_BOUNDS_MIN, bounds);
-    rhea_viscosity_stats_filter_separate (bounds, threshold);
-    *vol_min = rhea_viscosity_stats_filter_compute_volume (bounds);
-  }
-
-  /* compute volume of active max bounds */
-  if (vol_max != NULL) {
-    ymir_vec_copy (marker, bounds);
-    ymir_vec_scale (1.0/RHEA_VISCOSITY_BOUNDS_MAX, bounds);
-    rhea_viscosity_stats_filter_separate (bounds, threshold);
-    *vol_max = rhea_viscosity_stats_filter_compute_volume (bounds);
-  }
-
-  /* destroy */
-  ymir_vec_destroy (bounds);
-}
-
-double
-rhea_viscosity_stats_get_yielding_volume (ymir_vec_t *yielding_marker)
-{
-  RHEA_ASSERT (fabs (1.0 - RHEA_VISCOSITY_YIELDING_ACTIVE) <= 0.0);
-  return rhea_viscosity_stats_filter_compute_volume (yielding_marker);
-}
-
 double
 rhea_viscosity_stats_get_lithosphere_volume (ymir_vec_t *viscosity,
                                              rhea_viscosity_options_t *opt)
@@ -2697,7 +2695,7 @@ rhea_viscosity_stats_get_lithosphere_volume (ymir_vec_t *viscosity,
 
   /* compute volume of lithosphere via filter */
   rhea_viscosity_stats_filter_lithosphere (filter, viscosity, opt, NAN);
-  vol = rhea_viscosity_stats_filter_compute_volume (filter);
+  vol = rhea_viscosity_filter_compute_volume (filter);
   ymir_vec_destroy (filter);
 
   return vol;
@@ -2715,7 +2713,7 @@ rhea_viscosity_stats_get_asthenosphere_volume (ymir_vec_t *viscosity,
 
   /* compute volume of lithosphere via filter */
   rhea_viscosity_stats_filter_asthenosphere (filter, viscosity, opt, NAN);
-  vol = rhea_viscosity_stats_filter_compute_volume (filter);
+  vol = rhea_viscosity_filter_compute_volume (filter);
   ymir_vec_destroy (filter);
 
   return vol;

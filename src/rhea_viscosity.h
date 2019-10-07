@@ -441,9 +441,38 @@ void                rhea_viscosity_marker_filter_yielding (
                                                    ymir_vec_t *marker,
                                                    const int invert_filter);
 
+/**
+ * Computes the total volume where each marker is active.
+ */
+void                rhea_viscosity_marker_get_volume (
+                                                  double *vol_min,
+                                                  double *vol_max,
+                                                  double *vol_yielding,
+                                                  ymir_vec_t *marker);
+
+/**
+ * Computes the volume where bounds are active.
+ */
+void                rhea_viscosity_marker_get_bounds_volume (
+                                                  double *vol_min,
+                                                  double *vol_max,
+                                                  ymir_vec_t *marker);
+
+/**
+ * Computes the volume where yielding is active.
+ */
+double              rhea_viscosity_marker_get_yielding_volume (
+                                                  ymir_vec_t *yielding_marker);
+
 /******************************************************************************
- * Filter
+ * Filters
  *****************************************************************************/
+
+/**
+ * Computes the volume of a filter.  A filter is understood as a vector with
+ * ones where the filter is active and zeros otherwise.
+ */
+double              rhea_viscosity_filter_compute_volume (ymir_vec_t *filter);
 
 /**
  * Sets a filter for the upper/lower mantle.
@@ -501,29 +530,6 @@ void                rhea_viscosity_stats_get_regional (
                                                 double *asth_mean_Pas,
                                                 ymir_vec_t *viscosity,
                                                 rhea_viscosity_options_t *opt);
-
-/**
- * Computes the total volume where each marker is active.
- */
-void                rhea_viscosity_stats_get_marker_volume (
-                                                  double *vol_min,
-                                                  double *vol_max,
-                                                  double *vol_yielding,
-                                                  ymir_vec_t *marker);
-
-/**
- * Computes the volume where bounds are active.
- */
-void                rhea_viscosity_stats_get_bounds_volume (
-                                                  double *vol_min,
-                                                  double *vol_max,
-                                                  ymir_vec_t *marker);
-
-/**
- * Computes the volume where yielding is active.
- */
-double              rhea_viscosity_stats_get_yielding_volume (
-                                                  ymir_vec_t *yielding_marker);
 
 /**
  * Computes the (approx.) volume of the lithosphere.

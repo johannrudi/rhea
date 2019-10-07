@@ -2524,8 +2524,7 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
     double              min_Pas, max_Pas, mean_Pas;
     double              upper_mantle_mean_Pas, lower_mantle_mean_Pas;
     double              lith_mean_Pas, asth_mean_Pas;
-    double              bounds_vol_min, bounds_vol_max;
-    double              yielding_vol;
+    double              bounds_vol_min, bounds_vol_max, yielding_vol;
     double              lith_vol, asth_vol;
 
     rhea_viscosity_stats_get_global (&min_Pas, &max_Pas, &mean_Pas, viscosity,
@@ -2536,10 +2535,9 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
                                        &asth_mean_Pas, viscosity,
                                        stokes_problem_nl->visc_options);
 
-    rhea_viscosity_stats_get_bounds_volume (
-        &bounds_vol_min, &bounds_vol_max, stokes_problem_nl->marker);
-  //yielding_vol = rhea_viscosity_stats_get_yielding_volume (
-  //    stokes_problem_nl->yielding_marker);
+    rhea_viscosity_marker_get_volume (
+        &bounds_vol_min, &bounds_vol_max, &yielding_vol,
+        stokes_problem_nl->marker);
     lith_vol = rhea_viscosity_stats_get_lithosphere_volume (
         viscosity, stokes_problem_nl->visc_options);
     asth_vol = rhea_viscosity_stats_get_asthenosphere_volume (
