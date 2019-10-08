@@ -19,9 +19,10 @@
 /* types of Hessians */
 typedef enum
 {
-  RHEA_INVERSION_HESSIAN_FULL,
+  RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND,
+  RHEA_INVERSION_HESSIAN_BFGS,
   RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX,
-  RHEA_INVERSION_HESSIAN_BFGS
+  RHEA_INVERSION_HESSIAN_FULL
 }
 rhea_inversion_hessian_t;
 
@@ -42,8 +43,7 @@ rhea_inversion_project_out_null_t;
 /* default options */
 #define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_WEIGHT (NAN)
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
-#define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE \
-  (RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX)
+#define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (0)
 #define RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV (2.0)
@@ -985,74 +985,6 @@ static void         rhea_inversion_apply_hessian (
                                         rhea_inversion_problem_t *inv_problem,
                                         const rhea_inversion_hessian_t type);
 
-/**
- * Assembles the full Hessian matrix.
- */
-static void
-rhea_inversion_assemble_hessian (sc_dmatrix_t *hessian_matrix,
-                                 rhea_inversion_problem_t *inv_problem,
-                                 const rhea_inversion_hessian_t type,
-                                 const int enforce_symmetry)
-{
-  rhea_inversion_param_t *inv_param = inv_problem->inv_param;
-  const int           n_parameters =
-                        rhea_inversion_param_get_n_parameters (inv_param);
-  const int          *active = rhea_inversion_param_get_active (inv_param);
-  ymir_vec_t         *param_vec_in, *param_vec_out;
-  sc_dmatrix_t       *param_vec_reduced;
-  int                 i, row, col;
-
-  /* create work vectors */
-  param_vec_in = rhea_inversion_param_vec_new (inv_param);
-  param_vec_out = rhea_inversion_param_vec_new (inv_param);
-
-  /* assemble Hessian matrix */
-  row = 0;
-  col = 0;
-  for (i = 0; i < n_parameters; i++) { /* loop over all parameters */
-    if (active[i]) {
-      /* apply unit vector to Hessian */
-      ymir_vec_set_zero (param_vec_in);
-      param_vec_in->meshfree->e[0][i] = 1.0;
-      rhea_inversion_apply_hessian (param_vec_out, param_vec_in, inv_problem,
-                                    type);
-      RHEA_ASSERT (rhea_inversion_param_vec_is_valid (param_vec_out,
-                                                      inv_param));
-      param_vec_reduced = rhea_inversion_param_vec_reduced_new (param_vec_out,
-                                                                inv_param);
-      RHEA_ASSERT (param_vec_reduced->m == hessian_matrix->m);
-      RHEA_ASSERT (param_vec_reduced->n == 1);
-      RHEA_ASSERT (col < hessian_matrix->n);
-
-      /* fill one column of the Hessian matrix */
-      for (row = 0; row < param_vec_reduced->m; row++) {
-        hessian_matrix->e[row][col] = param_vec_reduced->e[row][0];
-      }
-      rhea_inversion_param_vec_reduced_destroy (param_vec_reduced);
-
-      /* increment column index of matrix */
-      col++;
-    }
-  }
-
-  /* enforce symmetry of Hessian matrix */
-  if (rhea_inversion_assemble_hessian_enforce_symm) {
-    sc_dmatrix_t       *hessian_transp;
-
-    hessian_transp = sc_dmatrix_new (hessian_matrix->n, hessian_matrix->m);
-    sc_dmatrix_transpose (hessian_matrix, hessian_transp);
-    RHEA_ASSERT (hessian_matrix->m == hessian_matrix->n);
-    sc_dmatrix_add (1.0, hessian_transp, hessian_matrix);
-    sc_dmatrix_scale (0.5, hessian_matrix);
-
-    sc_dmatrix_destroy (hessian_transp);
-  }
-
-  /* destroy */
-  rhea_inversion_param_vec_destroy (param_vec_in);
-  rhea_inversion_param_vec_destroy (param_vec_out);
-}
-
 static void
 rhea_inversion_assemble_hessian_bfgs_init (
                                         sc_dmatrix_t *inv_hessian_matrix,
@@ -1060,7 +992,6 @@ rhea_inversion_assemble_hessian_bfgs_init (
                                         const double damping,
                                         rhea_inversion_problem_t *inv_problem)
 {
-  const rhea_inversion_hessian_t  type = RHEA_INVERSION_HESSIAN_BFGS;
   rhea_inversion_param_t *inv_param = inv_problem->inv_param;
   ymir_vec_t         *param_vec_in, *param_vec_out;
   sc_dmatrix_t       *param_vec_reduced;
@@ -1080,7 +1011,7 @@ rhea_inversion_assemble_hessian_bfgs_init (
   /* compute lumped Hessian to extract diagonal entries of its prior term */
   ymir_vec_set_value (param_vec_in, 1.0);
   rhea_inversion_apply_hessian (param_vec_out, param_vec_in, inv_problem,
-                                type);
+                                RHEA_INVERSION_HESSIAN_BFGS);
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (param_vec_out, inv_param));
   param_vec_reduced = rhea_inversion_param_vec_reduced_new (param_vec_out,
                                                             inv_param);
@@ -1090,6 +1021,7 @@ rhea_inversion_assemble_hessian_bfgs_init (
   /* fill diagonal of inverse Hessian matrix */
   sc_dmatrix_set_zero (inv_hessian_matrix);
   for (k = 0; k < hessian_dim; k++) {
+    RHEA_ASSERT (0.0 < param_vec_reduced->e[k][0]);
     inv_hessian_matrix->e[k][k] = 1.0/param_vec_reduced->e[k][0];
   }
 
@@ -1280,12 +1212,116 @@ rhea_inversion_assemble_hessian_bfgs_update (
 }
 
 static void
+rhea_inversion_assemble_hessian_gradient_descend (
+                                        sc_dmatrix_t *inv_hessian_matrix,
+                                        ymir_vec_t *gradient_vec,
+                                        const double damping,
+                                        rhea_inversion_problem_t *inv_problem)
+{
+  const int           hessian_dim = inv_hessian_matrix->m;
+  int                 k;
+  double              max_val;
+
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "damping=%g", damping);
+
+  /* use the initial BFGS approximation of the inverse Hessian matrix as an
+   * estimate for the Hessian's scale */
+  rhea_inversion_assemble_hessian_bfgs_init (
+      inv_hessian_matrix, gradient_vec, damping, inv_problem);
+
+  /* compute harmonic mean of diagonal entries of inverse Hessian matrix */
+  max_val = 0.0;
+  for (k = 0; k < hessian_dim; k++) {
+    RHEA_ASSERT (0.0 < inv_hessian_matrix->e[k][k]);
+    max_val = SC_MAX (max_val, inv_hessian_matrix->e[k][k]);
+  }
+
+  /* fill diagonal of inverse Hessian matrix: `H = mean * Id` */
+  sc_dmatrix_set_zero (inv_hessian_matrix);
+  for (k = 0; k < hessian_dim; k++) {
+    inv_hessian_matrix->e[k][k] = max_val;
+  }
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+}
+
+/**
+ * Assembles the Hessian matrix.
+ */
+static void
+rhea_inversion_assemble_hessian (sc_dmatrix_t *hessian_matrix,
+                                 rhea_inversion_problem_t *inv_problem,
+                                 const rhea_inversion_hessian_t type,
+                                 const int enforce_symmetry)
+{
+  rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+  const int           n_parameters =
+                        rhea_inversion_param_get_n_parameters (inv_param);
+  const int          *active = rhea_inversion_param_get_active (inv_param);
+  ymir_vec_t         *param_vec_in, *param_vec_out;
+  sc_dmatrix_t       *param_vec_reduced;
+  int                 i, row, col;
+
+  /* create work vectors */
+  param_vec_in = rhea_inversion_param_vec_new (inv_param);
+  param_vec_out = rhea_inversion_param_vec_new (inv_param);
+
+  /* assemble Hessian matrix */
+  row = 0;
+  col = 0;
+  for (i = 0; i < n_parameters; i++) { /* loop over all parameters */
+    if (active[i]) {
+      /* apply unit vector to Hessian */
+      ymir_vec_set_zero (param_vec_in);
+      param_vec_in->meshfree->e[0][i] = 1.0;
+      rhea_inversion_apply_hessian (param_vec_out, param_vec_in, inv_problem,
+                                    type);
+      RHEA_ASSERT (rhea_inversion_param_vec_is_valid (param_vec_out,
+                                                      inv_param));
+      param_vec_reduced = rhea_inversion_param_vec_reduced_new (param_vec_out,
+                                                                inv_param);
+      RHEA_ASSERT (param_vec_reduced->m == hessian_matrix->m);
+      RHEA_ASSERT (param_vec_reduced->n == 1);
+      RHEA_ASSERT (col < hessian_matrix->n);
+
+      /* fill one column of the Hessian matrix */
+      for (row = 0; row < param_vec_reduced->m; row++) {
+        hessian_matrix->e[row][col] = param_vec_reduced->e[row][0];
+      }
+      rhea_inversion_param_vec_reduced_destroy (param_vec_reduced);
+
+      /* increment column index of matrix */
+      col++;
+    }
+  }
+
+  /* enforce symmetry of Hessian matrix */
+  if (rhea_inversion_assemble_hessian_enforce_symm) {
+    sc_dmatrix_t       *hessian_transp;
+
+    hessian_transp = sc_dmatrix_new (hessian_matrix->n, hessian_matrix->m);
+    sc_dmatrix_transpose (hessian_matrix, hessian_transp);
+    RHEA_ASSERT (hessian_matrix->m == hessian_matrix->n);
+    sc_dmatrix_add (1.0, hessian_transp, hessian_matrix);
+    sc_dmatrix_scale (0.5, hessian_matrix);
+
+    sc_dmatrix_destroy (hessian_transp);
+  }
+
+  /* destroy */
+  rhea_inversion_param_vec_destroy (param_vec_in);
+  rhea_inversion_param_vec_destroy (param_vec_out);
+}
+
+static void
 rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
                                          ymir_vec_t *step_vec,
                                          const double step_length,
                                          void *data)
 {
   const rhea_inversion_hessian_t  type = rhea_inversion_hessian_type;
+  const double        prior_rel_weight =
+                        rhea_inversion_parameter_prior_rel_weight;
   rhea_inversion_problem_t *inv_problem = data;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
@@ -1300,59 +1336,67 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
 
   /* update Hessian */
   switch (type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
-  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
-    if (rhea_inversion_assemble_hessian_matrix) { /* if Hessian is assembled */
-      rhea_inversion_assemble_hessian (
-          inv_problem->hessian_matrix, inv_problem, type,
-          rhea_inversion_assemble_hessian_enforce_symm);
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
+    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
+    RHEA_ASSERT (NULL != inv_problem->newton_gradient_diff_vec);
+    if (1 == inv_problem->newton_gradient_diff_vec_update_count) {
+      double              damping;
+
+      /* set damping factor in case of rel. small prior term */
+      if (isfinite (prior_rel_weight) &&
+          0.0 < prior_rel_weight && prior_rel_weight < 1.0) {
+        damping = prior_rel_weight;
+      }
+      else {
+        damping = NAN;
+      }
+
+      /* set inverse Hessian matrix */
+      rhea_inversion_assemble_hessian_gradient_descend (
+          inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
+          damping, inv_problem);
+    }
+    else if (step_length < 0.5) { /* if adjust scaling of Hessian */
+      sc_dmatrix_scale (step_length, inv_problem->hessian_matrix);
     }
     break;
   case RHEA_INVERSION_HESSIAN_BFGS:
     RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
     RHEA_ASSERT (NULL != inv_problem->newton_gradient_diff_vec);
-    switch (inv_problem->newton_gradient_diff_vec_update_count) {
-    case 1:
-      {
-        const double        prior_rel_weight =
-                              rhea_inversion_parameter_prior_rel_weight;
-        double              damping;
+    if (1 == inv_problem->newton_gradient_diff_vec_update_count) {
+      double              damping;
 
-        /* set damping factor for Hessian in case of rel. small prior term */
-        if (isfinite (prior_rel_weight) &&
-            0.0 < prior_rel_weight && prior_rel_weight < 1.0) {
-          damping = prior_rel_weight;
-        }
-        else {
-          damping = NAN;
-        }
-
-        /* compute initial BFGS approximation of the inverse Hessian matrix */
-        rhea_inversion_assemble_hessian_bfgs_init (
-            inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
-            damping, inv_problem);
+      /* set damping factor for Hessian in case of rel. small prior term */
+      if (isfinite (prior_rel_weight) &&
+          0.0 < prior_rel_weight && prior_rel_weight < 1.0) {
+        damping = prior_rel_weight;
       }
-      break;
-    case 2:
-      {
-        RHEA_ASSERT (NULL != step_vec);
-
-        /* update BFGS approximation of the inverse Hessian matrix */
-        rhea_inversion_assemble_hessian_bfgs_update (
-            inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
-            step_vec, step_length, inv_problem, 1 /* reconstruct init */);
+      else {
+        damping = NAN;
       }
-      break;
-    default: /* at nonlinear iteration >2 */
-      {
-        RHEA_ASSERT (2 < inv_problem->newton_gradient_diff_vec_update_count);
-        RHEA_ASSERT (NULL != step_vec);
 
-        /* update BFGS approximation of the inverse Hessian matrix */
-        rhea_inversion_assemble_hessian_bfgs_update (
-            inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
-            step_vec, step_length, inv_problem, 0 /* !reconstruct init */);
-      }
+      /* compute initial BFGS approximation of the inverse Hessian matrix */
+      rhea_inversion_assemble_hessian_bfgs_init (
+          inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
+          damping, inv_problem);
+    }
+    else { /* otherwise at 2nd nonlinear iteration and above */
+      const int           reconstruct_init =
+        (2 == inv_problem->newton_gradient_diff_vec_update_count);
+
+      /* update BFGS approximation of the inverse Hessian matrix */
+      RHEA_ASSERT (NULL != step_vec);
+      rhea_inversion_assemble_hessian_bfgs_update (
+          inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
+          step_vec, step_length, inv_problem, reconstruct_init);
+    }
+    break;
+  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+  case RHEA_INVERSION_HESSIAN_FULL:
+    if (rhea_inversion_assemble_hessian_matrix) { /* if Hessian is assembled */
+      rhea_inversion_assemble_hessian (
+          inv_problem->hessian_matrix, inv_problem, type,
+          rhea_inversion_assemble_hessian_enforce_symm);
     }
     break;
   default: /* unknown Hessian type */
@@ -1512,9 +1556,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
 
   /* begin the computation of gradient difference: g - g_prev */
   switch (rhea_inversion_hessian_type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
-  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
-    break;
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
   case RHEA_INVERSION_HESSIAN_BFGS:
     RHEA_ASSERT (NULL != inv_problem->newton_gradient_diff_vec);
     if (0 < inv_problem->newton_gradient_diff_vec_update_count) {
@@ -1523,6 +1565,9 @@ rhea_inversion_newton_compute_negative_gradient_fn (
     else {
       ymir_vec_set_zero (inv_problem->newton_gradient_diff_vec);
     }
+    break;
+  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+  case RHEA_INVERSION_HESSIAN_FULL:
     break;
   default: /* unknown Hessian type */
     RHEA_ABORT_NOT_REACHED ();
@@ -1619,13 +1664,14 @@ rhea_inversion_newton_compute_negative_gradient_fn (
 
   /* finalize the computation of gradient difference: g - g_prev */
   switch (rhea_inversion_hessian_type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
-  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
-    break;
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
   case RHEA_INVERSION_HESSIAN_BFGS:
     RHEA_ASSERT (NULL != inv_problem->newton_gradient_diff_vec);
     ymir_vec_add (1.0, neg_gradient, inv_problem->newton_gradient_diff_vec);
     inv_problem->newton_gradient_diff_vec_update_count++;
+    break;
+  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+  case RHEA_INVERSION_HESSIAN_FULL:
     break;
   default: /* unknown Hessian type */
     RHEA_ABORT_NOT_REACHED ();
@@ -1724,14 +1770,15 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
 
   /* set which computations to perform */
   switch (type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
-  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
-    compute_incr_fwd = 1;
-    compute_incr_adj = 1;
-    break;
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
   case RHEA_INVERSION_HESSIAN_BFGS:
     compute_incr_fwd = 0;
     compute_incr_adj = 0;
+    break;
+  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+  case RHEA_INVERSION_HESSIAN_FULL:
+    compute_incr_fwd = 1;
+    compute_incr_adj = 1;
     break;
   default: /* unknown Hessian type */
     compute_incr_fwd = 0;
@@ -1803,6 +1850,8 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
 
     /* add 2nd-order terms to right-hand side */
     switch (type) {
+    case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+      break;
     case RHEA_INVERSION_HESSIAN_FULL:
       /* retrieve velocity of the adjont state */
       RHEA_ASSERT (!inv_problem->adjoint_is_outdated);
@@ -1812,8 +1861,6 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
       RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
       RHEA_ABORT_NOT_REACHED (); //TODO
-      break;
-    case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
       break;
     default: /* unknown Hessian type */
       RHEA_ABORT_NOT_REACHED ();
@@ -1856,13 +1903,12 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
 
   /* compute the Hessian application */
   switch (type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
+  case RHEA_INVERSION_HESSIAN_BFGS:
+    //TODO this is not the proper implementation of matrix-free BFGS
+    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
     rhea_inversion_param_apply_hessian (
-        param_vec_out, param_vec_in,
-        inv_problem->forward_vel_press,
-        inv_problem->adjoint_vel_press,
-        inv_problem->incremental_forward_vel_press,
-        inv_problem->incremental_adjoint_vel_press,
+        param_vec_out, param_vec_in, NULL, NULL, NULL, NULL,
         prior_abs_weight, inv_param);
     break;
   case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
@@ -1872,11 +1918,13 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
         NULL /* incr. forward */, inv_problem->incremental_adjoint_vel_press,
         prior_abs_weight, inv_param);
     break;
-  case RHEA_INVERSION_HESSIAN_BFGS:
-    //TODO this is not the proper implementation of matrix-free BFGS
-    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
+  case RHEA_INVERSION_HESSIAN_FULL:
     rhea_inversion_param_apply_hessian (
-        param_vec_out, param_vec_in, NULL, NULL, NULL, NULL,
+        param_vec_out, param_vec_in,
+        inv_problem->forward_vel_press,
+        inv_problem->adjoint_vel_press,
+        inv_problem->incremental_forward_vel_press,
+        inv_problem->incremental_adjoint_vel_press,
         prior_abs_weight, inv_param);
     break;
   default: /* unknown Hessian type */
@@ -1907,8 +1955,19 @@ rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
 
   /* apply the Hessian */
   switch (type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
+    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
+    ymir_vec_copy (in, out);
+    ymir_vec_scale (1.0/inv_problem->hessian_matrix->e[0][0], out);
+    break;
+  case RHEA_INVERSION_HESSIAN_BFGS:
+    //TODO this factorization should not be performed for large matrices
+    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
+    rhea_inversion_param_vec_reduced_solve_matrix (
+        out, inv_problem->hessian_matrix, in, inv_param, NULL);
+    break;
   case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+  case RHEA_INVERSION_HESSIAN_FULL:
     if (!rhea_inversion_assemble_hessian_matrix) { /* if call apply function */
       rhea_inversion_apply_hessian (out, in, inv_problem, type);
     }
@@ -1916,12 +1975,6 @@ rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
       rhea_inversion_param_vec_reduced_apply_matrix (
           out, inv_problem->hessian_matrix, in, inv_param);
     }
-    break;
-  case RHEA_INVERSION_HESSIAN_BFGS:
-    //TODO this factorization should not be performed for large matrices
-    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
-    rhea_inversion_param_vec_reduced_solve_matrix (
-        out, inv_problem->hessian_matrix, in, inv_param, NULL);
     break;
   default: /* unknown Hessian type */
     RHEA_ABORT_NOT_REACHED ();
@@ -2001,6 +2054,24 @@ rhea_inversion_newton_solve_hessian_system_fn (
 
   /* (approximately) invert the Hessian */
   switch (rhea_inversion_hessian_type) {
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
+    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
+    ymir_vec_copy (neg_gradient, step);
+    ymir_vec_scale (inv_problem->hessian_matrix->e[0][0], step);
+    if (lin_iter_count != NULL) {
+      *lin_iter_count = 1;
+    }
+    stop_reason = 1;
+    break;
+  case RHEA_INVERSION_HESSIAN_BFGS:
+    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
+    rhea_inversion_param_vec_reduced_apply_matrix (
+        step, inv_problem->hessian_matrix, neg_gradient, inv_param);
+    if (lin_iter_count != NULL) {
+      *lin_iter_count = 1;
+    }
+    stop_reason = 1;
+    break;
   case RHEA_INVERSION_HESSIAN_FULL:
   case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
     if (!rhea_inversion_assemble_hessian_matrix) { /* if matrix-free */
@@ -2012,15 +2083,6 @@ rhea_inversion_newton_solve_hessian_system_fn (
           step, inv_problem->hessian_matrix, neg_gradient, inv_param,
           lin_iter_count);
     }
-    break;
-  case RHEA_INVERSION_HESSIAN_BFGS:
-    RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
-    rhea_inversion_param_vec_reduced_apply_matrix (
-        step, inv_problem->hessian_matrix, neg_gradient, inv_param);
-    if (lin_iter_count != NULL) {
-      *lin_iter_count = 1;
-    }
-    stop_reason = 1;
     break;
   default: /* unknown Hessian type */
     RHEA_ABORT_NOT_REACHED ();
@@ -2256,14 +2318,15 @@ rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
   inv_problem->newton_step_vec =
     rhea_inversion_param_vec_new (inv_param);
   switch (rhea_inversion_hessian_type) {
-  case RHEA_INVERSION_HESSIAN_FULL:
-  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
-    inv_problem->newton_gradient_diff_vec = NULL;
-    inv_problem->newton_gradient_diff_vec_update_count = 0;
-    break;
+  case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
   case RHEA_INVERSION_HESSIAN_BFGS:
     inv_problem->newton_gradient_diff_vec =
       rhea_inversion_param_vec_new (inv_param);
+    inv_problem->newton_gradient_diff_vec_update_count = 0;
+    break;
+  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+  case RHEA_INVERSION_HESSIAN_FULL:
+    inv_problem->newton_gradient_diff_vec = NULL;
     inv_problem->newton_gradient_diff_vec_update_count = 0;
     break;
   default: /* unknown Hessian type */
