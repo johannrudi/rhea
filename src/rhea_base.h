@@ -223,14 +223,86 @@ extern int          rhea_package_id;
 void                rhea_init (sc_log_handler_t log_handler,
                                int log_threshold);
 
-/** TODO
+/**
+ * Initializes rhea and sub-packages.
  */
 void                rhea_initialize (int argc, char **argv,
                                      sc_MPI_Comm mpicomm);
 
-/** TODO
+/**
+ * Finalizes rhea and sub-packages.
  */
 void                rhea_finalize ();
+
+/**
+ * Computes a soft version of the minimum avoiding overflow and underflow:
+ *
+ *   soft_minimum (a, b) = log (exp (p*a) + exp(p*b)) / p
+ *                       = min + log (1 + exp(p*(max - min))) / p
+ *
+ * where `min=min(a,b)`, `max=max(a,b)`, and the parameter `p<0` controls
+ * "softness" such that
+ *
+ *   soft_minimum (a, b) -> min (a, b)  as  p<0 and p -> -infinity
+ */
+static inline double
+rhea_soft_minimum (const double a, const double b, const double p)
+{
+  double              minimum, maximum;
+
+  if (a < b) {
+    minimum = a;
+    maximum = b;
+  }
+  else if (b < a) {
+    minimum = b;
+    maximum = a;
+  }
+  else { /* otherwise a=b */
+    return a;
+  }
+
+  RHEA_ASSERT (p < 0.0);
+  RHEA_ASSERT ( isfinite (exp (p*(maximum - minimum))) );
+
+  /* return soft minimum */
+  return minimum + log (1.0 + exp (p*(maximum - minimum))) / p;
+}
+
+/**
+ * Computes a soft version of the maximum avoiding overflow and underflow:
+ *
+ *   soft_maximum (a, b) = log (exp (p*a) + exp(p*b)) / p
+ *                       = max + log (1 + exp(p*(min - max))) / p
+ *
+ * where `min=min(a,b)`, `max=max(a,b)`, and the parameter `p>0` controls
+ * "softness" such that
+ *
+ *   soft_maximum (a, b) -> max (a, b)  as  p>0 and p -> +infinity
+ */
+static inline double
+rhea_soft_maximum (const double a, const double b, const double p)
+{
+  double              minimum, maximum;
+
+  if (a < b) {
+    minimum = a;
+    maximum = b;
+  }
+  else if (b < a) {
+    minimum = b;
+    maximum = a;
+  }
+  else { /* otherwise a=b */
+    return a;
+  }
+
+  RHEA_ASSERT (0.0 < p);
+  RHEA_ASSERT ( isfinite (exp (p*(minimum - maximum))) );
+
+  /* return soft maximum */
+  return maximum + log (1.0 + exp (p*(minimum - maximum))) / p;
+}
 
 SC_EXTERN_C_END;
 
