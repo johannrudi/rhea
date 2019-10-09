@@ -60,7 +60,11 @@ typedef enum
 
   /* (1) upper bound + shift, (2) weak zone, (3) yielding, (4) lower bound;
    * upper viscosity bound via shift, lower viscosity bound via addition */
-  RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT
+  RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT,
+
+  /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound;
+   * upper viscosity bound via soft min, lower viscosity bound via addition */
+  RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT
 }
 rhea_viscosity_model_t;
 
@@ -467,6 +471,14 @@ double              rhea_viscosity_marker_get_yielding_volume (
 /******************************************************************************
  * Filters
  *****************************************************************************/
+
+/**
+ * Separates the entries of a filter vector into binary values:
+ *   1 if above threshold
+ *   0 if below threshold or equal
+ */
+void                rhea_viscosity_filter_separate (ymir_vec_t *filter,
+                                                    const double threshold);
 
 /**
  * Computes the volume of a filter.  A filter is understood as a vector with

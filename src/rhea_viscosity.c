@@ -160,6 +160,9 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_USHIFT") == 0) {
     opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT;
   }
+  else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_USOFT") == 0) {
+    opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT;
+  }
   else { /* unknown model name */
     RHEA_ABORT ("Unknown viscosity model name");
   }
@@ -524,7 +527,7 @@ rhea_viscosity_marker_filter_range (ymir_vec_t *vec, ymir_vec_t *marker,
 
     /* filter a continuous vector */
     ymir_interp_vec (filter, filter_interp);
-    //TODO enforce binary entries in interpolated filter
+    rhea_viscosity_filter_separate (filter_interp, 0.5 /* threshold */);
     ymir_vec_multiply_in1 (filter_interp, vec);
 
     ymir_vec_destroy (filter);
@@ -544,7 +547,7 @@ rhea_viscosity_marker_filter_range (ymir_vec_t *vec, ymir_vec_t *marker,
 
     /* filter a discontinuous GLL vector */
     ymir_interp_vec (filter, filter_interp);
-    //TODO enforce binary entries in interpolated filter
+    rhea_viscosity_filter_separate (filter_interp, 0.5 /* threshold */);
     ymir_vec_multiply_in1 (filter_interp, vec);
 
     ymir_vec_destroy (filter);
@@ -727,6 +730,27 @@ rhea_viscosity_linear_comp (const double temp,
 }
 
 /**
+ * Applies upper bound to viscosity via soft minimum.
+ */
+static void
+rhea_viscosity_linear_restrict_max_soft (double *viscosity, /* in/out */
+                                         double *marker,    /* out */
+                                         const double visc_max,
+                                         const double softness_param)
+{
+  RHEA_ASSERT (isfinite (*viscosity));
+  RHEA_ASSERT (isfinite (visc_max));
+  RHEA_ASSERT (0.0 < visc_max);
+  RHEA_ASSERT (softness_param < 0.0);
+
+  if (visc_max < *viscosity) {
+    *marker = rhea_viscosity_marker_set_max (*marker);
+  }
+
+  *viscosity = rhea_soft_minimum (*viscosity, visc_max, softness_param);
+}
+
+/**
  * Calculates the linear viscosity according to a specified model, which
  * incorporates temperature, weak zones, and viscosity bounds.
  *
@@ -789,6 +813,30 @@ rhea_viscosity_linear_model (double *viscosity,
       if (restrict_max && visc_max < *viscosity) {
         *viscosity = visc_max;
         *marker = rhea_viscosity_marker_set_max (*marker);
+      }
+
+      /* (W) multiply by weak zone */
+      *viscosity *= weak;
+      *marker = rhea_viscosity_marker_set_weak (*marker, weak);
+
+      /* (L) restrict viscosity to lower bound */
+      if (restrict_min) {
+        if (*viscosity < visc_min) {
+          *marker = rhea_viscosity_marker_set_min (*marker);
+        }
+        *viscosity += visc_min;
+      }
+    }
+    break;
+
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
+    {
+      const double        softness_param = -1.0e-2;
+
+      /* (U) restrict viscosity to upper bound */
+      if (restrict_max) {
+        rhea_viscosity_linear_restrict_max_soft (viscosity, marker, visc_max,
+                                                 softness_param);
       }
 
       /* (W) multiply by weak zone */
@@ -1151,7 +1199,9 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
 }
 
 /**
- * Applies upper bound to viscosity via cut-off.
+ * Applies upper bound to viscosity via cut-off:
+ *
+ *   visc = min (visc, visc_max)
  */
 static void
 rhea_viscosity_nonlinear_restrict_max (double *viscosity, /* in/out */
@@ -1509,6 +1559,10 @@ rhea_viscosity_nonlinear_model (double *viscosity,
       }
     }
     break; /* RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT */
+
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
+    RHEA_ABORT_NOT_REACHED (); //TODO implement
+    break; /* RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT */
 
   default: /* unknown viscosity model */
     RHEA_ABORT_NOT_REACHED ();
@@ -2080,6 +2134,7 @@ rhea_viscosity_get_scaling (rhea_viscosity_options_t *opt,
     break;
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
     if (restrict_min && opt->min < scaling) {
       return (scaling - opt->min);
     }
@@ -2204,6 +2259,7 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
       break;
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
       if (rhea_viscosity_restrict_min (opt)) {
         shift_proj -= opt->min;
       }
@@ -2341,7 +2397,7 @@ rhea_viscosity_marker_set_elem_gauss (ymir_vec_t *marker_vec,
  * Filter
  *****************************************************************************/
 
-static void
+void
 rhea_viscosity_filter_separate (ymir_vec_t *filter, const double threshold)
 {
   /* separate filter values in case of cvec */
@@ -2403,10 +2459,6 @@ rhea_viscosity_filter_invert (ymir_vec_t *filter)
   ymir_vec_scale_shift (-1.0, 1.0, filter);
 }
 
-/**
- * Computes the volume of a filter.  A filter is understood as a vector with
- * ones where the filter is active and zeros otherwise.
- */
 double
 rhea_viscosity_filter_compute_volume (ymir_vec_t *filter)
 {
