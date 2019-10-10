@@ -41,6 +41,7 @@ void                rhea_viscosity_param_derivative (
                             ymir_vec_t *viscosity,
                             ymir_vec_t *marker,
                             ymir_vec_t *temperature,
+                            ymir_vec_t *weakzone,
                             ymir_vec_t *velocity,
                             rhea_viscosity_options_t *visc_options);
 
