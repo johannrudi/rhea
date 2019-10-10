@@ -172,45 +172,6 @@ rhea_viscosity_param_derivative_init (
   RHEA_ABORT_NOT_REACHED ();
 }
 
-static void
-rhea_viscosity_param_derivative_scale_mantle (
-                                      ymir_vec_t *derivative,
-                                      const double scaling_upper_mantle,
-                                      const double scaling_lower_mantle,
-                                      rhea_viscosity_options_t *visc_options)
-{
-  rhea_domain_options_t  *domain_options = visc_options->domain_options;
-  const int           process_upper = isfinite (scaling_upper_mantle);
-  const int           process_lower = isfinite (scaling_lower_mantle);
-
-
-  if (process_upper && !process_lower) { /* if upper mantle */
-    ymir_vec_scale (scaling_upper_mantle, derivative);
-  }
-  else if (!process_upper && process_lower) { /* if lower mantle */
-    ymir_vec_scale (scaling_lower_mantle, derivative);
-  }
-  else if (process_upper && process_lower) { /* if whole mantle */
-    ymir_vec_t         *scal_filter = ymir_vec_template (derivative);
-    ymir_vec_t         *scal = ymir_vec_template (derivative);
-
-    ymir_vec_set_zero (scal);
-
-    rhea_viscosity_stats_filter_upper_mantle (scal_filter, domain_options);
-    ymir_vec_add (scaling_upper_mantle, scal_filter, scal);
-    rhea_viscosity_stats_filter_lower_mantle (scal_filter, domain_options);
-    ymir_vec_add (scaling_lower_mantle, scal_filter, scal);
-
-    ymir_vec_multiply_in (scal, derivative);
-
-    ymir_vec_destroy (scal_filter);
-    ymir_vec_destroy (scal);
-  }
-  else {
-    RHEA_ABORT_NOT_REACHED ();
-  }
-}
-
 /**
  * Computes derivative w.r.t. the lower viscosity bound.
  */
@@ -281,54 +242,58 @@ rhea_viscosity_param_derivative_max (ymir_vec_t *derivative,
  *   deriv = (d X(param_c)) * visc / c
  */
 static void
-rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
-                                      ymir_vec_t *viscosity,
-                                      ymir_vec_t *marker,
-                                      rhea_viscosity_options_t *visc_options,
-                                      const int process_upper_mantle,
-                                      const int process_lower_mantle)
+rhea_viscosity_param_derivative_upper_mantle_scaling (
+                                        ymir_vec_t *derivative,
+                                        ymir_vec_t *viscosity,
+                                        ymir_vec_t *marker,
+                                        rhea_viscosity_options_t *visc_options)
 {
-  rhea_viscosity_param_derivative_filter_t  filter;
   double              scaling_curr, scaling_deriv;
-  double              scaling_upper_mantle, scaling_lower_mantle;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
-  RHEA_ASSERT (process_upper_mantle || process_lower_mantle);
-
-  /* set filter and scaling */
-  if (process_upper_mantle) { /* if upper mantle */
-    filter = RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_UM;
-    scaling_curr = rhea_viscosity_get_scaling (
-        visc_options, 1 /* in upper mantle */,
-        rhea_viscosity_restrict_min (visc_options));
-    scaling_deriv = rhea_inversion_param_derivative_pos (
-        visc_options->upper_mantle_scaling);
-    scaling_upper_mantle = scaling_deriv/scaling_curr;
-  }
-  else {
-    scaling_upper_mantle = NAN;
-  }
-  if (process_lower_mantle) { /* if lower mantle */
-    filter = RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_LM;
-    scaling_curr = rhea_viscosity_get_scaling (
-        visc_options, 0 /* in lower mantle */,
-        rhea_viscosity_restrict_min (visc_options));
-    scaling_deriv = rhea_inversion_param_derivative_pos (
-        visc_options->lower_mantle_scaling);
-    scaling_lower_mantle = scaling_deriv/scaling_curr;
-  }
-  else {
-    scaling_lower_mantle = NAN;
-  }
 
   /* init derivative */
   rhea_viscosity_param_derivative_init (
-      derivative, filter, viscosity, marker, visc_options);
+      derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_UM,
+      viscosity, marker, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
-  rhea_viscosity_param_derivative_scale_mantle (
-      derivative, scaling_upper_mantle, scaling_lower_mantle, visc_options);
+  scaling_curr = rhea_viscosity_get_scaling (
+      visc_options, 1 /* in upper mantle */,
+      rhea_viscosity_restrict_min (visc_options));
+  scaling_deriv = rhea_inversion_param_derivative_pos (
+      visc_options->upper_mantle_scaling);
+  ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
+
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
+}
+
+static void
+rhea_viscosity_param_derivative_lower_mantle_scaling (
+                                        ymir_vec_t *derivative,
+                                        ymir_vec_t *viscosity,
+                                        ymir_vec_t *marker,
+                                        rhea_viscosity_options_t *visc_options)
+{
+  double              scaling_curr, scaling_deriv;
+
+  /* check input */
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
+
+  /* init derivative */
+  rhea_viscosity_param_derivative_init (
+      derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_LM,
+      viscosity, marker, visc_options);
+
+  /* remove previous scaling and multiply by value corresponding to deriv. */
+  scaling_curr = rhea_viscosity_get_scaling (
+      visc_options, 0 /* in lower mantle */,
+      rhea_viscosity_restrict_min (visc_options));
+  scaling_deriv = rhea_inversion_param_derivative_pos (
+      visc_options->lower_mantle_scaling);
+  ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
@@ -340,57 +305,74 @@ rhea_viscosity_param_derivative_scal (ymir_vec_t *derivative,
  *   deriv = (d X(param_E_a)) * (0.5 - T) * visc
  */
 static void
-rhea_viscosity_param_derivative_arrh (ymir_vec_t *derivative,
-                                      ymir_vec_t *viscosity,
-                                      ymir_vec_t *marker,
-                                      ymir_vec_t *temperature,
-                                      rhea_viscosity_options_t *visc_options,
-                                      const int process_upper_mantle,
-                                      const int process_lower_mantle)
+rhea_viscosity_param_derivative_scale_by_temp_diff (ymir_vec_t *derivative,
+                                                    ymir_vec_t *temperature)
 {
-  rhea_viscosity_param_derivative_filter_t  filter;
+  ymir_vec_t         *scaling_vec = ymir_vec_template (derivative);
+
+  ymir_interp_vec (temperature, scaling_vec);
+  rhea_temperature_bound (scaling_vec);
+  ymir_vec_scale_shift (-1.0, RHEA_TEMPERATURE_NEUTRAL_VALUE, scaling_vec);
+  ymir_vec_multiply_in (scaling_vec, derivative);
+
+  ymir_vec_destroy (scaling_vec);
+}
+
+static void
+rhea_viscosity_param_derivative_upper_mantle_activation_energy (
+                                        ymir_vec_t *derivative,
+                                        ymir_vec_t *viscosity,
+                                        ymir_vec_t *marker,
+                                        ymir_vec_t *temperature,
+                                        rhea_viscosity_options_t *visc_options)
+{
   double              scaling_curr, scaling_deriv;
-  double              scaling_upper_mantle, scaling_lower_mantle;
-  ymir_vec_t         *scal = ymir_vec_template (derivative);
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
-  RHEA_ASSERT (process_upper_mantle || process_lower_mantle);
-
-  /* set filter and scaling */
-  if (process_upper_mantle) { /* if upper mantle */
-    filter = RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_UM;
-    scaling_curr = visc_options->upper_mantle_arrhenius_activation_energy;
-    scaling_deriv = rhea_inversion_param_derivative_pos (scaling_curr);
-    scaling_upper_mantle = scaling_deriv;
-  }
-  else {
-    scaling_upper_mantle = NAN;
-  }
-  if (process_lower_mantle) { /* if lower mantle */
-    filter = RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_LM;
-    scaling_curr = visc_options->lower_mantle_arrhenius_activation_energy;
-    scaling_deriv = rhea_inversion_param_derivative_pos (scaling_curr);
-    scaling_lower_mantle = scaling_deriv;
-  }
-  else {
-    scaling_lower_mantle = NAN;
-  }
 
   /* init derivative */
   rhea_viscosity_param_derivative_init (
-      derivative, filter, viscosity, marker, visc_options);
+      derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_UM,
+      viscosity, marker, visc_options);
 
-  /* multiply derivative by temperature difference term */
-  ymir_interp_vec (temperature, scal);
-  rhea_temperature_bound (scal);
-  ymir_vec_scale_shift (-1.0, RHEA_TEMPERATURE_NEUTRAL_VALUE, scal);
-  ymir_vec_multiply_in (scal, derivative);
-  ymir_vec_destroy (scal);
+  /* multiply by temperature difference term */
+  rhea_viscosity_param_derivative_scale_by_temp_diff (derivative, temperature);
 
-  /* multiply derivative by activation energy */
-  rhea_viscosity_param_derivative_scale_mantle (
-      derivative, scaling_upper_mantle, scaling_lower_mantle, visc_options);
+  /* multiply by the derivative of the activation energy */
+  scaling_curr = visc_options->upper_mantle_arrhenius_activation_energy;
+  scaling_deriv = rhea_inversion_param_derivative_pos (scaling_curr);
+  ymir_vec_scale (scaling_deriv, derivative);
+
+  /* check output */
+  RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
+}
+
+static void
+rhea_viscosity_param_derivative_lower_mantle_activation_energy (
+                                        ymir_vec_t *derivative,
+                                        ymir_vec_t *viscosity,
+                                        ymir_vec_t *marker,
+                                        ymir_vec_t *temperature,
+                                        rhea_viscosity_options_t *visc_options)
+{
+  double              scaling_curr, scaling_deriv;
+
+  /* check input */
+  RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
+
+  /* init derivative */
+  rhea_viscosity_param_derivative_init (
+      derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_LIN_LM,
+      viscosity, marker, visc_options);
+
+  /* multiply by temperature difference term */
+  rhea_viscosity_param_derivative_scale_by_temp_diff (derivative, temperature);
+
+  /* multiply by the derivative of the activation energy */
+  scaling_curr = visc_options->lower_mantle_arrhenius_activation_energy;
+  scaling_deriv = rhea_inversion_param_derivative_pos (scaling_curr);
+  ymir_vec_scale (scaling_deriv, derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
@@ -552,7 +534,7 @@ rhea_viscosity_param_derivative (
                             ymir_vec_t *velocity,
                             rhea_viscosity_options_t *visc_options)
 {
-  /* initialize to zero */
+  /* initialize */
   ymir_vec_set_zero (derivative);
 
   /* compute derivative */
@@ -572,30 +554,26 @@ rhea_viscosity_param_derivative (
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_SCALING:
-    rhea_viscosity_param_derivative_scal (
-        derivative, viscosity, marker, visc_options,
-        1 /* upper mantle */, 0 /* not lower mantle */);
+    rhea_viscosity_param_derivative_upper_mantle_scaling (
+        derivative, viscosity, marker, visc_options);
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_ACTIVATION_ENERGY:
     if (rhea_viscosity_has_arrhenius (visc_options)) {
-      rhea_viscosity_param_derivative_arrh (
-          derivative, viscosity, marker, temperature, visc_options,
-          1 /* upper mantle */, 0 /* not lower mantle */);
+      rhea_viscosity_param_derivative_upper_mantle_activation_energy (
+          derivative, viscosity, marker, temperature, visc_options);
     }
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_SCALING:
-    rhea_viscosity_param_derivative_scal (
-        derivative, viscosity, marker, visc_options,
-        0 /* not upper mantle */, 1 /* lower mantle */);
+    rhea_viscosity_param_derivative_lower_mantle_scaling (
+        derivative, viscosity, marker, visc_options);
     break;
 
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_ACTIVATION_ENERGY:
     if (rhea_viscosity_has_arrhenius (visc_options)) {
-      rhea_viscosity_param_derivative_arrh (
-          derivative, viscosity, marker, temperature, visc_options,
-          0 /* not upper mantle */, 1 /* lower mantle */);
+      rhea_viscosity_param_derivative_lower_mantle_activation_energy (
+          derivative, viscosity, marker, temperature, visc_options);
     }
     break;
 
