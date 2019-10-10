@@ -23,7 +23,7 @@ double              rhea_math_smin_logexp (const double x, const double y,
 double              rhea_math_smin_logexp_nondim (const double x,
                                                   const double y,
                                                   const double p,
-                                                  const double dim_est);
+                                                  const double d);
 
 /**
  * Computes a smooth version of the maximum avoiding overflow and underflow:
@@ -42,30 +42,34 @@ double              rhea_math_smax_logexp (const double x, const double y,
 double              rhea_math_smax_logexp_nondim (const double x,
                                                   const double y,
                                                   const double p,
-                                                  const double dim_est);
+                                                  const double d);
 
 /**
  * Computes a smooth version of the minimum based on the generalized/power mean.
  */
-double              rhea_math_smin_gpm_nondim (const double x, const double y,
-                                               const double p,
-                                               const double dim_est);
-
 double              rhea_math_smin_gpm (const double x, const double y,
                                         const double p);
 
-double              rhea_math_smin_gpm_dx_nondim (const double x, const double y,
+double              rhea_math_smin_gpm_nondim (const double x, const double y,
+                                               const double p, const double d);
+
+double              rhea_math_smin_gpm_dx_nondim (const double x,
+                                                  const double y,
                                                   const double p,
-                                                  const double dim_est);
+                                                  const double d);
+
+double              rhea_math_smin_gpm_dx_impl_nondim (const double smin,
+                                                       const double y,
+                                                       const double p,
+                                                       const double d);
 
 /**
  * Computes a smooth version of the mximum based on the generalized/power mean.
  */
-double              rhea_math_smax_gpm_nondim (const double x, const double y,
-                                               const double p,
-                                               const double dim_est);
-
 double              rhea_math_smax_gpm (const double x, const double y,
                                         const double p);
+
+double              rhea_math_smax_gpm_nondim (const double x, const double y,
+                                               const double p, const double d);
 
 #endif /* RHEA_MATH_H */

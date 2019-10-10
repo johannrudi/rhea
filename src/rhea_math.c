@@ -3,7 +3,7 @@
 
 double
 rhea_math_smin_logexp_nondim (const double x, const double y, const double p,
-                              const double dim_est)
+                              const double d)
 {
   double              minimum, maximum;
 
@@ -20,11 +20,11 @@ rhea_math_smin_logexp_nondim (const double x, const double y, const double p,
   }
 
   RHEA_ASSERT (p < 0.0);
-  RHEA_ASSERT (0.0 < dim_est);
-  RHEA_ASSERT ( isfinite (exp (p/dim_est*(maximum - minimum))) );
+  RHEA_ASSERT (0.0 < d);
+  RHEA_ASSERT ( isfinite (exp (p/d*(maximum - minimum))) );
 
   /* return smooth minimum */
-  return minimum + log (1.0 + exp (p/dim_est*(maximum - minimum))) * dim_est/p;
+  return minimum + log (1.0 + exp (p/d*(maximum - minimum))) * d/p;
 }
 
 double
@@ -35,7 +35,7 @@ rhea_math_smin_logexp (const double x, const double y, const double p)
 
 double
 rhea_math_smax_logexp_nondim (const double x, const double y, const double p,
-                              const double dim_est)
+                              const double d)
 {
   double              minimum, maximum;
 
@@ -52,11 +52,11 @@ rhea_math_smax_logexp_nondim (const double x, const double y, const double p,
   }
 
   RHEA_ASSERT (0.0 < p);
-  RHEA_ASSERT (0.0 < dim_est);
-  RHEA_ASSERT ( isfinite (exp (p/dim_est*(minimum - maximum))) );
+  RHEA_ASSERT (0.0 < d);
+  RHEA_ASSERT ( isfinite (exp (p/d*(minimum - maximum))) );
 
   /* return smooth maximum */
-  return maximum + log (1.0 + exp (p/dim_est*(minimum - maximum))) * dim_est/p;
+  return maximum + log (1.0 + exp (p/d*(minimum - maximum))) * d/p;
 }
 
 double
@@ -67,21 +67,31 @@ rhea_math_smax_logexp (const double x, const double y, const double p)
 
 double
 rhea_math_smin_gpm_nondim (const double x, const double y, const double p,
-                           const double dim_est)
+                           const double d)
 {
   RHEA_ASSERT (p < 0.0);
-  RHEA_ASSERT (0.0 < dim_est);
-  return dim_est * pow (pow (x/dim_est, p) + pow (y/dim_est, p), 1.0/p);
+  RHEA_ASSERT (0.0 < d);
+  return d * pow (pow (x/d, p) + pow (y/d, p), 1.0/p);
 }
 
 double
 rhea_math_smin_gpm_dx_nondim (const double x, const double y, const double p,
-                              const double dim_est)
+                              const double d)
 {
   RHEA_ASSERT (p < 0.0);
-  RHEA_ASSERT (0.0 < dim_est);
-  return pow (x/dim_est, p - 1.0) *
-         pow (pow (x/dim_est, p) + pow (y/dim_est, p), 1.0/p - 1.0);
+  RHEA_ASSERT (0.0 < d);
+  return pow (pow (x/d, p) + pow (y/d, p), 1.0/p - 1.0) *
+         pow (x/d, p - 1.0);
+}
+
+double
+rhea_math_smin_gpm_dx_impl_nondim (const double smin, const double y,
+                                   const double p, const double d)
+{
+  RHEA_ASSERT (p < 0.0);
+  RHEA_ASSERT (0.0 < d);
+  return pow (pow (smin/d, p) - pow (y/d, p), 1.0 - 1.0/p) *
+         pow (smin/d, 1.0-p);
 }
 
 double
@@ -92,11 +102,11 @@ rhea_math_smin_gpm (const double x, const double y, const double p)
 
 double
 rhea_math_smax_gpm_nondim (const double x, const double y, const double p,
-                           const double dim_est)
+                           const double d)
 {
   RHEA_ASSERT (0.0 < p);
-  RHEA_ASSERT (0.0 < dim_est);
-  return dim_est * pow (pow (x/dim_est, p) + pow (y/dim_est, p), 1.0/p);
+  RHEA_ASSERT (0.0 < d);
+  return d * pow (pow (x/d, p) + pow (y/d, p), 1.0/p);
 }
 
 double
