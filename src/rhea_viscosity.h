@@ -64,7 +64,7 @@ typedef enum
 
   /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound;
    * upper viscosity bound via soft min, lower viscosity bound via addition */
-  RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT
+  RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH
 }
 rhea_viscosity_model_t;
 
@@ -88,6 +88,7 @@ typedef struct rhea_viscosity_options
   /* lower and upper bounds for the viscosity */
   double              min;
   double              max;
+  double              max_smoothness_param;
 
   /* scaling factors */
   double              upper_mantle_scaling;

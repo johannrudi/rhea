@@ -1,5 +1,6 @@
 #include <rhea_viscosity.h>
 #include <rhea_base.h>
+#include <rhea_math.h>
 #include <rhea_temperature.h>
 #include <rhea_weakzone.h>
 #include <rhea_velocity.h>
@@ -24,6 +25,7 @@
 #define RHEA_VISCOSITY_DEFAULT_REPRESENTATIVE_PAS (1.0e20)  /* [Pa*s] */
 #define RHEA_VISCOSITY_DEFAULT_MIN (1.0e-2)
 #define RHEA_VISCOSITY_DEFAULT_MAX (1.0e+4)
+#define RHEA_VISCOSITY_DEFAULT_MAX_SMOOTHNESS_PARAM (NAN)
 #define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING (4.0e+3)
 #define RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_ARRHENIUS_ACTIVATION_ENERGY (17.5)
 #define RHEA_VISCOSITY_DEFAULT_LOWER_MANTLE_SCALING (4.0e+5)
@@ -46,6 +48,8 @@ double              rhea_viscosity_representative_Pas =
   RHEA_VISCOSITY_DEFAULT_REPRESENTATIVE_PAS;
 double              rhea_viscosity_min = RHEA_VISCOSITY_DEFAULT_MIN;
 double              rhea_viscosity_max = RHEA_VISCOSITY_DEFAULT_MAX;
+double              rhea_viscosity_max_smoothness_param =
+  RHEA_VISCOSITY_DEFAULT_MAX_SMOOTHNESS_PARAM;
 double              rhea_viscosity_upper_mantle_scaling =
   RHEA_VISCOSITY_DEFAULT_UPPER_MANTLE_SCALING;
 double              rhea_viscosity_upper_mantle_arrhenius_activation_energy =
@@ -99,6 +103,10 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_D, "max", '\0',
     &(rhea_viscosity_max), RHEA_VISCOSITY_DEFAULT_MAX,
     "Upper bound for viscosity",
+  YMIR_OPTIONS_D, "max-smoothness-param", '\0',
+    &(rhea_viscosity_max_smoothness_param),
+    RHEA_VISCOSITY_DEFAULT_MAX_SMOOTHNESS_PARAM,
+    "Controls smoothness of the transition to the upper viscosity bound",
 
   YMIR_OPTIONS_D, "upper-mantle-scaling", '\0',
     &(rhea_viscosity_upper_mantle_scaling),
@@ -160,8 +168,8 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_USHIFT") == 0) {
     opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT;
   }
-  else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_USOFT") == 0) {
-    opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT;
+  else if (strcmp (rhea_viscosity_model_name, "UWYL_LADD_USMOOTH") == 0) {
+    opt->model = RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH;
   }
   else { /* unknown model name */
     RHEA_ABORT ("Unknown viscosity model name");
@@ -175,6 +183,12 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   opt->max = rhea_viscosity_max;
   RHEA_CHECK_ABORT (opt->min <= 0.0 || opt->max <= 0.0 || opt->min < opt->max,
                     "Invalid viscosity lower/upper bounds");
+  if (isfinite (rhea_viscosity_max_smoothness_param)) {
+    opt->max_smoothness_param = - fabs (rhea_viscosity_max_smoothness_param);
+  }
+  else { /* otherwise set a default value */
+    opt->max_smoothness_param = -1.0;
+  }
 
   /* store linear viscosity options */
   opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
@@ -733,21 +747,25 @@ rhea_viscosity_linear_comp (const double temp,
  * Applies upper bound to viscosity via soft minimum.
  */
 static void
-rhea_viscosity_linear_restrict_max_soft (double *viscosity, /* in/out */
-                                         double *marker,    /* out */
-                                         const double visc_max,
-                                         const double softness_param)
+rhea_viscosity_linear_restrict_max_smooth (double *viscosity, /* in/out */
+                                           double *marker,    /* out */
+                                           const double visc_max,
+                                           const double smoothness_param)
 {
   RHEA_ASSERT (isfinite (*viscosity));
   RHEA_ASSERT (isfinite (visc_max));
   RHEA_ASSERT (0.0 < visc_max);
-  RHEA_ASSERT (softness_param < 0.0);
+  RHEA_ASSERT (smoothness_param < 0.0);
+
+  *viscosity = rhea_math_smin_gpm_nondim (
+      *viscosity, visc_max, smoothness_param, visc_max /* dim est */);
+  RHEA_ASSERT (isfinite (*viscosity));
+  RHEA_ASSERT (0.0 < *viscosity);
 
   if (visc_max < *viscosity) {
+    *viscosity = visc_max;
     *marker = rhea_viscosity_marker_set_max (*marker);
   }
-
-  *viscosity = rhea_soft_minimum (*viscosity, visc_max, softness_param);
 }
 
 /**
@@ -829,14 +847,12 @@ rhea_viscosity_linear_model (double *viscosity,
     }
     break;
 
-  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH:
     {
-      const double        softness_param = -1.0e-2;
-
       /* (U) restrict viscosity to upper bound */
       if (restrict_max) {
-        rhea_viscosity_linear_restrict_max_soft (viscosity, marker, visc_max,
-                                                 softness_param);
+        rhea_viscosity_linear_restrict_max_smooth (viscosity, marker, visc_max,
+                                                   opt->max_smoothness_param);
       }
 
       /* (W) multiply by weak zone */
@@ -1560,9 +1576,9 @@ rhea_viscosity_nonlinear_model (double *viscosity,
     }
     break; /* RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT */
 
-  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH:
     RHEA_ABORT_NOT_REACHED (); //TODO implement
-    break; /* RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT */
+    break; /* RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH */
 
   default: /* unknown viscosity model */
     RHEA_ABORT_NOT_REACHED ();
@@ -2134,7 +2150,7 @@ rhea_viscosity_get_scaling (rhea_viscosity_options_t *opt,
     break;
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
+  case RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH:
     if (restrict_min && opt->min < scaling) {
       return (scaling - opt->min);
     }
@@ -2259,7 +2275,7 @@ rhea_viscosity_get_visc_shift_proj (rhea_viscosity_options_t *opt)
       break;
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
-    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USOFT:
+    case RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH:
       if (rhea_viscosity_restrict_min (opt)) {
         shift_proj -= opt->min;
       }
