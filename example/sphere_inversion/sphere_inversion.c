@@ -287,35 +287,35 @@ sphere_inversion_vtk_write_param_derivatives (
     rhea_viscosity_param_derivative (
         deriv_min,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_MIN,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_max,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_MAX,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_um_scal,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_SCALING,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_um_Ea,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_UPPER_MANTLE_ACTIVATION_ENERGY,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_lm_scal,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_SCALING,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_lm_Ea,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_LOWER_MANTLE_ACTIVATION_ENERGY,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_stress_exp,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_STRESS_EXPONENT,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
     rhea_viscosity_param_derivative (
         deriv_yielding,
         RHEA_VISCOSITY_PARAM_DERIVATIVE_YIELD_STRENGTH,
-        viscosity, marker, temperature, vel_sol, visc_options);
+        viscosity, marker, temperature, weakzone, vel_sol, visc_options);
 
     snprintf (path, BUFSIZ, "%s_visc_params", vtk_path);
     ymir_vtk_write (ymir_mesh, path,
