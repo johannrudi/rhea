@@ -2108,7 +2108,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
           (rhea_inversion_param_idx_t) idx, &weak_label);
       if (RHEA_WEAKZONE_LABEL_UNKNOWN == weak_label) {
         rhea_viscosity_param_derivative (
-            derivative, deriv_type, viscosity, marker, temperature,
+            derivative, deriv_type, viscosity, marker, temperature, weakzone,
             forward_vel, inv_param->visc_options);
       }
       else {
@@ -2292,13 +2292,12 @@ rhea_inversion_param_incremental_forward_rhs (ymir_vec_t *rhs_vel_mass,
           (rhea_inversion_param_idx_t) idx, &weak_label);
       if (RHEA_WEAKZONE_LABEL_UNKNOWN == weak_label) {
         rhea_viscosity_param_derivative (
-            derivative, deriv_type, viscosity, marker,
-            temperature, forward_vel, inv_param->visc_options);
+            derivative, deriv_type, viscosity, marker, temperature, weakzone,
+            forward_vel, inv_param->visc_options);
       }
       else {
         rhea_viscosity_param_derivative_weakzone (
-            derivative, deriv_type, weak_label,
-            viscosity, marker, weakzone,
+            derivative, deriv_type, weak_label, viscosity, marker, weakzone,
             inv_param->weak_options, inv_param->visc_options);
       }
 
