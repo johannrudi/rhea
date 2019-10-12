@@ -27,6 +27,10 @@
 #define RHEA_VTK_NAME_PLATE_LABEL "plate_label"
 #define RHEA_VTK_NAME_PLATE_VEL "plate_velocity"
 
+#define RHEA_VTK_NAME_VELOCITY_FWD "velocity_fwd"
+#define RHEA_VTK_NAME_PRESSURE_FWD "pressure_fwd"
+#define RHEA_VTK_NAME_VELOCITY_ADJ "velocity_adj"
+#define RHEA_VTK_NAME_PRESSURE_ADJ "pressure_adj"
 #define RHEA_VTK_NAME_VELOCITY_OBS "velocity_obs"
 #define RHEA_VTK_NAME_VELOCITY_MISFIT "velocity_misfit"
 
@@ -418,8 +422,41 @@ rhea_vtk_write_nonlinear_stokes_iteration_surf (const char *filepath,
 }
 
 int
+rhea_vtk_write_inversion_iteration (const char *filepath,
+                                    ymir_vec_t *velocity_fwd,
+                                    ymir_vec_t *pressure_fwd,
+                                    ymir_vec_t *velocity_adj,
+                                    ymir_vec_t *pressure_adj)
+{
+  ymir_mesh_t        *ymir_mesh;
+
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
+
+  /* check input */
+  RHEA_ASSERT (NULL != velocity_fwd);
+  RHEA_ASSERT (NULL != pressure_fwd);
+  RHEA_ASSERT (NULL != velocity_adj);
+  RHEA_ASSERT (NULL != pressure_adj);
+
+  /* create work variables */
+  ymir_mesh = ymir_vec_get_mesh (velocity_fwd);
+
+  /* write vtk file */
+  ymir_vtk_write (ymir_mesh, filepath,
+                  velocity_fwd, RHEA_VTK_NAME_VELOCITY_FWD,
+                  pressure_fwd, RHEA_VTK_NAME_PRESSURE_FWD,
+                  velocity_adj, RHEA_VTK_NAME_VELOCITY_ADJ,
+                  pressure_adj, RHEA_VTK_NAME_PRESSURE_ADJ, NULL);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
+
+  return 1;
+}
+
+int
 rhea_vtk_write_inversion_iteration_surf (const char *filepath,
-                                         ymir_vec_t *velocity_surf,
+                                         ymir_vec_t *velocity_fwd_surf,
+                                         ymir_vec_t *velocity_adj_surf,
                                          ymir_vec_t *velocity_obs_surf,
                                          ymir_vec_t *misfit_surf)
 {
@@ -428,16 +465,18 @@ rhea_vtk_write_inversion_iteration_surf (const char *filepath,
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
 
   /* check input */
-  RHEA_ASSERT (velocity_surf != NULL);
-  RHEA_ASSERT (velocity_obs_surf != NULL);
-  RHEA_ASSERT (misfit_surf != NULL);
+  RHEA_ASSERT (NULL != velocity_fwd_surf);
+  RHEA_ASSERT (NULL != velocity_adj_surf);
+  RHEA_ASSERT (NULL != velocity_obs_surf);
+  RHEA_ASSERT (NULL != misfit_surf);
 
   /* create work variables */
-  ymir_mesh = ymir_vec_get_mesh (velocity_surf);
+  ymir_mesh = ymir_vec_get_mesh (velocity_fwd_surf);
 
   /* write vtk file */
   ymir_vtk_write (ymir_mesh, filepath,
-                  velocity_surf, RHEA_VTK_NAME_VELOCITY,
+                  velocity_fwd_surf, RHEA_VTK_NAME_VELOCITY_FWD,
+                  velocity_adj_surf, RHEA_VTK_NAME_VELOCITY_ADJ,
                   velocity_obs_surf, RHEA_VTK_NAME_VELOCITY_OBS,
                   misfit_surf, RHEA_VTK_NAME_VELOCITY_MISFIT, NULL);
 

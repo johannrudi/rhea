@@ -42,9 +42,17 @@ int                 rhea_vtk_write_nonlinear_stokes_iteration_surf (
                                                   ymir_vec_t *stress_norm_surf,
                                                   ymir_vec_t *viscosity_surf);
 
+int                 rhea_vtk_write_inversion_iteration (
+                                                  const char *filepath,
+                                                  ymir_vec_t *velocity_fwd,
+                                                  ymir_vec_t *pressure_fwd,
+                                                  ymir_vec_t *velocity_adj,
+                                                  ymir_vec_t *pressure_adj);
+
 int                 rhea_vtk_write_inversion_iteration_surf (
                                                   const char *filepath,
-                                                  ymir_vec_t *velocity_surf,
+                                                  ymir_vec_t *velocity_fwd_surf,
+                                                  ymir_vec_t *velocity_adj_surf,
                                                   ymir_vec_t *velocity_obs_surf,
                                                   ymir_vec_t *misfit_surf);
 
