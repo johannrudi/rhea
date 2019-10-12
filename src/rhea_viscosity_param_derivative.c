@@ -75,13 +75,14 @@ rhea_viscosity_param_derivative_visc_max_smooth (
 
   for (elid = 0; elid < n_elements; elid++) {
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-      const double       *w = ymir_dvec_index (weakzone, elid, nodeid, 0);
+      const double        w = (weakzone == NULL ? 1.0 :
+                               *ymir_dvec_index (weakzone, elid, nodeid, 0));
       double             *d = ymir_dvec_index (derivative, elid, nodeid, 0);
 
-      *d *= 1.0/(*w);
+      *d *= 1.0/w;
       *d = rhea_math_smin_gpm_dx_impl_nondim (*d, visc_max, smoothness_param,
                                               visc_max);
-      *d *= *w;
+      *d *= w;
     }
   }
 }
@@ -162,8 +163,6 @@ rhea_viscosity_param_derivative_init (
   if (filter == RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_WKZ) {
     return;
   }
-
-  RHEA_ASSERT (NULL != weakzone);
 
   /* upper viscosity bound */
   if (filter == RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_MAX) {
