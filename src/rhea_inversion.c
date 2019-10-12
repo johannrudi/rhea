@@ -2262,15 +2262,33 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
 
   /* create visualization */
   if (vtk_path != NULL) {
-    ymir_vec_t         *vel_fwd_vol, *vel_fwd_surf, *misfit_surf;
+    ymir_vec_t         *vel_fwd_vol, *press_fwd_vol;
+    ymir_vec_t         *vel_adj_vol, *press_adj_vol;
+    ymir_vec_t         *vel_fwd_surf, *vel_adj_surf, *misfit_surf;
 
     /* get volume fields */
     rhea_velocity_pressure_create_components (
-        &vel_fwd_vol, NULL, inv_problem->forward_vel_press, press_elem);
+        &vel_fwd_vol, &press_fwd_vol, inv_problem->forward_vel_press,
+        press_elem);
+    rhea_velocity_pressure_create_components (
+        &vel_adj_vol, &press_adj_vol, inv_problem->adjoint_vel_press,
+        press_elem);
+
+    /* write VTK of volume fields */
+    snprintf (path, BUFSIZ, "%s_vol%s%02i", vtk_path,
+              RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+    rhea_vtk_write_inversion_iteration (
+        path, vel_fwd_vol, press_fwd_vol, vel_adj_vol, press_adj_vol);
+
+    /* destroy */
+    rhea_velocity_destroy (press_fwd_vol);
+    rhea_velocity_destroy (press_adj_vol);
 
     /* get surface fields */
     vel_fwd_surf = rhea_velocity_surface_new (ymir_mesh);
+    vel_adj_surf = rhea_velocity_surface_new (ymir_mesh);
     rhea_velocity_surface_interpolate (vel_fwd_surf, vel_fwd_vol);
+    rhea_velocity_surface_interpolate (vel_adj_surf, vel_adj_vol);
 
     /* compute the observation data misfit term */
     misfit_surf = rhea_velocity_surface_new (ymir_mesh);
@@ -2279,17 +2297,18 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
         inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
         rhea_stokes_problem_get_domain_options (stokes_problem));
 
-    /* set path */
-    snprintf (path, BUFSIZ, "%s%s%02i", vtk_path,
+    /* write VTK of surface fields*/
+    snprintf (path, BUFSIZ, "%s_surf%s%02i", vtk_path,
               RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
-
-    /* write VTK */
     rhea_vtk_write_inversion_iteration_surf (
-        path, vel_fwd_surf, inv_problem->vel_obs_surf, misfit_surf);
+        path, vel_fwd_surf, vel_adj_surf, inv_problem->vel_obs_surf,
+        misfit_surf);
 
     /* destroy */
     rhea_velocity_destroy (vel_fwd_vol);
+    rhea_velocity_destroy (vel_adj_vol);
     rhea_velocity_surface_destroy (vel_fwd_surf);
+    rhea_velocity_surface_destroy (vel_adj_surf);
     rhea_velocity_surface_destroy (misfit_surf);
   }
 
