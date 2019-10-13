@@ -71,7 +71,8 @@ void                      rhea_inversion_set_txt_output (
 
 void                      rhea_inversion_set_vtk_output (
                                         rhea_inversion_problem_t *inv_problem,
-                                        char *vtk_path);
+                                        char *vtk_path_vol,
+                                        char *vtk_path_surf);
 
 /******************************************************************************
  * Inverse Problem Solver
