@@ -200,7 +200,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                       vel_obs_euler, "velocity_obs_eulerpole",
                       vel_obs_diff, "velocity_obs_diff", NULL);
 
-      rhea_velocity_surface_destroy (vel_obs_surf);
+      rhea_velocity_surface_destroy (vel_obs_euler);
       rhea_velocity_surface_destroy (vel_obs_diff);
     }
 #endif
