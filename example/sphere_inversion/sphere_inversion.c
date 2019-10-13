@@ -132,7 +132,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
                                      const int vel_obs_euler_pole,
                                      const double vel_obs_add_noise_stddev,
                                      rhea_stokes_problem_t *stokes_problem,
-                                     const char *vtk_inv_solver_path)
+                                     const char *vtk_inv_solver_surf_path)
 {
   rhea_plate_options_t *plate_options =
     rhea_stokes_problem_get_plate_options (stokes_problem);
@@ -182,7 +182,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
 
     /* write vtk output of Euler pole vs. exact velocity observations */
 #ifdef RHEA_ENABLE_DEBUG
-    if (vtk_inv_solver_path != NULL) {
+    if (vtk_inv_solver_surf_path != NULL) {
       ymir_vec_t         *vel_obs_euler, *vel_obs_diff;
       char                path[BUFSIZ];
 
@@ -194,7 +194,7 @@ sphere_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
       ymir_vec_add (-1.0, vel_obs_euler, vel_obs_diff);
       rhea_plate_apply_filter_all_vec (vel_obs_diff, plate_options);
 
-      snprintf (path, BUFSIZ, "%s_vel_obs_eulerpole", vtk_inv_solver_path);
+      snprintf (path, BUFSIZ, "%s_vel_obs_eulerpole", vtk_inv_solver_surf_path);
       ymir_vtk_write (ymir_mesh, path,
                       vel_obs_surf, "velocity_obs_exact",
                       vel_obs_euler, "velocity_obs_eulerpole",
@@ -436,7 +436,8 @@ main (int argc, char **argv)
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
-  char               *vtk_inv_solver_path;
+  char               *vtk_inv_solver_vol_path;
+  char               *vtk_inv_solver_surf_path;
   char               *vtk_inv_param_derivative_path;
   /* mesh */
   p4est_t                *p4est;
@@ -500,9 +501,12 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
-  YMIR_OPTIONS_S, "vtk-write-inversion-solver-path", '\0',
-    &(vtk_inv_solver_path), NULL,
-    "VTK file path for solver internals of the inversion.",
+  YMIR_OPTIONS_S, "vtk-write-inversion-solver-volume-path", '\0',
+    &(vtk_inv_solver_vol_path), NULL,
+    "VTK file path for solver internals of the inversion (volume fields).",
+  YMIR_OPTIONS_S, "vtk-write-inversion-solver-surface-path", '\0',
+    &(vtk_inv_solver_surf_path), NULL,
+    "VTK file path for solver internals of the inversion (surface fields).",
   YMIR_OPTIONS_S, "vtk-write-inversion-param-derivative-path", '\0',
     &(vtk_inv_param_derivative_path), NULL,
     "VTK file path for testing derivatives of the viscosity w.r.t. parameters.",
@@ -606,14 +610,14 @@ main (int argc, char **argv)
   /* setup inversion solver */
   inv_problem = rhea_inversion_new (stokes_problem);
   rhea_inversion_set_txt_output (inv_problem, txt_inv_solver_path);
-  rhea_inversion_set_vtk_output (inv_problem, vtk_inv_solver_path);
+  rhea_inversion_set_vtk_output (inv_problem, vtk_inv_solver_vol_path,
+                                 vtk_inv_solver_surf_path);
 
   /* run inversion solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
-  sphere_inversion_solve_with_vel_obs (inv_problem, sol_vel_press,
-                                       vel_obs_euler_pole,
-                                       vel_obs_add_noise_stddev,
-                                       stokes_problem, vtk_inv_solver_path);
+  sphere_inversion_solve_with_vel_obs (
+      inv_problem, sol_vel_press, vel_obs_euler_pole, vel_obs_add_noise_stddev,
+      stokes_problem, vtk_inv_solver_surf_path);
   rhea_performance_monitor_stop_add_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
 
   /* destroy */

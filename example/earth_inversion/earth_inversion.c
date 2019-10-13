@@ -62,7 +62,8 @@ main (int argc, char **argv)
   char               *vtk_input_path;
   char               *vtk_solution_path;
   char               *vtk_solver_path;
-  char               *vtk_inv_solver_path;
+  char               *vtk_inv_solver_vol_path;
+  char               *vtk_inv_solver_surf_path;
   char               *vtk_inv_param_derivative_path;
   /* mesh */
   p4est_t                *p4est;
@@ -116,9 +117,12 @@ main (int argc, char **argv)
   YMIR_OPTIONS_S, "vtk-write-solver-path", '\0',
     &(vtk_solver_path), NULL,
     "VTK file path for solver internals (e.g., iterations of Newton's method)",
-  YMIR_OPTIONS_S, "vtk-write-inversion-solver-path", '\0',
-    &(vtk_inv_solver_path), NULL,
-    "VTK file path for solver internals of the inversion.",
+  YMIR_OPTIONS_S, "vtk-write-inversion-solver-volume-path", '\0',
+    &(vtk_inv_solver_vol_path), NULL,
+    "VTK file path for solver internals of the inversion (volume fields).",
+  YMIR_OPTIONS_S, "vtk-write-inversion-solver-surface-path", '\0',
+    &(vtk_inv_solver_surf_path), NULL,
+    "VTK file path for solver internals of the inversion (surface fields).",
   YMIR_OPTIONS_S, "vtk-write-inversion-param-derivative-path", '\0',
     &(vtk_inv_param_derivative_path), NULL,
     "VTK file path for testing derivatives of the viscosity w.r.t. parameters.",
@@ -192,7 +196,8 @@ main (int argc, char **argv)
   /* setup inversion solver */
   inv_problem = rhea_inversion_new (stokes_problem);
   rhea_inversion_set_txt_output (inv_problem, txt_inv_solver_path);
-  rhea_inversion_set_vtk_output (inv_problem, vtk_inv_solver_path);
+  rhea_inversion_set_vtk_output (inv_problem, vtk_inv_solver_vol_path,
+                                 vtk_inv_solver_surf_path);
 
   /* run inversion solver */
   rhea_performance_monitor_start_barrier (RHEA_MAIN_PERFMON_SOLVE_INVERSION);
