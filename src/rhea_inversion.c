@@ -2304,7 +2304,7 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
           rhea_stokes_problem_get_domain_options (stokes_problem));
 
       /* write VTK of surface fields*/
-      snprintf (path, BUFSIZ, "%s_surf%s%02i", vtk_path_surf,
+      snprintf (path, BUFSIZ, "%s%s%02i", vtk_path_surf,
                 RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
       rhea_vtk_write_inversion_iteration_surf (
           path, vel_fwd_surf, vel_adj_surf, inv_problem->vel_obs_surf,
