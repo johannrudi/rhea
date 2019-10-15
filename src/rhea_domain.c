@@ -194,14 +194,14 @@ rhea_domain_compute_bounds (rhea_domain_options_t *opt)
     opt->x_max = +1.0;
     opt->y_max = +1.0;
     opt->z_max = +1.0;
-    RHEA_ASSERT (0 < opt->box_subdivision_y);
+    RHEA_ASSERT (0 < opt->box_subdivision_x);
     RHEA_ASSERT (0 < opt->box_subdivision_z);
     {
-      const double        suby = (double) opt->box_subdivision_y;
+      const double        subx = (double) opt->box_subdivision_x;
       const double        subz = (double) opt->box_subdivision_z;
 
-      opt->lon_min = -M_PI/8.0 * suby / subz;
-      opt->lon_max = +M_PI/8.0 * suby / subz;
+      opt->lon_min = -M_PI/8.0 * subx / subz;
+      opt->lon_max = +M_PI/8.0 * subx / subz;
     }
     break;
   default: /* unknown domain shape */
