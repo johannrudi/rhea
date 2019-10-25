@@ -1,0 +1,20 @@
+(1) Generate mesh and write coordinates of the nodes of this mesh to text file,
+see `docu_coordinates_*.txt` for more details.
+
+(2) Format coordinates:
+  $ cat <input file> | perl reformat_coordiantes.pl > <output file>
+
+(3) Split coordinates into separate files such that each file contains nodes at
+the same depth/radius:
+  $ perl split_coordinates.pl <input file>
+
+(4) Send coordinate files to Mike who will interpolate a temperature field.
+
+(5) Merge the (separate) temperature files into a single file:
+  $ cat <separate input files>*.txt > <merged file>
+
+(6) Sort lines in single temperature file according to node indices (1st column):
+  $ sort -k1 -n <temperature file>
+
+(7) Extract only the temperature values from merged and sorted temperature file:
+  $ cat <input file> | perl reformat_temperature.pl > <output file>

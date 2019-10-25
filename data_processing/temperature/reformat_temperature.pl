@@ -5,7 +5,10 @@
 # The temperature values correspond to vertices of the mesh from which
 # coordinates were extracted.
 #
-# Usage: cat <input file> | perl reformat_temperature.pl > <input file>
+# Assumes that the input file has 5 colums with entries:
+#   1: node index, 2-4: coordinates, 5: temperature
+#
+# Usage: cat <input file> | perl reformat_temperature.pl > <output file>
 ###############################################################################
 
 use strict;

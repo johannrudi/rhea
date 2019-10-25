@@ -1,5 +1,5 @@
 ###############################################################################
-# Generating Temperature Data for the Cross Sectional Domain of the Pacific
+# Generating Mesh/Coordinates for the Cross Sectional Domain of the Pacific
 ###############################################################################
 
 Set desired resolution:
@@ -25,6 +25,13 @@ Find input options:
 
 Output mesh has sizes:
   Number of elements: 504136
+
+###############################################################################
+
+Apply rotation to the coordinates such that the cross section is aligned with
+the equator with longitude [-theta,+theta]. This is performed by setting two
+rotation angles in function `rhea_discretization_write_cont_coordinates`:
+  const double        rot_angle[3] = {0.5*M_PI, NAN, 0.5*M_PI};
 
 ###############################################################################
 

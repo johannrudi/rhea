@@ -1,5 +1,5 @@
 ###############################################################################
-# Generating Temperature Data for the Shell Domain
+# Generating Mesh/Coordinates for the Shell Domain
 ###############################################################################
 
 Set desired resolution:
