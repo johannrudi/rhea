@@ -952,9 +952,46 @@ rhea_discretization_ymir_mesh_destroy (ymir_mesh_t *ymir_mesh,
  *****************************************************************************/
 
 static void
+_rotate_x_axis (double c[3], const double angle)
+{
+  const double        x = c[0];
+  const double        y = c[1];
+  const double        z = c[2];
+
+  c[0] = x;
+  c[1] = cos (angle) * y - sin (angle) * z;
+  c[2] = sin (angle) * y + cos (angle) * z;
+}
+
+static void
+_rotate_y_axis (double c[3], const double angle)
+{
+  const double        x = c[0];
+  const double        y = c[1];
+  const double        z = c[2];
+
+  c[0] = cos (angle) * x + sin (angle) * z;
+  c[1] = y;
+  c[2] = -sin (angle) * x + cos (angle) * z;
+}
+
+static void
+_rotate_z_axis (double c[3], const double angle)
+{
+  const double        x = c[0];
+  const double        y = c[1];
+  const double        z = c[2];
+
+  c[0] = cos (angle) * x - sin (angle) * y;
+  c[1] = sin (angle) * x + cos (angle) * y;
+  c[2] = z;
+}
+
+static void
 rhea_discretization_set_cont_coordinates (
                                   ymir_vec_t *coordinates,
                                   rhea_domain_coordinate_type_t coord_type,
+                                  const double rot_angle[3],
                                   rhea_domain_options_t *domain_options)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (coordinates);
@@ -976,17 +1013,27 @@ rhea_discretization_set_cont_coordinates (
 
   /* set coordinates */
   if (YMIR_CVEC_STRIDE == YMIR_STRIDE_NODE) {
-    const double       *_sc_restrict x = ymir_cvec_index (x_vec, 0, 0);
-    const double       *_sc_restrict y = ymir_cvec_index (y_vec, 0, 0);
-    const double       *_sc_restrict z = ymir_cvec_index (z_vec, 0, 0);
-    double             *_sc_restrict coord =
-                          ymir_cvec_index (coordinates, 0, 0);
+    const double       *_sc_restrict X = ymir_cvec_index (x_vec, 0, 0);
+    const double       *_sc_restrict Y = ymir_cvec_index (y_vec, 0, 0);
+    const double       *_sc_restrict Z = ymir_cvec_index (z_vec, 0, 0);
+    double             *_sc_restrict C = ymir_cvec_index (coordinates, 0, 0);
 
     for (nodeid = 0; nodeid < n_nodes; nodeid++) {
-      rhea_domain_convert_coordinates (&coord[3*nodeid    ],
-                                       &coord[3*nodeid + 1],
-                                       &coord[3*nodeid + 2],
-                                       x[nodeid], y[nodeid], z[nodeid],
+      double              c[3] = {X[nodeid], Y[nodeid], Z[nodeid]};
+
+      if (isfinite (rot_angle[0]) && 0.0 < fabs (rot_angle[0])) {
+        _rotate_x_axis (c, rot_angle[0]);
+      }
+      if (isfinite (rot_angle[1]) && 0.0 < fabs (rot_angle[1])) {
+        _rotate_y_axis (c, rot_angle[1]);
+      }
+      if (isfinite (rot_angle[2]) && 0.0 < fabs (rot_angle[2])) {
+        _rotate_z_axis (c, rot_angle[2]);
+      }
+      rhea_domain_convert_coordinates (&C[3*nodeid    ],
+                                       &C[3*nodeid + 1],
+                                       &C[3*nodeid + 2],
+                                       c[0], c[1], c[2],
                                        coord_type, domain_options);
     }
   }
@@ -1014,6 +1061,10 @@ rhea_discretization_write_cont_coordinates (
   const int           mpisize = ymir_mesh_get_MPI_Comm_size (ymir_mesh);
   int                *segment_offset;
   int                 r;
+  const double        rot_angle[3] = {NAN, NAN, NAN};
+//const double        rot_angle[3] = {0.5*M_PI, NAN, 0.5*M_PI};
+/*                    Rotates coordinates of cross section to align with
+ *                    equator and obtain longitude [-theta,+theta] */
   ymir_vec_t         *coordinates;
   double             *coord_data;
 
@@ -1028,7 +1079,7 @@ rhea_discretization_write_cont_coordinates (
   /* set coordinates */
   coordinates = ymir_face_cvec_new (ymir_mesh, meshid, 3);
   rhea_discretization_set_cont_coordinates (coordinates, coord_type,
-                                            domain_options);
+                                            rot_angle, domain_options);
   if (0 < face_mesh->Ncn) { /* if nodes exist on this rank */
     coord_data = ymir_cvec_index (coordinates, 0, 0);
   }
