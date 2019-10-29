@@ -1,0 +1,16 @@
+###############################################################################
+# Weak Zones for Slabs of Pacific Cross Section
+###############################################################################
+
+Given by Mike are files `<LONGITUDES,DEPTH>.dz` that contain
+(longitude,depth)-coordinates of the centers of the slabs.
+
+The points are transformed into point clouds by the script
+  $ perl transform_xsection.pl <MAX NODE DISTANCE IN KM>
+
+###############################################################################
+
+Commands used for script:
+  $ cat input_xsection/izu.dz | perl transform_xsection.pl 0.5 > izu_cartesian.txt
+  $ cat input_xsection/ryu.dz | perl transform_xsection.pl 0.5 > ryu_cartesian.txt
+  $ cat input_xsection/sam.dz | perl transform_xsection.pl 0.5 > sam_cartesian.txt

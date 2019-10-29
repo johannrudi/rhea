@@ -1,0 +1,41 @@
+###############################################################################
+# Weak Zones of Earth
+###############################################################################
+
+(1) Get point clouds for slabs from Mike.  
+
+(2) Transform point cloud coordiantes from spherical to Cartesian.  
+Change to directory `slabs`, copy Mike's files to folder `data_spherical`.
+Run batch script to transform all of Mike's files:
+    $ ./transform_spherical_coordinates_batch.sh data_spherical/*
+
+(3) Generate point clouds for ridges and fractures.
+Change to directory `ridges_fractures`, proceed as in the provided
+documentation.  Assume the point clouds are written into `data_spherical`.
+
+(4) Merge point clouds of slabs and ridges & fractures.
+Change to directory `merge_points`, create a text file
+`files_list.txt`, where each row lists the path to one point cloud file.  Run
+merge script:
+    $ ./merge_files.sh files_list.txt weakzone_pointcloud_all_<DATE>.xyz
+
+(5) To visualize the point cloud in Paraview, duplicate the file from (4) as a
+VTU-file:
+    $ cp weakzone_pointcloud_all_<DATE>.xyz weakzone_pointcloud_all_<DATE>.vtu
+At the top of the VTU file, add these lines (replacing <NUMBER_OF_POINTS>):
+```
+# vtk DataFile Version 2.0
+# Note: Choose `VTK Particle Files` as a reader in ParaView.
+Unstructured Grid Example
+ASCII
+DATASET UNSTRUCTURED_GRID
+POINTS <NUMBER_OF_POINTS> float
+```
+
+(6) Generate the weak zone labels.
+In directory `labels`, create a text file `files_labels.txt`, where each row
+lists the label/tag of the weak zone and the path to the corresponding point
+cloud file.  Run script that generates one output file with one label/tag for
+each point in the point cloud:
+    $ bash create_label.sh files_labels.txt labels_<DATE>.txt
+
