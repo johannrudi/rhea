@@ -2572,11 +2572,11 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   }
 
   /* print plate velocities */
-  if (stokes_problem_nl->plate_options != NULL &&
+  if (NULL != stokes_problem_nl->plate_options &&
       0 < rhea_plate_get_n_plates (stokes_problem_nl->plate_options)) {
     rhea_plate_options_t *plate_options = stokes_problem_nl->plate_options;
     const int           n_plates = rhea_plate_get_n_plates (plate_options);
-    int                 n_plates_print;
+    int                 pid_begin, pid_end;
     int                 pid;
     ymir_vec_t         *velocity_surf_mm_yr = ymir_vec_clone (velocity_surf);
     double             *mean_vel_magn_mm_yr = RHEA_ALLOC (double, n_plates);
@@ -2592,15 +2592,16 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
     /* set #plates to print */
     switch (stokes_problem_nl->domain_options->shape) {
     case RHEA_DOMAIN_SHELL:
-      n_plates_print = RHEA_PLATE_EARTH_YZ+1; /* MORVEL(25) only */
+      pid_begin = RHEA_PLATE_EARTH_MORVEL25_BEGIN;
+      pid_end   = RHEA_PLATE_EARTH_MORVEL25_END;
       break;
     default:
-      n_plates_print = n_plates;
+      pid_begin = 0;
+      pid_end   = n_plates - 1;
     }
-    n_plates_print = SC_MIN (n_plates_print, n_plates);
 
     /* print */
-    for (pid = 0; pid < n_plates_print; pid++) {
+    for (pid = pid_begin; pid <= pid_end; pid++) {
       RHEA_GLOBAL_STATISTICSF (
           "Plate velocity: idx %i, mean velocity magn \"%g mm/yr\"\n",
           pid, mean_vel_magn_mm_yr[pid]);
