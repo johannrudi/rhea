@@ -14,6 +14,7 @@ include example/earth/Makefile.am
 include example/earth_inversion/Makefile.am
 include example/io/Makefile.am
 include example/newton_polynomial/Makefile.am
+include example/pacific_xsection_inversion/Makefile.am
 include example/sphere_inversion/Makefile.am
 include example/yielding/Makefile.am
 
