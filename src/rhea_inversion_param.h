@@ -38,9 +38,9 @@ typedef struct rhea_inversion_param_options
   int                 weak_factor_interior_class_slab_a;
   int                 weak_factor_interior_class_ridge_a;
   int                 weak_factor_interior_class_fracture_a;
-  int                 weak_factor_interior_earth_slab_a;
-  int                 weak_factor_interior_earth_ridge_a;
-  int                 weak_factor_interior_earth_fracture_a;
+  int                 weak_factor_interior_label_slab_a;
+  int                 weak_factor_interior_label_ridge_a;
+  int                 weak_factor_interior_label_fracture_a;
 
   /* mean of Gaussian prior */
   double              prior_mean_perturb_stddev;
