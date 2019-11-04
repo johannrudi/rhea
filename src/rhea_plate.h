@@ -94,6 +94,11 @@ typedef enum
 }
 rhea_plate_earth_label_t;
 
+#define RHEA_PLATE_EARTH_MORVEL25_BEGIN RHEA_PLATE_EARTH_AM
+#define RHEA_PLATE_EARTH_MORVEL25_END   RHEA_PLATE_EARTH_YZ
+#define RHEA_PLATE_EARTH_BIRD2003_BEGIN RHEA_PLATE_EARTH_AS
+#define RHEA_PLATE_EARTH_BIRD2003_END   RHEA_PLATE_EARTH_WL
+
 /******************************************************************************
  * Options & Monitoring
  *****************************************************************************/
@@ -132,6 +137,14 @@ typedef struct rhea_plate_options
 
   /* plate velocities (Euler poles) */
   double             *angular_velocity;
+
+  /* cross sectional domain: plate boundaries and (tangential) velocities */
+  char               *xsection_boundary_lon_list;
+  float              *xsection_boundary;
+  char               *xsection_tangential_velocity_mm_yr_list;
+  double             *xsection_tangential_velocity;
+  int                 xsection_n_intervals;
+  double              xsection_shrink_factor;
 
   /* options (not owned) */
   rhea_domain_options_t      *domain_options;
@@ -182,14 +195,14 @@ int                 rhea_plate_data_create (rhea_plate_options_t *opt,
  */
 void                rhea_plate_data_clear (rhea_plate_options_t *opt);
 
-/******************************************************************************
- * Plate Retrieval
- *****************************************************************************/
-
 /**
  * Returns the number of plates.
  */
 int                 rhea_plate_get_n_plates (rhea_plate_options_t *opt);
+
+/******************************************************************************
+ * Plate Retrieval
+ *****************************************************************************/
 
 /**
  * Sets plate labels at all entries of a vector.

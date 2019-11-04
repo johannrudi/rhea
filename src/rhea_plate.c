@@ -21,6 +21,9 @@
 #define RHEA_PLATE_DEFAULT_POLYGON_X_MAX (360.0)
 #define RHEA_PLATE_DEFAULT_POLYGON_Y_MIN (0.0)
 #define RHEA_PLATE_DEFAULT_POLYGON_Y_MAX (180.0)
+#define RHEA_PLATE_DEFAULT_XSECTION_BOUNDARY_LON_LIST NULL
+#define RHEA_PLATE_DEFAULT_XSECTION_VELOCITY_MM_YR_LIST NULL
+#define RHEA_PLATE_DEFAULT_XSECTION_SHRINK_FACTOR (NAN)
 #define RHEA_PLATE_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* initialize options */
@@ -42,6 +45,12 @@ double              rhea_plate_polygon_y_min =
   RHEA_PLATE_DEFAULT_POLYGON_Y_MIN;
 double              rhea_plate_polygon_y_max =
   RHEA_PLATE_DEFAULT_POLYGON_Y_MAX;
+char               *rhea_plate_xsection_boundary_lon_list =
+  RHEA_PLATE_DEFAULT_XSECTION_BOUNDARY_LON_LIST;
+char               *rhea_plate_xsection_velocity_mm_yr_list =
+  RHEA_PLATE_DEFAULT_XSECTION_VELOCITY_MM_YR_LIST;
+double              rhea_plate_xsection_shrink_factor =
+  RHEA_PLATE_DEFAULT_XSECTION_SHRINK_FACTOR;
 int                 rhea_plate_monitor_performance =
                       RHEA_PLATE_DEFAULT_MONITOR_PERFORMANCE;
 
@@ -53,6 +62,8 @@ rhea_plate_add_options (ymir_options_t * opt_sup)
 
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
+
+  /*** polygon based (2D) plates ***/
 
   YMIR_OPTIONS_I, "num-polygons", '\0',
     &(rhea_plate_polygon_n_polygons), RHEA_PLATE_DEFAULT_POLYGON_N_POLYGONS,
@@ -89,6 +100,23 @@ rhea_plate_add_options (ymir_options_t * opt_sup)
     &(rhea_plate_polygon_y_max), RHEA_PLATE_DEFAULT_POLYGON_Y_MAX,
     "Polygon vertices: Max y",
 
+  /*** interval based (1D) plates ***/
+
+  YMIR_OPTIONS_S, "cross-section-plate-boundary-lon-list", '\0',
+    &(rhea_plate_xsection_boundary_lon_list),
+    RHEA_PLATE_DEFAULT_XSECTION_BOUNDARY_LON_LIST,
+    "Cross section domain: Plate boundaries (comma separated list of lon's)",
+  YMIR_OPTIONS_S, "cross-section-plate-velocity-mm-yr-list", '\0',
+    &(rhea_plate_xsection_velocity_mm_yr_list),
+    RHEA_PLATE_DEFAULT_XSECTION_VELOCITY_MM_YR_LIST,
+    "Cross section domain: Plate velocities [mm/yr] (comma separated list)",
+  YMIR_OPTIONS_D, "cross-section-plate-shrink-factor", '\0',
+    &(rhea_plate_xsection_shrink_factor),
+    RHEA_PLATE_DEFAULT_XSECTION_SHRINK_FACTOR,
+    "Cross section domain: Shrink plates by this factor in (0,1)",
+
+  /*** other options ***/
+
   YMIR_OPTIONS_B, "monitor-performance", '\0',
     &(rhea_plate_monitor_performance), RHEA_PLATE_DEFAULT_MONITOR_PERFORMANCE,
     "Measure and print performance statistics (e.g., runtime or flops)",
@@ -113,6 +141,15 @@ rhea_plate_process_options (rhea_plate_options_t *opt,
   if (opt == NULL) {
     return;
   }
+
+  /* set options for cross sectional domain */
+  opt->xsection_boundary_lon_list = rhea_plate_xsection_boundary_lon_list;
+  opt->xsection_boundary = NULL;
+  opt->xsection_tangential_velocity_mm_yr_list =
+    rhea_plate_xsection_velocity_mm_yr_list;
+  opt->xsection_tangential_velocity = NULL;
+  opt->xsection_n_intervals = 0;
+  opt->xsection_shrink_factor = rhea_plate_xsection_shrink_factor;
 
   /* set number of polygons */
   if (0 < rhea_plate_polygon_n_polygons) { /* if set from option */
@@ -825,9 +862,51 @@ rhea_plate_velocity_lookup_angular_velocity (double rot_axis[3],
   }
 }
 
+static void
+rhea_plate_velocity_xsection_apply_dim_scal (double *velocity,
+                                             const int remove_dim,
+                                             rhea_plate_options_t *opt)
+{
+  /* check input */
+  RHEA_ASSERT (isfinite (*velocity));
+
+  if (!remove_dim) { /* multiply by dimensional scaling */
+    *velocity *= opt->temp_options->thermal_diffusivity_m2_s /
+                 opt->domain_options->radius_max_m;
+  }
+  else { /* otherwise remove dimensional scaling */
+    *velocity /= opt->temp_options->thermal_diffusivity_m2_s /
+                 opt->domain_options->radius_max_m;
+  }
+}
+
 /******************************************************************************
  * Plate Data
  *****************************************************************************/
+
+static int
+rhea_plate_data_exists (rhea_plate_options_t *opt)
+{
+  /* exit if nothing to do */
+  if (opt == NULL) {
+    return 0;
+  }
+
+  /* return if data was allocated */
+  switch (opt->domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    return (opt->vertices_x != NULL && opt->vertices_y != NULL &&
+            opt->n_vertices != NULL && opt->angular_velocity != NULL);
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    return (opt->xsection_boundary != NULL &&
+            opt->xsection_tangential_velocity != NULL);
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
 
 int
 rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
@@ -835,22 +914,113 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
   int                 n_plates = rhea_plate_get_n_plates (opt);
   int                 n_vertices_total, n_vertices_coarse_total;
   float              *vertices_all;
+  int                 success_xsection = 0;
   int                 success_vert = 0;
   int                 success_vert_coarse = 0;
 
-  /* correct #polygons if no vertices are given */
-  if (opt != NULL && opt->vertices_file_path_txt == NULL) {
-    opt->n_polygons = n_plates = 0;
-  }
-
-  /* exit if nothing to do */
-  if (n_plates <= 0) {
-    return 1;
-  }
+  /* check input */
+  RHEA_ASSERT (opt != NULL);
 
   /* start performance monitors */
   ymir_perf_counter_start (
       &rhea_plate_perfmon[RHEA_PLATE_PERFMON_DATA_CREATE]);
+
+  /*
+   * Interval Based (1D) Plates
+   */
+
+  /* fill plate boundary list for cross sectional domain */
+  if (NULL != opt->xsection_boundary_lon_list &&
+      NULL != opt->xsection_tangential_velocity_mm_yr_list) {
+    double             *list;
+    int                 n_entries, pid;
+
+    /* get plate boundary values from string */
+    list = NULL;
+    n_entries = ymir_options_convert_string_to_double (
+        opt->xsection_boundary_lon_list, &list);
+    success_xsection += n_entries;
+    opt->xsection_n_intervals = n_entries - 1;
+
+    /* set plate boundaries; convert degrees to radians */
+    opt->xsection_boundary = RHEA_ALLOC (float, 2 * opt->xsection_n_intervals);
+    opt->xsection_boundary[0] = (float) list[0] * M_PI/180.0;
+    for (pid = 1; pid < n_entries-1; pid++) {
+      opt->xsection_boundary[2*pid-1] = (float) list[pid] * M_PI/180.0;
+      opt->xsection_boundary[2*pid  ] = (float) list[pid] * M_PI/180.0;
+    }
+    opt->xsection_boundary[2*(n_entries-1) - 1] = (float) list[n_entries-1] *
+                                                  M_PI/180.0;
+    YMIR_FREE (list); /* was allocated in ymir */
+
+    /* shrink plate sizes */
+    if (isfinite (opt->xsection_shrink_factor) &&
+        0.0 < opt->xsection_shrink_factor) {
+      double              length, shift;
+
+      for (pid = 0; pid < opt->xsection_n_intervals; pid++) {
+        length = opt->xsection_boundary[2*pid+1] -
+                 opt->xsection_boundary[2*pid];
+        shift = 0.5 * length * (1.0 - opt->xsection_shrink_factor);
+        RHEA_ASSERT (0.0 < length);
+        RHEA_ASSERT (0.0 < shift);
+        opt->xsection_boundary[2*pid  ] += shift;
+        opt->xsection_boundary[2*pid+1] -= shift;
+      }
+    }
+
+    /* get plate velocity values from string */
+    list = NULL;
+    n_entries = ymir_options_convert_string_to_double (
+        opt->xsection_tangential_velocity_mm_yr_list, &list);
+    success_xsection += n_entries;
+    RHEA_CHECK_ABORT (opt->xsection_n_intervals == n_entries,
+                      "Mismatch of given #plates and #velocities");
+
+    /* set plate velocities; remove dimensional scaling */
+    opt->xsection_tangential_velocity =
+      RHEA_ALLOC (double, opt->xsection_n_intervals);
+    for (pid = 0; pid < opt->xsection_n_intervals; pid++) {
+      opt->xsection_tangential_velocity[pid] =
+          list[pid] / (1000.0 * RHEA_TEMPERATURE_SECONDS_PER_YEAR);
+      rhea_plate_velocity_xsection_apply_dim_scal (
+          &(opt->xsection_tangential_velocity[pid]), 1 /* remove_dim */, opt);
+    }
+    YMIR_FREE (list); /* was allocated in ymir */
+
+    /* print plate data */
+#ifdef RHEA_ENABLE_DEBUG
+    for (pid = 0; pid < opt->xsection_n_intervals; pid++) {
+      RHEA_GLOBAL_VERBOSEF_FN_TAG (
+          __func__,
+          "xsection_plate_idx=%i, boundaries=(%g,%g), tangential_velocity=%g",
+          pid, opt->xsection_boundary[2*pid], opt->xsection_boundary[2*pid+1],
+          opt->xsection_tangential_velocity[pid]);
+      RHEA_ASSERT (opt->xsection_boundary[2*pid] <
+                   opt->xsection_boundary[2*pid+1]);
+    }
+#endif
+  }
+  else {
+    opt->xsection_boundary = NULL;
+    opt->xsection_tangential_velocity = NULL;
+    opt->xsection_n_intervals = 0;
+  }
+
+  /*
+   * Polygon Based (2D) Plates
+   */
+
+  /* correct #polygons if no vertices are given and exit */
+  if (opt->vertices_file_path_txt == NULL) {
+    opt->n_polygons = 0;
+
+    /* stop performance monitors */
+    ymir_perf_counter_stop_add (
+        &rhea_plate_perfmon[RHEA_PLATE_PERFMON_DATA_CREATE]);
+
+    return (success_xsection + success_vert + success_vert_coarse);
+  }
 
   /* get parameters from options */
   n_vertices_total = opt->n_vertices_total;
@@ -986,19 +1156,37 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
   ymir_perf_counter_stop_add (
       &rhea_plate_perfmon[RHEA_PLATE_PERFMON_DATA_CREATE]);
 
-  return (success_vert + success_vert_coarse);
+  return (success_xsection + success_vert + success_vert_coarse);
 }
 
 void
 rhea_plate_data_clear (rhea_plate_options_t *opt)
 {
-  const int           n_plates = rhea_plate_get_n_plates (opt);
   int                 pid;
 
   /* exit if nothing to do */
-  if (n_plates <= 0) {
+  if (!rhea_plate_data_exists (opt)) {
     return;
   }
+
+  /*
+   * Interval Based (1D) Plates
+   */
+
+  /* destroy plate boundary data for cross sectional domain */
+  if (NULL != opt->xsection_boundary) {
+    RHEA_FREE (opt->xsection_boundary);
+    opt->xsection_boundary = NULL;
+    opt->xsection_n_intervals = 0;
+  }
+  if (NULL != opt->xsection_tangential_velocity) {
+    RHEA_FREE (opt->xsection_tangential_velocity);
+    opt->xsection_tangential_velocity = NULL;
+  }
+
+  /*
+   * Polygon Based (2D) Plates
+   */
 
   /* destroy polygon vertices */
   if (opt->vertices_x != NULL && opt->vertices_y != NULL &&
@@ -1049,17 +1237,6 @@ rhea_plate_data_clear (rhea_plate_options_t *opt)
   }
 }
 
-static int
-rhea_plate_data_exists (rhea_plate_options_t *opt)
-{
-  return (opt != NULL && opt->vertices_x != NULL && opt->vertices_y != NULL &&
-          opt->n_vertices != NULL && opt->angular_velocity != NULL);
-}
-
-/******************************************************************************
- * Plate Retrieval
- *****************************************************************************/
-
 int
 rhea_plate_get_n_plates (rhea_plate_options_t *opt)
 {
@@ -1068,9 +1245,24 @@ rhea_plate_get_n_plates (rhea_plate_options_t *opt)
     return -1;
   }
 
-  /* return number of polygons */
-  return opt->n_polygons;
+  switch (opt->domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    /* return number of polygons */
+    return opt->n_polygons;
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    /* return number of intercals */
+    return opt->xsection_n_intervals;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
+
+/******************************************************************************
+ * Plate Retrieval
+ *****************************************************************************/
 
 /**
  * Checks whether the given (x,y) coordinates are inside a polygon.
@@ -1123,12 +1315,9 @@ rhea_plate_point_inside_polygon_test (
   return is_inside;
 }
 
-/**
- * Checks whether the given (x,y,z) coordinates are inside a specific plate.
- */
 static int
-rhea_plate_is_inside (const double x, const double y, const double z,
-                      const int plate_label, rhea_plate_options_t *opt)
+rhea_plate_is_inside_polygon (const double x, const double y, const double z,
+                              const int plate_label, rhea_plate_options_t *opt)
 {
   const float        *vx = opt->vertices_x[plate_label];
   const float        *vy = opt->vertices_y[plate_label];
@@ -1142,6 +1331,7 @@ rhea_plate_is_inside (const double x, const double y, const double z,
   RHEA_ASSERT (opt->vertices_x != NULL);
   RHEA_ASSERT (opt->vertices_y != NULL);
   RHEA_ASSERT (opt->n_vertices != NULL);
+  RHEA_ASSERT (plate_label < opt->n_polygons);
 
   /* calculate test coordinates */
   rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
@@ -1180,8 +1370,61 @@ rhea_plate_is_inside (const double x, const double y, const double z,
     nvc = opt->n_vertices_coarse_container[plate_label];
   }
 
+  /* return if inside polygon */
   return rhea_plate_point_inside_polygon_test (test_x, test_y, vx, vy, nv,
                                                vcx, vcy, nvc);
+}
+
+static int
+rhea_plate_is_inside_interval (const double x, const double y, const double z,
+                               const int plate_label, rhea_plate_options_t *opt)
+{
+  const float         boundary_begin = opt->xsection_boundary[2*plate_label  ];
+  const float         boundary_end   = opt->xsection_boundary[2*plate_label+1];
+  double              tmp_x, tmp_y;
+
+  /* check input */
+  RHEA_ASSERT (opt->xsection_boundary != NULL);
+  RHEA_ASSERT (plate_label < opt->xsection_n_intervals);
+
+  /* calculate test coordinates */
+  rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
+                               RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
+                               opt->domain_options);
+
+  /* shift by min longitude */
+  switch (opt->domain_options->shape) {
+  case RHEA_DOMAIN_BOX:
+    break;
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    tmp_x -= opt->domain_options->lon_min;
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* return if inside interval */
+  return (boundary_begin <= tmp_x && tmp_x <= boundary_end);
+}
+
+/**
+ * Checks whether the given (x,y,z) coordinates are inside a specific plate.
+ */
+static int
+rhea_plate_is_inside (const double x, const double y, const double z,
+                      const int plate_label, rhea_plate_options_t *opt)
+{
+  switch (opt->domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    return rhea_plate_is_inside_polygon (x, y, z, plate_label, opt);
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    return rhea_plate_is_inside_interval (x, y, z, plate_label, opt);
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 /**
@@ -1523,9 +1766,9 @@ rhea_plate_velocity_generate_from_rotation (ymir_vec_t *vel,
                                        rot_axis);
 }
 
-void
-rhea_plate_velocity_generate (ymir_vec_t *vel, const int plate_label,
-                              rhea_plate_options_t *opt)
+static void
+rhea_plate_velocity_generate_polygon (ymir_vec_t *vel, const int plate_label,
+                                      rhea_plate_options_t *opt)
 {
   double              rot_axis[3];
 
@@ -1551,6 +1794,73 @@ rhea_plate_velocity_generate (ymir_vec_t *vel, const int plate_label,
   /* generate velocity field and apply filter for the plate's interior */
   rhea_plate_velocity_generate_from_rotation (vel, rot_axis, opt);
   rhea_plate_apply_filter_vec (vel, plate_label, opt);
+}
+
+static void
+rhea_plate_set_unit_tangential_component_fn (double *vec,
+                                             double X, double Y, double Z,
+                                             double nx, double ny, double nz,
+                                             ymir_topidx_t face,
+                                             ymir_locidx_t node_id,
+                                             void *data)
+{
+  rhea_plate_options_t *opt = data;
+
+  RHEA_ASSERT (opt->domain_options->box_subdivision_y == 1);
+
+  /* rotate surface normal vector by 90 degrees clockwise in (x,z)-plane:
+   *          [ 0 0 +1]   [nx]
+   *   tang = [ 0 1  0] * [ny]
+   *          [-1 0  0]   [nz]
+   */
+  vec[0] = +nz;
+  vec[1] =  ny;
+  vec[2] = -nx;
+}
+
+static void
+rhea_plate_velocity_generate_interval (ymir_vec_t *vel, const int plate_label,
+                                       rhea_plate_options_t *opt)
+{
+  /* check input */
+  RHEA_ASSERT (RHEA_PLATE_NONE <= plate_label &&
+               plate_label < rhea_plate_get_n_plates (opt));
+  RHEA_ASSERT (rhea_velocity_surface_check_vec_type (vel));
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exists (opt)) {
+    ymir_vec_set_value (vel, NAN);
+    return;
+  }
+  else if (RHEA_PLATE_NONE == plate_label) {
+    ymir_vec_set_value (vel, 0.0);
+    return;
+  }
+
+  /* set unit tangential component at the surface (clockwise) */
+  ymir_face_cvec_set_function (
+      vel, rhea_plate_set_unit_tangential_component_fn, opt);
+
+  /* scale by plate velocity; apply filter for the plate's interior */
+  ymir_vec_scale (opt->xsection_tangential_velocity[plate_label], vel);
+  rhea_plate_apply_filter_vec (vel, plate_label, opt);
+}
+
+void
+rhea_plate_velocity_generate (ymir_vec_t *vel, const int plate_label,
+                              rhea_plate_options_t *opt)
+{
+  switch (opt->domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    return rhea_plate_velocity_generate_polygon (vel, plate_label, opt);
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    return rhea_plate_velocity_generate_interval (vel, plate_label, opt);
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 void
