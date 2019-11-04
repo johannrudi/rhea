@@ -951,16 +951,64 @@ rhea_domain_extract_lateral (double *coord_2d_1, double *coord_2d_2,
     break;
   case RHEA_DOMAIN_SHELL:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
-  case RHEA_DOMAIN_BOX_SPHERICAL:
     RHEA_ASSERT (coord_type == RHEA_DOMAIN_COORDINATE_SPHERICAL_MATH ||
                  coord_type == RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO ||
                  coord_type == RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM);
     rhea_domain_convert_coordinates (&coord_tmp, coord_2d_1, coord_2d_2,
                                      x, y, z, coord_type, opt);
     break;
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    {
+      double              c[3] = {x, y, z};
+
+      RHEA_ASSERT (coord_type == RHEA_DOMAIN_COORDINATE_SPHERICAL_MATH ||
+                   coord_type == RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO ||
+                   coord_type == RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO_DIM);
+      rhea_domain_rotate_x_axis (c, 0.5*M_PI /* rot angle */);
+      rhea_domain_rotate_z_axis (c, 0.5*M_PI /* rot angle */);
+      rhea_domain_convert_coordinates (&coord_tmp, coord_2d_1, coord_2d_2,
+                                       c[0], c[1], c[2], coord_type, opt);
+    }
+    break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
   }
+}
+
+void
+rhea_domain_rotate_x_axis (double c[3], const double angle)
+{
+  const double        x = c[0];
+  const double        y = c[1];
+  const double        z = c[2];
+
+  c[0] = x;
+  c[1] = cos (angle) * y - sin (angle) * z;
+  c[2] = sin (angle) * y + cos (angle) * z;
+}
+
+void
+rhea_domain_rotate_y_axis (double c[3], const double angle)
+{
+  const double        x = c[0];
+  const double        y = c[1];
+  const double        z = c[2];
+
+  c[0] = cos (angle) * x + sin (angle) * z;
+  c[1] = y;
+  c[2] = -sin (angle) * x + cos (angle) * z;
+}
+
+void
+rhea_domain_rotate_z_axis (double c[3], const double angle)
+{
+  const double        x = c[0];
+  const double        y = c[1];
+  const double        z = c[2];
+
+  c[0] = cos (angle) * x - sin (angle) * y;
+  c[1] = sin (angle) * x + cos (angle) * y;
+  c[2] = z;
 }
 
 /******************************************************************************

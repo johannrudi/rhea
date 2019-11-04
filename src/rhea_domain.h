@@ -231,6 +231,18 @@ void                rhea_domain_extract_lateral (
                                 rhea_domain_coordinate_type_t coord_type,
                                 rhea_domain_options_t *opt);
 
+/**
+ * Rotates Cartesian coordinates about x-, y-, or z-axis by a given angle.
+ */
+void                rhea_domain_rotate_x_axis (double c[3],
+                                               const double angle);
+
+void                rhea_domain_rotate_y_axis (double c[3],
+                                               const double angle);
+
+void                rhea_domain_rotate_z_axis (double c[3],
+                                               const double angle);
+
 /******************************************************************************
  * Domain Boundary
  *****************************************************************************/

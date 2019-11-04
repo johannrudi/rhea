@@ -952,42 +952,6 @@ rhea_discretization_ymir_mesh_destroy (ymir_mesh_t *ymir_mesh,
  *****************************************************************************/
 
 static void
-_rotate_x_axis (double c[3], const double angle)
-{
-  const double        x = c[0];
-  const double        y = c[1];
-  const double        z = c[2];
-
-  c[0] = x;
-  c[1] = cos (angle) * y - sin (angle) * z;
-  c[2] = sin (angle) * y + cos (angle) * z;
-}
-
-static void
-_rotate_y_axis (double c[3], const double angle)
-{
-  const double        x = c[0];
-  const double        y = c[1];
-  const double        z = c[2];
-
-  c[0] = cos (angle) * x + sin (angle) * z;
-  c[1] = y;
-  c[2] = -sin (angle) * x + cos (angle) * z;
-}
-
-static void
-_rotate_z_axis (double c[3], const double angle)
-{
-  const double        x = c[0];
-  const double        y = c[1];
-  const double        z = c[2];
-
-  c[0] = cos (angle) * x - sin (angle) * y;
-  c[1] = sin (angle) * x + cos (angle) * y;
-  c[2] = z;
-}
-
-static void
 rhea_discretization_set_cont_coordinates (
                                   ymir_vec_t *coordinates,
                                   rhea_domain_coordinate_type_t coord_type,
@@ -1022,13 +986,13 @@ rhea_discretization_set_cont_coordinates (
       double              c[3] = {X[nodeid], Y[nodeid], Z[nodeid]};
 
       if (isfinite (rot_angle[0]) && 0.0 < fabs (rot_angle[0])) {
-        _rotate_x_axis (c, rot_angle[0]);
+        rhea_domain_rotate_x_axis (c, rot_angle[0]);
       }
       if (isfinite (rot_angle[1]) && 0.0 < fabs (rot_angle[1])) {
-        _rotate_y_axis (c, rot_angle[1]);
+        rhea_domain_rotate_y_axis (c, rot_angle[1]);
       }
       if (isfinite (rot_angle[2]) && 0.0 < fabs (rot_angle[2])) {
-        _rotate_z_axis (c, rot_angle[2]);
+        rhea_domain_rotate_z_axis (c, rot_angle[2]);
       }
       rhea_domain_convert_coordinates (&C[3*nodeid    ],
                                        &C[3*nodeid + 1],
@@ -1061,10 +1025,7 @@ rhea_discretization_write_cont_coordinates (
   const int           mpisize = ymir_mesh_get_MPI_Comm_size (ymir_mesh);
   int                *segment_offset;
   int                 r;
-  const double        rot_angle[3] = {NAN, NAN, NAN};
-//const double        rot_angle[3] = {0.5*M_PI, NAN, 0.5*M_PI};
-/*                    Rotates coordinates of cross section to align with
- *                    equator and obtain longitude [-theta,+theta] */
+  double              rot_angle[3];
   ymir_vec_t         *coordinates;
   double             *coord_data;
 
@@ -1074,6 +1035,27 @@ rhea_discretization_write_cont_coordinates (
   for (r = 0; r < mpisize; r++) {
     RHEA_ASSERT ((segment_offset[r] + 3*n_nodes[r]) <= INT_MAX);
     segment_offset[r+1] = segment_offset[r] + (int) 3*n_nodes[r];
+  }
+
+  /* set rotation */
+  switch (domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    rot_angle[0] = NAN;
+    rot_angle[1] = NAN;
+    rot_angle[2] = NAN;
+    break;
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    /* Rotates coordinates of cross section to align with equator and obtain
+     * longitude [-theta,+theta] */
+    rot_angle[0] = 0.5*M_PI;
+    rot_angle[1] = NAN;
+    rot_angle[2] = 0.5*M_PI;
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
   }
 
   /* set coordinates */
