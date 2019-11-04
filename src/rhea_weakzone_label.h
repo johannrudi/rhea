@@ -151,21 +151,25 @@ typedef enum
 rhea_weakzone_label_t;
 
 /* number of label classes */
-#define RHEA_WEAKZONE_LABEL_CLASS_N 3
+#define RHEA_WEAKZONE_LABEL_CLASS_N 4
+
+/* max label counts */
+#define RHEA_WEAKZONE_LABEL_MAX_N_NONE     128
+#define RHEA_WEAKZONE_LABEL_MAX_N_SLAB     128
+#define RHEA_WEAKZONE_LABEL_MAX_N_RIDGE    128
+#define RHEA_WEAKZONE_LABEL_MAX_N_FRACTURE 128
 
 /* label counts for earth */
-#define RHEA_WEAKZONE_LABEL_EARTH_N_SL 27
-#define RHEA_WEAKZONE_LABEL_EARTH_N_RI 58
-#define RHEA_WEAKZONE_LABEL_EARTH_N_FZ 35
-#define RHEA_WEAKZONE_LABEL_EARTH_N (RHEA_WEAKZONE_LABEL_EARTH_N_SL + \
-                                     RHEA_WEAKZONE_LABEL_EARTH_N_RI + \
-                                     RHEA_WEAKZONE_LABEL_EARTH_N_FZ)
+#define RHEA_WEAKZONE_LABEL_EARTH_N_NONE      0
+#define RHEA_WEAKZONE_LABEL_EARTH_N_SLAB     27
+#define RHEA_WEAKZONE_LABEL_EARTH_N_RIDGE    58
+#define RHEA_WEAKZONE_LABEL_EARTH_N_FRACTURE 35
 
 static inline int
 rhea_weakzone_label_is_class (const rhea_weakzone_label_t label)
 {
   return (RHEA_WEAKZONE_LABEL_CLASS_NONE <= label &&
-          label <= RHEA_WEAKZONE_LABEL_CLASS_N);
+          label < RHEA_WEAKZONE_LABEL_CLASS_N);
 }
 
 static inline rhea_weakzone_label_t
@@ -175,15 +179,15 @@ rhea_weakzone_label_get_class (const rhea_weakzone_label_t label)
 
   /* return itself if label corresponds to a class */
   if (RHEA_WEAKZONE_LABEL_CLASS_NONE <= label &&
-      label <= RHEA_WEAKZONE_LABEL_CLASS_N) {
+      label < RHEA_WEAKZONE_LABEL_CLASS_N) {
     return label;
   }
 
   /* calculate class from label */
-  class_id = (rhea_weakzone_label_t) ((int) label / 1000);
+  class_id = (int) ((int) label / 1000);
   if (RHEA_WEAKZONE_LABEL_CLASS_NONE <= class_id &&
-      class_id <= RHEA_WEAKZONE_LABEL_CLASS_N) {
-    return class_id;
+      class_id < RHEA_WEAKZONE_LABEL_CLASS_N) {
+    return (rhea_weakzone_label_t) class_id;
   }
 
   /* otherwise the class is unknown */
@@ -223,58 +227,6 @@ rhea_weakzone_label_is_fracture (const rhea_weakzone_label_t label)
 {
   return (RHEA_WEAKZONE_LABEL_CLASS_FRACTURE ==
           rhea_weakzone_label_get_class (label));
-}
-
-/**
- * Gets the array index in (0:RHEA_WEAKZONE_LABEL_EARTH_N) corresponding to a
- * label for earth.
- */
-static inline int
-rhea_weakzone_label_earth_get_idx (const rhea_weakzone_label_t label)
-{
-  const rhea_weakzone_label_t class_id = (rhea_weakzone_label_t)
-                                         ((int) label / 1000);
-
-  switch (class_id) {
-  case RHEA_WEAKZONE_LABEL_CLASS_SLAB:
-    return (label % (1000*RHEA_WEAKZONE_LABEL_CLASS_SLAB)) - 1;
-  case RHEA_WEAKZONE_LABEL_CLASS_RIDGE:
-    return RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-           (label % (1000*RHEA_WEAKZONE_LABEL_CLASS_RIDGE)) - 1;
-  case RHEA_WEAKZONE_LABEL_CLASS_FRACTURE:
-    return RHEA_WEAKZONE_LABEL_EARTH_N_SL +
-           RHEA_WEAKZONE_LABEL_EARTH_N_RI +
-           (label % (1000*RHEA_WEAKZONE_LABEL_CLASS_FRACTURE)) - 1;
-  default: /* unknown label */
-    return -1;
-  }
-}
-
-/**
- * Gets the label corresponding to an array index in
- * (0:RHEA_WEAKZONE_LABEL_EARTH_N).
- */
-static inline rhea_weakzone_label_t
-rhea_weakzone_label_earth_get_label (const int idx)
-{
-  if (0 <= idx &&
-      idx < RHEA_WEAKZONE_LABEL_EARTH_N_SL) { /* if slab */
-    return (rhea_weakzone_label_t)
-           (1000*RHEA_WEAKZONE_LABEL_CLASS_SLAB + idx + 1);
-  }
-  if (RHEA_WEAKZONE_LABEL_EARTH_N_SL <= idx &&
-      idx < RHEA_WEAKZONE_LABEL_EARTH_N_RI) { /* if ridge */
-    return (rhea_weakzone_label_t)
-           (1000*RHEA_WEAKZONE_LABEL_CLASS_RIDGE + idx + 1);
-  }
-  if (RHEA_WEAKZONE_LABEL_EARTH_N_RI <= idx &&
-      idx < RHEA_WEAKZONE_LABEL_EARTH_N_FZ) { /* if fracture */
-    return (rhea_weakzone_label_t)
-           (1000*RHEA_WEAKZONE_LABEL_CLASS_FRACTURE + idx + 1);
-  }
-
-  /* otherwise index cannot be assigned to a label */
-  return RHEA_WEAKZONE_LABEL_UNKNOWN;
 }
 
 #endif /* RHEA_WEAKZONE_LABEL_H */

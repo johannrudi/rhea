@@ -1,5 +1,4 @@
 #include <rhea_weakzone.h>
-#include <rhea_weakzone_label.h>
 #include <rhea_base.h>
 #include <rhea_io_mpi.h>
 #include <rhea_io_std.h>
@@ -19,6 +18,7 @@
 #define RHEA_WEAKZONE_DEFAULT_FACTORS_FILE_PATH_BIN NULL
 #define RHEA_WEAKZONE_DEFAULT_FACTORS_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_N_POINTS (100000000)
+#define RHEA_WEAKZONE_DEFAULT_N_LABELS_PER_CLASS NULL
 #define RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_BIN NULL
 #define RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_WRITE_LABELS_FILE_PATH_BIN NULL
@@ -35,7 +35,7 @@
 #define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_CLASS_SLAB (NAN)
 #define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_CLASS_RIDGE (NAN)
 #define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE (NAN)
-#define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT NULL
+#define RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_LABEL_FILE_PATH_TXT NULL
 #define RHEA_WEAKZONE_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* initialize options */
@@ -54,6 +54,8 @@ char               *rhea_weakzone_factors_file_path_txt =
   RHEA_WEAKZONE_DEFAULT_FACTORS_FILE_PATH_TXT;
 int                 rhea_weakzone_n_points =
   RHEA_WEAKZONE_DEFAULT_N_POINTS;
+char               *rhea_weakzone_n_labels_per_class =
+  RHEA_WEAKZONE_DEFAULT_N_LABELS_PER_CLASS;
 char               *rhea_weakzone_write_points_file_path_bin =
   RHEA_WEAKZONE_DEFAULT_WRITE_POINTS_FILE_PATH_BIN;
 char               *rhea_weakzone_write_points_file_path_txt =
@@ -86,8 +88,8 @@ double              rhea_weakzone_weak_factor_interior_class_ridge =
   RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_CLASS_RIDGE;
 double              rhea_weakzone_weak_factor_interior_class_fracture =
   RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE;
-char               *rhea_weakzone_weak_factor_interior_earth_file_path_txt =
-  RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT;
+char               *rhea_weakzone_weak_factor_interior_label_file_path_txt =
+  RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_LABEL_FILE_PATH_TXT;
 int                 rhea_weakzone_monitor_performance =
                       RHEA_WEAKZONE_DEFAULT_MONITOR_PERFORMANCE;
 
@@ -133,6 +135,10 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "num-points", '\0',
     &(rhea_weakzone_n_points), RHEA_WEAKZONE_DEFAULT_N_POINTS,
     "Number of points that are imported",
+  YMIR_OPTIONS_S, "num-labels-per-class", '\0',
+    &(rhea_weakzone_n_labels_per_class),
+    RHEA_WEAKZONE_DEFAULT_N_LABELS_PER_CLASS,
+    "Number of labels per class (comma separated list of integers)",
 
   YMIR_OPTIONS_S, "write-points-file-path-bin", '\0',
     &(rhea_weakzone_write_points_file_path_bin),
@@ -200,11 +206,10 @@ rhea_weakzone_add_options (ymir_options_t * opt_sup)
     RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE,
     "Min weak zone factor of fractures",
 
-  YMIR_OPTIONS_S, "weak-factor-interior-earth-file-path-txt", '\0',
-    &(rhea_weakzone_weak_factor_interior_earth_file_path_txt),
-    RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_EARTH_FILE_PATH_TXT,
-    "Path to a text file with min weak zone factors for earth "
-    "(needs to have 120 lines)",
+  YMIR_OPTIONS_S, "weak-factor-interior-label-file-path-txt", '\0',
+    &(rhea_weakzone_weak_factor_interior_label_file_path_txt),
+    RHEA_WEAKZONE_DEFAULT_WEAK_FACTOR_INTERIOR_LABEL_FILE_PATH_TXT,
+    "Path to a text file with min weak zone factors (one for each label)",
 
   YMIR_OPTIONS_B, "monitor-performance", '\0',
     &(rhea_weakzone_monitor_performance),
@@ -257,6 +262,31 @@ rhea_weakzone_process_options (rhea_weakzone_options_t *opt,
 
   /* set number of points */
   opt->n_points = rhea_weakzone_n_points;
+
+  /* set number of labels per class */
+  if (NULL != rhea_weakzone_n_labels_per_class) { /* set custom label counts */
+    int                 n_classes, k;
+    double             *n_labels = NULL;
+
+    n_classes = ymir_options_convert_string_to_double (
+        rhea_weakzone_n_labels_per_class, &n_labels);
+    RHEA_CHECK_ABORT (RHEA_WEAKZONE_LABEL_CLASS_N == n_classes,
+                      "Mismatch with provided number of classes");
+    for (k = 0; k < n_classes; k++) {
+      opt->n_labels[k] = (int) n_labels[k];
+    }
+    YMIR_FREE (n_labels); /* was allocated in ymir */
+  }
+  else { /* set default label counts */
+    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE] =
+      RHEA_WEAKZONE_LABEL_EARTH_N_NONE;
+    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB] =
+      RHEA_WEAKZONE_LABEL_EARTH_N_SLAB;
+    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE] =
+      RHEA_WEAKZONE_LABEL_EARTH_N_RIDGE;
+    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE] =
+      RHEA_WEAKZONE_LABEL_EARTH_N_FRACTURE;
+  }
 
   /* set output paths */
   opt->write_points_file_path_bin = rhea_weakzone_write_points_file_path_bin;
@@ -323,7 +353,7 @@ rhea_weakzone_process_options (rhea_weakzone_options_t *opt,
     opt->weak_factor_interior_class_fracture =
       rhea_weakzone_weak_factor_interior_class_fracture;
   }
-  opt->weak_factor_interior_earth = NULL;
+  opt->weak_factor_interior_label = NULL;
 
   /* init data */
   opt->pointcloud = NULL;
@@ -727,10 +757,10 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
 
   /* read weak zone factors for each label */
   if (create_labels &&
-      rhea_weakzone_weak_factor_interior_earth_file_path_txt != NULL) {
+      rhea_weakzone_weak_factor_interior_label_file_path_txt != NULL) {
     const char         *file_path_txt =
-      rhea_weakzone_weak_factor_interior_earth_file_path_txt;
-    const int           n_entries = RHEA_WEAKZONE_LABEL_EARTH_N;
+      rhea_weakzone_weak_factor_interior_label_file_path_txt;
+    const int           n_entries = rhea_weakzone_get_total_n_labels (opt);
     int                 n_read;
     int                 idx;
 
@@ -738,22 +768,28 @@ rhea_weakzone_data_create (rhea_weakzone_options_t *opt, sc_MPI_Comm mpicomm)
     ymir_perf_counter_start (
         &rhea_weakzone_perfmon[RHEA_WEAKZONE_PERFMON_CREATE_LABELS]);
 
-    RHEA_ASSERT (opt->weak_factor_interior_earth == NULL);
-    opt->weak_factor_interior_earth = RHEA_ALLOC (double, n_entries);
+    RHEA_ASSERT (opt->weak_factor_interior_label == NULL);
+    opt->weak_factor_interior_label = RHEA_ALLOC (double, n_entries);
 
     n_read = rhea_io_mpi_read_broadcast_double (
-        opt->weak_factor_interior_earth, n_entries, NULL /* path bin */,
+        opt->weak_factor_interior_label, n_entries, NULL /* path bin */,
         file_path_txt, mpicomm);
     RHEA_ASSERT (n_read == n_entries);
 
-    RHEA_GLOBAL_INFOF ("%s Number of distinct labels=%i\n", __func__,
-                       n_read);
+    RHEA_GLOBAL_INFOF (
+        "%s Number of distinct labels=%i\n", __func__, n_read);
+    RHEA_GLOBAL_INFOF (
+        "%s Number of distinct labels per class=%i, %i, %i, %i\n", __func__,
+        opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE],
+        opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB],
+        opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE],
+        opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE]);
 
     /* find min factor */
     for (idx = 0; idx < n_entries; idx++) {
       opt->stats_factor_interior_min = SC_MIN (
           opt->stats_factor_interior_min,
-          opt->weak_factor_interior_earth[idx]);
+          opt->weak_factor_interior_label[idx]);
     }
 
     /* stop performance monitors */
@@ -778,14 +814,23 @@ rhea_weakzone_data_clear (rhea_weakzone_options_t *opt)
   if (opt->pointcloud != NULL) {
     rhea_pointcloud_weakzone_destroy (opt->pointcloud);
   }
-  if (opt->weak_factor_interior_earth != NULL) {
-    RHEA_FREE (opt->weak_factor_interior_earth);
+  if (opt->weak_factor_interior_label != NULL) {
+    RHEA_FREE (opt->weak_factor_interior_label);
   }
 }
 
 /******************************************************************************
- * Weak Zone Computation
+ * Get & Set Parameters
  *****************************************************************************/
+
+int
+rhea_weakzone_get_total_n_labels (rhea_weakzone_options_t *opt)
+{
+  return opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE] +
+         opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB] +
+         opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE] +
+         opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE];
+}
 
 double
 rhea_weakzone_lookup_thickness (const int label, rhea_weakzone_options_t *opt)
@@ -851,7 +896,7 @@ rhea_weakzone_lookup_factor_interior (const int label,
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
     RHEA_ASSERT (rhea_weakzone_label_is_valid_int (label));
     if (rhea_weakzone_label_is_class ((rhea_weakzone_label_t) label) ||
-        opt->weak_factor_interior_earth == NULL) { /* if based on class */
+        opt->weak_factor_interior_label == NULL) { /* if based on class */
       const rhea_weakzone_label_t class_id =
         rhea_weakzone_label_get_class ((rhea_weakzone_label_t) label);
 
@@ -869,12 +914,12 @@ rhea_weakzone_lookup_factor_interior (const int label,
         return NAN;
       }
     }
-    else if (opt->weak_factor_interior_earth != NULL) { /* if vals individual */
-      const int           idx =
-        rhea_weakzone_label_earth_get_idx ((rhea_weakzone_label_t) label);
+    else if (opt->weak_factor_interior_label != NULL) { /* if individual */
+      const int           idx = rhea_weakzone_lookup_index_from_label (
+                                    (rhea_weakzone_label_t) label, opt);
 
-      RHEA_ASSERT (0 <= idx && idx < RHEA_WEAKZONE_LABEL_EARTH_N);
-      return opt->weak_factor_interior_earth[idx];
+      RHEA_ASSERT (0 <= idx && idx < rhea_weakzone_get_total_n_labels (opt));
+      return opt->weak_factor_interior_label[idx];
     }
     else { /* otherwise use generic value */
       return opt->weak_factor_interior;
@@ -885,6 +930,99 @@ rhea_weakzone_lookup_factor_interior (const int label,
     return NAN;
   }
 }
+
+/**
+ * Gets the array index in [0,total #labels per class) corresponding to a
+ * label.
+ */
+int
+rhea_weakzone_lookup_index_from_label (const rhea_weakzone_label_t label,
+                                       rhea_weakzone_options_t *opt)
+{
+  const rhea_weakzone_label_t class_id = rhea_weakzone_label_get_class (label);
+  int                 offset = 0;
+  int                 idx;
+
+  /* if none */
+  RHEA_ASSERT (class_id != RHEA_WEAKZONE_LABEL_CLASS_NONE);
+  offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE];
+
+  /* if slab */
+  if (class_id == RHEA_WEAKZONE_LABEL_CLASS_SLAB) {
+    idx = offset + ((int) label % (1000*RHEA_WEAKZONE_LABEL_CLASS_SLAB)) - 1;
+    RHEA_ASSERT (0 <= idx && idx < rhea_weakzone_get_total_n_labels (opt));
+    return idx;
+  }
+  offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB];
+
+  /* if ridge */
+  if (class_id == RHEA_WEAKZONE_LABEL_CLASS_RIDGE) {
+    idx = offset + ((int) label % (1000*RHEA_WEAKZONE_LABEL_CLASS_RIDGE)) - 1;
+    RHEA_ASSERT (0 <= idx && idx < rhea_weakzone_get_total_n_labels (opt));
+    return idx;
+  }
+  offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE];
+
+  /* if fracture */
+  if (class_id == RHEA_WEAKZONE_LABEL_CLASS_FRACTURE) {
+    idx = offset + ((int) label % (1000*RHEA_WEAKZONE_LABEL_CLASS_FRACTURE)) - 1;
+    RHEA_ASSERT (0 <= idx && idx < rhea_weakzone_get_total_n_labels (opt));
+    return idx;
+  }
+//offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE];
+
+  /* otherwise label is unknown */
+  return -1;
+}
+
+/**
+ * Gets the label corresponding to an array index in
+ * [0,total #labels per class).
+ */
+rhea_weakzone_label_t
+rhea_weakzone_lookup_label_from_index (const int idx,
+                                       rhea_weakzone_options_t *opt)
+{
+  int                 offset = 0;
+  int                 label_int;
+
+  /* check input */
+  RHEA_ASSERT (0 <= idx && idx < rhea_weakzone_get_total_n_labels (opt));
+
+  /* if none */
+  RHEA_ASSERT (!( offset <= idx &&
+                  idx < opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE] ));
+  offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE];
+
+  /* if slab */
+  if (offset <= idx && idx < opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB]) {
+    label_int = (1000*RHEA_WEAKZONE_LABEL_CLASS_SLAB) + idx + 1;
+    return (rhea_weakzone_label_t) label_int;
+  }
+  offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB];
+
+  /* if ridge */
+  if (offset <= idx && idx < opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE]) {
+    label_int = (1000*RHEA_WEAKZONE_LABEL_CLASS_RIDGE) + idx + 1;
+    return (rhea_weakzone_label_t) label_int;
+  }
+  offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE];
+
+  /* if fracture */
+  if (offset <= idx &&
+      idx < opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE]) {
+    label_int = (1000*RHEA_WEAKZONE_LABEL_CLASS_FRACTURE) + idx + 1;
+    return (rhea_weakzone_label_t) label_int;
+  }
+//offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE];
+
+  /* otherwise index cannot be assigned to a label */
+  return RHEA_WEAKZONE_LABEL_UNKNOWN;
+}
+
+/******************************************************************************
+ * Weak Zone Computation
+ *****************************************************************************/
 
 /**
  * Checks whether coordinates can expected to be far from weak zones s.t.

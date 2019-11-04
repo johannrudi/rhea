@@ -8,6 +8,7 @@
 
 #include <rhea_domain.h>
 #include <rhea_pointcloud_adaptor.h>
+#include <rhea_weakzone_label.h>
 #include <ymir_vec_ops.h>
 
 /* constant: neutral/default value for weak zone (i.e., no weakening) */
@@ -50,7 +51,7 @@ typedef struct rhea_weakzone_options
   double              weak_factor_interior_class_slab;
   double              weak_factor_interior_class_ridge;
   double              weak_factor_interior_class_fracture;
-  double             *weak_factor_interior_earth;
+  double             *weak_factor_interior_label;
 
   /* binary/text files with coordinates, labels, factors of weak zone points */
   char               *points_file_path_bin;
@@ -60,8 +61,9 @@ typedef struct rhea_weakzone_options
   char               *factors_file_path_bin;
   char               *factors_file_path_txt;
 
-  /* number of points */
+  /* number of points and labels per class */
   int                 n_points;
+  int                 n_labels[RHEA_WEAKZONE_LABEL_CLASS_N];
 
   /* output */
   char               *write_points_file_path_bin;
@@ -188,39 +190,6 @@ void                rhea_weakzone_compute_indicator (
                                                 const int label_filter,
                                                 rhea_weakzone_options_t *opt);
 
-/******************************************************************************
- * Get & Set Values
- *****************************************************************************/
-
-/**
- * Gets the weak zone of one element at Gauss nodes.
- */
-double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,
-                                                  ymir_vec_t *weak_vec,
-                                                  const ymir_locidx_t elid);
-
-/**
- * Sets the weak zone of one element at Gauss nodes.
- */
-void                rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec,
-                                                  sc_dmatrix_t *weak_el_mat,
-                                                  const ymir_locidx_t elid);
-
-/**
- * Looks up the weak zone thickness/factor corresponding to a label and options.
- */
-double              rhea_weakzone_lookup_thickness (
-                                                const int label,
-                                                rhea_weakzone_options_t *opt);
-
-double              rhea_weakzone_lookup_thickness_const (
-                                                const int label,
-                                                rhea_weakzone_options_t *opt);
-
-double              rhea_weakzone_lookup_factor_interior (
-                                                const int label,
-                                                rhea_weakzone_options_t *opt);
-
 /**
  * Computes the weak zone distance/factor/factor derivative at one node.
  */
@@ -250,5 +219,56 @@ void                rhea_weakzone_compute_elem (double *_sc_restrict weak_elem,
                                                 const double *_sc_restrict z,
                                                 const int n_nodes,
                                                 rhea_weakzone_options_t *opt);
+
+/******************************************************************************
+ * Get & Set Parameters
+ *****************************************************************************/
+
+/**
+ * Returns the total number of labels.
+ */
+int                 rhea_weakzone_get_total_n_labels (
+                                                rhea_weakzone_options_t *opt);
+
+/**
+ * Looks up weak zone parameters.
+ */
+double              rhea_weakzone_lookup_thickness (
+                                              const int label,
+                                              rhea_weakzone_options_t *opt);
+
+double              rhea_weakzone_lookup_thickness_const (
+                                              const int label,
+                                              rhea_weakzone_options_t *opt);
+
+double              rhea_weakzone_lookup_factor_interior (
+                                              const int label,
+                                              rhea_weakzone_options_t *opt);
+
+int                 rhea_weakzone_lookup_index_from_label (
+                                              const rhea_weakzone_label_t label,
+                                              rhea_weakzone_options_t *opt);
+
+rhea_weakzone_label_t rhea_weakzone_lookup_label_from_index (
+                                              const int idx,
+                                              rhea_weakzone_options_t *opt);
+
+/******************************************************************************
+ * Get & Set Values
+ *****************************************************************************/
+
+/**
+ * Gets the weak zone of one element at Gauss nodes.
+ */
+double             *rhea_weakzone_get_elem_gauss (sc_dmatrix_t *weak_el_mat,
+                                                  ymir_vec_t *weak_vec,
+                                                  const ymir_locidx_t elid);
+
+/**
+ * Sets the weak zone of one element at Gauss nodes.
+ */
+void                rhea_weakzone_set_elem_gauss (ymir_vec_t *weak_vec,
+                                                  sc_dmatrix_t *weak_el_mat,
+                                                  const ymir_locidx_t elid);
 
 #endif /* RHEA_WEAKZONE_H */
