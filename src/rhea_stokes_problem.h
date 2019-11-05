@@ -243,6 +243,9 @@ void                        rhea_stokes_problem_set_viscosity_options (
 void                rhea_stokes_problem_copy_viscosity (
                                     ymir_vec_t *viscosity,
                                     rhea_stokes_problem_t *stokes_problem);
+void                rhea_stokes_problem_copy_marker (
+                                    ymir_vec_t *marker,
+                                    rhea_stokes_problem_t *stokes_problem);
 
 ymir_vec_t         *rhea_stokes_problem_get_weakzone (
                                     rhea_stokes_problem_t *stokes_problem);

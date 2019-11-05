@@ -3609,6 +3609,17 @@ rhea_stokes_problem_copy_viscosity (ymir_vec_t *viscosity,
   ymir_vec_scale (0.5, viscosity);
 }
 
+void
+rhea_stokes_problem_copy_marker (ymir_vec_t *marker,
+                                 rhea_stokes_problem_t *stokes_problem)
+{
+  /* check input */
+  RHEA_ASSERT (stokes_problem->marker != NULL);
+
+  /* copy marker */
+  ymir_vec_copy (stokes_problem->marker, marker);
+}
+
 ymir_vec_t *
 rhea_stokes_problem_get_weakzone (rhea_stokes_problem_t *stokes_problem)
 {
