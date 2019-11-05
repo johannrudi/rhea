@@ -426,31 +426,41 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
                                     ymir_vec_t *velocity_fwd,
                                     ymir_vec_t *pressure_fwd,
                                     ymir_vec_t *velocity_adj,
-                                    ymir_vec_t *pressure_adj)
+                                    ymir_vec_t *pressure_adj,
+                                    ymir_vec_t *viscosity,
+                                    ymir_vec_t *marker)
 {
   ymir_mesh_t        *ymir_mesh;
+  char                path[BUFSIZ];
+  int                 success = 0;
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
 
   /* check input */
   RHEA_ASSERT (NULL != velocity_fwd);
   RHEA_ASSERT (NULL != pressure_fwd);
-  RHEA_ASSERT (NULL != velocity_adj);
-  RHEA_ASSERT (NULL != pressure_adj);
+  RHEA_ASSERT (NULL != viscosity);
 
   /* create work variables */
   ymir_mesh = ymir_vec_get_mesh (velocity_fwd);
 
-  /* write vtk file */
-  ymir_vtk_write (ymir_mesh, filepath,
-                  velocity_fwd, RHEA_VTK_NAME_VELOCITY_FWD,
-                  pressure_fwd, RHEA_VTK_NAME_PRESSURE_FWD,
-                  velocity_adj, RHEA_VTK_NAME_VELOCITY_ADJ,
-                  pressure_adj, RHEA_VTK_NAME_PRESSURE_ADJ, NULL);
+  /* write forward state */
+  snprintf (path, BUFSIZ, "%s_fwd", filepath);
+  success = rhea_vtk_write_solution (path, velocity_fwd, pressure_fwd,
+                                     viscosity, marker);
+
+  /* write adjoint state */
+  if (NULL != velocity_adj && NULL != pressure_adj) {
+    snprintf (path, BUFSIZ, "%s_adj", filepath);
+    ymir_vtk_write (ymir_vec_get_mesh (velocity_adj), path,
+                    velocity_adj, RHEA_VTK_NAME_VELOCITY_ADJ,
+                    pressure_adj, RHEA_VTK_NAME_PRESSURE_ADJ, NULL);
+    success++;
+  }
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 
-  return 1;
+  return success;
 }
 
 int

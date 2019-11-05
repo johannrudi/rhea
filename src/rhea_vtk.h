@@ -47,7 +47,9 @@ int                 rhea_vtk_write_inversion_iteration (
                                                   ymir_vec_t *velocity_fwd,
                                                   ymir_vec_t *pressure_fwd,
                                                   ymir_vec_t *velocity_adj,
-                                                  ymir_vec_t *pressure_adj);
+                                                  ymir_vec_t *pressure_adj,
+                                                  ymir_vec_t *viscosity,
+                                                  ymir_vec_t *marker);
 
 int                 rhea_vtk_write_inversion_iteration_surf (
                                                   const char *filepath,
