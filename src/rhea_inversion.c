@@ -2169,10 +2169,13 @@ static void
 rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
                                          void *data)
 {
-  rhea_inversion_problem_t *inv_problem = data;
-  rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
-  ymir_mesh_t              *ymir_mesh;
-  ymir_pressure_elem_t     *press_elem;
+  rhea_inversion_problem_t   *inv_problem = data;
+  rhea_stokes_problem_t      *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t                *ymir_mesh;
+  ymir_pressure_elem_t       *press_elem;
+  rhea_domain_options_t      *domain_options;
+  rhea_temperature_options_t *temp_options;
+  rhea_viscosity_options_t   *visc_options;
   sc_MPI_Comm         mpicomm;
   int                 mpirank, mpiret;
   const int           iter_start = inv_problem->newton_options->iter_start;
@@ -2195,6 +2198,11 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
   /* get mesh data */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+   /* get options */
+  domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
+  temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
+  visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
 
   /* get parallel environment */
   mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
@@ -2275,6 +2283,61 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
         &vel_adj_vol, &press_adj_vol, inv_problem->adjoint_vel_press,
         press_elem);
 
+    /* process surface fields */
+    if (vtk_path_surf != NULL) {
+      ymir_vec_t         *vel_fwd_surf, *vel_adj_surf, *vel_obs_surf;
+      ymir_vec_t         *misfit_surf;
+
+      /* get surface fields */
+      vel_fwd_surf = rhea_velocity_surface_new (ymir_mesh);
+      vel_adj_surf = rhea_velocity_surface_new (ymir_mesh);
+      rhea_velocity_surface_interpolate (vel_fwd_surf, vel_fwd_vol);
+      rhea_velocity_surface_interpolate (vel_adj_surf, vel_adj_vol);
+
+      /* get observations */
+      vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
+      ymir_vec_copy (inv_problem->vel_obs_surf, vel_obs_surf);
+
+      /* compute the data misfit term */
+      misfit_surf = rhea_velocity_surface_new (ymir_mesh);
+      rhea_inversion_obs_velocity_misfit_vec (
+          misfit_surf, vel_fwd_vol, inv_problem->vel_obs_surf,
+          inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
+          rhea_stokes_problem_get_domain_options (stokes_problem));
+
+      /* convert to physical dimensions */
+      rhea_velocity_convert_to_dimensional_mm_yr (
+          vel_fwd_surf, domain_options, temp_options);
+      rhea_velocity_convert_to_dimensional_mm_yr (
+          vel_adj_surf, domain_options, temp_options);
+      rhea_velocity_convert_to_dimensional_mm_yr (
+          vel_obs_surf, domain_options, temp_options);
+      rhea_velocity_convert_to_dimensional_mm_yr (
+          misfit_surf, domain_options, temp_options);
+
+      /* write VTK of surface fields*/
+      snprintf (path, BUFSIZ, "%s%s%02i", vtk_path_surf,
+                RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+      rhea_vtk_write_inversion_iteration_surf (
+          path, vel_fwd_surf, vel_adj_surf, vel_obs_surf, misfit_surf);
+
+      /* destroy */
+      rhea_velocity_surface_destroy (vel_fwd_surf);
+      rhea_velocity_surface_destroy (vel_adj_surf);
+      rhea_velocity_surface_destroy (vel_obs_surf);
+      rhea_velocity_surface_destroy (misfit_surf);
+    }
+
+    /* convert to physical dimensions */
+    rhea_velocity_convert_to_dimensional_mm_yr (
+        vel_fwd_vol, domain_options, temp_options);
+    rhea_velocity_convert_to_dimensional_mm_yr (
+        vel_adj_vol, domain_options, temp_options);
+    rhea_pressure_convert_to_dimensional_Pa (
+        press_fwd_vol, domain_options, temp_options, visc_options);
+    rhea_pressure_convert_to_dimensional_Pa (
+        press_adj_vol, domain_options, temp_options, visc_options);
+
     /* write VTK of volume fields */
     if (vtk_path_vol != NULL) {
       snprintf (path, BUFSIZ, "%s%s%02i", vtk_path_vol,
@@ -2284,41 +2347,10 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
     }
 
     /* destroy */
-    rhea_velocity_destroy (press_fwd_vol);
-    rhea_velocity_destroy (press_adj_vol);
-
-    if (vtk_path_surf != NULL) {
-      ymir_vec_t         *vel_fwd_surf, *vel_adj_surf, *misfit_surf;
-
-      /* get surface fields */
-      vel_fwd_surf = rhea_velocity_surface_new (ymir_mesh);
-      vel_adj_surf = rhea_velocity_surface_new (ymir_mesh);
-      rhea_velocity_surface_interpolate (vel_fwd_surf, vel_fwd_vol);
-      rhea_velocity_surface_interpolate (vel_adj_surf, vel_adj_vol);
-
-      /* compute the observation data misfit term */
-      misfit_surf = rhea_velocity_surface_new (ymir_mesh);
-      rhea_inversion_obs_velocity_misfit_vec (
-          misfit_surf, vel_fwd_vol, inv_problem->vel_obs_surf,
-          inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
-          rhea_stokes_problem_get_domain_options (stokes_problem));
-
-      /* write VTK of surface fields*/
-      snprintf (path, BUFSIZ, "%s%s%02i", vtk_path_surf,
-                RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
-      rhea_vtk_write_inversion_iteration_surf (
-          path, vel_fwd_surf, vel_adj_surf, inv_problem->vel_obs_surf,
-          misfit_surf);
-
-      /* destroy */
-      rhea_velocity_surface_destroy (vel_fwd_surf);
-      rhea_velocity_surface_destroy (vel_adj_surf);
-      rhea_velocity_surface_destroy (misfit_surf);
-    }
-
-    /* destroy */
     rhea_velocity_destroy (vel_fwd_vol);
     rhea_velocity_destroy (vel_adj_vol);
+    rhea_velocity_destroy (press_fwd_vol);
+    rhea_velocity_destroy (press_adj_vol);
   }
 
   RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "newton_iter=%i", iter);
