@@ -2343,8 +2343,10 @@ rhea_inversion_write_vis (const char *vtk_path_vol,
   /* destroy */
   rhea_velocity_destroy (vel_fwd_vol);
   rhea_velocity_destroy (vel_adj_vol);
-  rhea_velocity_destroy (press_fwd_vol);
-  rhea_velocity_destroy (press_adj_vol);
+  rhea_pressure_destroy (press_fwd_vol);
+  rhea_pressure_destroy (press_adj_vol);
+  rhea_viscosity_destroy (viscosity);
+  rhea_viscosity_destroy (marker);
 }
 
 static void
