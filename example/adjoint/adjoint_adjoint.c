@@ -1,5 +1,7 @@
 #include <adjoint_adjoint.h>
 
+#define _TEMPERATURE_NEUTRAL_VALUE (0.5)
+
 /*********************************************************************************************
  * Sets up a linear Stokes problem.
  *********************************************************************************************/
@@ -427,7 +429,7 @@ adjoint_compute_visc_grad_m_activation_energy (ymir_vec_t *grad,
   sc_dmatrix_t       *elemgrad = sc_dmatrix_new (1, Np);
 
   int elid, gp;
-  double neutral_temp = RHEA_TEMPERATURE_NEUTRAL_VALUE;
+  double neutral_temp = _TEMPERATURE_NEUTRAL_VALUE;
 
   /*visc * (RHEA_TEMPERATURE_NEUTRAL_VALUE - temp)*/
   for (elid = 0; elid < K; elid++) {
