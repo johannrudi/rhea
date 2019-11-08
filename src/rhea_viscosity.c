@@ -1,7 +1,6 @@
 #include <rhea_viscosity.h>
 #include <rhea_base.h>
 #include <rhea_math.h>
-#include <rhea_temperature.h>
 #include <rhea_weakzone.h>
 #include <rhea_velocity.h>
 #include <rhea_strainrate.h>
@@ -148,7 +147,8 @@ rhea_viscosity_add_options (ymir_options_t * opt_sup)
 
 void
 rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
-                                rhea_domain_options_t *domain_options)
+                                rhea_domain_options_t *domain_options,
+                                rhea_temperature_options_t *temp_options)
 {
   /* set viscosity type */
   opt->type = (rhea_viscosity_t) rhea_viscosity_type;
@@ -214,8 +214,28 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   opt->yield_strength = rhea_viscosity_yield_strength;
   opt->nonlinear_projector_regularization = rhea_viscosity_nonlinear_proj_reg;
 
-  /* store domain options */
+  /* store options */
   opt->domain_options = domain_options;
+  opt->temp_options = temp_options;
+}
+
+double
+rhea_viscosity_get_dim_Pas (rhea_viscosity_options_t *opt)
+{
+  return opt->representative_Pas;
+}
+
+double
+rhea_viscosity_scaling_get_dim (const double arrhenius_activation_energy,
+                                rhea_viscosity_options_t *opt)
+{
+  if (isfinite (arrhenius_activation_energy) &&
+      0.0 < arrhenius_activation_energy) {
+    return exp (-arrhenius_activation_energy * opt->temp_options->neutral);
+  }
+  else { /* otherwise dim. scaling does not exist */
+    return 1.0;
+  }
 }
 
 /******************************************************************************
@@ -234,17 +254,11 @@ rhea_viscosity_destroy (ymir_vec_t *viscosity)
   ymir_vec_destroy (viscosity);
 }
 
-static double
-rhea_viscosity_get_dim_scal (rhea_viscosity_options_t *opt)
-{
-  return opt->representative_Pas;
-}
-
 void
 rhea_viscosity_convert_to_dimensional_Pas (ymir_vec_t * viscosity,
                                            rhea_viscosity_options_t *opt)
 {
-  ymir_vec_scale (rhea_viscosity_get_dim_scal (opt), viscosity);
+  ymir_vec_scale (rhea_viscosity_get_dim_Pas (opt), viscosity);
 }
 
 int
@@ -689,13 +703,14 @@ rhea_viscosity_linear_tempreverse (const double temp)
  *
  *   visc (T) = exp (E * (T_neutral - T))
  *
- *   E         --- activation energy > 0
  *   T         --- temperature in [0,1]
- *   T_neutral --- neutral/default temperature value (e.g., 0,5)
+ *   T_neutral --- neutral temperature value (e.g., 0,5)
+ *   E         --- activation energy > 0
  */
 static double
-rhea_viscosity_linear_arrhenius (const double activation_energy,
-                                 const double temp)
+rhea_viscosity_linear_arrhenius (const double temp,
+                                 const double temp_neutral,
+                                 const double activation_energy)
 {
   double              result;
 
@@ -705,7 +720,7 @@ rhea_viscosity_linear_arrhenius (const double activation_energy,
   RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
 
   feclearexcept (FE_ALL_EXCEPT);
-  result = exp (activation_energy * (RHEA_TEMPERATURE_NEUTRAL_VALUE - temp));
+  result = exp (activation_energy * (temp_neutral - temp));
   if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
     result = DBL_MAX;
   }
@@ -736,7 +751,8 @@ rhea_viscosity_linear_comp (const double temp,
       else {
         activation_energy = opt->lower_mantle_arrhenius_activation_energy;
       }
-      return rhea_viscosity_linear_arrhenius (activation_energy, temp);
+      return rhea_viscosity_linear_arrhenius (temp, opt->temp_options->neutral,
+                                              activation_energy);
     }
   default: /* unknown linear viscosity type */
     RHEA_ABORT_NOT_REACHED ();
@@ -934,7 +950,7 @@ rhea_viscosity_linear_elem (double *_sc_restrict visc_elem,
 {
   const int           in_temp = (temp_elem != NULL);
   const int           in_weak = (weak_elem != NULL);
-  const double        temp_default = RHEA_TEMPERATURE_NEUTRAL_VALUE;
+  const double        temp_default = opt->temp_options->neutral;
   const double        weak_default = RHEA_WEAKZONE_NEUTRAL_VALUE;
   rhea_domain_options_t  *domain_options = opt->domain_options;
   const double        interface_radius =
@@ -1659,7 +1675,7 @@ rhea_viscosity_nonlinear_elem (double *_sc_restrict visc_elem,
   const int           in_temp = (temp_elem != NULL);
   const int           in_weak = (weak_elem != NULL);
   const int           in_strt = (strt_sqrt_2inv_elem != NULL);
-  const double        temp_default = RHEA_TEMPERATURE_NEUTRAL_VALUE;
+  const double        temp_default = opt->temp_options->neutral;
   const double        weak_default = RHEA_WEAKZONE_NEUTRAL_VALUE;
   const double        strt_default = RHEA_STRAINRATE_2INV_NEUTRAL_VALUE;
   rhea_domain_options_t  *domain_options = opt->domain_options;
@@ -2688,7 +2704,7 @@ rhea_viscosity_stats_get_global (double *min_Pas, double *max_Pas,
                                  double *mean_Pas, ymir_vec_t *viscosity,
                                  rhea_viscosity_options_t *opt)
 {
-  const double        dim_scal = rhea_viscosity_get_dim_scal (opt);
+  const double        dim_scal = rhea_viscosity_get_dim_Pas (opt);
 
   /* find global values */
   if (min_Pas != NULL) {
@@ -2712,7 +2728,7 @@ rhea_viscosity_stats_get_regional (double *upper_mantle_mean_Pas,
                                    ymir_vec_t *viscosity,
                                    rhea_viscosity_options_t *opt)
 {
-  const double        dim_scal = rhea_viscosity_get_dim_scal (opt);
+  const double        dim_scal = rhea_viscosity_get_dim_Pas (opt);
   ymir_vec_t         *filter = ymir_vec_template (viscosity);
 
   /* compute mean value in upper mantle */

@@ -7,6 +7,7 @@
 #define RHEA_VISCOSITY_H
 
 #include <rhea_domain.h>
+#include <rhea_temperature.h>
 #include <ymir_vec_ops.h>
 
 /* constant: neutral/default value for viscosity */
@@ -107,8 +108,9 @@ typedef struct rhea_viscosity_options
   /* regularization for projector of nonlinear viscosity */
   double              nonlinear_projector_regularization;
 
-  /* options & properties of the computational domain */
-  rhea_domain_options_t  *domain_options;
+  /* options (not owned) */
+  rhea_domain_options_t      *domain_options;
+  rhea_temperature_options_t *temp_options;
 }
 rhea_viscosity_options_t;
 
@@ -121,8 +123,25 @@ void                rhea_viscosity_add_options (ymir_options_t * opt_sup);
  * Processes options and stores them.
  */
 void                rhea_viscosity_process_options (
-                                        rhea_viscosity_options_t *opt,
-                                        rhea_domain_options_t *domain_options);
+                                    rhea_viscosity_options_t *opt,
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
+
+/**
+ * Gets the scaling factor to convert nondimensional viscosity to the
+ * corresponding dimensional quantity.
+ *   Unit: [Pa*s]
+ */
+double              rhea_viscosity_get_dim_Pas (rhea_viscosity_options_t *opt);
+
+/**
+ * Gets the scaling factor to convert a nondimensional viscosity scaling factor
+ * (prefactor) to the corresponding dimensional quantity.
+ *   Unit: N/A
+ */
+double              rhea_viscosity_scaling_get_dim (
+                                    const double arrhenius_activation_energy,
+                                    rhea_viscosity_options_t *opt);
 
 /******************************************************************************
  * Viscosity Vector
@@ -140,9 +159,8 @@ void                rhea_viscosity_destroy (ymir_vec_t *viscosity);
 
 /**
  * Converts entries of a nondimensional viscosity vector into dimensional
- * values:
- *
- *   [Pa*s]
+ * values.
+ *   Unit: [Pa*s]
  */
 void                rhea_viscosity_convert_to_dimensional_Pas (
                                                 ymir_vec_t * viscosity,
