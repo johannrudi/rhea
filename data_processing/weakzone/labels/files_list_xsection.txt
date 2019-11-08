@@ -1,0 +1,6 @@
+1001  ../slabs/slab_lon059_sam_cartesian.txt
+1002  ../slabs/slab_lon201_izu_cartesian.txt
+1003  ../slabs/slab_lon220_ryu_cartesian.txt
+2001  ../ridges/ridge_lon001_cartesian.txt
+2002  ../ridges/ridge_lon095_cartesian.txt
+2003  ../ridges/ridge_lon205_cartesian.txt

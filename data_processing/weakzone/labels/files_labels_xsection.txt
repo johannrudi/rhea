@@ -1,6 +1,0 @@
-1001  ../slabs/izu_cartesian.txt
-1002  ../slabs/ryu_cartesian.txt
-1003  ../slabs/sam_cartesian.txt
-2001  ../ridges/ridge1_cartesian.txt
-2002  ../ridges/ridge2_cartesian.txt
-2003  ../ridges/ridge3_cartesian.txt
