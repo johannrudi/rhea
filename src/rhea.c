@@ -171,18 +171,19 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
 {
   rhea_domain_process_options (domain_options);
   rhea_temperature_process_options (temperature_options, domain_options);
-  rhea_plate_process_options (plate_options, domain_options,
-                              temperature_options);
+  rhea_plate_process_options (
+      plate_options, domain_options, temperature_options);
   rhea_weakzone_process_options (weakzone_options, domain_options);
   rhea_topography_process_options (topography_options, domain_options);
-  rhea_viscosity_process_options (viscosity_options, domain_options);
-  rhea_discretization_process_options (discr_options, domain_options,
-                                       topography_options);
+  rhea_viscosity_process_options (
+      viscosity_options, domain_options, temperature_options);
+  rhea_discretization_process_options (
+      discr_options, domain_options, topography_options);
   rhea_stokes_problem_process_options ();
 
   /* print */
-  rhea_print_physics_const_options (domain_options, temperature_options,
-                                    viscosity_options);
+  rhea_print_physics_const_options (
+      domain_options, temperature_options, viscosity_options);
 }
 
 void
@@ -210,6 +211,7 @@ rhea_print_physics_const_options (
   const double        alpha = temperature_options->thermal_expansivity_1_k;
   const double        kappa = temperature_options->thermal_diffusivity_m2_s;
   const double        dT    = temperature_options->temperature_difference_K;
+  const double        R     = temperature_options->gas_constant_J_Kmol;
   const double        mu    = viscosity_options->representative_Pas;
   const double        rayleigh = (alpha*dT*rho*g*b*b*b) / (mu*kappa);
   const double        rhs_scal = temperature_options->rhs_scaling;
@@ -221,16 +223,17 @@ rhea_print_physics_const_options (
   RHEA_GLOBAL_INFO ("========================================\n");
   RHEA_GLOBAL_INFOF ("%s\n", __func__);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
-  RHEA_GLOBAL_INFOF ("  thermal expansivity        [K^-1]   : %g\n", alpha);
-  RHEA_GLOBAL_INFOF ("  density                    [kg/m^3] : %g\n", rho);
-  RHEA_GLOBAL_INFOF ("  temperature difference     [K]      : %g\n", dT);
-  RHEA_GLOBAL_INFOF ("  thermal diffusivity        [m^2/s]  : %g\n", kappa);
-  RHEA_GLOBAL_INFOF ("  representative viscosity   [Pa*s]   : %g\n", mu);
-  RHEA_GLOBAL_INFOF ("  gravitational acceleration [m/s^2]  : %g\n", g);
-  RHEA_GLOBAL_INFOF ("  depth of convecting region [m]      : %g\n", b);
+  RHEA_GLOBAL_INFOF ("  thermal expansivity        [K^-1]    : %g\n", alpha);
+  RHEA_GLOBAL_INFOF ("  density                    [kg/m^3]  : %g\n", rho);
+  RHEA_GLOBAL_INFOF ("  temperature difference     [K]       : %g\n", dT);
+  RHEA_GLOBAL_INFOF ("  thermal diffusivity        [m^2/s]   : %g\n", kappa);
+  RHEA_GLOBAL_INFOF ("  gas constant               [J/K/mol] : %g\n", kappa);
+  RHEA_GLOBAL_INFOF ("  representative viscosity   [Pa*s]    : %g\n", mu);
+  RHEA_GLOBAL_INFOF ("  gravitational acceleration [m/s^2]   : %g\n", g);
+  RHEA_GLOBAL_INFOF ("  depth of convecting region [m]       : %g\n", b);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
-  RHEA_GLOBAL_INFOF ("  Rayleigh number                     : %g\n", rayleigh);
-  RHEA_GLOBAL_INFOF ("  RHS scaling from temperature        : %g\n", rhs_scal);
+  RHEA_GLOBAL_INFOF ("  Rayleigh number                      : %g\n", rayleigh);
+  RHEA_GLOBAL_INFOF ("  RHS scaling from temperature         : %g\n", rhs_scal);
   RHEA_GLOBAL_INFO ("========================================\n");
 }
 
