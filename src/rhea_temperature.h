@@ -48,6 +48,7 @@ typedef struct rhea_temperature_options
   double              thermal_expansivity_1_k;
   double              thermal_diffusivity_m2_s;
   double              temperature_difference_K;
+  double              gas_constant_J_Kmol;
 
   /* sinker */
   int                 sinker_active;
@@ -103,6 +104,22 @@ void                rhea_temperature_process_options (
                                         rhea_temperature_options_t *opt,
                                         rhea_domain_options_t *domain_options);
 
+/**
+ * Gets the scaling factor to convert nondimensional temperature to the
+ * corresponding dimensional quantity.
+ *   Unit: [K]
+ */
+double              rhea_temperature_get_dim_K (
+                                              rhea_temperature_options_t *opt);
+
+/**
+ * Gets the scaling factor to convert a nondimensional activation energy
+ * (Arrhenius relationship) to the corresponding dimensional quantity.
+ *   Unit: [J/mol]
+ */
+double              rhea_temperature_activation_energy_get_dim_J_mol (
+                                              rhea_temperature_options_t *opt);
+
 /******************************************************************************
  * Vector
  *****************************************************************************/
@@ -119,9 +136,8 @@ void                rhea_temperature_destroy (ymir_vec_t *temperature);
 
 /**
  * Converts entries of a nondimensional temperature vector into dimensional
- * values:
- *
- *   [K]
+ * values.
+ *   Unit: [K]
  */
 void                rhea_temperature_convert_to_dimensional_K (
                                               ymir_vec_t * temperature,

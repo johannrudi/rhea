@@ -19,6 +19,7 @@
 #define RHEA_TEMPERATURE_DEFAULT_THERMAL_EXPANSIVITY_1_K (2.0e-5)  /* [K^-1] */
 #define RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S (1.0e-6) /* [m^2/s] */
 #define RHEA_TEMPERATURE_DEFAULT_TEMPERATURE_DIFFERENCE_K (1400.0) /* [K] */
+#define RHEA_TEMPERATURE_DEFAULT_GAS_CONSTANT_J_KMOL (8.314) /* [J/K/mol] */
 #define RHEA_TEMPERATURE_DEFAULT_RHS_SCALING (1.0)
 #define RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_BIN NULL
 #define RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_TXT NULL
@@ -63,6 +64,8 @@ double              rhea_temperature_thermal_diffusivity_m2_s =
   RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S;
 double              rhea_temperature_temperature_difference_K =
   RHEA_TEMPERATURE_DEFAULT_TEMPERATURE_DIFFERENCE_K;
+double              rhea_temperature_gas_constant_J_Kmol =
+  RHEA_TEMPERATURE_DEFAULT_GAS_CONSTANT_J_KMOL;
 double              rhea_temperature_rhs_scaling =
   RHEA_TEMPERATURE_DEFAULT_RHS_SCALING;
 char               *rhea_temperature_data_file_path_bin =
@@ -159,6 +162,10 @@ rhea_temperature_add_options (ymir_options_t * opt_sup)
     &(rhea_temperature_temperature_difference_K),
     RHEA_TEMPERATURE_DEFAULT_TEMPERATURE_DIFFERENCE_K,
     "Temperature difference [K]",
+  YMIR_OPTIONS_D, "gas-constant", '\0',
+    &(rhea_temperature_gas_constant_J_Kmol),
+    RHEA_TEMPERATURE_DEFAULT_GAS_CONSTANT_J_KMOL,
+    "Gas constant [J/(K*mol)]",
 
   YMIR_OPTIONS_D, "right-hand-side-scaling", '\0',
     &(rhea_temperature_rhs_scaling), RHEA_TEMPERATURE_DEFAULT_RHS_SCALING,
@@ -392,6 +399,7 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   opt->thermal_expansivity_1_k  = rhea_temperature_thermal_expansivity_1_k;
   opt->thermal_diffusivity_m2_s = rhea_temperature_thermal_diffusivity_m2_s;
   opt->temperature_difference_K = rhea_temperature_temperature_difference_K;
+  opt->gas_constant_J_Kmol      = rhea_temperature_gas_constant_J_Kmol;
 
   /* set sinker options */
   opt->sinker_active        = rhea_temperature_sinker_active;
@@ -434,6 +442,19 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   opt->domain_options = domain_options;
 }
 
+double
+rhea_temperature_get_dim_K (rhea_temperature_options_t *opt)
+{
+  return opt->temperature_difference_K;
+}
+
+double
+rhea_temperature_activation_energy_get_dim_J_mol (
+                                              rhea_temperature_options_t *opt)
+{
+  return opt->gas_constant_J_Kmol * opt->temperature_difference_K;
+}
+
 /******************************************************************************
  * Vector
  *****************************************************************************/
@@ -454,9 +475,7 @@ void
 rhea_temperature_convert_to_dimensional_K (ymir_vec_t * temperature,
                                            rhea_temperature_options_t *opt)
 {
-  const double        dim_scal = opt->temperature_difference_K;
-
-  ymir_vec_scale (dim_scal, temperature);
+  ymir_vec_scale (rhea_temperature_get_dim_K (opt), temperature);
 }
 
 int
