@@ -125,6 +125,8 @@ typedef struct rhea_domain_options
   /* dimensional properties of the domain (input) */
   double              radius_min_m;
   double              radius_max_m;
+  double              density_kg_m3;
+  double              gravity_m_s2;
 }
 rhea_domain_options_t;
 
@@ -137,6 +139,12 @@ void                rhea_domain_add_options (ymir_options_t * opt_sup);
  * Processes options and stores them.
  */
 void                rhea_domain_process_options (rhea_domain_options_t *opt);
+
+/**
+ * Prints domain options that are assumed to remain constant.
+ */
+void                rhea_domain_print_const_options (
+                                                  rhea_domain_options_t *opt);
 
 /******************************************************************************
  * Basic Calculations

@@ -18,10 +18,12 @@
 #define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Y (1)
 #define RHEA_DOMAIN_DEFAULT_BOX_SUBDIVISION_Z (16)
 #define RHEA_DOMAIN_DEFAULT_BOX_SPHERICAL_DISTORTION_CORR (1)
-#define RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M (6371.0e3)
-#define RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH_M (2866.95e3)
-#define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M (660.0e3)
-#define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTHING_WIDTH_M (0.0)
+#define RHEA_DOMAIN_DEFAULT_EARTH_RADIUS_M (6371.0e3)               /* [m] */
+#define RHEA_DOMAIN_DEFAULT_MANTLE_DEPTH_M (2866.95e3)              /* [m] */
+#define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M (660.0e3)       /* [m] */
+#define RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTHING_WIDTH_M (0.0) /* [m] */
+#define RHEA_DOMAIN_DEFAULT_DENSITY_KG_M3 (3300.0) /* [kg/m^3] */
+#define RHEA_DOMAIN_DEFAULT_GRAVITY_M_S2 (9.81)    /* [m/s^2] */
 #define RHEA_DOMAIN_DEFAULT_VELOCITY_BC_TYPE \
   RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_ALL
 
@@ -49,6 +51,10 @@ double              rhea_domain_lm_um_interface_depth_m =
   RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_DEPTH_M;
 double              rhea_domain_lm_um_interface_smoothing_width_m =
   RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTHING_WIDTH_M;
+double              rhea_domain_density_kg_m3 =
+  RHEA_DOMAIN_DEFAULT_DENSITY_KG_M3;
+double              rhea_domain_gravity_m_s2 =
+  RHEA_DOMAIN_DEFAULT_GRAVITY_M_S2;
 int                 rhea_domain_velocity_bc_type =
   RHEA_DOMAIN_DEFAULT_VELOCITY_BC_TYPE;
 
@@ -108,6 +114,12 @@ rhea_domain_add_options (ymir_options_t * opt_sup)
     &(rhea_domain_lm_um_interface_smoothing_width_m),
     RHEA_DOMAIN_DEFAULT_LM_UM_INTERFACE_SMOOTHING_WIDTH_M,
     "Width of smooth transition zone between lower and upper mantle [m]",
+  YMIR_OPTIONS_D, "density", '\0',
+    &(rhea_domain_density_kg_m3), RHEA_DOMAIN_DEFAULT_DENSITY_KG_M3,
+    "Density [kg/m^3]",
+  YMIR_OPTIONS_D, "gravity", '\0',
+    &(rhea_domain_gravity_m_s2), RHEA_DOMAIN_DEFAULT_GRAVITY_M_S2,
+    "Gravitational acceleration [m/s^2]",
 
   YMIR_OPTIONS_I, "velocity-boundary-condition", '\0',
     &(rhea_domain_velocity_bc_type), RHEA_DOMAIN_DEFAULT_VELOCITY_BC_TYPE,
@@ -538,7 +550,7 @@ rhea_domain_align_radius_with_mesh (double radius, const int level,
 void
 rhea_domain_process_options (rhea_domain_options_t *opt)
 {
-  double              scal_len_to_km, radius;
+  double              radius;
 
   /* set shape of domain */
   if (strcmp (rhea_domain_shape_name, "cube") == 0) {
@@ -639,10 +651,11 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   }
 
   /* set dimensional domain properties */
-  opt->radius_min_m = SC_MAX (0.0, rhea_domain_earth_radius_m -
-                                   rhea_domain_mantle_depth_m);
-  opt->radius_max_m = rhea_domain_earth_radius_m;
-  scal_len_to_km = opt->radius_max_m / 1.0e3;
+  opt->radius_min_m  = SC_MAX (0.0, rhea_domain_earth_radius_m -
+                                    rhea_domain_mantle_depth_m);
+  opt->radius_max_m  = rhea_domain_earth_radius_m;
+  opt->density_kg_m3 = rhea_domain_density_kg_m3;
+  opt->gravity_m_s2  = rhea_domain_gravity_m_s2;
 
   /* compute domain properties */
   rhea_domain_compute_bounds (opt);
@@ -682,8 +695,13 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   /* set velocity boundary conditions */
   opt->velocity_bc_type =
     (rhea_domain_velocity_bc_t) rhea_domain_velocity_bc_type;
+}
 
-  /* print domain properties */
+void
+rhea_domain_print_const_options (rhea_domain_options_t *opt)
+{
+  const double        scal_len_to_km = opt->radius_max_m / 1.0e3;
+
   RHEA_GLOBAL_INFO ("========================================\n");
   RHEA_GLOBAL_INFOF ("%s\n", __func__);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
@@ -727,6 +745,10 @@ rhea_domain_process_options (rhea_domain_options_t *opt)
   RHEA_GLOBAL_INFOF ("  LM-UM interface smoothing: %g (%g km)\n",
                      opt->lm_um_interface_smoothing_width,
                      opt->lm_um_interface_smoothing_width * scal_len_to_km);
+  RHEA_GLOBAL_INFOF ("  density:                    %g [kg/m^3]\n",
+                     opt->density_kg_m3);
+  RHEA_GLOBAL_INFOF ("  gravitational acceleration: %g [m/s^2]\n",
+                     opt->gravity_m_s2);
   RHEA_GLOBAL_INFOF ("  volume:                     %g\n", opt->volume);
   RHEA_GLOBAL_INFOF ("  center of mass:             %g, %g, %g\n",
                      opt->center[0], opt->center[1], opt->center[2]);
