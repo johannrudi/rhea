@@ -16,6 +16,7 @@
 #define RHEA_TEMPERATURE_DEFAULT_SCALE (1.0)
 #define RHEA_TEMPERATURE_DEFAULT_SHIFT (0.0)
 #define RHEA_TEMPERATURE_DEFAULT_COLD_PLATE_AGE_YR (50.0e6)        /* [yr] */
+#define RHEA_TEMPERATURE_DEFAULT_THERMAL_EXPANSIVITY_1_K (2.0e-5)  /* [K^-1] */
 #define RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S (1.0e-6) /* [m^2/s] */
 #define RHEA_TEMPERATURE_DEFAULT_TEMPERATURE_DIFFERENCE_K (1400.0) /* [K] */
 #define RHEA_TEMPERATURE_DEFAULT_RHS_SCALING (1.0)
@@ -56,6 +57,8 @@ double              rhea_temperature_scale = RHEA_TEMPERATURE_DEFAULT_SCALE;
 double              rhea_temperature_shift = RHEA_TEMPERATURE_DEFAULT_SHIFT;
 double              rhea_temperature_cold_plate_age_yr =
   RHEA_TEMPERATURE_DEFAULT_COLD_PLATE_AGE_YR;
+double              rhea_temperature_thermal_expansivity_1_k =
+  RHEA_TEMPERATURE_DEFAULT_THERMAL_EXPANSIVITY_1_K;
 double              rhea_temperature_thermal_diffusivity_m2_s =
   RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S;
 double              rhea_temperature_temperature_difference_K =
@@ -144,6 +147,10 @@ rhea_temperature_add_options (ymir_options_t * opt_sup)
     RHEA_TEMPERATURE_DEFAULT_COLD_PLATE_AGE_YR,
     "Cold plate model: plate age [yr] for half-space cooling model",
 
+  YMIR_OPTIONS_D, "thermal-expansivity", '\0',
+    &(rhea_temperature_thermal_expansivity_1_k),
+    RHEA_TEMPERATURE_DEFAULT_THERMAL_EXPANSIVITY_1_K,
+    "Thermal expansivity [K^-1]",
   YMIR_OPTIONS_D, "thermal-diffusivity", '\0',
     &(rhea_temperature_thermal_diffusivity_m2_s),
     RHEA_TEMPERATURE_DEFAULT_THERMAL_DIFFUSIVITY_M2_S,
@@ -382,42 +389,43 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   opt->cold_plate_model_plate_age_yr = rhea_temperature_cold_plate_age_yr;
 
   /* set thermal constants */
+  opt->thermal_expansivity_1_k  = rhea_temperature_thermal_expansivity_1_k;
   opt->thermal_diffusivity_m2_s = rhea_temperature_thermal_diffusivity_m2_s;
   opt->temperature_difference_K = rhea_temperature_temperature_difference_K;
 
   /* set sinker options */
-  opt->sinker_active = rhea_temperature_sinker_active;
-  opt->sinker_random_count = rhea_temperature_sinker_random_count;
-  opt->sinker_decay = rhea_temperature_sinker_decay;
-  opt->sinker_width = rhea_temperature_sinker_width;
-  opt->sinker_scaling = rhea_temperature_sinker_scaling;
-  opt->sinker_center_x = rhea_temperature_sinker_center_x;
-  opt->sinker_center_y = rhea_temperature_sinker_center_y;
-  opt->sinker_center_z = rhea_temperature_sinker_center_z;
+  opt->sinker_active        = rhea_temperature_sinker_active;
+  opt->sinker_random_count  = rhea_temperature_sinker_random_count;
+  opt->sinker_decay         = rhea_temperature_sinker_decay;
+  opt->sinker_width         = rhea_temperature_sinker_width;
+  opt->sinker_scaling       = rhea_temperature_sinker_scaling;
+  opt->sinker_center_x      = rhea_temperature_sinker_center_x;
+  opt->sinker_center_y      = rhea_temperature_sinker_center_y;
+  opt->sinker_center_z      = rhea_temperature_sinker_center_z;
   rhea_temperature_set_default_anomaly_position (
       &opt->sinker_center_x, &opt->sinker_center_y, &opt->sinker_center_z,
       domain_options);
-  opt->sinker_dilatation = rhea_temperature_sinker_dilatation;
+  opt->sinker_dilatation    = rhea_temperature_sinker_dilatation;
   opt->sinker_translation_x = rhea_temperature_sinker_translation_x;
   opt->sinker_translation_y = rhea_temperature_sinker_translation_y;
   opt->sinker_translation_z = rhea_temperature_sinker_translation_z;
 
   /* set plume options */
-  opt->plume_active = rhea_temperature_plume_active;
-  opt->plume_random_count = rhea_temperature_plume_random_count;
-  opt->plume_decay = rhea_temperature_plume_decay;
-  opt->plume_width = rhea_temperature_plume_width;
-  opt->plume_scaling = rhea_temperature_plume_scaling;
-  opt->plume_center_x = rhea_temperature_plume_center_x;
-  opt->plume_center_y = rhea_temperature_plume_center_y;
-  opt->plume_center_z = rhea_temperature_plume_center_z;
+  opt->plume_active         = rhea_temperature_plume_active;
+  opt->plume_random_count   = rhea_temperature_plume_random_count;
+  opt->plume_decay          = rhea_temperature_plume_decay;
+  opt->plume_width          = rhea_temperature_plume_width;
+  opt->plume_scaling        = rhea_temperature_plume_scaling;
+  opt->plume_center_x       = rhea_temperature_plume_center_x;
+  opt->plume_center_y       = rhea_temperature_plume_center_y;
+  opt->plume_center_z       = rhea_temperature_plume_center_z;
   rhea_temperature_set_default_anomaly_position (
       &opt->plume_center_x, &opt->plume_center_y, &opt->plume_center_z,
       domain_options);
   opt->plume_dilatation = rhea_temperature_plume_dilatation;
-  opt->plume_translation_x = rhea_temperature_plume_translation_x;
-  opt->plume_translation_y = rhea_temperature_plume_translation_y;
-  opt->plume_translation_z = rhea_temperature_plume_translation_z;
+  opt->plume_translation_x  = rhea_temperature_plume_translation_x;
+  opt->plume_translation_y  = rhea_temperature_plume_translation_y;
+  opt->plume_translation_z  = rhea_temperature_plume_translation_z;
 
   /* set right-hand side options */
   opt->rhs_scaling = rhea_temperature_rhs_scaling;
@@ -1293,9 +1301,10 @@ static void
 rhea_temperature_rhs_vel_node (double *rhs, const double x, const double y,
                                const double z, const double temp,
                                const double back_temp,
-                               rhea_domain_options_t *domain_options)
+                               rhea_temperature_options_t *opt)
 {
-  const double        scaling = rhea_temperature_rhs_scaling;
+  rhea_domain_options_t  *domain_options = opt->domain_options;
+  const double        scaling = opt->rhs_scaling;
 
   switch (domain_options->shape) {
   case RHEA_DOMAIN_CUBE:
@@ -1356,7 +1365,6 @@ rhea_temperature_compute_rhs_vel_fn (double *rhs, double x, double y, double z,
 {
   rhea_temperature_compute_rhs_vel_fn_data_t  *d = data;
   rhea_temperature_options_t  *opt = d->temp_options;
-  rhea_domain_options_t  *domain_options = opt->domain_options;
   const double        temp = *ymir_cvec_index (d->temperature, nodeid, 0);
   double              back_temp;
 
@@ -1364,7 +1372,7 @@ rhea_temperature_compute_rhs_vel_fn (double *rhs, double x, double y, double z,
   back_temp = rhea_temperature_background_node (x, y, z, opt);
 
   /* compute right-hand side */
-  rhea_temperature_rhs_vel_node (rhs, x, y, z, temp, back_temp, domain_options);
+  rhea_temperature_rhs_vel_node (rhs, x, y, z, temp, back_temp, opt);
 }
 
 void

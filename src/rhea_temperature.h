@@ -45,6 +45,7 @@ typedef struct rhea_temperature_options
   double              cold_plate_model_plate_age_yr;
 
   /* thermal constants */
+  double              thermal_expansivity_1_k;
   double              thermal_diffusivity_m2_s;
   double              temperature_difference_K;
 
