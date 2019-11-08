@@ -360,14 +360,17 @@ rhea_viscosity_param_derivative_lower_mantle_scaling (
  *   deriv = (d X(param_E_a)) * (0.5 - T) * visc
  */
 static void
-rhea_viscosity_param_derivative_scale_by_temp_diff (ymir_vec_t *derivative,
-                                                    ymir_vec_t *temperature)
+rhea_viscosity_param_derivative_scale_by_temp_diff (
+                                        ymir_vec_t *derivative,
+                                        ymir_vec_t *temperature,
+                                        rhea_viscosity_options_t *visc_options)
 {
+  const double        temp_neutral = visc_options->temp_options->neutral;
   ymir_vec_t         *scaling_vec = ymir_vec_template (derivative);
 
   ymir_interp_vec (temperature, scaling_vec);
   rhea_temperature_bound (scaling_vec);
-  ymir_vec_scale_shift (-1.0, RHEA_TEMPERATURE_NEUTRAL_VALUE, scaling_vec);
+  ymir_vec_scale_shift (-1.0, temp_neutral, scaling_vec);
   ymir_vec_multiply_in (scaling_vec, derivative);
 
   ymir_vec_destroy (scaling_vec);
@@ -393,7 +396,8 @@ rhea_viscosity_param_derivative_upper_mantle_activation_energy (
       viscosity, marker, weakzone, visc_options);
 
   /* multiply by temperature difference term */
-  rhea_viscosity_param_derivative_scale_by_temp_diff (derivative, temperature);
+  rhea_viscosity_param_derivative_scale_by_temp_diff (derivative, temperature,
+                                                      visc_options);
 
   /* multiply by the derivative of the activation energy */
   scaling_curr = visc_options->upper_mantle_arrhenius_activation_energy;
@@ -424,7 +428,8 @@ rhea_viscosity_param_derivative_lower_mantle_activation_energy (
       viscosity, marker, weakzone, visc_options);
 
   /* multiply by temperature difference term */
-  rhea_viscosity_param_derivative_scale_by_temp_diff (derivative, temperature);
+  rhea_viscosity_param_derivative_scale_by_temp_diff (derivative, temperature,
+                                                      visc_options);
 
   /* multiply by the derivative of the activation energy */
   scaling_curr = visc_options->lower_mantle_arrhenius_activation_energy;
