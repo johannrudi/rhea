@@ -13,6 +13,7 @@
 
 /* default options */
 #define RHEA_TEMPERATURE_DEFAULT_TYPE_NAME "NONE"
+#define RHEA_TEMPERATURE_DEFAULT_NEUTRAL (0.5)
 #define RHEA_TEMPERATURE_DEFAULT_SCALE (1.0)
 #define RHEA_TEMPERATURE_DEFAULT_SHIFT (0.0)
 #define RHEA_TEMPERATURE_DEFAULT_COLD_PLATE_AGE_YR (50.0e6)        /* [yr] */
@@ -54,6 +55,7 @@
 /* initialize options */
 char               *rhea_temperature_type_name =
   RHEA_TEMPERATURE_DEFAULT_TYPE_NAME;
+double              rhea_temperature_neutral = RHEA_TEMPERATURE_DEFAULT_NEUTRAL;
 double              rhea_temperature_scale = RHEA_TEMPERATURE_DEFAULT_SCALE;
 double              rhea_temperature_shift = RHEA_TEMPERATURE_DEFAULT_SHIFT;
 double              rhea_temperature_cold_plate_age_yr =
@@ -138,6 +140,9 @@ rhea_temperature_add_options (ymir_options_t * opt_sup)
     &(rhea_temperature_type_name), RHEA_TEMPERATURE_DEFAULT_TYPE_NAME,
     "Type of temperature: NONE, data, cold_plate, 2plates_poly2",
 
+  YMIR_OPTIONS_D, "neutral", '\0',
+    &(rhea_temperature_neutral), RHEA_TEMPERATURE_DEFAULT_NEUTRAL,
+    "Neutral value of temperature that causes no anomaliy in viscosity",
   YMIR_OPTIONS_D, "scale", '\0',
     &(rhea_temperature_scale), RHEA_TEMPERATURE_DEFAULT_SCALE,
     "Scaling factor multiplied to temperature",
@@ -387,6 +392,9 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   else { /* unknown temperature type */
     RHEA_ABORT ("Unknown temperature type");
   }
+
+  /* set neutral value */
+  opt->neutral = rhea_temperature_neutral;
 
   /* set scaling and shifting values */
   opt->scale = rhea_temperature_scale;
@@ -1147,7 +1155,7 @@ rhea_temperature_node (const double x, const double y, const double z,
 
   switch (opt->type) {
   case RHEA_TEMPERATURE_NONE:
-    temp = RHEA_TEMPERATURE_NEUTRAL_VALUE;
+    temp = opt->neutral;
     break;
   case RHEA_TEMPERATURE_COLD_PLATE:
     {
@@ -1249,7 +1257,7 @@ rhea_temperature_background_node (const double x, const double y,
 
   switch (opt->type) {
   case RHEA_TEMPERATURE_NONE:
-    back_temp = RHEA_TEMPERATURE_NEUTRAL_VALUE;
+    back_temp = opt->neutral;
     break;
   case RHEA_TEMPERATURE_DATA:
   case RHEA_TEMPERATURE_COLD_PLATE:

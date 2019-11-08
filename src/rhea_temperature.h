@@ -10,10 +10,6 @@
 /* constant: seconds in a year (= 365.25*24*3600) */
 #define RHEA_TEMPERATURE_SECONDS_PER_YEAR (31557600.0)
 
-/* constant: neutral/default value for temperature (gives const viscosity due
- * to implementation of function `rhea_viscosity_linear_arrhenius`) */
-#define RHEA_TEMPERATURE_NEUTRAL_VALUE (0.5)
-
 /* enumerator for types of temperature */
 typedef enum
 {
@@ -33,7 +29,10 @@ typedef struct rhea_temperature_options
   /* type of the temperature */
   rhea_temperature_t  type;
 
-  /* scale and shift values*/
+  /* neutral value that causes no anomaliy in viscosity */
+  double              neutral;
+
+  /* scale and shift values */
   double              scale;
   double              shift;
 
