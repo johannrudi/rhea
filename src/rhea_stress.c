@@ -5,6 +5,20 @@
 #include <ymir_mass_vec.h>
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+double
+rhea_stress_get_dim_Pa (rhea_domain_options_t *domain_options,
+                        rhea_temperature_options_t *temp_options,
+                        rhea_viscosity_options_t *visc_options)
+{
+  return visc_options->representative_Pas *
+         temp_options->thermal_diffusivity_m2_s /
+         (domain_options->radius_max_m * domain_options->radius_max_m);
+}
+
+/******************************************************************************
  * Stress Vector
  *****************************************************************************/
 
@@ -20,24 +34,14 @@ rhea_stress_destroy (ymir_vec_t *stress)
   ymir_vec_destroy (stress);
 }
 
-static double
-rhea_stress_get_dim_scal (rhea_domain_options_t *domain_options,
-                          rhea_temperature_options_t *temp_options,
-                          rhea_viscosity_options_t *visc_options)
-{
-  return visc_options->representative_Pas *
-         temp_options->thermal_diffusivity_m2_s /
-         (domain_options->radius_max_m * domain_options->radius_max_m);
-}
-
 void
 rhea_stress_convert_to_dimensional_Pa (ymir_vec_t * stress,
                                        rhea_domain_options_t *domain_options,
                                        rhea_temperature_options_t *temp_options,
                                        rhea_viscosity_options_t *visc_options)
 {
-  ymir_vec_scale (rhea_stress_get_dim_scal (domain_options, temp_options,
-                                            visc_options),
+  ymir_vec_scale (rhea_stress_get_dim_Pa (domain_options, temp_options,
+                                          visc_options),
                   stress);
 }
 
@@ -317,9 +321,9 @@ rhea_stress_stats_get_global (double *min_Pa, double *max_Pa, double *mean_Pa,
                               rhea_temperature_options_t *temp_options,
                               rhea_viscosity_options_t *visc_options)
 {
-  const double        dim_scal = rhea_stress_get_dim_scal (domain_options,
-                                                           temp_options,
-                                                           visc_options);
+  const double        dim_scal = rhea_stress_get_dim_Pa (domain_options,
+                                                         temp_options,
+                                                         visc_options);
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
   ymir_vec_t         *sr_sqrt_2inv = rhea_strainrate_2inv_new (ymir_mesh);
   ymir_vec_t         *vs_sqrt_2inv = rhea_stress_2inv_new (ymir_mesh);
@@ -400,9 +404,9 @@ rhea_stress_surface_stats_get_global (double *min_Pa, double *max_Pa,
                                       rhea_temperature_options_t *temp_options,
                                       rhea_viscosity_options_t *visc_options)
 {
-  const double        dim_scal = rhea_stress_get_dim_scal (domain_options,
-                                                           temp_options,
-                                                           visc_options);
+  const double        dim_scal = rhea_stress_get_dim_Pa (domain_options,
+                                                         temp_options,
+                                                         visc_options);
 
   /* check input */
   RHEA_ASSERT (rhea_stress_surface_check_vec_type (stress_norm_surf));

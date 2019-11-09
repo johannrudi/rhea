@@ -8,6 +8,20 @@
 #include <rhea_viscosity.h>
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/**
+ * Gets the scaling factor to convert nondimensional stress to the
+ * corresponding dimensional quantity.
+ *   Unit: [Pa]
+ */
+double              rhea_stress_get_dim_Pa (
+                                      rhea_domain_options_t *domain_options,
+                                      rhea_temperature_options_t *temp_options,
+                                      rhea_viscosity_options_t *visc_options);
+
+/******************************************************************************
  * Stress Vector
  *****************************************************************************/
 
@@ -27,9 +41,8 @@ void                rhea_stress_2inv_destroy (ymir_vec_t *stress_2inv);
 
 /**
  * Converts entries of a nondimensional stress vector into dimensional
- * values:
- *
- *   [Pa]
+ * values.
+ *   Unit: [Pa]
  */
 void                rhea_stress_convert_to_dimensional_Pa (
                                       ymir_vec_t * stress,
