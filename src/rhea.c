@@ -227,7 +227,7 @@ rhea_print_physics_const_options (
   RHEA_GLOBAL_INFOF ("  density                    [kg/m^3]  : %g\n", rho);
   RHEA_GLOBAL_INFOF ("  temperature difference     [K]       : %g\n", dT);
   RHEA_GLOBAL_INFOF ("  thermal diffusivity        [m^2/s]   : %g\n", kappa);
-  RHEA_GLOBAL_INFOF ("  gas constant               [J/K/mol] : %g\n", kappa);
+  RHEA_GLOBAL_INFOF ("  gas constant               [J/K/mol] : %g\n", R);
   RHEA_GLOBAL_INFOF ("  representative viscosity   [Pa*s]    : %g\n", mu);
   RHEA_GLOBAL_INFOF ("  gravitational acceleration [m/s^2]   : %g\n", g);
   RHEA_GLOBAL_INFOF ("  depth of convecting region [m]       : %g\n", b);
