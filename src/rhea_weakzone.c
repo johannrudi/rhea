@@ -1171,16 +1171,20 @@ rhea_weakzone_factor_node (const double distance,
                            const double thickness_const,
                            const double factor_interior)
 {
-  double              factor;
+  double              ind, factor;
 
   /* check input */
   RHEA_ASSERT (isfinite (factor_interior));
   RHEA_ASSERT (0.0 < factor_interior && factor_interior <= 1.0);
 
-  factor = 1.0 - (1.0 - factor_interior) *
-           rhea_weakzone_indicator_node (distance, thickness, thickness_const);
+  ind = rhea_weakzone_indicator_node (distance, thickness, thickness_const);
+  RHEA_ASSERT (isfinite (ind));
+  RHEA_ASSERT (0.0 <= ind && ind <= 1.0);
+
+  factor = 1.0 - (1.0 - factor_interior) * ind;
   RHEA_ASSERT (isfinite (factor));
-  RHEA_ASSERT (0.0 < factor && factor <= 1.0);
+  RHEA_ASSERT (-SC_1000_EPS <= factor && factor <= (1.0+SC_1000_EPS));
+  factor = SC_MAX (SC_EPS, SC_MIN (factor, 1.0));
 
   /* return weak factor */
   return factor;
