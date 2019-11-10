@@ -1563,10 +1563,10 @@ rhea_inversion_param_restrict_step_length_to_feasible (
       if (0.0 < fabs (s_diff)) {
         const double        sl_new = (s + s_diff)/s;
 
-        if (0.0 < sl_new) { /* if positive step direction allowed */
+        if (1.0e6*SC_EPS < sl_new) { /* if positive step length feasible */
           step_length = SC_MIN (sl_new, step_length);
         }
-        else { /* otherwise positive step direction is not possible */
+        else { /* otherwise positive step length is not possible */
           step[idx] = 0.0;
         }
         step_modified = 1;
