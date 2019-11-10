@@ -175,7 +175,7 @@ rhea_weakzone_label_is_class (const rhea_weakzone_label_t label)
 static inline rhea_weakzone_label_t
 rhea_weakzone_label_get_class (const rhea_weakzone_label_t label)
 {
-  rhea_weakzone_label_t class_id;
+  int                 class_id;
 
   /* return itself if label corresponds to a class */
   if (RHEA_WEAKZONE_LABEL_CLASS_NONE <= label &&
@@ -184,7 +184,7 @@ rhea_weakzone_label_get_class (const rhea_weakzone_label_t label)
   }
 
   /* calculate class from label */
-  class_id = (int) ((int) label / 1000);
+  class_id = (int) (label / 1000);
   if (RHEA_WEAKZONE_LABEL_CLASS_NONE <= class_id &&
       class_id < RHEA_WEAKZONE_LABEL_CLASS_N) {
     return (rhea_weakzone_label_t) class_id;
