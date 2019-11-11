@@ -234,7 +234,7 @@ rhea_viscosity_param_derivative_min (ymir_vec_t *derivative,
 {
   const double        scaling_curr = visc_options->min;
   const double        scaling_deriv =
-    rhea_inversion_param_derivative_pos (scaling_curr);
+    rhea_inversion_param_derivative_poslin (scaling_curr);
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -272,7 +272,7 @@ rhea_viscosity_param_derivative_max (ymir_vec_t *derivative,
 {
   const double        scaling_curr = visc_options->max;
   const double        scaling_deriv =
-    rhea_inversion_param_derivative_pos (scaling_curr);
+    rhea_inversion_param_derivative_poslin (scaling_curr);
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -316,7 +316,7 @@ rhea_viscosity_param_derivative_upper_mantle_scaling (
   scaling_curr = rhea_viscosity_get_scaling (
       visc_options, 1 /* in upper mantle */,
       rhea_viscosity_restrict_min (visc_options));
-  scaling_deriv = rhea_inversion_param_derivative_pos (
+  scaling_deriv = rhea_inversion_param_derivative_scal (
       visc_options->upper_mantle_scaling);
   ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
 
@@ -346,7 +346,7 @@ rhea_viscosity_param_derivative_lower_mantle_scaling (
   scaling_curr = rhea_viscosity_get_scaling (
       visc_options, 0 /* in lower mantle */,
       rhea_viscosity_restrict_min (visc_options));
-  scaling_deriv = rhea_inversion_param_derivative_pos (
+  scaling_deriv = rhea_inversion_param_derivative_scal (
       visc_options->lower_mantle_scaling);
   ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
 
@@ -401,7 +401,7 @@ rhea_viscosity_param_derivative_upper_mantle_activation_energy (
 
   /* multiply by the derivative of the activation energy */
   scaling_curr = visc_options->upper_mantle_arrhenius_activation_energy;
-  scaling_deriv = rhea_inversion_param_derivative_pos (scaling_curr);
+  scaling_deriv = rhea_inversion_param_derivative_poslin (scaling_curr);
   ymir_vec_scale (scaling_deriv, derivative);
 
   /* check output */
@@ -433,7 +433,7 @@ rhea_viscosity_param_derivative_lower_mantle_activation_energy (
 
   /* multiply by the derivative of the activation energy */
   scaling_curr = visc_options->lower_mantle_arrhenius_activation_energy;
-  scaling_deriv = rhea_inversion_param_derivative_pos (scaling_curr);
+  scaling_deriv = rhea_inversion_param_derivative_poslin (scaling_curr);
   ymir_vec_scale (scaling_deriv, derivative);
 
   /* check output */

@@ -144,12 +144,20 @@ void                rhea_inversion_param_set_initial_guess (
  *  (d/dp *_convert_to_model_*) (*_convert_from_model_* (m))
  *
  * where
- *   *_pos ()   Used for model values that are positive.
- *   *_n ()     Used for stress exponent.
- *   *_yield () Used for yield strength.
- *   *_weak ()  Used for weak zone factors.
+ *   *_poslin ()  Used for model values that are positive (linear scale).
+ *   *_posexp ()  Used for model values that are positive (exp scale).
+ *   *_scal ()    Used for scaling factors (pre-factors) of viscosity.
+ *   *_n ()       Used for stress exponent.
+ *   *_yield ()   Used for yield strength.
+ *   *_weak ()    Used for weak zone factors.
  */
-double              rhea_inversion_param_derivative_pos (
+double              rhea_inversion_param_derivative_poslin (
+                                                  const double model_val);
+
+double              rhea_inversion_param_derivative_posexp (
+                                                  const double model_val);
+
+double              rhea_inversion_param_derivative_scal (
                                                   const double model_val);
 
 double              rhea_inversion_param_derivative_n (
