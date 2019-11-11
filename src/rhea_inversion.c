@@ -1320,7 +1320,8 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
                                          const double step_length,
                                          void *data)
 {
-  const rhea_inversion_hessian_t  type = rhea_inversion_hessian_type;
+  const rhea_inversion_hessian_t  type = (rhea_inversion_hessian_t)
+                                         rhea_inversion_hessian_type;
   const double        prior_rel_weight =
                         rhea_inversion_parameter_prior_rel_weight;
   rhea_inversion_problem_t *inv_problem = data;
@@ -1937,7 +1938,8 @@ static void
 rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
                                         void *data)
 {
-  const rhea_inversion_hessian_t  type = rhea_inversion_hessian_type;
+  const rhea_inversion_hessian_t  type = (rhea_inversion_hessian_t)
+                                         rhea_inversion_hessian_type;
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
 
@@ -2026,7 +2028,8 @@ rhea_inversion_newton_solve_hessian_system_fn (
                                             const int nonzero_initial_guess,
                                             void *data, int *lin_iter_count)
 {
-  const rhea_inversion_hessian_t  type = rhea_inversion_hessian_type;
+  const rhea_inversion_hessian_t  type = (rhea_inversion_hessian_t)
+                                         rhea_inversion_hessian_type;
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   int                 stop_reason;
@@ -2054,7 +2057,7 @@ rhea_inversion_newton_solve_hessian_system_fn (
   }
 
   /* (approximately) invert the Hessian */
-  switch (rhea_inversion_hessian_type) {
+  switch (type) {
   case RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND:
     RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
     ymir_vec_copy (neg_gradient, step);
