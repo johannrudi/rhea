@@ -2,6 +2,7 @@
 #include <rhea_base.h>
 #include <rhea_viscosity_param_derivative.h>
 #include <rhea_weakzone_label.h>
+#include <rhea_stress.h>
 #include <rhea_io_mpi.h>
 #include <ymir_stress_pc.h>
 #include <fenv.h>
@@ -1434,6 +1435,89 @@ rhea_inversion_param_convert_params_to_model_vals (
 }
 
 static void
+rhea_inversion_param_convert_model_vals_to_dim_model_vals (
+                                            ymir_vec_t *parameter_vec,
+                                            rhea_inversion_param_t *inv_param)
+{
+  rhea_viscosity_options_t   *visc_options = inv_param->visc_options;
+  rhea_temperature_options_t *temp_options = visc_options->temp_options;
+  rhea_domain_options_t      *domain_options = visc_options->domain_options;
+  double             *p = parameter_vec->meshfree->e[0];
+  const int          *active = inv_param->active;
+  int                 idx;
+
+  /* check input */
+  RHEA_ASSERT (rhea_inversion_param_vec_check_type (parameter_vec, inv_param));
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+
+  /* convert the values of active parameters */
+  for (idx = 0; idx < inv_param->n_parameters; idx++) {
+    int                 success = 0;
+
+    if (active[idx]) {
+      /* look up single index */
+      switch (idx) {
+      case RHEA_INVERSION_PARAM_VISC_MIN:
+      case RHEA_INVERSION_PARAM_VISC_MAX:
+      case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_FRACTURE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE:
+      case RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE:
+        /* keep same value */
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+        p[idx] *= rhea_temperature_activation_energy_get_dim_J_mol (
+            temp_options);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
+        p[idx] *= rhea_viscosity_scaling_get_dim (
+            visc_options->upper_mantle_arrhenius_activation_energy,
+            visc_options);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
+        p[idx] *= rhea_viscosity_scaling_get_dim (
+            visc_options->lower_mantle_arrhenius_activation_energy,
+            visc_options);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_YIELD_STRENGTH:
+        p[idx] *= rhea_stress_get_dim_Pa (
+            domain_options, temp_options, visc_options);
+        success = 1;
+        break;
+      default:
+        break;
+      }
+
+      /* look up indices in a range */
+      if (!success && rhea_inversion_param_idx_is_weak_label (idx)) {
+        /* keep same value */
+        success = 1;
+      }
+
+      /* otherwise the parameter index is unknown */
+      RHEA_CHECK_ABORT (success, "Parameter index is unknown.");
+    }
+  }
+
+  /* check output */
+  RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
+}
+
+static void
 rhea_inversion_param_set_dimensions (ymir_vec_t *dimensional_scaling_vec,
                                      rhea_inversion_param_t *inv_param)
 {
@@ -1954,7 +2038,25 @@ rhea_inversion_param_print (ymir_vec_t *parameter_vec,
     }
     break;
   case RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM_DIM:
-    RHEA_ABORT_NOT_REACHED (); //TODO
+    {
+      ymir_vec_t     *model_vals = rhea_inversion_param_vec_new (inv_param);
+      ymir_vec_t     *model_dim_vals = rhea_inversion_param_vec_new (inv_param);
+      double         *model = model_vals->meshfree->e[0];
+      double         *model_dim = model_dim_vals->meshfree->e[0];
+
+      rhea_inversion_param_get_model_vals (model_vals, inv_param);
+      ymir_vec_copy (model_vals, model_dim_vals);
+      rhea_inversion_param_convert_model_vals_to_dim_model_vals (
+          model_dim_vals, inv_param);
+      for (idx = 0; idx < inv_param->n_parameters; idx++) {
+        if (active[idx]) {
+          RHEA_GLOBAL_INFOF ("param# %3i: %g, %g, %g\n",
+                             idx, param[idx], model[idx], model_dim[idx]);
+        }
+      }
+      rhea_inversion_param_vec_destroy (model_vals);
+      rhea_inversion_param_vec_destroy (model_dim_vals);
+    }
     break;
   default: /* unknown verbosity */
     RHEA_ABORT_NOT_REACHED ();
