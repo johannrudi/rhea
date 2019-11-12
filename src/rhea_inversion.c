@@ -950,14 +950,12 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   rhea_inversion_update_param (solution, inv_param);
 
   /* print updated parameters */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSE ("Inversion candidate parameters\n");
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
+  RHEA_GLOBAL_INFO ("Inversion candidate parameters\n");
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   rhea_inversion_param_print (
-      solution, RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+      solution, RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM_DIM, inv_param);
+  RHEA_GLOBAL_INFO ("========================================\n");
 
   /* update Stokes solver for forward problem
    * Note: The Stokes coefficient needs only to be updated for linear Stokes,
@@ -1643,7 +1641,6 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       gradient_adjoint_comp, gradient_prior_comp);
 
   /* print gradient */
-#ifdef RHEA_ENABLE_DEBUG
   {
     const int          *active = rhea_inversion_param_get_active (inv_param);
     const double       *grad = neg_gradient->meshfree->e[0];
@@ -1651,18 +1648,17 @@ rhea_inversion_newton_compute_negative_gradient_fn (
     const double       *grad_prior = gradient_prior_comp->meshfree->e[0];
     int                 i;
 
-    RHEA_GLOBAL_VERBOSE ("========================================\n");
-    RHEA_GLOBAL_VERBOSE ("Inversion gradient\n");
-    RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+    RHEA_GLOBAL_INFO ("========================================\n");
+    RHEA_GLOBAL_INFO ("Inversion gradient\n");
+    RHEA_GLOBAL_INFO ("----------------------------------------\n");
     for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
       if (active[i]) {
-        RHEA_GLOBAL_VERBOSEF ("param# %3i: %+.6e [%+.6e, %+.6e]\n", i,
-                              grad[i], grad_adj[i], grad_prior[i]);
+        RHEA_GLOBAL_INFOF ("param# %3i: %+.6e [%+.6e, %+.6e]\n", i,
+                           grad[i], grad_adj[i], grad_prior[i]);
       }
     }
-    RHEA_GLOBAL_VERBOSE ("========================================\n");
+    RHEA_GLOBAL_INFO ("========================================\n");
   }
-#endif
 
   /* finalize the computation of gradient difference: g - g_prev */
   switch (rhea_inversion_hessian_type) {
@@ -2093,13 +2089,11 @@ rhea_inversion_newton_solve_hessian_system_fn (
   }
 
   /* print step */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSE ("Inversion step\n");
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
+  RHEA_GLOBAL_INFO ("Inversion step\n");
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   rhea_inversion_param_vec_print (step, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+  RHEA_GLOBAL_INFO ("========================================\n");
 
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (step, inv_param));
@@ -2136,14 +2130,12 @@ rhea_inversion_newton_modify_step_fn (ymir_vec_t *step, ymir_vec_t *solution,
                               step_modified, step_length_new);
 
     /* print step */
-#ifdef RHEA_ENABLE_DEBUG
-    RHEA_GLOBAL_VERBOSE ("========================================\n");
-    RHEA_GLOBAL_VERBOSEF ("Inversion feasible step, length reduced by %.15e\n",
-                          step_length_new);
-    RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+    RHEA_GLOBAL_INFO ("========================================\n");
+    RHEA_GLOBAL_INFOF ("Inversion feasible step, length reduced by %.15e\n",
+                       step_length_new);
+    RHEA_GLOBAL_INFO ("----------------------------------------\n");
     rhea_inversion_param_vec_print (step, inv_param);
-    RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+    RHEA_GLOBAL_INFO ("========================================\n");
   }
 
   /* print relative step */
@@ -2373,7 +2365,7 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
   RHEA_GLOBAL_INFOF ("Inversion parameters, newton_iter=%i\n", iter);
   RHEA_GLOBAL_INFO ("----------------------------------------\n");
   rhea_inversion_param_print (
-      solution, RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM,
+      solution, RHEA_INVERSION_PARAM_VERBOSE_REAL_NONDIM_DIM,
       inv_problem->inv_param);
   RHEA_GLOBAL_INFO ("========================================\n");
 
