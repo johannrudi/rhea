@@ -581,7 +581,7 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
     return;
   }
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_FWD]);
 
@@ -619,7 +619,7 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_FWD]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 /**
@@ -637,7 +637,7 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
   int                 stop_reason, n_iter;
   double              res_reduc;
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_ADJ]);
 
@@ -673,7 +673,7 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_ADJ]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 /**
@@ -739,7 +739,7 @@ rhea_inversion_inner_solve_incremental_forward (
   int                 stop_reason, n_iter;
   double              res_reduc;
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_FWD]);
 
@@ -757,7 +757,7 @@ rhea_inversion_inner_solve_incremental_forward (
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_FWD]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 /**
@@ -778,7 +778,7 @@ rhea_inversion_inner_solve_incremental_adjoint (
   int                 stop_reason, n_iter;
   double              res_reduc;
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_ADJ]);
 
@@ -796,7 +796,7 @@ rhea_inversion_inner_solve_incremental_adjoint (
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_SOLVE_INCR_ADJ]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 /******************************************************************************
@@ -1454,8 +1454,8 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   data_abs_weight = inv_problem->data_abs_weight;
   prior_abs_weight = inv_problem->prior_abs_weight;
 
-  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "weights=[%.6e,%.6e]",
-                                 data_abs_weight, prior_abs_weight);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "weights=[%.6e,%.6e]",
+                              data_abs_weight, prior_abs_weight);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_OBJ]);
 
@@ -1503,7 +1503,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_OBJ]);
-  RHEA_GLOBAL_VERBOSEF_FN_END (
+  RHEA_GLOBAL_INFOF_FN_END (
       __func__, "value=%.15e, components[%.15e, %.15e]",
       obj_val, obj_data_misfit, obj_prior_misfit);
 
@@ -1547,7 +1547,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
                         inv_problem->newton_gradient_prior_comp_vec;
   ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_GRAD]);
 
@@ -1715,7 +1715,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_GRAD]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 static double

@@ -1545,13 +1545,11 @@ rhea_inversion_param_set_dimensions (ymir_vec_t *dimensional_scaling_vec,
   }
 
   /* print dimensions */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
+  RHEA_GLOBAL_INFOF ("%s\n", __func__);
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   rhea_inversion_param_vec_print (dimensional_scaling_vec, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+  RHEA_GLOBAL_INFO ("========================================\n");
 }
 
 int
@@ -1895,13 +1893,11 @@ rhea_inversion_param_set_initial_guess (ymir_vec_t *parameter_vec,
       parameter_vec, NAN /* !restrict to prior */, inv_param);
 
   /* print parameters */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
+  RHEA_GLOBAL_INFOF ("%s\n", __func__);
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   rhea_inversion_param_vec_print (parameter_vec, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+  RHEA_GLOBAL_INFO ("========================================\n");
 
   /* check output */
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (parameter_vec, inv_param));
@@ -2115,13 +2111,11 @@ rhea_inversion_param_prior_get_mean (ymir_vec_t *prior_mean_vec,
   }
 
   /* print mean */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
+  RHEA_GLOBAL_INFOF ("%s\n", __func__);
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   rhea_inversion_param_vec_print (prior_mean_vec, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+  RHEA_GLOBAL_INFO ("========================================\n");
 }
 
 static void
@@ -2218,13 +2212,11 @@ rhea_inversion_param_prior_get_stddev (ymir_vec_t *prior_stddev_vec,
   ymir_vec_fabs (prior_stddev_vec, prior_stddev_vec);
 
   /* print standard deviation */
-#ifdef RHEA_ENABLE_DEBUG
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-  RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
-  RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+  RHEA_GLOBAL_INFO ("========================================\n");
+  RHEA_GLOBAL_INFOF ("%s\n", __func__);
+  RHEA_GLOBAL_INFO ("----------------------------------------\n");
   rhea_inversion_param_vec_print (prior_stddev_vec, inv_param);
-  RHEA_GLOBAL_VERBOSE ("========================================\n");
-#endif
+  RHEA_GLOBAL_INFO ("========================================\n");
 
   /* check output */
 #ifdef RHEA_ENABLE_DEBUG
