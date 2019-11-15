@@ -2030,7 +2030,7 @@ rhea_inversion_newton_solve_hessian_system_fn (
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
   int                 stop_reason;
 
-  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "lin_iter_max=%i, lin_rtol=%.1e, nonzero_init_guess=%i, "
       "type=%i, assemble_matrix=%i", lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, type, rhea_inversion_assemble_hessian_matrix);
@@ -2104,7 +2104,7 @@ rhea_inversion_newton_solve_hessian_system_fn (
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_SOLVE]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 
   /* return iteraton count and "stopping" reason */
   return stop_reason;
