@@ -1556,6 +1556,66 @@ rhea_plate_set_label_vec (ymir_vec_t *vec, rhea_plate_options_t *opt)
       &rhea_plate_perfmon[RHEA_PLATE_PERFMON_SET_LABEL]);
 }
 
+void
+rhea_plate_set_weight_vec (ymir_vec_t *vec,
+                           rhea_plate_area_to_weight_fn_t area_to_weight_fn,
+                           rhea_plate_options_t *opt)
+{
+  ymir_vec_t         *plate_filter, *plate_filter_mass;
+  double              total_area, plate_area, weight;
+  const int           n_plates = rhea_plate_get_n_plates (opt);
+  int                 pid;
+
+  /* exit if nothing to do */
+  if (!rhea_plate_data_exists (opt)) {
+    return;
+  }
+
+  /* check input */
+  RHEA_ASSERT (ymir_vec_is_face_vec (vec) &&
+               vec->meshnum == RHEA_DOMAIN_BOUNDARY_FACE_TOP);
+
+  /* initialize */
+  if ( (ymir_vec_is_cvec (vec) && vec->ncfields == 1) ||
+       (ymir_vec_is_dvec (vec) && vec->ndfields == 1) ) {
+    plate_filter      = ymir_vec_template (vec);
+    plate_filter_mass = ymir_vec_template (vec);
+  }
+  else {
+    RHEA_ABORT_NOT_REACHED ();
+  }
+  ymir_vec_set_zero (vec);
+
+  /* compute total area */
+  ymir_vec_set_value (plate_filter, 1.0);
+  ymir_mass_apply (plate_filter, plate_filter_mass);
+  total_area = ymir_vec_innerprod (plate_filter_mass, plate_filter);
+
+  /* add each plate with its weight to the combined filter */
+  for (pid = 0; pid < n_plates; pid++) {
+    /* filter plate */
+    ymir_vec_set_value (plate_filter, 1.0);
+    rhea_plate_apply_filter_vec (plate_filter, pid, opt);
+
+    /* compute plate area */
+    ymir_mass_apply (plate_filter, plate_filter_mass);
+    plate_area = ymir_vec_innerprod (plate_filter_mass, plate_filter);
+
+    /* add plate's weight */
+    if (NULL != area_to_weight_fn) {
+      weight = area_to_weight_fn (plate_area, total_area);
+    }
+    else {
+      weight = total_area/plate_area;
+    }
+    ymir_vec_add (weight, plate_filter, vec);
+  }
+
+  /* destroy */
+  ymir_vec_destroy (plate_filter);
+  ymir_vec_destroy (plate_filter_mass);
+}
+
 /**
  * Filters values at a single node.
  */

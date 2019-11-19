@@ -211,6 +211,20 @@ void                rhea_plate_set_label_vec (ymir_vec_t *vec,
                                               rhea_plate_options_t *opt);
 
 /**
+ * Sets weights of each plate as the inverse relative plate area:
+ *   weight = rhea_plate_set_weight_fn_t (total_area / plate_area)
+ *
+ * Sets values outside of all plates to zero.
+ */
+typedef double    (*rhea_plate_area_to_weight_fn_t) (double plate_area,
+                                                     double total_area);
+
+void                rhea_plate_set_weight_vec (
+                             ymir_vec_t *vec,
+                             rhea_plate_area_to_weight_fn_t area_to_weight_fn,
+                             rhea_plate_options_t *opt);
+
+/**
  * Filters values of a vector inside a plate.  Sets values outside this plate
  * to zero.
  */
