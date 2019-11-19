@@ -105,6 +105,7 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_THRESHOLD (0.1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER (0)
 #define RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION (0)
+#define RHEA_NEWTON_DEFAULT_INIT_STEP_SEARCH_ITER_MAX (-1)
 #define RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX (12)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN (1.0e-5)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX (1.0)
@@ -200,6 +201,10 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION,
     "Linear sub-solver: Monitor residual reduction of each linearized solve",
 
+  YMIR_OPTIONS_I, "init-step-search-iter-max", '\0',
+    &(newton_opt->init_step_search_iter_max),
+    RHEA_NEWTON_DEFAULT_INIT_STEP_SEARCH_ITER_MAX,
+    "Line search: Maximum number of step search iterations (init Newton step)",
   YMIR_OPTIONS_I, "step-search-iter-max", '\0',
     &(newton_opt->step_search_iter_max),
     RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX,
@@ -244,9 +249,9 @@ rhea_newton_get_options (rhea_newton_options_t *opt)
 
   opt->abort_failed_step_search = rhea_newton_options.abort_failed_step_search;
 
-  opt->lin_iter_max                 = rhea_newton_options.lin_iter_max;
-  opt->lin_rtol_init_n_iter         = rhea_newton_options.lin_rtol_init_n_iter;
-  opt->lin_rtol_init                = rhea_newton_options.lin_rtol_init;
+  opt->lin_iter_max         = rhea_newton_options.lin_iter_max;
+  opt->lin_rtol_init_n_iter = rhea_newton_options.lin_rtol_init_n_iter;
+  opt->lin_rtol_init        = rhea_newton_options.lin_rtol_init;
   opt->lin_rtol_adaptive_exponent =
     rhea_newton_options.lin_rtol_adaptive_exponent;
   opt->lin_rtol_adaptive_max =
@@ -258,6 +263,13 @@ rhea_newton_get_options (rhea_newton_options_t *opt)
   opt->lin_rtol_adaptive_progressive_n_iter =
     rhea_newton_options.lin_rtol_adaptive_progressive_n_iter;
 
+  if (0 < rhea_newton_options.init_step_search_iter_max) {
+    opt->init_step_search_iter_max =
+      rhea_newton_options.init_step_search_iter_max;
+  }
+  else {
+    opt->init_step_search_iter_max = rhea_newton_options.step_search_iter_max;
+  }
   opt->step_search_iter_max = rhea_newton_options.step_search_iter_max;
   opt->step_length_min      = rhea_newton_options.step_length_min;
   opt->step_length_max      = rhea_newton_options.step_length_max;
@@ -294,6 +306,8 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->lin_rtol_adaptive_progressive_n_iter =
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER;
 
+  opt->init_step_search_iter_max =
+    RHEA_NEWTON_DEFAULT_INIT_STEP_SEARCH_ITER_MAX;
   opt->step_search_iter_max = RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX;
   opt->step_length_min      = RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN;
   opt->step_length_max      = RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX;
@@ -730,11 +744,12 @@ rhea_newton_problem_modify_step_vec_exists (rhea_newton_problem_t *nl_problem)
 
 static void
 rhea_newton_problem_modify_step_vec (ymir_vec_t *step_vec,
-                                     rhea_newton_problem_t *nl_problem,
-                                     ymir_vec_t *solution)
+                                     ymir_vec_t *solution,
+                                     const int iter,
+                                     rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_modify_step_vec_exists (nl_problem)) {
-    nl_problem->modify_step_vec (step_vec, solution, nl_problem->data);
+    nl_problem->modify_step_vec (step_vec, solution, iter, nl_problem->data);
   }
 }
 
@@ -1833,11 +1848,14 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
                                 rhea_newton_problem_t *nl_problem,
                                 rhea_newton_options_t *opt)
 {
+  const int           iter_start = opt->iter_start;
   const int           iter = step->iter;
   ymir_vec_t         *step_vec = nl_problem->step_vec;
   ymir_vec_t         *solution_prev = ymir_vec_template (solution);
   const int           search_iter_start = 1;
-  const int           search_iter_max = opt->step_search_iter_max;
+  const int           search_iter_max =
+    (iter_start == iter ? opt->init_step_search_iter_max :
+                          opt->step_search_iter_max);
   int                 k;
   int                 search_success = 0;
   double              conv_val_prev, conv_val_curr;
@@ -2110,7 +2128,7 @@ rhea_newton_solve (ymir_vec_t **solution,
           /* out: */ &step,
           /* in:  */ nl_problem, opt);
       rhea_newton_problem_modify_step_vec (
-          nl_problem->step_vec, nl_problem, *solution);
+          nl_problem->step_vec, *solution, iter, nl_problem);
 
       /* perform line search to get the step length (updates the solution and
        * the nonlinear operator) */
