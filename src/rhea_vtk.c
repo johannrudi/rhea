@@ -25,6 +25,7 @@
 #define RHEA_VTK_NAME_MARKER "marker"
 
 #define RHEA_VTK_NAME_PLATE_LABEL "plate_label"
+#define RHEA_VTK_NAME_PLATE_WEIGHT "plate_weight"
 #define RHEA_VTK_NAME_PLATE_VEL "plate_velocity"
 
 #define RHEA_VTK_NAME_VELOCITY_FWD "velocity_fwd"
@@ -144,9 +145,11 @@ rhea_vtk_write_input_data (const char *filepath,
 int
 rhea_vtk_write_observation_data (const char *filepath,
                                  ymir_vec_t *plate_label,
+                                 ymir_vec_t *plate_weight,
                                  ymir_vec_t *plate_vel)
 {
   const int           in_pl_label = (plate_label != NULL);
+  const int           in_pl_weight = (plate_weight != NULL);
   const int           in_pl_vel = (plate_vel != NULL);
   ymir_mesh_t        *ymir_mesh;
 
@@ -158,6 +161,9 @@ rhea_vtk_write_observation_data (const char *filepath,
   /* get ymir mesh */
   if (in_pl_label) {
     ymir_mesh = ymir_vec_get_mesh (plate_label);
+  }
+  else if (in_pl_weight) {
+    ymir_mesh = ymir_vec_get_mesh (plate_weight);
   }
   else if (in_pl_vel) {
     ymir_mesh = ymir_vec_get_mesh (plate_vel);
@@ -171,6 +177,10 @@ rhea_vtk_write_observation_data (const char *filepath,
     plate_label = rhea_viscosity_surface_new (ymir_mesh);
     ymir_vec_set_value (plate_label, RHEA_PLATE_NONE);
   }
+  if (!in_pl_weight) {
+    plate_weight = rhea_viscosity_surface_new (ymir_mesh);
+    ymir_vec_set_value (plate_weight, RHEA_PLATE_NONE);
+  }
   if (!in_pl_vel) {
     plate_vel = rhea_velocity_surface_new (ymir_mesh);
     ymir_vec_set_value (plate_vel, NAN);
@@ -179,11 +189,15 @@ rhea_vtk_write_observation_data (const char *filepath,
   /* write vtk file fields (reduce output for common use cases) */
   ymir_vtk_write (ymir_mesh, filepath,
                   plate_label, RHEA_VTK_NAME_PLATE_LABEL,
+                  plate_weight, RHEA_VTK_NAME_PLATE_WEIGHT,
                   plate_vel, RHEA_VTK_NAME_PLATE_VEL, NULL);
 
   /* destroy */
   if (!in_pl_label) {
     rhea_viscosity_surface_destroy (plate_label);
+  }
+  if (!in_pl_weight) {
+    rhea_viscosity_surface_destroy (plate_weight);
   }
   if (!in_pl_vel) {
     rhea_velocity_surface_destroy (plate_vel);

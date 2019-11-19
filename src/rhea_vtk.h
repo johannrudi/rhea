@@ -15,6 +15,7 @@ int                 rhea_vtk_write_input_data (const char *filepath,
 
 int                 rhea_vtk_write_observation_data (const char *filepath,
                                                      ymir_vec_t *plate_label,
+                                                     ymir_vec_t *plate_weight,
                                                      ymir_vec_t *plate_vel);
 
 int                 rhea_vtk_write_solution (const char *filepath,
