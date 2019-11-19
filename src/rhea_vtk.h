@@ -52,10 +52,11 @@ int                 rhea_vtk_write_inversion_iteration (
                                                   ymir_vec_t *marker);
 
 int                 rhea_vtk_write_inversion_iteration_surf (
-                                                  const char *filepath,
-                                                  ymir_vec_t *velocity_fwd_surf,
-                                                  ymir_vec_t *velocity_adj_surf,
-                                                  ymir_vec_t *velocity_obs_surf,
-                                                  ymir_vec_t *misfit_surf);
+                                          const char *filepath,
+                                          ymir_vec_t *velocity_fwd_surf,
+                                          ymir_vec_t *velocity_adj_surf,
+                                          ymir_vec_t *velocity_obs_surf,
+                                          ymir_vec_t *velocity_obs_weight_surf,
+                                          ymir_vec_t *misfit_surf);
 
 #endif /* RHEA_VTK_H */

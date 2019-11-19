@@ -32,6 +32,7 @@
 #define RHEA_VTK_NAME_VELOCITY_ADJ "velocity_adj"
 #define RHEA_VTK_NAME_PRESSURE_ADJ "pressure_adj"
 #define RHEA_VTK_NAME_VELOCITY_OBS "velocity_obs"
+#define RHEA_VTK_NAME_VELOCITY_OBS_WEIGHT "obs_weight"
 #define RHEA_VTK_NAME_VELOCITY_MISFIT "velocity_misfit"
 
 int
@@ -468,6 +469,7 @@ rhea_vtk_write_inversion_iteration_surf (const char *filepath,
                                          ymir_vec_t *velocity_fwd_surf,
                                          ymir_vec_t *velocity_adj_surf,
                                          ymir_vec_t *velocity_obs_surf,
+                                         ymir_vec_t *velocity_obs_weight_surf,
                                          ymir_vec_t *misfit_surf)
 {
   ymir_mesh_t        *ymir_mesh;
@@ -488,6 +490,7 @@ rhea_vtk_write_inversion_iteration_surf (const char *filepath,
                   velocity_fwd_surf, RHEA_VTK_NAME_VELOCITY_FWD,
                   velocity_adj_surf, RHEA_VTK_NAME_VELOCITY_ADJ,
                   velocity_obs_surf, RHEA_VTK_NAME_VELOCITY_OBS,
+                  velocity_obs_weight_surf, RHEA_VTK_NAME_VELOCITY_OBS_WEIGHT,
                   misfit_surf, RHEA_VTK_NAME_VELOCITY_MISFIT, NULL);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
