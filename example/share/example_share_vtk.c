@@ -22,7 +22,9 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   ymir_vec_t         *weakzone, *viscosity, *marker;
   ymir_vec_t         *rhs_vel;
 //ymir_vec_t         *rhs_vel_nonzero_dirichlet;
-  ymir_vec_t         *plate_label, *plate_vel;
+  const int           plates_exist =
+                        (0 < rhea_plate_get_n_plates (plate_options));
+  ymir_vec_t         *plate_label, *plate_weight, *plate_vel;
   char                path[BUFSIZ];
 
   /* exit if nothing to do */
@@ -54,10 +56,12 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_temperature_background_compute (background_temp, temp_options);
 
   /* get plate labels */
-  if (0 < rhea_plate_get_n_plates (plate_options)) {
-    plate_label = rhea_viscosity_surface_new (ymir_mesh);
-    plate_vel = rhea_velocity_surface_new (ymir_mesh);
+  if (plates_exist) {
+    plate_label  = rhea_viscosity_surface_new (ymir_mesh);
+    plate_weight = rhea_viscosity_surface_new (ymir_mesh);
+    plate_vel    = rhea_velocity_surface_new (ymir_mesh);
     rhea_plate_set_label_vec (plate_label, plate_options);
+    rhea_plate_set_weight_vec (plate_weight, NULL, plate_options);
     rhea_plate_velocity_generate_all (plate_vel, plate_options);
   }
   else {
@@ -102,9 +106,10 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
                              background_temp, weakzone, viscosity, marker,
                              rhs_vel);
-  if (plate_label != NULL || plate_vel != NULL) {
+  if (plates_exist) {
     snprintf (path, BUFSIZ, "%s_obs", vtk_write_input_path);
-    rhea_vtk_write_observation_data (path, plate_label, plate_vel);
+    rhea_vtk_write_observation_data (path, plate_label, plate_weight,
+                                     plate_vel);
   }
 
   /* destroy */
@@ -114,10 +119,9 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (marker);
   ymir_vec_destroy (rhs_vel);
-  if (plate_label != NULL) {
+  if (plates_exist) {
     rhea_viscosity_surface_destroy (plate_label);
-  }
-  if (plate_vel != NULL) {
+    rhea_viscosity_surface_destroy (plate_weight);
     rhea_velocity_surface_destroy (plate_vel);
   }
 
