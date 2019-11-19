@@ -7,7 +7,7 @@
 #include <rhea_plate.h>
 #include <ymir_vec_ops.h>
 
-/* enumerator for velocity boundray conditions */
+/* enumerator for velocity observational data */
 typedef enum
 {
   RHEA_INVERSION_OBS_VELOCITY_NONE = -1,
@@ -19,14 +19,24 @@ typedef enum
 }
 rhea_inversion_obs_velocity_t;
 
+/* enumerator for weights of observational data */
+typedef enum
+{
+  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM = 0,
+  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA,
+  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_LOG_INV_AREA
+}
+rhea_inversion_obs_velocity_weight_t;
+
 /**
  * Generates the observational data.
  */
 void                rhea_inversion_obs_velocity_generate (
-                                  ymir_vec_t *vel_obs_surf,
-                                  ymir_vec_t *weight_surf,
-                                  const rhea_inversion_obs_velocity_t obs_type,
-                                  rhea_plate_options_t *plate_options);
+                        ymir_vec_t *vel_obs_surf,
+                        ymir_vec_t *weight_surf,
+                        const rhea_inversion_obs_velocity_t obs_type,
+                        const rhea_inversion_obs_velocity_weight_t weight_type,
+                        rhea_plate_options_t *plate_options);
 
 /**
  * Compute the misfit of the velocity at the surface:

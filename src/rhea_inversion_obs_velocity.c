@@ -85,14 +85,21 @@ rhea_inversion_obs_velocity_remove_tangential (ymir_vec_t * vel_surf)
       vel_surf, rhea_inversion_obs_velocity_remove_tangential_fn, NULL);
 }
 
+static double
+_area_to_weight_log (double plate_area, double total_area)
+{
+  return log (1.0 + total_area/plate_area);
+}
+
 void
 rhea_inversion_obs_velocity_generate (
-                                  ymir_vec_t *vel_obs_surf,
-                                  ymir_vec_t *weight_surf,
-                                  const rhea_inversion_obs_velocity_t obs_type,
-                                  rhea_plate_options_t *plate_options)
+                        ymir_vec_t *vel_obs_surf,
+                        ymir_vec_t *weight_surf,
+                        const rhea_inversion_obs_velocity_t obs_type,
+                        const rhea_inversion_obs_velocity_weight_t weight_type,
+                        rhea_plate_options_t *plate_options)
 {
-  /* generate velocity field and weight function */
+  /* generate velocity data */
   switch (obs_type) {
   case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
     RHEA_ABORT_NOT_REACHED (); //TODO
@@ -100,10 +107,8 @@ rhea_inversion_obs_velocity_generate (
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
   case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
     ymir_vec_set_value (vel_obs_surf, 0.0);
-    ymir_vec_set_value (weight_surf, 1.0);
     if (0 < rhea_plate_get_n_plates (plate_options)) { /* if plates exist */
       rhea_plate_velocity_generate_all (vel_obs_surf, plate_options);
-      rhea_plate_apply_filter_all_vec (weight_surf, plate_options);
     }
     break;
   case RHEA_INVERSION_OBS_VELOCITY_ALL:
@@ -111,6 +116,35 @@ rhea_inversion_obs_velocity_generate (
     RHEA_ABORT_NOT_REACHED (); //TODO
     break;
   default: /* unknown observation type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* generate weights */
+  switch (weight_type) {
+  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM:
+    ymir_vec_set_value (weight_surf, 1.0);
+    if (0 < rhea_plate_get_n_plates (plate_options)) { /* if plates exist */
+      rhea_plate_apply_filter_all_vec (weight_surf, plate_options);
+    }
+    break;
+  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA:
+    if (0 < rhea_plate_get_n_plates (plate_options)) { /* if plates exist */
+      rhea_plate_set_weight_vec (weight_surf, NULL, plate_options);
+    }
+    else {
+      ymir_vec_set_value (weight_surf, 1.0);
+    }
+    break;
+  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_LOG_INV_AREA:
+    if (0 < rhea_plate_get_n_plates (plate_options)) { /* if plates exist */
+      rhea_plate_set_weight_vec (weight_surf, _area_to_weight_log,
+                                 plate_options);
+    }
+    else {
+      ymir_vec_set_value (weight_surf, 1.0);
+    }
+    break;
+  default: /* unknown weight type */
     RHEA_ABORT_NOT_REACHED ();
   }
 }
