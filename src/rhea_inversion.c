@@ -43,6 +43,8 @@ rhea_inversion_project_out_null_t;
 /* default options */
 #define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_WEIGHT (NAN)
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
+#define RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE \
+  (RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (0)
@@ -71,6 +73,8 @@ double              rhea_inversion_parameter_prior_rel_weight =
                       RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_WEIGHT;
 int                 rhea_inversion_vel_obs_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE;
+int                 rhea_inversion_vel_obs_weight_type =
+                      RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE;
 int                 rhea_inversion_hessian_type =
                       RHEA_INVERSION_DEFAULT_HESSIAN_TYPE;
 int                 rhea_inversion_assemble_hessian_matrix =
@@ -132,6 +136,10 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "velocity-observations-type", '\0',
     &(rhea_inversion_vel_obs_type), RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE,
     "Type of velocity observations at the surface",
+  YMIR_OPTIONS_I, "velocity-observations-weight-type", '\0',
+    &(rhea_inversion_vel_obs_weight_type),
+    RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE,
+    "Type of weights for velocity observations",
 
   /* outer solver options (inversion) */
   YMIR_OPTIONS_I, "hessian-type", '\0',
@@ -320,7 +328,8 @@ struct rhea_inversion_problem
   rhea_inversion_param_t         *inv_param;
 
   /* observations: velocity at the surface */
-  rhea_inversion_obs_velocity_t vel_obs_type;
+  rhea_inversion_obs_velocity_t         vel_obs_type;
+  rhea_inversion_obs_velocity_weight_t  vel_obs_weight_type;
   ymir_vec_t         *vel_obs_surf;
   ymir_vec_t         *vel_obs_weight_surf;
 
@@ -484,7 +493,7 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
       ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
   rhea_inversion_obs_velocity_generate (
       inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
-      inv_problem->vel_obs_type,
+      inv_problem->vel_obs_type, inv_problem->vel_obs_weight_type,
       rhea_stokes_problem_get_plate_options (stokes_problem));
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
@@ -2718,6 +2727,8 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->stokes_problem = stokes_problem;
   inv_problem->vel_obs_type =
     (rhea_inversion_obs_velocity_t) rhea_inversion_vel_obs_type;
+  inv_problem->vel_obs_weight_type =
+    (rhea_inversion_obs_velocity_weight_t) rhea_inversion_vel_obs_weight_type;
   inv_problem->vel_obs_surf = NULL;
   inv_problem->vel_obs_weight_surf = NULL;
   inv_problem->forward_vel_press = NULL;
