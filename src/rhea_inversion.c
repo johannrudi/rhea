@@ -46,6 +46,7 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (0)
+#define RHEA_INVERSION_DEFAULT_RESTRICT_INIT_STEP_TO_PRIOR_STDDEV (-1.0)
 #define RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV (2.0)
 #define RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE (0)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX (100)
@@ -76,6 +77,8 @@ int                 rhea_inversion_assemble_hessian_matrix =
                       RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX;
 int                 rhea_inversion_assemble_hessian_enforce_symm =
                       RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM;
+double              rhea_inversion_restrict_init_step_to_prior_stddev =
+                      RHEA_INVERSION_DEFAULT_RESTRICT_INIT_STEP_TO_PRIOR_STDDEV;
 double              rhea_inversion_restrict_step_to_prior_stddev =
                       RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV;
 int                 rhea_inversion_forward_solver_iter_max =
@@ -142,6 +145,10 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_assemble_hessian_enforce_symm),
     RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM,
     "Enforce symmetry of the assembled Hessian matrix",
+  YMIR_OPTIONS_D, "restrict-init-step-to-prior-stddev", '\0',
+    &(rhea_inversion_restrict_init_step_to_prior_stddev),
+    RHEA_INVERSION_DEFAULT_RESTRICT_INIT_STEP_TO_PRIOR_STDDEV,
+    "Restrict initial Newton step to lie within the range of prior",
   YMIR_OPTIONS_D, "restrict-step-to-prior-stddev", '\0',
     &(rhea_inversion_restrict_step_to_prior_stddev),
     RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV,
@@ -2112,17 +2119,27 @@ rhea_inversion_newton_solve_hessian_system_fn (
 
 static void
 rhea_inversion_newton_modify_step_fn (ymir_vec_t *step, ymir_vec_t *solution,
-                                      void *data)
+                                      const int iter, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
-  const double        restrict_to_prior_stddev =
-                        rhea_inversion_restrict_step_to_prior_stddev;
+  double              restrict_to_prior_stddev;
   int                 step_modified;
   double              step_length_new;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
+  /* get value */
+  if (0 == iter &&
+      0.0 < rhea_inversion_restrict_init_step_to_prior_stddev) {
+    restrict_to_prior_stddev =
+      rhea_inversion_restrict_init_step_to_prior_stddev;
+  }
+  else {
+    restrict_to_prior_stddev = rhea_inversion_restrict_step_to_prior_stddev;
+  }
+
+  /* modify step */
   step_modified = rhea_inversion_param_restrict_step_length_to_feasible (
       step, solution, restrict_to_prior_stddev, inv_param, &step_length_new);
   if (step_modified) {
@@ -2306,7 +2323,8 @@ rhea_inversion_write_vis (const char *vtk_path_vol,
     snprintf (path, BUFSIZ, "%s%s%02i", vtk_path_surf,
               RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
     rhea_vtk_write_inversion_iteration_surf (
-        path, vel_fwd_surf, vel_adj_surf, vel_obs_surf, misfit_surf);
+        path, vel_fwd_surf, vel_adj_surf, vel_obs_surf,
+        inv_problem->vel_obs_weight_surf, misfit_surf);
 
     /* destroy */
     rhea_velocity_surface_destroy (vel_fwd_surf);
