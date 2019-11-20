@@ -1852,19 +1852,31 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   const int           iter = step->iter;
   ymir_vec_t         *step_vec = nl_problem->step_vec;
   ymir_vec_t         *solution_prev = ymir_vec_template (solution);
-  const int           search_iter_start = 1;
-  const int           search_iter_max =
-    (iter_start == iter ? opt->init_step_search_iter_max :
-                          opt->step_search_iter_max);
-  int                 k;
+  int                 search_iter_start, search_iter_max, k;
   int                 search_success = 0;
   double              conv_val_prev, conv_val_curr;
+  const double        step_length_max = opt->step_length_max;
   const double        step_length_min = opt->step_length_min;
   const double        step_reduction = opt->step_reduction;
   char                func_tag_status[BUFSIZ];
   char                func_tag_stop[BUFSIZ];
 
-  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "newton_iter=%i", iter);
+  /* initialize parameters */
+  search_iter_start = 1;
+  if (iter_start == iter &&
+      search_iter_start < opt->init_step_search_iter_max) {
+    search_iter_max = opt->init_step_search_iter_max;
+  }
+  else {
+    search_iter_max = opt->step_search_iter_max;
+  }
+  step->length = step_length_max;
+
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "newton_iter=%i, search_iter_start=%i, search_iter_max=%i, "
+      "step_length_max=%g, step_length_min=%g, step_reduction=%g",
+      iter, search_iter_start, search_iter_max,
+      step_length_max, step_length_min, step_reduction);
 
   /* check input */
   RHEA_ASSERT (nl_problem->step_vec != NULL);
@@ -1878,9 +1890,6 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   ymir_vec_copy (solution, solution_prev);
   rhea_newton_status_copy_curr_to_prev (status);
   rhea_newton_status_set_resume_prev (opt, status);
-
-  /* initialize step length */
-  step->length = opt->step_length_max;
 
   /* search for step length */
   for (k = search_iter_start; k <= search_iter_max; k++) {
