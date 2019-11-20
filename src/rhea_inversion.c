@@ -2672,7 +2672,9 @@ rhea_inversion_inner_solve_stats_print (rhea_inversion_problem_t *inv_problem)
     RHEA_GLOBAL_INFO ("Inversion summary: forward & adjoint solves\n");
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
     for (k = 0; k < stats_count; k++) {
-      RHEA_ASSERT (NULL != inv_problem->fwd_adj_solve_stats[k]);
+      if (NULL == inv_problem->fwd_adj_solve_stats[k]) {
+        break;
+      }
       RHEA_GLOBAL_INFOF ("%3d; %s\n", k, inv_problem->fwd_adj_solve_stats[k]);
     }
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
