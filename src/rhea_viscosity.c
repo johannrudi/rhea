@@ -229,13 +229,16 @@ double
 rhea_viscosity_scaling_get_dim (const double arrhenius_activation_energy,
                                 rhea_viscosity_options_t *opt)
 {
+  const double        temp_neutral = opt->temp_options->neutral;
+  double              scal = 1.0;
+
+  /* neutralize scaling from Arrhenius equation */
   if (isfinite (arrhenius_activation_energy) &&
       0.0 < arrhenius_activation_energy) {
-    return exp (-arrhenius_activation_energy * opt->temp_options->neutral);
+    scal /= exp (arrhenius_activation_energy * (1.0 - temp_neutral));
   }
-  else { /* otherwise dim. scaling does not exist */
-    return 1.0;
-  }
+
+  return scal;
 }
 
 /******************************************************************************

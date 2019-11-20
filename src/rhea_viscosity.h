@@ -76,14 +76,14 @@ rhea_viscosity_model_t;
 /* options of the mantle's viscosity */
 typedef struct rhea_viscosity_options
 {
-  /* types of linear/nonlinear viscosity components and its composition */
+  /* types of linear/nonlinear viscosity components and their composition */
   rhea_viscosity_t                 type;
   rhea_viscosity_linear_t          type_linear;
   rhea_viscosity_nonlinear_t       type_nonlinear;
   rhea_viscosity_nonlinear_init_t  type_nonlinear_init;
   rhea_viscosity_model_t           model;
 
-  /* viscosity constants */
+  /* constants */
   double              representative_Pas;
 
   /* lower and upper bounds for the viscosity */
@@ -91,7 +91,7 @@ typedef struct rhea_viscosity_options
   double              max;
   double              max_smoothness_param;
 
-  /* scaling factors */
+  /* scaling factors (aka. prefactors) */
   double              upper_mantle_scaling;
   double              lower_mantle_scaling;
 
@@ -102,7 +102,7 @@ typedef struct rhea_viscosity_options
   /* stress exponent that governs strain rate weakening (aka. `n`) */
   double              stress_exponent;
 
-  /* parameters for plastic yielding */
+  /* max stress for plastic yielding */
   double              yield_strength;
 
   /* regularization for projector of nonlinear viscosity */
