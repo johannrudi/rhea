@@ -53,7 +53,7 @@ typedef enum
 {
   /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound;
    * viscosity bounds via cut-off */
-  RHEA_VISCOSITY_MODEL_UWYL,
+  RHEA_VISCOSITY_MODEL_UWYL_LCUT_UCUT,
 
   /* (1) upper bound, (2) weak zone, (3) yielding, (4) lower bound;
    * upper viscosity bound via cut-off, lower viscosity bound via addition */

@@ -109,7 +109,7 @@ rhea_viscosity_param_derivative_init (
   RHEA_ASSERT (NULL != viscosity);
   RHEA_ASSERT (NULL != marker);
   RHEA_ASSERT (NULL != visc_options);
-  RHEA_ASSERT (visc_options->model == RHEA_VISCOSITY_MODEL_UWYL ||
+  RHEA_ASSERT (visc_options->model == RHEA_VISCOSITY_MODEL_UWYL_LCUT_UCUT ||
                visc_options->model == RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT ||
                visc_options->model == RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT ||
                visc_options->model == RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH);
@@ -129,7 +129,7 @@ rhea_viscosity_param_derivative_init (
   }
   else if (rhea_viscosity_restrict_min (visc_options)) { /* remove min bound */
     switch (visc_options->model) {
-    case RHEA_VISCOSITY_MODEL_UWYL:
+    case RHEA_VISCOSITY_MODEL_UWYL_LCUT_UCUT:
       rhea_viscosity_marker_filter_min (derivative, marker, 1 /* invert */);
       break;
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
@@ -178,7 +178,7 @@ rhea_viscosity_param_derivative_init (
   }
   else if (rhea_viscosity_restrict_max (visc_options)) { /* remove max bound */
     switch (visc_options->model) {
-    case RHEA_VISCOSITY_MODEL_UWYL:
+    case RHEA_VISCOSITY_MODEL_UWYL_LCUT_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
     case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
       rhea_viscosity_marker_filter_max (derivative, marker, 1 /* invert */);
@@ -241,7 +241,7 @@ rhea_viscosity_param_derivative_min (ymir_vec_t *derivative,
 
   /* set derivative */
   switch (visc_options->model) {
-  case RHEA_VISCOSITY_MODEL_UWYL:
+  case RHEA_VISCOSITY_MODEL_UWYL_LCUT_UCUT:
     rhea_viscosity_param_derivative_init (
         derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_MIN,
         viscosity, marker, NULL /* weakzone */, visc_options);
@@ -292,7 +292,7 @@ rhea_viscosity_param_derivative_max (ymir_vec_t *derivative,
 /**
  * Computes derivative w.r.t. the scaling factor of upper/lower mantle:
  *   c = X(param_c)
- *   deriv = (d X(param_c)) * visc / c
+ *   deriv = (d X(param_c)) * 1/(c*n) * visc
  */
 static void
 rhea_viscosity_param_derivative_upper_mantle_scaling (
@@ -302,7 +302,7 @@ rhea_viscosity_param_derivative_upper_mantle_scaling (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              scaling_curr, scaling_deriv;
+  double              srw_exp, scaling_curr, scaling_deriv;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -313,12 +313,13 @@ rhea_viscosity_param_derivative_upper_mantle_scaling (
       viscosity, marker, weakzone, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
+  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (visc_options);
   scaling_curr = rhea_viscosity_get_scaling (
       visc_options, 1 /* in upper mantle */,
       rhea_viscosity_restrict_min (visc_options));
   scaling_deriv = rhea_inversion_param_derivative_scal (
       visc_options->upper_mantle_scaling);
-  ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
+  ymir_vec_scale (scaling_deriv/scaling_curr*srw_exp, derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
@@ -332,7 +333,7 @@ rhea_viscosity_param_derivative_lower_mantle_scaling (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              scaling_curr, scaling_deriv;
+  double              srw_exp, scaling_curr, scaling_deriv;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -343,12 +344,13 @@ rhea_viscosity_param_derivative_lower_mantle_scaling (
       viscosity, marker, weakzone, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
+  srw_exp = 1.0; /* no strain rate weakening in lower mantle */
   scaling_curr = rhea_viscosity_get_scaling (
       visc_options, 0 /* in lower mantle */,
       rhea_viscosity_restrict_min (visc_options));
   scaling_deriv = rhea_inversion_param_derivative_scal (
       visc_options->lower_mantle_scaling);
-  ymir_vec_scale (scaling_deriv/scaling_curr, derivative);
+  ymir_vec_scale (scaling_deriv/scaling_curr*srw_exp, derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
@@ -357,7 +359,7 @@ rhea_viscosity_param_derivative_lower_mantle_scaling (
 /**
  * Computes derivative w.r.t. the activation energy in Arrhenius relationship:
  *   E_a = X(param_E_a)
- *   deriv = (d X(param_E_a)) * (0.5 - T) * visc
+ *   deriv = (d X(param_E_a)) * (0.5 - T)/n * visc
  */
 static void
 rhea_viscosity_param_derivative_scale_by_temp_diff (
@@ -385,7 +387,7 @@ rhea_viscosity_param_derivative_upper_mantle_activation_energy (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              scaling_curr, scaling_deriv;
+  double              srw_exp, scaling_curr, scaling_deriv;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -400,9 +402,10 @@ rhea_viscosity_param_derivative_upper_mantle_activation_energy (
                                                       visc_options);
 
   /* multiply by the derivative of the activation energy */
+  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (visc_options);
   scaling_curr = visc_options->upper_mantle_arrhenius_activation_energy;
   scaling_deriv = rhea_inversion_param_derivative_poslin (scaling_curr);
-  ymir_vec_scale (scaling_deriv, derivative);
+  ymir_vec_scale (scaling_deriv*srw_exp, derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
@@ -417,7 +420,7 @@ rhea_viscosity_param_derivative_lower_mantle_activation_energy (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              scaling_curr, scaling_deriv;
+  double              srw_exp, scaling_curr, scaling_deriv;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -432,9 +435,10 @@ rhea_viscosity_param_derivative_lower_mantle_activation_energy (
                                                       visc_options);
 
   /* multiply by the derivative of the activation energy */
+  srw_exp = 1.0; /* no strain rate weakening in lower mantle */
   scaling_curr = visc_options->lower_mantle_arrhenius_activation_energy;
   scaling_deriv = rhea_inversion_param_derivative_poslin (scaling_curr);
-  ymir_vec_scale (scaling_deriv, derivative);
+  ymir_vec_scale (scaling_deriv*srw_exp, derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
@@ -451,13 +455,14 @@ rhea_viscosity_param_derivative_log_fn (double *val, double x, double y,
 /**
  * Computes derivative w.r.t. the stress exponent:
  *   n = X(param_n)
- *   deriv = (d X(param_n)) * (-log(strainrate - shift) / n^2) * visc
+ *   deriv = (d X(param_n)) * (- log(c*a(T)*(strainrate-shift))/n^2 ) * visc
  */
 static void
 rhea_viscosity_param_derivative_stress_exp (
                                         ymir_vec_t *derivative,
                                         ymir_vec_t *viscosity,
                                         ymir_vec_t *marker,
+                                        ymir_vec_t *temperature,
                                         ymir_vec_t *weakzone,
                                         ymir_vec_t *velocity,
                                         rhea_viscosity_options_t *visc_options)
@@ -465,9 +470,10 @@ rhea_viscosity_param_derivative_stress_exp (
   const double        stress_exp = visc_options->stress_exponent;
   const double        stress_exp_deriv =
     rhea_inversion_param_derivative_n (stress_exp);
+  const rhea_viscosity_t  visc_type = visc_options->type;
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (derivative);
-  ymir_vec_t         *strt_scal = rhea_strainrate_2inv_new (ymir_mesh);
-  double              scal;
+  ymir_vec_t         *scal_vec, *visc_lin;
+  double              scal_val;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -477,29 +483,40 @@ rhea_viscosity_param_derivative_stress_exp (
       derivative, RHEA_VISCOSITY_PARAM_DERIVATIVE_FILTER_SRW,
       viscosity, marker, weakzone, visc_options);
 
-  /* compute sqrt of the 2nd invariant of the strain rate */
+  /* compute the spatially variing scaling */
+  scal_vec = rhea_strainrate_2inv_new (ymir_mesh);
+  visc_lin = rhea_viscosity_new (ymir_mesh);
   switch (visc_options->model) {
-  case RHEA_VISCOSITY_MODEL_UWYL:
+  case RHEA_VISCOSITY_MODEL_UWYL_LCUT_UCUT:
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_UCUT:
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH:
-    rhea_strainrate_compute_sqrt_of_2inv (strt_scal, velocity);
+    rhea_strainrate_compute_sqrt_of_2inv (scal_vec, velocity);
+    visc_options->type = RHEA_VISCOSITY_LINEAR;
+    rhea_viscosity_compute (
+        /* out: */ visc_lin, NULL, NULL,
+        /* in:  */ temperature, NULL /* w/o weakzone */, NULL /* velocity */,
+        visc_options);
+    visc_options->type = visc_type;
+    ymir_vec_multiply_in (visc_lin, scal_vec);
     break;
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
+    ymir_vec_set_value (scal_vec, NAN);
     RHEA_ABORT_NOT_REACHED (); //TODO implement this; need a shift apply fnc.
     break;
   default: /* unknown viscosity model */
     RHEA_ABORT_NOT_REACHED ();
   }
-
-  /* multiply-in the strain rate dependent scaling */
-  ymir_dvec_set_function (strt_scal, rhea_viscosity_param_derivative_log_fn,
+  ymir_dvec_set_function (scal_vec, rhea_viscosity_param_derivative_log_fn,
                           NULL);
-  ymir_vec_multiply_in (strt_scal, derivative);
-  rhea_strainrate_2inv_destroy (strt_scal);
+  rhea_viscosity_destroy (visc_lin);
+
+  /* multiply-in the spatially variing scaling */
+  ymir_vec_multiply_in (scal_vec, derivative);
+  rhea_strainrate_2inv_destroy (scal_vec);
 
   /* multiply by constant scaling */
-  scal = SC_MAX (0.0, stress_exp_deriv) / (-stress_exp*stress_exp);
-  ymir_vec_scale (scal, derivative);
+  scal_val = SC_MAX (0.0, stress_exp_deriv) / (-stress_exp*stress_exp);
+  ymir_vec_scale (scal_val, derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
@@ -645,7 +662,8 @@ rhea_viscosity_param_derivative (
   case RHEA_VISCOSITY_PARAM_DERIVATIVE_STRESS_EXPONENT:
     if (rhea_viscosity_has_strain_rate_weakening (visc_options)) {
       rhea_viscosity_param_derivative_stress_exp (
-          derivative, viscosity, marker, weakzone, velocity, visc_options);
+          derivative, viscosity, marker, temperature, weakzone, velocity,
+          visc_options);
     }
     break;
 
