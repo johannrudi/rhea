@@ -254,7 +254,8 @@ static int
 rhea_vtk_write_secondary (const char *filepath,
                           ymir_vec_t *viscosity,
                           ymir_vec_t *marker,
-                          ymir_vec_t *velocity)
+                          ymir_vec_t *velocity,
+                          const double strainrate_dim_1_s)
 {
   const int           in_marker = (marker != NULL);
   const int           in_vel = (velocity != NULL);
@@ -273,6 +274,9 @@ rhea_vtk_write_secondary (const char *filepath,
   if (in_vel) {
     strainrate_sqrt_2inv = rhea_strainrate_2inv_new (ymir_mesh);
     rhea_strainrate_compute_sqrt_of_2inv (strainrate_sqrt_2inv, velocity);
+    if (isfinite (strainrate_dim_1_s) && 0.0 < strainrate_dim_1_s) {
+      ymir_vec_scale (strainrate_dim_1_s, strainrate_sqrt_2inv);
+    }
   }
 
   /* write vtk file */
@@ -308,7 +312,8 @@ rhea_vtk_write_solution (const char *filepath,
                          ymir_vec_t *velocity,
                          ymir_vec_t *pressure,
                          ymir_vec_t *viscosity,
-                         ymir_vec_t *marker)
+                         ymir_vec_t *marker,
+                         const double strainrate_dim_1_s)
 {
   char                path[BUFSIZ];
   int                 success = 0;
@@ -319,7 +324,8 @@ rhea_vtk_write_solution (const char *filepath,
   success += rhea_vtk_write_primary (path, velocity, pressure);
 
   snprintf (path, BUFSIZ, "%s_secondary", filepath);
-  success += rhea_vtk_write_secondary (path, viscosity, marker, velocity);
+  success += rhea_vtk_write_secondary (path, viscosity, marker, velocity,
+                                       strainrate_dim_1_s);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 
@@ -443,7 +449,8 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
                                     ymir_vec_t *velocity_adj,
                                     ymir_vec_t *pressure_adj,
                                     ymir_vec_t *viscosity,
-                                    ymir_vec_t *marker)
+                                    ymir_vec_t *marker,
+                                    const double strainrate_dim_1_s)
 {
   ymir_mesh_t        *ymir_mesh;
   char                path[BUFSIZ];
@@ -462,7 +469,7 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
   /* write forward state */
   snprintf (path, BUFSIZ, "%s_fwd", filepath);
   success = rhea_vtk_write_solution (path, velocity_fwd, pressure_fwd,
-                                     viscosity, marker);
+                                     viscosity, marker, strainrate_dim_1_s);
 
   /* write adjoint state */
   if (NULL != velocity_adj && NULL != pressure_adj) {

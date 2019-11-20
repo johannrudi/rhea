@@ -5,6 +5,7 @@
 #include <rhea_newton.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
+#include <rhea_strainrate.h>
 #include <rhea_stokes_problem_amr.h>
 #include <rhea_io_std.h>
 #include <rhea_vtk.h>
@@ -2270,6 +2271,7 @@ rhea_inversion_write_vis (const char *vtk_path_vol,
   ymir_vec_t         *vel_fwd_vol, *press_fwd_vol;
   ymir_vec_t         *vel_adj_vol, *press_adj_vol;
   ymir_vec_t         *viscosity, *marker;
+  double              strainrate_dim_1_s;
   char                path[BUFSIZ];
 
   /* check input */
@@ -2352,6 +2354,9 @@ rhea_inversion_write_vis (const char *vtk_path_vol,
   rhea_pressure_convert_to_dimensional_Pa (
       press_adj_vol, domain_options, temp_options, visc_options);
   rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
+  strainrate_dim_1_s =
+    rhea_strainrate_get_dim_1_s (domain_options, temp_options) /
+    rhea_velocity_get_dim_mm_yr (domain_options, temp_options);
 
   /* write VTK of volume fields */
   if (vtk_path_vol != NULL) {
@@ -2359,7 +2364,7 @@ rhea_inversion_write_vis (const char *vtk_path_vol,
               RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
     rhea_vtk_write_inversion_iteration (
         path, vel_fwd_vol, press_fwd_vol, vel_adj_vol, press_adj_vol,
-        viscosity, marker);
+        viscosity, marker, strainrate_dim_1_s);
   }
 
   /* destroy */

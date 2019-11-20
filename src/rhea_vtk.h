@@ -22,7 +22,8 @@ int                 rhea_vtk_write_solution (const char *filepath,
                                              ymir_vec_t *velocity,
                                              ymir_vec_t *pressure,
                                              ymir_vec_t *viscosity,
-                                             ymir_vec_t *marker);
+                                             ymir_vec_t *marker,
+                                             const double strainrate_dim_1_s);
 
 int                 rhea_vtk_write_solution_surf (const char *filepath,
                                                   ymir_vec_t *velocity_surf,
@@ -44,13 +45,14 @@ int                 rhea_vtk_write_nonlinear_stokes_iteration_surf (
                                                   ymir_vec_t *viscosity_surf);
 
 int                 rhea_vtk_write_inversion_iteration (
-                                                  const char *filepath,
-                                                  ymir_vec_t *velocity_fwd,
-                                                  ymir_vec_t *pressure_fwd,
-                                                  ymir_vec_t *velocity_adj,
-                                                  ymir_vec_t *pressure_adj,
-                                                  ymir_vec_t *viscosity,
-                                                  ymir_vec_t *marker);
+                                          const char *filepath,
+                                          ymir_vec_t *velocity_fwd,
+                                          ymir_vec_t *pressure_fwd,
+                                          ymir_vec_t *velocity_adj,
+                                          ymir_vec_t *pressure_adj,
+                                          ymir_vec_t *viscosity,
+                                          ymir_vec_t *marker,
+                                          const double strainrate_dim_1_s);
 
 int                 rhea_vtk_write_inversion_iteration_surf (
                                           const char *filepath,

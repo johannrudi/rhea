@@ -5,6 +5,7 @@
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
+#include <rhea_strainrate.h>
 #include <rhea_stress.h>
 #include <rhea_vtk.h>
 #include <ymir_interp_vec.h>
@@ -141,6 +142,7 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   ymir_vec_t         *velocity, *pressure, *viscosity, *marker;
   ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf,
                      *marker_surf;
+  double              strainrate_dim_1_s;
 
   /* exit if nothing to do */
   if (vtk_write_solution_path == NULL) {
@@ -197,10 +199,13 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
                                          temp_options, visc_options);
   rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
   rhea_viscosity_convert_to_dimensional_Pas (viscosity_surf, visc_options);
+  strainrate_dim_1_s =
+    rhea_strainrate_get_dim_1_s (domain_options, temp_options) /
+    rhea_velocity_get_dim_mm_yr (domain_options, temp_options);
 
   /* write vtk */
   rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
-                           viscosity, marker);
+                           viscosity, marker, NAN /*TODO*/);
   rhea_vtk_write_solution_surf (vtk_write_solution_path, velocity_surf,
                                 stress_norm_surf, viscosity_surf, marker_surf);
 
