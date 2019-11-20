@@ -6,6 +6,18 @@
 #include <ymir_mass_vec.h>
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+double
+rhea_strainrate_get_dim_1_s (rhea_domain_options_t *domain_options,
+                             rhea_temperature_options_t *temp_options)
+{
+  return temp_options->thermal_diffusivity_m2_s /
+         (domain_options->radius_max_m * domain_options->radius_max_m);
+}
+
+/******************************************************************************
  * Strain Rate Vector
  *****************************************************************************/
 
@@ -21,21 +33,13 @@ rhea_strainrate_destroy (ymir_vec_t *strainrate)
   ymir_vec_destroy (strainrate);
 }
 
-static double
-rhea_strainrate_get_dim_scal (rhea_domain_options_t *domain_options,
-                              rhea_temperature_options_t *temp_options)
-{
-  return temp_options->thermal_diffusivity_m2_s /
-         (domain_options->radius_max_m * domain_options->radius_max_m);
-}
-
 void
 rhea_strainrate_convert_to_dimensional_1_s (
                                     ymir_vec_t * strainrate,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options)
 {
-  ymir_vec_scale (rhea_strainrate_get_dim_scal (domain_options, temp_options),
+  ymir_vec_scale (rhea_strainrate_get_dim_1_s (domain_options, temp_options),
                   strainrate);
 }
 
@@ -197,8 +201,8 @@ rhea_strainrate_stats_get_global (double *min_1_s, double *max_1_s,
                                   rhea_domain_options_t *domain_options,
                                   rhea_temperature_options_t *temp_options)
 {
-  const double        dim_scal = rhea_strainrate_get_dim_scal (domain_options,
-                                                               temp_options);
+  const double        dim_scal = rhea_strainrate_get_dim_1_s (domain_options,
+                                                              temp_options);
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
   ymir_vec_t         *sr_sqrt_2inv = rhea_strainrate_2inv_new (ymir_mesh);
 

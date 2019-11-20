@@ -11,6 +11,19 @@
 #define RHEA_STRAINRATE_2INV_NEUTRAL_VALUE (1.0)
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/**
+ * Gets the scaling factor to convert nondimensional values to corresponding
+ * dimensional quantities.
+ *   Unit: [1/s]
+ */
+double              rhea_strainrate_get_dim_1_s (
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
+
+/******************************************************************************
  * Strain Rate Vector
  *****************************************************************************/
 
@@ -31,8 +44,7 @@ void                rhea_strainrate_2inv_destroy (ymir_vec_t *strainrate_2inv);
 /**
  * Converts entries of a nondimensional strain rate vector into dimensional
  * values:
- *
- *   [1/s]
+ *   Unit: [1/s]
  */
 void                rhea_strainrate_convert_to_dimensional_1_s (
                                     ymir_vec_t * strainrate,
