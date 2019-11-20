@@ -8,6 +8,29 @@
 #include <rhea_temperature.h>
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+/**
+ * Gets the scaling factor to convert nondimensional values to corresponding
+ * dimensional quantities.
+ *   Unit: [m/s]
+ *   Unit: [cm/yr]
+ *   Unit: [mm/yr]
+ */
+double              rhea_velocity_get_dim_m_s (
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
+
+double              rhea_velocity_get_dim_cm_yr (
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
+
+double              rhea_velocity_get_dim_mm_yr (
+                                    rhea_domain_options_t *domain_options,
+                                    rhea_temperature_options_t *temp_options);
+
+/******************************************************************************
  * Velocity Vector
  *****************************************************************************/
 
@@ -24,10 +47,9 @@ void                rhea_velocity_destroy (ymir_vec_t *velocity);
 /**
  * Converts entries of a nondimensional velocity vector into dimensional
  * values:
- *
- *   [m/s]
- *   [cm/yr]
- *   [mm/yr]
+ *   Unit: [m/s]
+ *   Unit: [cm/yr]
+ *   Unit: [mm/yr]
  */
 void                rhea_velocity_convert_to_dimensional_m_s (
                                     ymir_vec_t * velocity,

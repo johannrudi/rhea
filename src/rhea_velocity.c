@@ -10,6 +10,34 @@
 #include <ymir_mass_vec.h>
 
 /******************************************************************************
+ * Options
+ *****************************************************************************/
+
+double
+rhea_velocity_get_dim_m_s (rhea_domain_options_t *domain_options,
+                           rhea_temperature_options_t *temp_options)
+{
+  return temp_options->thermal_diffusivity_m2_s /
+         domain_options->radius_max_m;
+}
+
+double
+rhea_velocity_get_dim_cm_yr (rhea_domain_options_t *domain_options,
+                             rhea_temperature_options_t *temp_options)
+{
+  return rhea_velocity_get_dim_m_s (domain_options, temp_options) *
+         100.0 * RHEA_TEMPERATURE_SECONDS_PER_YEAR;
+}
+
+double
+rhea_velocity_get_dim_mm_yr (rhea_domain_options_t *domain_options,
+                             rhea_temperature_options_t *temp_options)
+{
+  return rhea_velocity_get_dim_m_s (domain_options, temp_options) *
+         1000.0 * RHEA_TEMPERATURE_SECONDS_PER_YEAR;
+}
+
+/******************************************************************************
  * Velocity Vector
  *****************************************************************************/
 
@@ -25,21 +53,13 @@ rhea_velocity_destroy (ymir_vec_t *velocity)
   ymir_vec_destroy (velocity);
 }
 
-static double
-rhea_velocity_get_dim_scal (rhea_domain_options_t *domain_options,
-                            rhea_temperature_options_t *temp_options)
-{
-  return temp_options->thermal_diffusivity_m2_s /
-         domain_options->radius_max_m;
-}
-
 void
 rhea_velocity_convert_to_dimensional_m_s (
                                       ymir_vec_t * velocity,
                                       rhea_domain_options_t *domain_options,
                                       rhea_temperature_options_t *temp_options)
 {
-  ymir_vec_scale (rhea_velocity_get_dim_scal (domain_options, temp_options),
+  ymir_vec_scale (rhea_velocity_get_dim_m_s (domain_options, temp_options),
                   velocity);
 }
 
@@ -49,8 +69,8 @@ rhea_velocity_convert_to_dimensional_cm_yr (
                                       rhea_domain_options_t *domain_options,
                                       rhea_temperature_options_t *temp_options)
 {
-  ymir_vec_scale (rhea_velocity_get_dim_scal (domain_options, temp_options) *
-                  100.0 * RHEA_TEMPERATURE_SECONDS_PER_YEAR, velocity);
+  ymir_vec_scale (rhea_velocity_get_dim_cm_yr (domain_options, temp_options),
+                  velocity);
 }
 
 void
@@ -59,8 +79,8 @@ rhea_velocity_convert_to_dimensional_mm_yr (
                                       rhea_domain_options_t *domain_options,
                                       rhea_temperature_options_t *temp_options)
 {
-  ymir_vec_scale (rhea_velocity_get_dim_scal (domain_options, temp_options) *
-                  1000.0 * RHEA_TEMPERATURE_SECONDS_PER_YEAR, velocity);
+  ymir_vec_scale (rhea_velocity_get_dim_mm_yr (domain_options, temp_options),
+                  velocity);
 }
 
 int
