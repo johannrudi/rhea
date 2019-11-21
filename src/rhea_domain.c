@@ -1307,13 +1307,13 @@ rhea_domain_vel_dir_shell_restrict_dof (ymir_vel_dir_t * vel_dir)
 {
   ymir_mesh_t        *ymir_mesh = vel_dir->mesh;
   const ymir_topidx_t n_faces = ymir_mesh->num_face_meshes;
-  ymir_topidx_t       faceid;
+  ymir_topidx_t       face;
 
-  for (faceid = 0; faceid < n_faces; faceid++) {
+  for (face = 0; face < n_faces; face++) {
     ymir_vec_t         *dummy_face_cvec;
 
     /* create dummy vector for current face */
-    dummy_face_cvec = ymir_face_cvec_new (ymir_mesh, faceid, 1);
+    dummy_face_cvec = ymir_face_cvec_new (ymir_mesh, face, 1);
 
     /* set additional Dirichlet boundary conditions for current face */
     ymir_face_cvec_set_function (
