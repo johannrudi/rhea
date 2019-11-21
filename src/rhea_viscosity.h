@@ -340,6 +340,13 @@ int                 rhea_viscosity_has_arrhenius (
                                                 rhea_viscosity_options_t *opt);
 
 /**
+ * Gets the activation energy for the Arrhenius relationship.
+ */
+double              rhea_viscosity_get_arrhenius_activation_energy (
+                                                rhea_viscosity_options_t *opt,
+                                                const int is_in_upper_mantle);
+
+/**
  * Returns whether strain rate weakening physics are enabled.
  */
 int                 rhea_viscosity_has_strain_rate_weakening (
@@ -347,10 +354,17 @@ int                 rhea_viscosity_has_strain_rate_weakening (
 
 /**
  * Gets the exponent for the sqrt of the 2nd invariant of the strain rate
- * tensor: `1/n`, where `n` is the stress exponent.
+ * tensor:
+ *   `n` is the stress exponent,
+ *   `1/n` is the strain rate weakening exponent.
  */
+double              rhea_viscosity_get_stress_exp (
+                                                rhea_viscosity_options_t *opt,
+                                                const int is_in_upper_mantle);
+
 double              rhea_viscosity_get_strain_rate_weakening_exp (
-                                                rhea_viscosity_options_t *opt);
+                                                rhea_viscosity_options_t *opt,
+                                                const int is_in_upper_mantle);
 
 /**
  * Returns whether yielding physics are enabled.

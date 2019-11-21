@@ -718,10 +718,10 @@ rhea_viscosity_linear_arrhenius (const double temp,
 {
   double              result;
 
-  RHEA_ASSERT (isfinite (activation_energy));
   RHEA_ASSERT (isfinite (temp));
-  RHEA_ASSERT (0.0 <= activation_energy);
+  RHEA_ASSERT (isfinite (activation_energy));
   RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
+  RHEA_ASSERT (0.0 <= activation_energy);
 
   feclearexcept (FE_ALL_EXCEPT);
   result = exp (activation_energy * (temp_neutral - temp));
@@ -746,18 +746,10 @@ rhea_viscosity_linear_comp (const double temp,
   case RHEA_VISCOSITY_LINEAR_TEMPREVERSE:
     return rhea_viscosity_linear_tempreverse (temp);
   case RHEA_VISCOSITY_LINEAR_ARRHENIUS:
-    {
-      double              activation_energy;
-
-      if (is_in_upper_mantle) {
-        activation_energy = opt->upper_mantle_arrhenius_activation_energy;
-      }
-      else {
-        activation_energy = opt->lower_mantle_arrhenius_activation_energy;
-      }
-      return rhea_viscosity_linear_arrhenius (temp, opt->temp_options->neutral,
-                                              activation_energy);
-    }
+    return rhea_viscosity_linear_arrhenius (
+        temp, opt->temp_options->neutral,
+        rhea_viscosity_get_arrhenius_activation_energy (
+            opt, is_in_upper_mantle) );
   default: /* unknown linear viscosity type */
     RHEA_ABORT_NOT_REACHED ();
   }
@@ -1152,11 +1144,11 @@ rhea_viscosity_nonlinear_strain_rate_weakening (
 
   /* compute viscosity
    *
-   *   visc = visc_in^(1/n) * sqrt(strainrate_2inv)^(1/n - 1)
-   *        = (visc_in * sqrt(strainrate_2inv))^(1/n) / sqrt(strainrate_2inv)
+   *   visc = visc_in * sqrt(strainrate_2inv)^(1/n - 1)
+   *        = visc_in * sqrt(strainrate_2inv)^(1/n) / sqrt(strainrate_2inv)
    */
   if (0.0 < strainrate_sqrt_2inv) { /* if division is well-defined */
-    *viscosity = pow (visc_in*strainrate_sqrt_2inv, *srw_exp) /
+    *viscosity = visc_in * pow (strainrate_sqrt_2inv, *srw_exp) /
                  strainrate_sqrt_2inv;
   }
   else { /* otherwise avoid division by zero */
@@ -1212,11 +1204,11 @@ rhea_viscosity_nonlinear_strain_rate_weakening_shift (
 
   /* compute viscosity
    *
-   *   visc = (visc_in * (sqrt(strainrate_2inv) - shift))^(1/n)
+   *   visc = visc_in * (sqrt(strainrate_2inv) - shift)^(1/n)
    *          / sqrt(strainrate_2inv)
    */
   if (0.0 < strainrate_sqrt_2inv) { /* if division is well-defined */
-    *viscosity = pow (visc_in*sr_diff, *srw_exp) / strainrate_sqrt_2inv;
+    *viscosity = visc_in * pow (sr_diff, *srw_exp) / strainrate_sqrt_2inv;
   }
   else { /* otherwise avoid division by zero */
     *viscosity = DBL_MAX;
@@ -2157,9 +2149,6 @@ rhea_viscosity_restrict_max (rhea_viscosity_options_t *opt)
   return (isfinite (opt->max) && 0.0 < opt->max);
 }
 
-/**
- * Generates scaling factor.
- */
 double
 rhea_viscosity_get_scaling (rhea_viscosity_options_t *opt,
                             const int is_in_upper_mantle,
@@ -2174,6 +2163,11 @@ rhea_viscosity_get_scaling (rhea_viscosity_options_t *opt,
   else {
     scaling = opt->lower_mantle_scaling;
   }
+
+  /* take to the power of the the strain rate weakening exponent */
+  scaling = pow (
+      scaling,
+      rhea_viscosity_get_strain_rate_weakening_exp (opt, is_in_upper_mantle));
 
   /* return scaling factor */
   switch (opt->model) {
@@ -2201,6 +2195,32 @@ rhea_viscosity_has_arrhenius (rhea_viscosity_options_t *opt)
   return (opt->type_linear == RHEA_VISCOSITY_LINEAR_ARRHENIUS);
 }
 
+double
+rhea_viscosity_get_arrhenius_activation_energy (rhea_viscosity_options_t *opt,
+                                                const int is_in_upper_mantle)
+{
+  double              activation_energy;
+
+  /* get location dependent value */
+  if (rhea_viscosity_has_arrhenius (opt)) {
+    if (is_in_upper_mantle) {
+      activation_energy = opt->upper_mantle_arrhenius_activation_energy;
+    }
+    else {
+      activation_energy = opt->lower_mantle_arrhenius_activation_energy;
+    }
+  }
+  else {
+    activation_energy = 0.0;
+  }
+
+  /* multiply by strain rate weakening exponent */
+  activation_energy *= rhea_viscosity_get_strain_rate_weakening_exp (
+      opt, is_in_upper_mantle);
+
+  return activation_energy;
+}
+
 int
 rhea_viscosity_has_strain_rate_weakening (rhea_viscosity_options_t *opt)
 {
@@ -2224,14 +2244,22 @@ rhea_viscosity_has_strain_rate_weakening (rhea_viscosity_options_t *opt)
 }
 
 double
-rhea_viscosity_get_strain_rate_weakening_exp (rhea_viscosity_options_t *opt)
+rhea_viscosity_get_stress_exp (rhea_viscosity_options_t *opt,
+                               const int is_in_upper_mantle)
 {
-  if (rhea_viscosity_has_strain_rate_weakening (opt)) {
-    return 1.0 / opt->stress_exponent;
+  if (rhea_viscosity_has_strain_rate_weakening (opt) && is_in_upper_mantle) {
+    return opt->stress_exponent;
   }
   else {
     return 1.0;
   }
+}
+
+double
+rhea_viscosity_get_strain_rate_weakening_exp (rhea_viscosity_options_t *opt,
+                                              const int is_in_upper_mantle)
+{
+  return 1.0 / rhea_viscosity_get_stress_exp (opt, is_in_upper_mantle);
 }
 
 int

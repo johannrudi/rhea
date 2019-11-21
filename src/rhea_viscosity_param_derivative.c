@@ -302,7 +302,7 @@ rhea_viscosity_param_derivative_upper_mantle_scaling (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              srw_exp, scaling_curr, scaling_deriv;
+  double              scaling_curr, scaling_deriv, srw_exp;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -313,12 +313,10 @@ rhea_viscosity_param_derivative_upper_mantle_scaling (
       viscosity, marker, weakzone, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
-  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (visc_options);
-  scaling_curr = rhea_viscosity_get_scaling (
-      visc_options, 1 /* in upper mantle */,
-      rhea_viscosity_restrict_min (visc_options));
-  scaling_deriv = rhea_inversion_param_derivative_scal (
-      visc_options->upper_mantle_scaling);
+  scaling_curr = visc_options->upper_mantle_scaling;
+  scaling_deriv = rhea_inversion_param_derivative_scal (scaling_curr);
+  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (
+      visc_options, 1 /* in upper mantle */);
   ymir_vec_scale (scaling_deriv/scaling_curr*srw_exp, derivative);
 
   /* check output */
@@ -333,7 +331,7 @@ rhea_viscosity_param_derivative_lower_mantle_scaling (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              srw_exp, scaling_curr, scaling_deriv;
+  double              scaling_curr, scaling_deriv, srw_exp;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -344,12 +342,10 @@ rhea_viscosity_param_derivative_lower_mantle_scaling (
       viscosity, marker, weakzone, visc_options);
 
   /* remove previous scaling and multiply by value corresponding to deriv. */
-  srw_exp = 1.0; /* no strain rate weakening in lower mantle */
-  scaling_curr = rhea_viscosity_get_scaling (
-      visc_options, 0 /* in lower mantle */,
-      rhea_viscosity_restrict_min (visc_options));
-  scaling_deriv = rhea_inversion_param_derivative_scal (
-      visc_options->lower_mantle_scaling);
+  scaling_curr = visc_options->lower_mantle_scaling;
+  scaling_deriv = rhea_inversion_param_derivative_scal (scaling_curr);
+  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (
+      visc_options, 0 /* in lower mantle */);
   ymir_vec_scale (scaling_deriv/scaling_curr*srw_exp, derivative);
 
   /* check output */
@@ -387,7 +383,7 @@ rhea_viscosity_param_derivative_upper_mantle_activation_energy (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              srw_exp, scaling_curr, scaling_deriv;
+  double              scaling_curr, scaling_deriv, srw_exp;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -402,9 +398,10 @@ rhea_viscosity_param_derivative_upper_mantle_activation_energy (
                                                       visc_options);
 
   /* multiply by the derivative of the activation energy */
-  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (visc_options);
   scaling_curr = visc_options->upper_mantle_arrhenius_activation_energy;
   scaling_deriv = rhea_inversion_param_derivative_poslin (scaling_curr);
+  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (
+      visc_options, 1 /* in upper mantle */);
   ymir_vec_scale (scaling_deriv*srw_exp, derivative);
 
   /* check output */
@@ -420,7 +417,7 @@ rhea_viscosity_param_derivative_lower_mantle_activation_energy (
                                         ymir_vec_t *weakzone,
                                         rhea_viscosity_options_t *visc_options)
 {
-  double              srw_exp, scaling_curr, scaling_deriv;
+  double              scaling_curr, scaling_deriv, srw_exp;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -435,9 +432,10 @@ rhea_viscosity_param_derivative_lower_mantle_activation_energy (
                                                       visc_options);
 
   /* multiply by the derivative of the activation energy */
-  srw_exp = 1.0; /* no strain rate weakening in lower mantle */
   scaling_curr = visc_options->lower_mantle_arrhenius_activation_energy;
   scaling_deriv = rhea_inversion_param_derivative_poslin (scaling_curr);
+  srw_exp = rhea_viscosity_get_strain_rate_weakening_exp (
+      visc_options, 0 /* in lower mantle */);
   ymir_vec_scale (scaling_deriv*srw_exp, derivative);
 
   /* check output */
