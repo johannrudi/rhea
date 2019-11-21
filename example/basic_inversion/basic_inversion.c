@@ -65,7 +65,7 @@ basic_inversion_solve_with_vel_obs (rhea_inversion_problem_t *inv_problem,
   rhea_velocity_pressure_copy_components (vel_sol, NULL, sol_vel_press,
                                           press_elem);
   ymir_vec_share_owned (vel_sol);
-  rhea_stokes_problem_velocity_boundary_set_zero (vel_sol, stokes_problem);
+  rhea_stokes_problem_velocity_set_boundary_zero (vel_sol, stokes_problem);
   RHEA_ASSERT (rhea_velocity_is_valid (vel_sol));
 
   /* project velocity from volume to surface */
