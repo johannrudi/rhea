@@ -268,6 +268,90 @@ rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
 }
 
 /******************************************************************************
+ * Boundary Conditions
+ *****************************************************************************/
+
+/* data for setting nonzero boundary conditions */
+typedef struct rhea_velocity_nonzero_boundary_data_t
+{
+  ymir_topidx_t       face;
+  double              normal_flow_vel;
+}
+rhea_velocity_nonzero_boundary_data_t;
+
+static void
+rhea_velocity_nonzero_boundary_set_face_normal_fn (
+                                              double *vel,
+                                              double x, double y, double z,
+                                              double nx, double ny, double nz,
+                                              ymir_topidx_t face,
+                                              ymir_locidx_t node_id,
+                                              void *data)
+{
+  rhea_velocity_nonzero_boundary_data_t  *d = data;
+
+  if (face == d->face) {
+    vel[0] = d->normal_flow_vel * nx;
+    vel[1] = d->normal_flow_vel * ny;
+    vel[2] = d->normal_flow_vel * nz;
+  }
+  else {
+    vel[0] = 0.0;
+    vel[1] = 0.0;
+    vel[2] = 0.0;
+  }
+}
+
+void
+rhea_velocity_nonzero_boundary_set_face_normals (
+                          ymir_vec_t *vel_nonzero_boundary,
+                          double normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_N])
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_nonzero_boundary);
+  ymir_vec_t         *vel_vol = rhea_velocity_new (ymir_mesh);
+  ymir_topidx_t       face;
+  rhea_velocity_nonzero_boundary_data_t data;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel_nonzero_boundary));
+  RHEA_ASSERT (RHEA_DOMAIN_BOUNDARY_FACE_N == ymir_mesh->num_face_meshes);
+
+  /* initialize */
+  ymir_vec_set_zero (vel_nonzero_boundary);
+
+  /* set boundary values on each face */
+  for (face = 0; face < RHEA_DOMAIN_BOUNDARY_FACE_N; face++) {
+    if (isfinite (normal_flow_vel[face])) {
+      ymir_vec_t         *vel_face = ymir_face_cvec_new (ymir_mesh, face, 3);
+
+      /* set values of face vector */
+      data.face = face;
+      data.normal_flow_vel = normal_flow_vel[face];
+      ymir_face_cvec_set_function (
+          vel_face, rhea_velocity_nonzero_boundary_set_face_normal_fn, &data);
+
+      /* interpolate face vector to volume vector */
+      ymir_interp_vec (vel_face, vel_vol);
+      ymir_vec_add (1.0, vel_vol, vel_nonzero_boundary);
+
+      /* destroy */
+      ymir_vec_destroy (vel_face);
+    }
+  }
+
+  /* destroy */
+  rhea_velocity_destroy (vel_vol);
+}
+
+void
+rhea_velocity_nonzero_boundary_set_face_normals_fn (
+                          ymir_vec_t *vel_nonzero_boundary, void *data)
+{
+  rhea_velocity_nonzero_boundary_set_face_normals (
+      vel_nonzero_boundary, (double *) data);
+}
+
+/******************************************************************************
  * Right-Hand Side Computation
  *****************************************************************************/
 

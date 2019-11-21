@@ -140,6 +140,25 @@ void                rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
                                                 const ymir_locidx_t elid);
 
 /******************************************************************************
+ * Boundary Conditions
+ *****************************************************************************/
+
+/**
+ * Sets nonzero normal velocity at boundaries of a recangular domain, where a
+ * constant normal velocity is specified by an entry in the array
+ * `normal_flow_vel`.
+ *
+ * In addition, a corresponding callback function for `rhea_stokes_problem` is
+ * provided.
+ */
+void                  rhea_velocity_nonzero_boundary_set_face_normals (
+                          ymir_vec_t *vel_nonzero_boundary,
+                          double normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_N]);
+
+void                  rhea_velocity_nonzero_boundary_set_face_normals_fn (
+                          ymir_vec_t *vel_nonzero_boundary, void *data);
+
+/******************************************************************************
  * Right-Hand Side Computation
  *****************************************************************************/
 
