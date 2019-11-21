@@ -669,7 +669,7 @@ rhea_inversion_inner_solve_adjoint (rhea_inversion_problem_t *inv_problem)
 
     ymir_vec_set_random (vel);
     ymir_vec_set_zero (inv_problem->adjoint_vel_press);
-    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
     rhea_velocity_pressure_set_components (inv_problem->adjoint_vel_press, vel,
                                            NULL, press_elem);
     rhea_velocity_destroy (vel);
@@ -1489,7 +1489,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
     vel = rhea_velocity_new (ymir_mesh);
     rhea_velocity_pressure_copy_components (
         vel, NULL, inv_problem->forward_vel_press, press_elem);
-    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
   }
 
@@ -1605,7 +1605,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   /* retrieve velocity of the forward state */
   rhea_velocity_pressure_copy_components (
       vel, NULL, inv_problem->forward_vel_press, press_elem);
-  rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+  rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
   RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
   /* set the right-hand side of the momentum eq. for the adjoint problem */
@@ -1621,7 +1621,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
     rhea_stokes_problem_velocity_project_out_mean_rotation (
         rhs_vel_mass, 1 /* residual_space */, stokes_problem);
   }
-  rhea_stokes_problem_velocity_boundary_set_zero (
+  rhea_stokes_problem_velocity_set_boundary_zero (
       rhs_vel_mass, stokes_problem);
 
   /* set Stokes right-hand side for the adjoint problem */
@@ -1828,7 +1828,7 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
       rhea_stokes_problem_velocity_project_out_mean_rotation (
           rhs_vel_mass, 1 /* residual_space */, stokes_problem);
     }
-    rhea_stokes_problem_velocity_boundary_set_zero (
+    rhea_stokes_problem_velocity_set_boundary_zero (
         rhs_vel_mass, stokes_problem);
 
     /* set Stokes right-hand side for the incremental forward problem */
@@ -1854,7 +1854,7 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
     /* retrieve velocity of the incremental forward state */
     rhea_velocity_pressure_copy_components (
         vel, NULL, inv_problem->incremental_forward_vel_press, press_elem);
-    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
     /* set right-hand side of the momentum eq. for the incr. adjoint problem */
@@ -1872,7 +1872,7 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
       RHEA_ASSERT (!inv_problem->adjoint_is_outdated);
       rhea_velocity_pressure_copy_components (
           vel, NULL, inv_problem->adjoint_vel_press, press_elem);
-      rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+      rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
       RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
       RHEA_ABORT_NOT_REACHED (); //TODO
@@ -1887,7 +1887,7 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
       rhea_stokes_problem_velocity_project_out_mean_rotation (
           rhs_vel_mass, 1 /* residual_space */, stokes_problem);
     }
-    rhea_stokes_problem_velocity_boundary_set_zero (
+    rhea_stokes_problem_velocity_set_boundary_zero (
         rhs_vel_mass, stokes_problem);
 
     /* set Stokes right-hand side for incremental adjoint problem */
