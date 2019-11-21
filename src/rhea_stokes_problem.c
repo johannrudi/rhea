@@ -3348,6 +3348,7 @@ rhea_stokes_problem_solve_ext (ymir_vec_t **sol_vel_press,
 {
   int                 stop_reason;
 
+  /* run solver */
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
     stop_reason = rhea_stokes_problem_linear_solve (
@@ -3417,11 +3418,33 @@ rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
                            const double rtol,
                            rhea_stokes_problem_t *stokes_problem)
 {
-  return rhea_stokes_problem_solve_ext (
+  int                 stop_reason;
+
+  /* run solver (solution has zero Dirichlet BC) */
+  stop_reason = rhea_stokes_problem_solve_ext (
       sol_vel_press, nonzero_initial_guess, iter_max, rtol, stokes_problem,
       0 /* !resume */, 0 /* !force_linear_solve */, 0 /* krylov_solver_idx */,
       NULL /* num_iter */, NULL /* res_reduc */,
       NULL /* mesh_modified_by_solver */);
+
+  /* enforce nonzero Dirichlet BC */
+  if (NULL != stokes_problem->vel_nonzero_dirichlet) {
+    ymir_vec_t         *vel;
+    int                 is_view;
+
+    is_view = rhea_velocity_pressure_create_components (
+        &vel, NULL, *sol_vel_press, stokes_problem->press_elem);
+    rhea_stokes_problem_velocity_set_boundary (
+        vel, stokes_problem->vel_nonzero_dirichlet, stokes_problem);
+    if (!is_view) {
+      rhea_velocity_pressure_set_components (
+          *sol_vel_press, vel, NULL, stokes_problem->press_elem);
+    }
+    ymir_vec_destroy (vel);
+  }
+
+  /* return stopping reason */
+  return stop_reason;
 }
 
 int
