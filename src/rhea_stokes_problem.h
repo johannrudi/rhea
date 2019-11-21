@@ -137,7 +137,7 @@ void                rhea_stokes_problem_update_solver (
                                     const int override_rhs,
                                     ymir_vec_t *rhs_vel_press,
                                     ymir_vec_t *rhs_vel,
-                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                                    ymir_vec_t *vel_nonzero_dirichlet,
                                     ymir_vec_t **rhs_vel_face_nonzero_neumann);
 
 /**
@@ -319,9 +319,14 @@ int                 rhea_stokes_problem_write (
 
 /**
  * Sets velocity components on the boundary, which are constrained by Dirichlet
- * boundary conditions, to zero.
+ * boundary conditions.
  */
-int                 rhea_stokes_problem_velocity_boundary_set_zero (
+int                 rhea_stokes_problem_velocity_set_boundary (
+                                        ymir_vec_t *velocity,
+                                        ymir_vec_t *velocity_on_boundary,
+                                        rhea_stokes_problem_t *stokes_problem);
+
+int                 rhea_stokes_problem_velocity_set_boundary_zero (
                                     ymir_vec_t *velocity,
                                     rhea_stokes_problem_t *stokes_problem);
 

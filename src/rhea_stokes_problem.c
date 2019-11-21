@@ -33,7 +33,7 @@
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LINEARIZATION_TYPE \
   (RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_REGULAR)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_NORM_TYPE \
-  (RHEA_STOKES_NORM_HMINUS1_L2)
+  (RHEA_STOKES_NORM_L2_PRIMAL)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_MASS_SCALING (0.0)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN (0)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LIN_ANISO_CHECK (0)
@@ -156,6 +156,7 @@ struct rhea_stokes_problem
 
   /* boundary conditions (mesh data) */
   ymir_vel_dir_t     *vel_dir;
+  ymir_vec_t         *vel_nonzero_dirichlet;
 
   /* coefficient (mesh data) */
   ymir_vec_t         *coeff;            /* out: linear & nonlinear Stokes */
@@ -167,7 +168,6 @@ struct rhea_stokes_problem
 
   /* right-hand side (mesh data) */
   ymir_vec_t         *rhs_vel;
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
   ymir_vec_t        **rhs_vel_face_nonzero_neumann;
   ymir_vec_t         *rhs_vel_press;
 
@@ -228,6 +228,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->visc_options = visc_options;
 
   stokes_problem->vel_dir = NULL;
+  stokes_problem->vel_nonzero_dirichlet = NULL;
 
   stokes_problem->coeff = NULL;
   stokes_problem->proj_scal = NULL;
@@ -237,7 +238,6 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->proj_tens = NULL;
 
   stokes_problem->rhs_vel = NULL;
-  stokes_problem->rhs_vel_nonzero_dirichlet = NULL;
   stokes_problem->rhs_vel_face_nonzero_neumann = NULL;
   stokes_problem->rhs_vel_press = NULL;
 
@@ -342,6 +342,8 @@ rhea_stokes_problem_retrieve_velocity (ymir_vec_t *velocity_pressure,
                                        rhea_stokes_problem_t *stokes_problem)
 {
   ymir_pressure_elem_t *press_elem = stokes_problem->press_elem;
+  ymir_vec_t         *vel_nonzero_dirichlet =
+                        stokes_problem->vel_nonzero_dirichlet;
   ymir_vec_t         *vel = stokes_problem->sol_vel;
 
   /* check input */
@@ -356,7 +358,8 @@ rhea_stokes_problem_retrieve_velocity (ymir_vec_t *velocity_pressure,
     rhea_velocity_pressure_copy_components (vel, NULL, velocity_pressure,
                                             press_elem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
-    rhea_stokes_problem_velocity_boundary_set_zero (vel, stokes_problem);
+    rhea_stokes_problem_velocity_set_boundary (vel, vel_nonzero_dirichlet,
+                                               stokes_problem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
   }
   else { /* otherwise assume zero velocity */
@@ -613,7 +616,7 @@ rhea_stokes_problem_linear_mesh_data_exists (
 {
   int                 mesh_exists, vectors_exist;
   int                 weak_exists;
-  int                 rhs_nonzero_dir_exists, rhs_nonzero_neu_exists;
+  int                 nonzero_dir_exists, nonzero_neu_exists;
 
   /* check input */
   RHEA_ASSERT (stokes_problem_lin->type == RHEA_STOKES_PROBLEM_LINEAR);
@@ -632,15 +635,15 @@ rhea_stokes_problem_linear_mesh_data_exists (
   weak_exists = (
       stokes_problem_lin->weakzone_compute_fn == NULL ||
       stokes_problem_lin->weakzone != NULL);
-  rhs_nonzero_dir_exists = (
+  nonzero_dir_exists = (
       stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn == NULL ||
-      stokes_problem_lin->rhs_vel_nonzero_dirichlet != NULL);
-  rhs_nonzero_neu_exists = (
+      stokes_problem_lin->vel_nonzero_dirichlet != NULL);
+  nonzero_neu_exists = (
       stokes_problem_lin->rhs_vel_nonzero_neu_compute_fn == NULL ||
       stokes_problem_lin->rhs_vel_face_nonzero_neumann != NULL);
 
   return (mesh_exists && vectors_exist && weak_exists &&
-          rhs_nonzero_dir_exists && rhs_nonzero_neu_exists);
+          nonzero_dir_exists && nonzero_neu_exists);
 }
 
 static void
@@ -663,6 +666,12 @@ rhea_stokes_problem_linear_create_mesh_data (
 
   /* create velocity boundary conditions */
   rhea_stokes_problem_velocity_boundary_create (stokes_problem_lin);
+  if (stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn != NULL) {
+    stokes_problem_lin->vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
+    stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn (
+        stokes_problem_lin->vel_nonzero_dirichlet,
+        stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn_data);
+  }
 
   /* create coefficient and vectors related to it */
   if (stokes_problem_lin->weakzone_compute_fn != NULL) {
@@ -677,13 +686,6 @@ rhea_stokes_problem_linear_create_mesh_data (
       stokes_problem_lin->rhs_vel,
       stokes_problem_lin->temperature,
       stokes_problem_lin->rhs_vel_compute_fn_data);
-  if (stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn != NULL) {
-    stokes_problem_lin->rhs_vel_nonzero_dirichlet = rhea_velocity_new (
-        ymir_mesh);
-    stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn (
-        stokes_problem_lin->rhs_vel_nonzero_dirichlet,
-        stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn_data);
-  }
   if (stokes_problem_lin->rhs_vel_nonzero_neu_compute_fn != NULL) {
     ymir_topidx_t       fm;
 
@@ -727,9 +729,9 @@ rhea_stokes_problem_linear_clear_mesh_data (
     rhea_weakzone_destroy (stokes_problem_lin->weakzone);
     stokes_problem_lin->weakzone = NULL;
   }
-  if (stokes_problem_lin->rhs_vel_nonzero_dirichlet != NULL) {
-    rhea_velocity_destroy (stokes_problem_lin->rhs_vel_nonzero_dirichlet);
-    stokes_problem_lin->rhs_vel_nonzero_dirichlet = NULL;
+  if (stokes_problem_lin->vel_nonzero_dirichlet != NULL) {
+    rhea_velocity_destroy (stokes_problem_lin->vel_nonzero_dirichlet);
+    stokes_problem_lin->vel_nonzero_dirichlet = NULL;
   }
   if (stokes_problem_lin->rhs_vel_face_nonzero_neumann != NULL) {
     ymir_mesh_t        *ymir_mesh = stokes_problem_lin->ymir_mesh;
@@ -915,7 +917,7 @@ rhea_stokes_problem_linear_setup_solver (
                                     rhea_stokes_problem_t *stokes_problem_lin)
 {
   ymir_vec_t         *rhs_vel;
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet;
+  ymir_vec_t         *vel_nonzero_dirichlet;
   ymir_vec_t        **rhs_vel_face_nonzero_neumann;
   ymir_vec_t         *rhs_vel_press;
   ymir_stokes_op_t   *stokes_op;
@@ -934,7 +936,7 @@ rhea_stokes_problem_linear_setup_solver (
 
   /* construct right-hand side for Stokes system */
   rhs_vel = stokes_problem_lin->rhs_vel;
-  rhs_vel_nonzero_dirichlet = stokes_problem_lin->rhs_vel_nonzero_dirichlet;
+  vel_nonzero_dirichlet = stokes_problem_lin->vel_nonzero_dirichlet;
   rhs_vel_face_nonzero_neumann =
     stokes_problem_lin->rhs_vel_face_nonzero_neumann;
   rhs_vel_press = stokes_problem_lin->rhs_vel_press;
@@ -943,7 +945,7 @@ rhea_stokes_problem_linear_setup_solver (
       rhs_vel_press,                /* output: right-hand side */
       rhs_vel,                      /* input: volume forcing */
       rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
-      rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
+      vel_nonzero_dirichlet,        /* input: nonzero Dirichlet boundary */
       stokes_problem_lin->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
@@ -961,7 +963,7 @@ rhea_stokes_problem_linear_update_solver (
                                     const int override_rhs,
                                     ymir_vec_t *rhs_vel_press,
                                     ymir_vec_t *rhs_vel,
-                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                                    ymir_vec_t *vel_nonzero_dirichlet,
                                     ymir_vec_t **rhs_vel_face_nonzero_neumann)
 {
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "update_coeff=%i, override_rhs=%i",
@@ -977,8 +979,8 @@ rhea_stokes_problem_linear_update_solver (
   RHEA_ASSERT (rhs_vel_press == NULL ||
                rhea_velocity_pressure_check_vec_type (rhs_vel_press));
   RHEA_ASSERT (rhs_vel == NULL || rhea_velocity_check_vec_type (rhs_vel));
-  RHEA_ASSERT (rhs_vel_nonzero_dirichlet == NULL ||
-               rhea_velocity_check_vec_type (rhs_vel_nonzero_dirichlet));
+  RHEA_ASSERT (vel_nonzero_dirichlet == NULL ||
+               rhea_velocity_check_vec_type (vel_nonzero_dirichlet));
 #ifdef RHEA_ENABLE_DEBUG
   if (rhs_vel_face_nonzero_neumann != NULL) {
     ymir_mesh_t        *ymir_mesh = stokes_problem_lin->ymir_mesh;
@@ -1011,9 +1013,9 @@ rhea_stokes_problem_linear_update_solver (
   if (override_rhs) {
     RHEA_GLOBAL_VERBOSEF_FN_TAG (
         __func__,
-        "rhs_vel_press=%i, rhs_vel=%i, rhs_vel_nz_dir=%i, rhs_vel_nz_neu=%i",
+        "rhs_vel_press=%i, rhs_vel=%i, vel_nz_dir=%i, rhs_vel_nz_neu=%i",
         (rhs_vel_press != NULL), (rhs_vel != NULL),
-        (rhs_vel_nonzero_dirichlet != NULL),
+        (vel_nonzero_dirichlet != NULL),
         (rhs_vel_face_nonzero_neumann != NULL));
     if (rhs_vel_press != NULL) {
       ymir_vec_copy (rhs_vel_press, stokes_problem_lin->rhs_vel_press);
@@ -1023,22 +1025,21 @@ rhea_stokes_problem_linear_update_solver (
           stokes_problem_lin->rhs_vel_press, /* output: right-hand side */
           rhs_vel,                      /* input: volume forcing */
           rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
-          rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
+          vel_nonzero_dirichlet,        /* input: nonzero Dirichlet boundary */
           stokes_problem_lin->incompressible,
           stokes_problem_lin->stokes_op, 0 /* !linearized */);
     }
   }
   else {
     rhs_vel = stokes_problem_lin->rhs_vel;
-    rhs_vel_nonzero_dirichlet =
-      stokes_problem_lin->rhs_vel_nonzero_dirichlet;
+    vel_nonzero_dirichlet = stokes_problem_lin->vel_nonzero_dirichlet;
     rhs_vel_face_nonzero_neumann =
       stokes_problem_lin->rhs_vel_face_nonzero_neumann;
     ymir_stokes_pc_construct_rhs (
         stokes_problem_lin->rhs_vel_press, /* output: right-hand side */
         rhs_vel,                      /* input: volume forcing */
         rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
-        rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
+        vel_nonzero_dirichlet,        /* input: nonzero Dirichlet boundary */
         stokes_problem_lin->incompressible,
         stokes_problem_lin->stokes_op, 0 /* !linearized */);
   }
@@ -1316,7 +1317,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
           /* retrieve velocity of step */
           rhea_velocity_pressure_copy_components (
               step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
-          rhea_stokes_problem_velocity_boundary_set_zero (
+          rhea_stokes_problem_velocity_set_boundary_zero (
               step_vel, stokes_problem_nl);
           RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
 
@@ -1479,7 +1480,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
           /* retrieve velocity of step */
           rhea_velocity_pressure_copy_components (
               step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
-          rhea_stokes_problem_velocity_boundary_set_zero (
+          rhea_stokes_problem_velocity_set_boundary_zero (
               step_vel, stokes_problem_nl);
           RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
 
@@ -1626,7 +1627,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
           /* retrieve velocity of step */
           rhea_velocity_pressure_copy_components (
               step_vel, NULL, step_vec, stokes_problem_nl->press_elem);
-          rhea_stokes_problem_velocity_boundary_set_zero (
+          rhea_stokes_problem_velocity_set_boundary_zero (
               step_vel, stokes_problem_nl);
           RHEA_ASSERT (rhea_velocity_is_valid (step_vel));
 
@@ -1736,7 +1737,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
       if (solution_exists) { /* if solution is provided */
         rhea_velocity_pressure_create_components (
             &vel_aniso, NULL, solution, stokes_problem_nl->press_elem);
-        rhea_stokes_problem_velocity_boundary_set_zero (
+        rhea_stokes_problem_velocity_set_boundary_zero (
             vel_aniso, stokes_problem_nl);
         RHEA_ASSERT (rhea_velocity_is_valid (vel_aniso));
         ymir_stress_op_nsp_lin_aniso_set_velocity (vel_aniso, stress_op);
@@ -1971,8 +1972,8 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient_fn (
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
   ymir_vec_t         *rhs_vel = stokes_problem_nl->rhs_vel;
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet =
-                        stokes_problem_nl->rhs_vel_nonzero_dirichlet;
+  ymir_vec_t         *vel_nonzero_dirichlet =
+                        stokes_problem_nl->vel_nonzero_dirichlet;
   ymir_vec_t        **rhs_vel_face_nonzero_neumann =
                         stokes_problem_nl->rhs_vel_face_nonzero_neumann;
   ymir_vec_t         *rhs_vel_press = stokes_problem_nl->rhs_vel_press;
@@ -2000,7 +2001,7 @@ rhea_stokes_problem_nonlinear_compute_negative_gradient_fn (
       rhs_vel_press,                /* output: right-hand side */
       rhs_vel,                      /* input: volume forcing */
       rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
-      rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
+      vel_nonzero_dirichlet,        /* input: nonzero Dirichlet boundary */
       stokes_problem_nl->incompressible, stokes_op, 0 /* !linearized */);
   RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
@@ -2225,7 +2226,7 @@ rhea_stokes_problem_nonlinear_modify_hessian_system_fn (
           __func__, aniso_corr);
 
       /* set new velocity of gradient */
-      rhea_stokes_problem_velocity_boundary_set_zero (
+      rhea_stokes_problem_velocity_set_boundary_zero (
           neg_grad_vel, stokes_problem_nl);
       rhea_velocity_pressure_set_components (
           neg_gradient, neg_grad_vel, NULL, press_elem);
@@ -2659,7 +2660,7 @@ rhea_stokes_problem_nonlinear_mesh_data_exists (
 {
   int                 mesh_exists, vectors_exist;
   int                 weak_exists;
-  int                 rhs_nonzero_dir_exists, rhs_nonzero_neu_exists;
+  int                 nonzero_dir_exists, nonzero_neu_exists;
   int                 nl_vec_exist;
 
   /* check input */
@@ -2679,10 +2680,10 @@ rhea_stokes_problem_nonlinear_mesh_data_exists (
   weak_exists = (
       stokes_problem_nl->weakzone_compute_fn == NULL ||
       stokes_problem_nl->weakzone != NULL);
-  rhs_nonzero_dir_exists = (
+  nonzero_dir_exists = (
       stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn == NULL ||
-      stokes_problem_nl->rhs_vel_nonzero_dirichlet != NULL);
-  rhs_nonzero_neu_exists = (
+      stokes_problem_nl->vel_nonzero_dirichlet != NULL);
+  nonzero_neu_exists = (
       stokes_problem_nl->rhs_vel_nonzero_neu_compute_fn == NULL ||
       stokes_problem_nl->rhs_vel_face_nonzero_neumann != NULL);
 
@@ -2711,7 +2712,7 @@ rhea_stokes_problem_nonlinear_mesh_data_exists (
   }
 
   return (mesh_exists && vectors_exist && weak_exists &&
-          rhs_nonzero_dir_exists && rhs_nonzero_neu_exists && nl_vec_exist);
+          nonzero_dir_exists && nonzero_neu_exists && nl_vec_exist);
 }
 
 static void
@@ -2734,6 +2735,12 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
 
   /* create velocity boundary conditions */
   rhea_stokes_problem_velocity_boundary_create (stokes_problem_nl);
+  if (stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn != NULL) {
+    stokes_problem_nl->vel_nonzero_dirichlet = rhea_velocity_new (ymir_mesh);
+    stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn (
+        stokes_problem_nl->vel_nonzero_dirichlet,
+        stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn_data);
+  }
 
   /* create coefficient and vectors related to it */
   if (stokes_problem_nl->weakzone_compute_fn != NULL) {
@@ -2748,13 +2755,6 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
       stokes_problem_nl->rhs_vel,
       stokes_problem_nl->temperature,
       stokes_problem_nl->rhs_vel_compute_fn_data);
-  if (stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn != NULL) {
-    stokes_problem_nl->rhs_vel_nonzero_dirichlet = rhea_velocity_new (
-        ymir_mesh);
-    stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn (
-        stokes_problem_nl->rhs_vel_nonzero_dirichlet,
-        stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn_data);
-  }
   if (stokes_problem_nl->rhs_vel_nonzero_neu_compute_fn != NULL) {
     ymir_topidx_t       fm;
 
@@ -2862,9 +2862,9 @@ rhea_stokes_problem_nonlinear_clear_mesh_data (
     rhea_weakzone_destroy (stokes_problem_nl->weakzone);
     stokes_problem_nl->weakzone = NULL;
   }
-  if (stokes_problem_nl->rhs_vel_nonzero_dirichlet != NULL) {
-    rhea_velocity_destroy (stokes_problem_nl->rhs_vel_nonzero_dirichlet);
-    stokes_problem_nl->rhs_vel_nonzero_dirichlet = NULL;
+  if (stokes_problem_nl->vel_nonzero_dirichlet != NULL) {
+    rhea_velocity_destroy (stokes_problem_nl->vel_nonzero_dirichlet);
+    stokes_problem_nl->vel_nonzero_dirichlet = NULL;
   }
   if (stokes_problem_nl->rhs_vel_face_nonzero_neumann != NULL) {
     ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
@@ -3022,7 +3022,7 @@ rhea_stokes_problem_nonlinear_update_solver (
                                     const int override_rhs,
                                     ymir_vec_t *rhs_vel_press,
                                     ymir_vec_t *rhs_vel,
-                                    ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                                    ymir_vec_t *vel_nonzero_dirichlet,
                                     ymir_vec_t **rhs_vel_face_nonzero_neumann)
 {
   const int           vel_press_exists = (vel_press != NULL);
@@ -3041,8 +3041,8 @@ rhea_stokes_problem_nonlinear_update_solver (
   RHEA_ASSERT (rhs_vel_press == NULL ||
                rhea_velocity_pressure_check_vec_type (rhs_vel_press));
   RHEA_ASSERT (rhs_vel == NULL || rhea_velocity_check_vec_type (rhs_vel));
-  RHEA_ASSERT (rhs_vel_nonzero_dirichlet == NULL ||
-               rhea_velocity_check_vec_type (rhs_vel_nonzero_dirichlet));
+  RHEA_ASSERT (vel_nonzero_dirichlet == NULL ||
+               rhea_velocity_check_vec_type (vel_nonzero_dirichlet));
 #ifdef RHEA_ENABLE_DEBUG
   if (rhs_vel_face_nonzero_neumann != NULL) {
     ymir_mesh_t        *ymir_mesh = stokes_problem_nl->ymir_mesh;
@@ -3076,7 +3076,7 @@ rhea_stokes_problem_nonlinear_update_solver (
         __func__,
         "rhs_vel_press=%i, rhs_vel=%i, rhs_vel_nz_dir=%i, rhs_vel_nz_neu=%i",
         (rhs_vel_press != NULL), (rhs_vel != NULL),
-        (rhs_vel_nonzero_dirichlet != NULL),
+        (vel_nonzero_dirichlet != NULL),
         (rhs_vel_face_nonzero_neumann != NULL));
     if (rhs_vel_press != NULL) {
       ymir_vec_copy (rhs_vel_press, stokes_problem_nl->rhs_vel_press);
@@ -3086,22 +3086,21 @@ rhea_stokes_problem_nonlinear_update_solver (
           stokes_problem_nl->rhs_vel_press, /* output: right-hand side */
           rhs_vel,                      /* input: volume forcing */
           rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
-          rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
+          vel_nonzero_dirichlet,        /* input: nonzero Dirichlet boundary */
           stokes_problem_nl->incompressible,
           stokes_problem_nl->stokes_op, 1 /* linearized */);
     }
   }
   else {
     rhs_vel = stokes_problem_nl->rhs_vel;
-    rhs_vel_nonzero_dirichlet =
-      stokes_problem_nl->rhs_vel_nonzero_dirichlet;
+    vel_nonzero_dirichlet = stokes_problem_nl->vel_nonzero_dirichlet;
     rhs_vel_face_nonzero_neumann =
       stokes_problem_nl->rhs_vel_face_nonzero_neumann;
     ymir_stokes_pc_construct_rhs (
         stokes_problem_nl->rhs_vel_press, /* output: right-hand side */
         rhs_vel,                      /* input: volume forcing */
         rhs_vel_face_nonzero_neumann, /* input: nonzero Neumann forcing */
-        rhs_vel_nonzero_dirichlet,    /* input: nonzero Dirichlet boundary */
+        vel_nonzero_dirichlet,        /* input: nonzero Dirichlet boundary */
         stokes_problem_nl->incompressible,
         stokes_problem_nl->stokes_op, 1 /* linearized */);
   }
@@ -3315,19 +3314,19 @@ rhea_stokes_problem_update_solver (rhea_stokes_problem_t *stokes_problem,
                                    const int override_rhs,
                                    ymir_vec_t *rhs_vel_press,
                                    ymir_vec_t *rhs_vel,
-                                   ymir_vec_t *rhs_vel_nonzero_dirichlet,
+                                   ymir_vec_t *vel_nonzero_dirichlet,
                                    ymir_vec_t **rhs_vel_face_nonzero_neumann)
 {
   switch (stokes_problem->type) {
   case RHEA_STOKES_PROBLEM_LINEAR:
     rhea_stokes_problem_linear_update_solver (
         stokes_problem, update_coeff, override_rhs, rhs_vel_press, rhs_vel,
-        rhs_vel_nonzero_dirichlet, rhs_vel_face_nonzero_neumann);
+        vel_nonzero_dirichlet, rhs_vel_face_nonzero_neumann);
     break;
   case RHEA_STOKES_PROBLEM_NONLINEAR:
     rhea_stokes_problem_nonlinear_update_solver (
         stokes_problem, update_coeff, vel_press, override_rhs, rhs_vel_press,
-        rhs_vel, rhs_vel_nonzero_dirichlet, rhs_vel_face_nonzero_neumann);
+        rhs_vel, vel_nonzero_dirichlet, rhs_vel_face_nonzero_neumann);
     break;
   default: /* unknown Stokes type */
     RHEA_ABORT_NOT_REACHED ();
@@ -3655,7 +3654,7 @@ ymir_vec_t *
 rhea_stokes_problem_get_rhs_vel_nonzero_dirichlet (
                                         rhea_stokes_problem_t *stokes_problem)
 {
-  return stokes_problem->rhs_vel_nonzero_dirichlet;
+  return stokes_problem->vel_nonzero_dirichlet;
 }
 
 ymir_vec_t **
@@ -3752,18 +3751,18 @@ rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
 
   /* recompute */
   if (stokes_problem->rhs_vel_nonzero_dir_compute_fn != NULL) { /* if fn. */
-    if (stokes_problem->rhs_vel_nonzero_dirichlet == NULL) {
-      stokes_problem->rhs_vel_nonzero_dirichlet =
+    if (stokes_problem->vel_nonzero_dirichlet == NULL) {
+      stokes_problem->vel_nonzero_dirichlet =
         rhea_velocity_new (stokes_problem->ymir_mesh);
     }
     stokes_problem->rhs_vel_nonzero_dir_compute_fn (
-        stokes_problem->rhs_vel_nonzero_dirichlet,
+        stokes_problem->vel_nonzero_dirichlet,
         stokes_problem->rhs_vel_nonzero_dir_compute_fn_data);
   }
   else { /* if no function provided */
-    if (stokes_problem->rhs_vel_nonzero_dirichlet != NULL) {
-      rhea_velocity_destroy (stokes_problem->rhs_vel_nonzero_dirichlet);
-      stokes_problem->rhs_vel_nonzero_dirichlet = NULL;
+    if (stokes_problem->vel_nonzero_dirichlet != NULL) {
+      rhea_velocity_destroy (stokes_problem->vel_nonzero_dirichlet);
+      stokes_problem->vel_nonzero_dirichlet = NULL;
     }
   }
 }
@@ -3919,21 +3918,53 @@ rhea_stokes_problem_write (char *base_path_bin,
  *****************************************************************************/
 
 int
-rhea_stokes_problem_velocity_boundary_set_zero (
+rhea_stokes_problem_velocity_set_boundary (
+                                        ymir_vec_t *velocity,
+                                        ymir_vec_t *velocity_on_boundary,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (velocity);
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
+  RHEA_ASSERT (NULL == velocity_on_boundary ||
+               rhea_velocity_check_vec_type (velocity_on_boundary));
+
+  /* set Dirichlet components if BC exist */
+  if (stokes_problem->vel_dir != NULL) {
+    if (NULL == velocity_on_boundary) { /* if set zero Dir BC */
+      ymir_vel_dir_separate (velocity, NULL, NULL, NULL,
+                             stokes_problem->vel_dir);
+    }
+    else { /* otherwise set nonzero Dir BC */
+      ymir_vec_t         *vel_zr_dir = rhea_velocity_new (ymir_mesh);
+      ymir_vec_t         *vel_nz_dir = rhea_velocity_new (ymir_mesh);
+
+      /* get nonzero values of boundary nodes only */
+      ymir_vel_dir_separate (velocity_on_boundary, vel_zr_dir, vel_nz_dir,
+                             NULL, stokes_problem->vel_dir);
+      rhea_velocity_destroy (vel_zr_dir);
+      /* set Dirichlet components to zero first, then add nonzero values */
+      ymir_vel_dir_separate (velocity, NULL, NULL, NULL,
+                             stokes_problem->vel_dir);
+      ymir_vec_add (1.0, vel_nz_dir, velocity);
+      rhea_velocity_destroy (vel_nz_dir);
+    }
+    return 1;
+  }
+  else { /* otherwise Dir BC do not exist */
+    return 0;
+  }
+}
+
+int
+rhea_stokes_problem_velocity_set_boundary_zero (
                                         ymir_vec_t *velocity,
                                         rhea_stokes_problem_t *stokes_problem)
 {
-  /* check input */
-  RHEA_ASSERT (rhea_velocity_check_vec_type (velocity));
-
-  /* set Dirichlet components to zero if Dirichlet BC's exist */
-  if (stokes_problem->vel_dir != NULL) {
-    ymir_vel_dir_separate (velocity, NULL, NULL, NULL, stokes_problem->vel_dir);
-    return 1;
-  }
-  else {
-    return 0;
-  }
+  return rhea_stokes_problem_velocity_set_boundary (velocity,
+                                                    NULL /* zero Dir BC */,
+                                                    stokes_problem);
 }
 
 int
@@ -4041,8 +4072,8 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
   int                 data_exists_lin, data_exists_nl;
   ymir_stokes_op_t   *stokes_op;
   ymir_vec_t         *rhs_vel = stokes_problem->rhs_vel;
-  ymir_vec_t         *rhs_vel_nonzero_dirichlet =
-                        stokes_problem->rhs_vel_nonzero_dirichlet;
+  ymir_vec_t         *vel_nonzero_dirichlet =
+                        stokes_problem->vel_nonzero_dirichlet;
   ymir_vec_t         *residual_vel_press, *residual_vel, *tmp;
 
   /* check input */
@@ -4095,10 +4126,10 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
     ymir_vec_t         *rhs_vel_press = tmp;
 
     ymir_stokes_pc_construct_rhs (
-        rhs_vel_press,              /* output: right-hand side */
-        rhs_vel,                    /* input: volume forcing */
-        NULL,                       /* input: Neumann forcing */
-        rhs_vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
+        rhs_vel_press,          /* output: right-hand side */
+        rhs_vel,                /* input: volume forcing */
+        NULL,                   /* input: Neumann forcing */
+        vel_nonzero_dirichlet,  /* input: nonzero Dirichlet boundary */
         stokes_problem->incompressible, stokes_op, 0 /* !linearized */);
     RHEA_ASSERT (rhea_velocity_pressure_is_valid (rhs_vel_press));
 
