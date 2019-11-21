@@ -1180,7 +1180,7 @@ rhea_domain_vel_dir_fn_box (double X, double Y, double Z,
       return YMIR_VEL_DIRICHLET_ALL;
     }
     else {
-      /* bottom and top faces will get Neumann BC's */
+      /* bottom and top faces gets Neumann BC's */
       return YMIR_VEL_DIRICHLET_NONE;
     }
   case RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_DIR_ALL_TB:
@@ -1192,6 +1192,15 @@ rhea_domain_vel_dir_fn_box (double X, double Y, double Z,
     else {
       /* set Dirichlet in all directions on bottom and top faces */
       return YMIR_VEL_DIRICHLET_ALL;
+    }
+  case RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_B_NEU_T:
+    if (face != RHEA_DOMAIN_BOUNDARY_FACE_TOP) {
+      /* set Dirichlet in normal direction on side faces and bottom face */
+      return YMIR_VEL_DIRICHLET_NORM;
+    }
+    else {
+      /* top face gets Neumann BC's */
+      return YMIR_VEL_DIRICHLET_NONE;
     }
   case RHEA_DOMAIN_VELOCITY_BC_NEUMANN_ALL:
     /* set Neumann for all points */

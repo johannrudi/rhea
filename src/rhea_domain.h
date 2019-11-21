@@ -52,8 +52,12 @@ typedef enum
    * (for rectangular domains only) */
   RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_DIR_ALL_TB = 5,
 
+  /* Dirichlet norm on side faces and bottom face; Neumann on top face
+   * (for rectangular domains only) */
+  RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_B_NEU_T = 6,
+
   /* Neumann */
-  RHEA_DOMAIN_VELOCITY_BC_NEUMANN_ALL = 6
+  RHEA_DOMAIN_VELOCITY_BC_NEUMANN_ALL = 7
 }
 rhea_domain_velocity_bc_t;
 
