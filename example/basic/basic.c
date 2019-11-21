@@ -69,7 +69,9 @@ main (int argc, char **argv)
   ymir_mesh_t            *ymir_mesh;
   ymir_pressure_elem_t   *press_elem;
   /* Stokes */
-  rhea_stokes_problem_t  *stokes_problem;
+  rhea_stokes_problem_t    *stokes_problem;
+  rhea_domain_velocity_bc_t vel_bc_type;
+  double              normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_N];
   ymir_vec_t         *sol_vel_press;
   int                 nonzero_inital_guess;
 
@@ -163,6 +165,20 @@ main (int argc, char **argv)
                             RHEA_MAIN_PERFMON_SETUP_MESH,
                             RHEA_MAIN_PERFMON_SETUP_STOKES,
                             bin_solver_path, vtk_solver_path);
+
+  /* set nonzero Dirichlet boundary conditions */
+  vel_bc_type = domain_options.velocity_bc_type;
+  if (vel_bc_type == RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_B_NEU_T) {
+    normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_BASE ] = NAN;   /* -z */
+    normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_TOP  ] = NAN;   /* +z */
+    normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE1] = -1.0;  /* -x */
+    normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE2] = -1.0;  /* +x */
+    normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE3] = NAN;   /* -y */
+    normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE4] = NAN;   /* +y */
+    rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
+        stokes_problem, rhea_velocity_nonzero_boundary_set_face_normals_fn,
+        normal_flow_vel);
+  }
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
