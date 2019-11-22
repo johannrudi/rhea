@@ -20,12 +20,15 @@ script_dir  = os.path.dirname(script_path)
 script_base = os.path.splitext(os.path.basename(script_path))[0] # w/o ext.
 
 # set input arguments
-assert 1 == argn
+assert 1 <= argn
 data_in  = sys.argv[1]
 data_dir = os.path.dirname(os.path.abspath(data_in))
 
 # set output path
-plot_out = data_dir+"/"+script_base+".png"
+if 2 <= argn:
+    plot_out = sys.argv[2]
+else:
+    plot_out = data_dir+"/"+script_base+".png"
 
 ###############################################################################
 # Functions
@@ -69,12 +72,13 @@ print_info("Plot output: "+plot_out)
 
 # load file
 M = np.loadtxt(data_in, skiprows=1, delimiter=",")
-vel_fwd    = M[:,0:3]
-vel_adj    = M[:,3:6]
-vel_obs    = M[:,6:9]
-vel_misfit = M[:,9:12]
-point      = M[:,12:15]
-point_idx  = M[:,15]
+obs_weight = M[:, 0]
+vel_fwd    = M[:, 1: 4]
+vel_adj    = M[:, 4: 7]
+vel_obs    = M[:, 7:10]
+vel_misfit = M[:,10:13]
+point      = M[:,13:16]
+point_idx  = M[:,16]
 
 # set coordinates
 x = -point[:,0]
