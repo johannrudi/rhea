@@ -656,7 +656,281 @@ rhea_inversion_param_weak_label_is_active (rhea_inversion_param_t *inv_param)
 }
 
 /******************************************************************************
- * Mapping between Parameter Values and Model Values
+ * Conversion Between Model Values and Their Corresponding Inversion Parameters.
+ *
+ * Denote a model value by `m` and an inversion parameter value by `p`, then
+ *   m <- *_convert_to_model_* (p)
+ *   p <- *_convert_from_model_* (m)
+ *****************************************************************************/
+
+static double
+_diff_to_feasible (const double inv_param_val, const int idx,
+                   double feasible_min, double feasible_max,
+                   const double restrict_to_prior_stddev,
+                   rhea_inversion_param_t *inv_param)
+{
+  const double       *mean = inv_param->prior_mean->meshfree->e[0];
+  const double       *stddev = inv_param->prior_stddev->meshfree->e[0];
+  double              prior_min, prior_max;
+
+  if (isfinite (restrict_to_prior_stddev) && 0.0 < restrict_to_prior_stddev) {
+    prior_min = mean[idx] - restrict_to_prior_stddev * stddev[idx];
+    prior_max = mean[idx] + restrict_to_prior_stddev * stddev[idx];
+    RHEA_ASSERT (isfinite (prior_min));
+    RHEA_ASSERT (isfinite (prior_max));
+    if (!isfinite (feasible_min) && feasible_min < prior_min) {
+      feasible_min = prior_min;
+    }
+    if (!isfinite (feasible_max) && prior_max < feasible_max) {
+      feasible_max = prior_max;
+    }
+  }
+
+  if (isfinite (feasible_min) && inv_param_val < feasible_min) {
+    return feasible_min - inv_param_val;
+  }
+  else if (isfinite (feasible_max) && feasible_max < inv_param_val) {
+    return feasible_max - inv_param_val;
+  }
+  else {
+    return 0.0;
+  }
+}
+
+/****** General Conversion: positive number, linear scaling ******/
+
+static double
+_poslin_convert_to_model (const double inv_param_val)
+{
+  RHEA_ASSERT (isfinite (inv_param_val));
+  RHEA_ASSERT (0.0 < inv_param_val);
+  return inv_param_val;
+}
+
+static double
+_poslin_convert_from_model (const double model_val)
+{
+  RHEA_ASSERT (isfinite (model_val));
+  RHEA_ASSERT (0.0 < model_val);
+  return model_val;
+}
+
+static double
+_poslin_derivative (const double model_val)
+{
+  RHEA_ASSERT (isfinite (model_val));
+  RHEA_ASSERT (0.0 < model_val);
+  return 1.0;
+}
+
+/****** General Conversion: positive number, exponential scaling ******/
+
+static double
+_posexp_convert_to_model (const double inv_param_val)
+{
+  double              model_val;
+
+  RHEA_ASSERT (isfinite (inv_param_val));
+
+  feclearexcept (FE_ALL_EXCEPT);
+  model_val = exp (inv_param_val);
+  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
+    model_val = DBL_MAX;
+  }
+
+  return model_val;
+}
+
+static double
+_posexp_convert_from_model (const double model_val)
+{
+  double              inv_param_val;
+
+  RHEA_ASSERT (0.0 <= model_val);
+
+  inv_param_val = log (model_val);
+  if (!isfinite (inv_param_val)) {
+    inv_param_val = -DBL_MAX;
+  }
+
+  return inv_param_val;
+}
+
+static double
+_posexp_derivative (const double model_val)
+{
+  RHEA_ASSERT (0.0 <= model_val);
+  return model_val;
+}
+
+/****** Conversion: viscosity bounds ******/
+
+double
+rhea_inversion_param_derivative_min_max (const double model_val)
+{
+  return _poslin_derivative (model_val);
+}
+
+/****** Conversion: viscosity scaling ******/
+
+static double
+rhea_inversion_param_convert_to_model_scal (const double inv_param_val)
+{
+  return _posexp_convert_to_model (inv_param_val);
+}
+
+static double
+rhea_inversion_param_convert_from_model_scal (const double model_val)
+{
+  return _posexp_convert_from_model (model_val);
+}
+
+double
+rhea_inversion_param_derivative_scal (const double model_val)
+{
+  return _posexp_derivative (model_val);
+}
+
+static double
+rhea_inversion_param_diff_to_feasible_scal (
+                                        const double inv_param_val,
+                                        const int idx,
+                                        const double restrict_to_prior_stddev,
+                                        rhea_inversion_param_t *inv_param)
+{
+  return _diff_to_feasible (inv_param_val, idx, NAN, NAN,
+                            restrict_to_prior_stddev, inv_param);
+}
+
+/****** Conversion: Arrhenius activation energy ******/
+
+static double
+rhea_inversion_param_convert_to_model_arrh (const double inv_param_val)
+{
+  return _poslin_convert_to_model (inv_param_val);
+}
+
+static double
+rhea_inversion_param_convert_from_model_arrh (const double model_val)
+{
+  return _poslin_convert_from_model (model_val);
+}
+
+double
+rhea_inversion_param_derivative_arrh (const double model_val)
+{
+  return _poslin_derivative (model_val);
+}
+
+static double
+rhea_inversion_param_diff_to_feasible_arrh (
+                                        const double inv_param_val,
+                                        const int idx,
+                                        const double restrict_to_prior_stddev,
+                                        rhea_inversion_param_t *inv_param)
+{
+  return _diff_to_feasible (inv_param_val, idx, SC_1000_EPS, NAN,
+                            restrict_to_prior_stddev, inv_param);
+}
+
+/****** Conversion: stress exponent ******/
+
+static double
+rhea_inversion_param_convert_to_model_n (const double inv_param_val)
+{
+  return _poslin_convert_to_model (inv_param_val);
+}
+
+static double
+rhea_inversion_param_convert_from_model_n (const double model_val)
+{
+  return _poslin_convert_from_model (model_val);
+}
+
+double
+rhea_inversion_param_derivative_n (const double model_val)
+{
+  return _poslin_derivative (model_val);
+}
+
+static double
+rhea_inversion_param_diff_to_feasible_n (const double inv_param_val,
+                                         const int idx,
+                                         const double restrict_to_prior_stddev,
+                                         rhea_inversion_param_t *inv_param)
+{
+  return _diff_to_feasible (inv_param_val, idx, SC_1000_EPS, NAN,
+                            restrict_to_prior_stddev, inv_param);
+}
+
+/****** Conversion: yield strenght ******/
+
+static double
+rhea_inversion_param_convert_to_model_yield (const double inv_param_val)
+{
+  return _poslin_convert_to_model (inv_param_val);
+}
+
+static double
+rhea_inversion_param_convert_from_model_yield (const double model_val)
+{
+  return _poslin_convert_from_model (model_val);
+}
+
+double
+rhea_inversion_param_derivative_yield (const double model_val)
+{
+  return _poslin_derivative (model_val);
+}
+
+static double
+rhea_inversion_param_diff_to_feasible_yield (
+                                        const double inv_param_val,
+                                        const int idx,
+                                        const double restrict_to_prior_stddev,
+                                        rhea_inversion_param_t *inv_param)
+{
+  return _diff_to_feasible (inv_param_val, idx, SC_1000_EPS, NAN,
+                            restrict_to_prior_stddev, inv_param);
+}
+
+/****** Conversion: weak zone factor ******/
+
+static double
+rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
+{
+  RHEA_ASSERT (isfinite (inv_param_val));
+  RHEA_ASSERT (inv_param_val <= 0.0);
+  return _posexp_convert_to_model (inv_param_val);
+}
+
+static double
+rhea_inversion_param_convert_from_model_weak (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
+  return _posexp_convert_from_model (model_val);
+}
+
+double
+rhea_inversion_param_derivative_weak (const double model_val)
+{
+  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
+  return _posexp_derivative (model_val);
+}
+
+static double
+rhea_inversion_param_diff_to_feasible_weak (
+                                        const double inv_param_val,
+                                        const int idx,
+                                        const double restrict_to_prior_stddev,
+                                        rhea_inversion_param_t *inv_param)
+{
+  return _diff_to_feasible (inv_param_val, idx, -DBL_MAX, -SC_1000_EPS,
+                            restrict_to_prior_stddev, inv_param);
+}
+
+/******************************************************************************
+ * Transfer between Parameter Values and Model Values
  *****************************************************************************/
 
 static void
@@ -868,406 +1142,6 @@ rhea_inversion_param_set_model_vals (ymir_vec_t *parameter_vec,
   }
 }
 
-#if 0 //###DEV### //TODO remove unused code
-double
-rhea_inversion_param_convert_to_model_pos (const double inv_param_val)
-{
-  double              model_val;
-
-  feclearexcept (FE_ALL_EXCEPT);
-  model_val = exp (inv_param_val);
-  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
-    model_val = DBL_MAX;
-  }
-
-  return model_val;
-}
-
-double
-rhea_inversion_param_convert_to_model_pos_deriv (const double inv_param_val)
-{
-  return rhea_inversion_param_convert_to_model_pos (inv_param_val);
-}
-
-double
-rhea_inversion_param_convert_from_model_pos (const double model_val)
-{
-  double              inv_param_val;
-
-  RHEA_ASSERT (0.0 <= model_val);
-
-  inv_param_val = log (model_val);
-  if (isfinite (inv_param_val)) {
-    return inv_param_val;
-  }
-  else {
-    return -DBL_MAX;
-  }
-}
-
-double
-rhea_inversion_param_convert_from_model_pos_deriv (const double model_val)
-{
-  RHEA_ASSERT (0.0 <= model_val);
-  return model_val;
-}
-
-double
-rhea_inversion_param_convert_to_model_n (const double inv_param_val)
-{
-  return 1.0 + rhea_inversion_param_convert_to_model_pos (inv_param_val);
-}
-
-double
-rhea_inversion_param_convert_to_model_n_deriv (const double inv_param_val)
-{
-  return rhea_inversion_param_convert_to_model_pos (inv_param_val);
-}
-
-double
-rhea_inversion_param_convert_from_model_n (const double model_val)
-{
-  RHEA_ASSERT (1.0 <= model_val);
-  return rhea_inversion_param_convert_from_model_pos (model_val - 1.0);
-}
-
-double
-rhea_inversion_param_convert_from_model_n_deriv (const double model_val)
-{
-  RHEA_ASSERT (1.0 <= model_val);
-  return rhea_inversion_param_convert_from_model_pos_deriv (model_val - 1.0);
-}
-
-#define RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN SC_1000_EPS
-
-double
-rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
-{
-  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
-
-  return SC_MAX (weak_min, exp (-inv_param_val*inv_param_val));
-}
-
-double
-rhea_inversion_param_convert_to_model_weak_deriv (const double inv_param_val)
-{
-  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
-
-  if (weak_min < exp (-inv_param_val*inv_param_val)) {
-    return -2.0 * inv_param_val * exp (-inv_param_val*inv_param_val);
-  }
-  else {
-    return 0.0;
-  }
-}
-
-double
-rhea_inversion_param_convert_from_model_weak (const double model_val)
-{
-  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
-
-  RHEA_ASSERT (0.0 <= model_val && model_val <= 1.0);
-
-  if (weak_min < model_val) {
-    return -sqrt (-log (model_val));
-  }
-  else {
-    return -sqrt (-log (weak_min));
-  }
-}
-
-double
-rhea_inversion_param_convert_from_model_weak_deriv (const double model_val)
-{
-  const double        weak_min = RHEA_INVERSION_PARAM_DEFAULT_WEAK_FACTOR_MIN;
-
-  RHEA_ASSERT (0.0 <= model_val && model_val <= 1.0);
-
-  if (weak_min < model_val) {
-    return 2.0 * sqrt (-log (model_val)) * model_val;
-  }
-  else {
-    return 0.0;
-  }
-}
-#endif
-
-/**
- * Converts between model values and their corresponding inversion parameters.
- *
- * Denote a model value by `m` and an inversion parameter value by `p`, then
- *   m <- *_convert_to_model_* (p)
- *   p <- *_convert_from_model_* (m)
- */
-static double
-rhea_inversion_param_convert_to_model_poslin (const double inv_param_val)
-{
-  RHEA_ASSERT (isfinite (inv_param_val));
-  RHEA_ASSERT (0.0 < inv_param_val);
-  return inv_param_val;
-}
-
-static double
-rhea_inversion_param_convert_from_model_poslin (const double model_val)
-{
-  RHEA_ASSERT (isfinite (model_val));
-  RHEA_ASSERT (0.0 < model_val);
-  return model_val;
-}
-
-double
-rhea_inversion_param_derivative_poslin (const double model_val)
-{
-  RHEA_ASSERT (isfinite (model_val));
-  RHEA_ASSERT (0.0 < model_val);
-  return 1.0;
-}
-
-static double
-rhea_inversion_param_diff_to_feasible_poslin (
-                                        const double inv_param_val,
-                                        const int idx,
-                                        const double restrict_to_prior_stddev,
-                                        rhea_inversion_param_t *inv_param)
-{
-  const double       *mean = inv_param->prior_mean->meshfree->e[0];
-  const double       *stddev = inv_param->prior_stddev->meshfree->e[0];
-  double              min_val, max_val;
-
-  if (isfinite (restrict_to_prior_stddev) && 0.0 < restrict_to_prior_stddev) {
-    min_val = SC_MAX (SC_1000_EPS,
-                      mean[idx] - restrict_to_prior_stddev * stddev[idx]);
-    max_val = mean[idx] + restrict_to_prior_stddev * stddev[idx];
-  }
-  else {
-    min_val = SC_1000_EPS;
-    max_val = NAN;
-  }
-
-  if (inv_param_val < min_val) {
-    return min_val - inv_param_val;
-  }
-  else if (isfinite (max_val) && max_val < inv_param_val) {
-    return max_val - inv_param_val;
-  }
-  else {
-    return 0.0;
-  }
-}
-
-static double
-rhea_inversion_param_convert_to_model_posexp (const double inv_param_val)
-{
-  double              model_val;
-
-  RHEA_ASSERT (isfinite (inv_param_val));
-
-  feclearexcept (FE_ALL_EXCEPT);
-  model_val = exp (inv_param_val);
-  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
-    model_val = DBL_MAX;
-  }
-
-  return model_val;
-}
-
-static double
-rhea_inversion_param_convert_from_model_posexp (const double model_val)
-{
-  double              inv_param_val;
-
-  RHEA_ASSERT (0.0 <= model_val);
-
-  inv_param_val = log (model_val);
-  if (!isfinite (inv_param_val)) {
-    inv_param_val = -DBL_MAX;
-  }
-
-  return inv_param_val;
-}
-
-double
-rhea_inversion_param_derivative_posexp (const double model_val)
-{
-  RHEA_ASSERT (0.0 <= model_val);
-  return model_val;
-}
-
-static double
-rhea_inversion_param_diff_to_feasible_posexp (
-                                        const double inv_param_val,
-                                        const int idx,
-                                        const double restrict_to_prior_stddev,
-                                        rhea_inversion_param_t *inv_param)
-{
-  const double       *mean = inv_param->prior_mean->meshfree->e[0];
-  const double       *stddev = inv_param->prior_stddev->meshfree->e[0];
-  double              min_val, max_val;
-
-  if (isfinite (restrict_to_prior_stddev) && 0.0 < restrict_to_prior_stddev) {
-    min_val = mean[idx] - restrict_to_prior_stddev * stddev[idx];
-    max_val = mean[idx] + restrict_to_prior_stddev * stddev[idx];
-  }
-  else {
-    min_val = SC_1000_EPS;
-    max_val = NAN;
-  }
-
-  if (inv_param_val < min_val) {
-    return min_val - inv_param_val;
-  }
-  else if (isfinite (max_val) && max_val < inv_param_val) {
-    return max_val - inv_param_val;
-  }
-  else {
-    return 0.0;
-  }
-}
-
-static double
-rhea_inversion_param_convert_to_model_scal (const double inv_param_val)
-{
-  return rhea_inversion_param_convert_to_model_posexp (inv_param_val);
-}
-
-static double
-rhea_inversion_param_convert_from_model_scal (const double model_val)
-{
-  return rhea_inversion_param_convert_from_model_posexp (model_val);
-}
-
-double
-rhea_inversion_param_derivative_scal (const double model_val)
-{
-  return rhea_inversion_param_derivative_posexp (model_val);
-}
-
-static double
-rhea_inversion_param_diff_to_feasible_scal (
-                                        const double inv_param_val,
-                                        const int idx,
-                                        const double restrict_to_prior_stddev,
-                                        rhea_inversion_param_t *inv_param)
-{
-  return rhea_inversion_param_diff_to_feasible_posexp (
-      inv_param_val, idx, restrict_to_prior_stddev, inv_param);
-}
-
-static double
-rhea_inversion_param_convert_to_model_n (const double inv_param_val)
-{
-  return rhea_inversion_param_convert_to_model_poslin (inv_param_val);
-}
-
-static double
-rhea_inversion_param_convert_from_model_n (const double model_val)
-{
-  return rhea_inversion_param_convert_from_model_poslin (model_val);
-}
-
-double
-rhea_inversion_param_derivative_n (const double model_val)
-{
-  return rhea_inversion_param_derivative_poslin (model_val);
-}
-
-static double
-rhea_inversion_param_diff_to_feasible_n (const double inv_param_val,
-                                         const int idx,
-                                         const double restrict_to_prior_stddev,
-                                         rhea_inversion_param_t *inv_param)
-{
-  return rhea_inversion_param_diff_to_feasible_poslin (
-      inv_param_val, idx, restrict_to_prior_stddev, inv_param);
-}
-
-static double
-rhea_inversion_param_convert_to_model_yield (const double inv_param_val)
-{
-  return rhea_inversion_param_convert_to_model_poslin (inv_param_val);
-}
-
-static double
-rhea_inversion_param_convert_from_model_yield (const double model_val)
-{
-  return rhea_inversion_param_convert_from_model_poslin (model_val);
-}
-
-double
-rhea_inversion_param_derivative_yield (const double model_val)
-{
-  return rhea_inversion_param_derivative_poslin (model_val);
-}
-
-static double
-rhea_inversion_param_diff_to_feasible_yield (
-                                        const double inv_param_val,
-                                        const int idx,
-                                        const double restrict_to_prior_stddev,
-                                        rhea_inversion_param_t *inv_param)
-{
-  return rhea_inversion_param_diff_to_feasible_poslin (
-      inv_param_val, idx, restrict_to_prior_stddev, inv_param);
-}
-
-static double
-rhea_inversion_param_convert_to_model_weak (const double inv_param_val)
-{
-  RHEA_ASSERT (isfinite (inv_param_val));
-  RHEA_ASSERT (inv_param_val <= 0.0);
-  return exp (inv_param_val);
-}
-
-static double
-rhea_inversion_param_convert_from_model_weak (const double model_val)
-{
-  double              inv_param_val;
-
-  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
-
-  inv_param_val = log (model_val);
-  if (isfinite (inv_param_val)) {
-    return inv_param_val;
-  }
-  else {
-    return -DBL_MAX;
-  }
-}
-
-double
-rhea_inversion_param_derivative_weak (const double model_val)
-{
-  RHEA_ASSERT (0.0 < model_val && model_val <= 1.0);
-  return model_val;
-}
-
-static double
-rhea_inversion_param_diff_to_feasible_weak (
-                                        const double inv_param_val,
-                                        const int idx,
-                                        const double restrict_to_prior_stddev,
-                                        rhea_inversion_param_t *inv_param)
-{
-  const double       *mean = inv_param->prior_mean->meshfree->e[0];
-  const double       *stddev = inv_param->prior_stddev->meshfree->e[0];
-  double              max_val;
-
-  if (isfinite (restrict_to_prior_stddev) && 0.0 < restrict_to_prior_stddev) {
-    max_val = SC_MIN (mean[idx] + restrict_to_prior_stddev * stddev[idx],
-                      -SC_1000_EPS);
-  }
-  else {
-    max_val = -SC_1000_EPS;
-  }
-
-  if (max_val < inv_param_val) {
-    return max_val - inv_param_val;
-  }
-  else {
-    return 0.0;
-  }
-}
-
 static void
 rhea_inversion_param_convert_model_vals_to_params (
                                             ymir_vec_t *parameter_vec,
@@ -1293,8 +1167,6 @@ rhea_inversion_param_convert_model_vals_to_params (
       switch (idx) {
       case RHEA_INVERSION_PARAM_VISC_MIN:
       case RHEA_INVERSION_PARAM_VISC_MAX:
-      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1303,12 +1175,17 @@ rhea_inversion_param_convert_model_vals_to_params (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
-        p[idx] = rhea_inversion_param_convert_from_model_poslin (p[idx]);
+        p[idx] = _poslin_convert_from_model (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
         p[idx] = rhea_inversion_param_convert_from_model_scal (p[idx]);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+        p[idx] = rhea_inversion_param_convert_from_model_arrh (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
@@ -1382,8 +1259,6 @@ rhea_inversion_param_convert_params_to_model_vals (
       switch (idx) {
       case RHEA_INVERSION_PARAM_VISC_MIN:
       case RHEA_INVERSION_PARAM_VISC_MAX:
-      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1392,12 +1267,17 @@ rhea_inversion_param_convert_params_to_model_vals (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
-        p[idx] = rhea_inversion_param_convert_to_model_poslin (p[idx]);
+        p[idx] = _poslin_convert_to_model (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
       case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_SCALING:
         p[idx] = rhea_inversion_param_convert_to_model_scal (p[idx]);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+        p[idx] = rhea_inversion_param_convert_to_model_arrh (p[idx]);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
@@ -1577,8 +1457,6 @@ rhea_inversion_param_restrict_to_feasible (
       switch (idx) {
       case RHEA_INVERSION_PARAM_VISC_MIN:
       case RHEA_INVERSION_PARAM_VISC_MAX:
-      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1587,8 +1465,8 @@ rhea_inversion_param_restrict_to_feasible (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
-        diff = rhea_inversion_param_diff_to_feasible_poslin (
-            p, idx, restrict_to_prior_stddev, inv_param);
+        diff = _diff_to_feasible (
+            p, idx, SC_1000_EPS, NAN, restrict_to_prior_stddev, inv_param);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
@@ -1596,6 +1474,13 @@ rhea_inversion_param_restrict_to_feasible (
         diff = rhea_inversion_param_diff_to_feasible_scal (
             p, idx, restrict_to_prior_stddev, inv_param);
         success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+        diff = rhea_inversion_param_diff_to_feasible_arrh (
+            p, idx, restrict_to_prior_stddev, inv_param);
+        success = 1;
+        break;
         break;
       case RHEA_INVERSION_PARAM_VISC_STRESS_EXPONENT:
         diff = rhea_inversion_param_diff_to_feasible_n (
@@ -1676,8 +1561,6 @@ rhea_inversion_param_restrict_step_length_to_feasible (
       switch (idx) {
       case RHEA_INVERSION_PARAM_VISC_MIN:
       case RHEA_INVERSION_PARAM_VISC_MAX:
-      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
-      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_NONE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_SLAB:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CLASS_RIDGE:
@@ -1687,12 +1570,12 @@ rhea_inversion_param_restrict_step_length_to_feasible (
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_RIDGE:
       case RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE:
 #ifdef RHEA_ENABLE_DEBUG
-        p_diff = rhea_inversion_param_diff_to_feasible_poslin (
-            p, idx, NAN /* !restrict to prior */, inv_param);
+        p_diff = _diff_to_feasible (
+            p, idx, SC_1000_EPS, NAN, NAN /* !restrict to prior */, inv_param);
         RHEA_ASSERT (p_diff <= 0.0);
 #endif
-        s_diff = rhea_inversion_param_diff_to_feasible_poslin (
-            p + s, idx, restrict_to_prior_stddev, inv_param);
+        s_diff = _diff_to_feasible (
+            p + s, idx, SC_1000_EPS, NAN, restrict_to_prior_stddev, inv_param);
         success = 1;
         break;
       case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_SCALING:
@@ -1703,6 +1586,17 @@ rhea_inversion_param_restrict_step_length_to_feasible (
         RHEA_ASSERT (p_diff <= 0.0);
 #endif
         s_diff = rhea_inversion_param_diff_to_feasible_scal (
+            p + s, idx, restrict_to_prior_stddev, inv_param);
+        success = 1;
+        break;
+      case RHEA_INVERSION_PARAM_VISC_UPPER_MANTLE_ACTIVATION_ENERGY:
+      case RHEA_INVERSION_PARAM_VISC_LOWER_MANTLE_ACTIVATION_ENERGY:
+#ifdef RHEA_ENABLE_DEBUG
+        p_diff = rhea_inversion_param_diff_to_feasible_arrh (
+            p, idx, NAN /* !restrict to prior */, inv_param);
+        RHEA_ASSERT (p_diff <= 0.0);
+#endif
+        s_diff = rhea_inversion_param_diff_to_feasible_arrh (
             p + s, idx, restrict_to_prior_stddev, inv_param);
         success = 1;
         break;

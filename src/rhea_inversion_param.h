@@ -113,7 +113,7 @@ void                rhea_inversion_param_print (
                               rhea_inversion_param_t *inv_param);
 
 /******************************************************************************
- * Mapping between Parameter Values and Model Values
+ * Transfer between Parameter Values and Model Values
  *****************************************************************************/
 
 /**
@@ -144,20 +144,20 @@ void                rhea_inversion_param_set_initial_guess (
  *  (d/dp *_convert_to_model_*) (*_convert_from_model_* (m))
  *
  * where
- *   *_poslin ()  Used for model values that are positive (linear scale).
- *   *_posexp ()  Used for model values that are positive (exp scale).
+ *   *_min_max () Used for lower and upper bounds of viscosity.
  *   *_scal ()    Used for scaling factors (pre-factors) of viscosity.
+ *   *_arrh ()    Used for Arrhenius activation energy.
  *   *_n ()       Used for stress exponent.
  *   *_yield ()   Used for yield strength.
  *   *_weak ()    Used for weak zone factors.
  */
-double              rhea_inversion_param_derivative_poslin (
-                                                  const double model_val);
-
-double              rhea_inversion_param_derivative_posexp (
+double              rhea_inversion_param_derivative_min_max (
                                                   const double model_val);
 
 double              rhea_inversion_param_derivative_scal (
+                                                  const double model_val);
+
+double              rhea_inversion_param_derivative_arrh (
                                                   const double model_val);
 
 double              rhea_inversion_param_derivative_n (
