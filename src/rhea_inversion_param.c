@@ -678,10 +678,10 @@ _diff_to_feasible (const double inv_param_val, const int idx,
     prior_max = mean[idx] + restrict_to_prior_stddev * stddev[idx];
     RHEA_ASSERT (isfinite (prior_min));
     RHEA_ASSERT (isfinite (prior_max));
-    if (!isfinite (feasible_min) && feasible_min < prior_min) {
+    if (!isfinite (feasible_min) || feasible_min < prior_min) {
       feasible_min = prior_min;
     }
-    if (!isfinite (feasible_max) && prior_max < feasible_max) {
+    if (!isfinite (feasible_max) || prior_max < feasible_max) {
       feasible_max = prior_max;
     }
   }
