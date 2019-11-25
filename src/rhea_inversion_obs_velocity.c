@@ -86,9 +86,24 @@ rhea_inversion_obs_velocity_remove_tangential (ymir_vec_t * vel_surf)
 }
 
 static double
+_area_to_weight_sqrt (double plate_area, double total_area)
+{
+  RHEA_ASSERT (0 < plate_area && plate_area <= total_area);
+  return sqrt (total_area/plate_area);
+}
+
+static double
 _area_to_weight_log (double plate_area, double total_area)
 {
-  return log (1.0 + total_area/plate_area);
+  RHEA_ASSERT (0 < plate_area && plate_area <= total_area);
+  return 1.0 + log (total_area/plate_area);
+}
+
+static double
+_area_to_weight_lin (double plate_area, double total_area)
+{
+  RHEA_ASSERT (0 < plate_area && plate_area <= total_area);
+  return total_area/plate_area;
 }
 
 void
@@ -127,17 +142,27 @@ rhea_inversion_obs_velocity_generate (
       rhea_plate_apply_filter_all_vec (weight_surf, plate_options);
     }
     break;
-  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA:
+  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_SQRT:
     if (0 < rhea_plate_get_n_plates (plate_options)) { /* if plates exist */
-      rhea_plate_set_weight_vec (weight_surf, NULL, plate_options);
+      rhea_plate_set_weight_vec (weight_surf, _area_to_weight_sqrt,
+                                 plate_options);
     }
     else {
       ymir_vec_set_value (weight_surf, 1.0);
     }
     break;
-  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_LOG_INV_AREA:
+  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LOG:
     if (0 < rhea_plate_get_n_plates (plate_options)) { /* if plates exist */
       rhea_plate_set_weight_vec (weight_surf, _area_to_weight_log,
+                                 plate_options);
+    }
+    else {
+      ymir_vec_set_value (weight_surf, 1.0);
+    }
+    break;
+  case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LIN:
+    if (0 < rhea_plate_get_n_plates (plate_options)) { /* if plates exist */
+      rhea_plate_set_weight_vec (weight_surf, _area_to_weight_lin,
                                  plate_options);
     }
     else {
