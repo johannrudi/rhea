@@ -129,7 +129,7 @@ ax[2].plot([XLIM[0], XLIM[1]], [0, 0], color='0.5', linestyle=':', linewidth=0.5
 ax[2].plot(longitude, misfit, 'r-')
 ax[2].set_xlim(XLIM[1], XLIM[0]) # decreasing
 ax[2].set_xticks(np.arange(XLIM[0], XLIM[1]+1, XTICKS_INCREMENT))
-ax[2].set_ylabel("model-data misfit [mm/yr]")
+ax[2].set_ylabel("weighted data misfit [mm/yr]")
 
 # set figure annotations
 ax[0].set_title(data_in)
