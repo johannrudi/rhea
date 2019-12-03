@@ -8,6 +8,7 @@
 #include <rhea_strainrate.h>
 #include <rhea_stokes_problem_amr.h>
 #include <rhea_io_std.h>
+#include <rhea_io_mpi.h>
 #include <rhea_vtk.h>
 #include <ymir_perf_counter.h>
 
@@ -51,6 +52,9 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (0)
 #define RHEA_INVERSION_DEFAULT_RESTRICT_INIT_STEP_TO_PRIOR_STDDEV (-1.0)
 #define RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV (2.0)
+#define RHEA_INVERSION_DEFAULT_HESSIAN_PREV_FILE_PATH_TXT NULL
+#define RHEA_INVERSION_DEFAULT_GRADIENT_PREV_FILE_PATH_TXT NULL
+#define RHEA_INVERSION_DEFAULT_STEP_PREV_FILE_PATH_TXT NULL
 #define RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE (0)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_RTOL (1.0e-6)
@@ -86,6 +90,12 @@ double              rhea_inversion_restrict_init_step_to_prior_stddev =
                       RHEA_INVERSION_DEFAULT_RESTRICT_INIT_STEP_TO_PRIOR_STDDEV;
 double              rhea_inversion_restrict_step_to_prior_stddev =
                       RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV;
+char               *rhea_inversion_hessian_prev_file_path_txt =
+                      RHEA_INVERSION_DEFAULT_HESSIAN_PREV_FILE_PATH_TXT;
+char               *rhea_inversion_gradient_prev_file_path_txt =
+                      RHEA_INVERSION_DEFAULT_GRADIENT_PREV_FILE_PATH_TXT;
+char               *rhea_inversion_step_prev_file_path_txt =
+                      RHEA_INVERSION_DEFAULT_STEP_PREV_FILE_PATH_TXT;
 int                 rhea_inversion_forward_solver_iter_max =
                       RHEA_INVERSION_DEFAULT_FORWARD_SOLVER_ITER_MAX;
 double              rhea_inversion_forward_solver_rtol =
@@ -162,6 +172,18 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_restrict_step_to_prior_stddev),
     RHEA_INVERSION_DEFAULT_RESTRICT_STEP_TO_PRIOR_STDDEV,
     "Restrict each Newton step to lie within the range of prior",
+  YMIR_OPTIONS_S, "hessian-prev-file-path-txt", '\0',
+    &(rhea_inversion_hessian_prev_file_path_txt),
+    RHEA_INVERSION_DEFAULT_HESSIAN_PREV_FILE_PATH_TXT,
+    "Resume inversion: Path to a text file of previous Hessian",
+  YMIR_OPTIONS_S, "gradient-prev-file-path-txt", '\0',
+    &(rhea_inversion_gradient_prev_file_path_txt),
+    RHEA_INVERSION_DEFAULT_GRADIENT_PREV_FILE_PATH_TXT,
+    "Resume inversion: Path to a text file of previous gradient",
+  YMIR_OPTIONS_S, "step-prev-file-path-txt", '\0',
+    &(rhea_inversion_step_prev_file_path_txt),
+    RHEA_INVERSION_DEFAULT_STEP_PREV_FILE_PATH_TXT,
+    "Resume inversion: Path to a text file of previous step",
 
   /* inner solver options (i.e., forward/adjoint) */
   YMIR_OPTIONS_B, "inner-solver-rtol-adaptive", '\0',
@@ -877,6 +899,93 @@ rhea_inversion_update_param (ymir_vec_t *solution,
   }
 }
 
+static int
+rhea_inversion_newton_read_prev (sc_dmatrix_t *hessian_mat,
+                                 ymir_vec_t *neg_gradient_vec,
+                                 ymir_vec_t *step_vec,
+                                 const char *hessian_prev_file_path_txt,
+                                 const char *gradient_prev_file_path_txt,
+                                 const char *step_prev_file_path_txt,
+                                 rhea_inversion_problem_t *inv_problem)
+{
+  rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+  rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t        *ymir_mesh =
+                        rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  const int           n_active = rhea_inversion_param_get_n_active (inv_param);
+  int                 success = 0;
+
+  /* check input */
+  RHEA_ASSERT (NULL != hessian_prev_file_path_txt);
+  RHEA_ASSERT (NULL != gradient_prev_file_path_txt);
+  RHEA_ASSERT (NULL != step_prev_file_path_txt);
+
+  /* read hessian */
+  if (NULL != hessian_mat && NULL != hessian_prev_file_path_txt) {
+    int                 success_n;
+
+    success_n = rhea_io_mpi_read_broadcast_double (
+        hessian_mat->e[0], hessian_mat->m * hessian_mat->n,
+        NULL /* path bin */, hessian_prev_file_path_txt, mpicomm);
+    RHEA_ASSERT (success_n == n_active*n_active);
+    RHEA_ASSERT (sc_dmatrix_is_valid (hessian_mat));
+    success += (success_n == n_active*n_active);
+  }
+
+  /* read gradient */
+  if (NULL != neg_gradient_vec && gradient_prev_file_path_txt) {
+    sc_dmatrix_t       *grad_read;
+    sc_dmatrix_t       *grad_reduced;
+    int                 success_n, row;
+
+    grad_read = sc_dmatrix_new (n_active, 3);
+    grad_reduced = rhea_inversion_param_vec_reduced_new (
+        neg_gradient_vec, inv_param);
+
+    success_n = rhea_io_mpi_read_broadcast_double (
+        grad_read->e[0], grad_read->m * grad_read->n,
+        NULL /* path bin */, gradient_prev_file_path_txt, mpicomm);
+    RHEA_ASSERT (success_n == 3*n_active);
+    RHEA_ASSERT (sc_dmatrix_is_valid (grad_read));
+    success += (success_n == 3*n_active);
+
+    for (row = 0; row < n_active; row++) {
+      grad_reduced->e[row][0] = grad_read->e[row][0];
+    }
+    rhea_inversion_param_vec_reduced_copy (
+        neg_gradient_vec, grad_reduced, inv_param);
+    ymir_vec_scale (-1.0, neg_gradient_vec);
+    RHEA_ASSERT (rhea_inversion_param_vec_is_valid (neg_gradient_vec,
+                                                    inv_param));
+
+    sc_dmatrix_destroy (grad_read);
+    rhea_inversion_param_vec_reduced_destroy (grad_reduced);
+  }
+
+  /* read step */
+  if (NULL != step_vec && step_prev_file_path_txt) {
+    sc_dmatrix_t       *step_reduced;
+    int                 success_n;
+
+    step_reduced = rhea_inversion_param_vec_reduced_new (
+        step_vec, inv_param);
+
+    success_n = rhea_io_mpi_read_broadcast_double (
+        step_reduced->e[0], step_reduced->m * step_reduced->n,
+        NULL /* path bin */, step_prev_file_path_txt, mpicomm);
+    RHEA_ASSERT (success_n == n_active);
+    RHEA_ASSERT (sc_dmatrix_is_valid (step_reduced));
+    success += (success_n == n_active);
+
+    rhea_inversion_param_vec_reduced_copy (
+        step_vec, step_reduced, inv_param);
+    rhea_inversion_param_vec_reduced_destroy (step_reduced);
+  }
+
+  return success;
+}
+
 static void
 rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
 {
@@ -908,6 +1017,25 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
 
     RHEA_ASSERT (inv_problem->hessian_matrix == NULL);
     inv_problem->hessian_matrix = sc_dmatrix_new (n, n);
+  }
+
+  /* read previous Hessian and gradient from file */
+  if (rhea_inversion_assemble_hessian_matrix &&
+      NULL != rhea_inversion_hessian_prev_file_path_txt &&
+      NULL != rhea_inversion_gradient_prev_file_path_txt &&
+      NULL != rhea_inversion_step_prev_file_path_txt) {
+    int                 success;
+
+    success = rhea_inversion_newton_read_prev (
+        inv_problem->hessian_matrix,
+        inv_problem->newton_neg_gradient_vec,
+        inv_problem->newton_step_vec,
+        rhea_inversion_hessian_prev_file_path_txt,
+        rhea_inversion_gradient_prev_file_path_txt,
+        rhea_inversion_step_prev_file_path_txt,
+        inv_problem);
+    RHEA_ASSERT (3 == success);
+    inv_problem->newton_gradient_diff_vec_update_count = 2;
   }
 
   /* update inversion parameters */
@@ -1144,7 +1272,7 @@ rhea_inversion_assemble_hessian_bfgs_update (
     RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "curvature_correction=%g", theta);
   }
 
-  RHEA_GLOBAL_VERBOSEF_FN_TAG (
+  RHEA_GLOBAL_INFOF_FN_TAG (
       __func__, "curvature_grad=%g, curvature_hess=%g, curvature_effective=%g",
       curvature_grad, curvature_hess, curvature_effective);
 
@@ -1341,7 +1469,7 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
                         rhea_inversion_parameter_prior_rel_weight;
   rhea_inversion_problem_t *inv_problem = data;
 
-  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "type=%i, assemble_matrix=%i", type,
       rhea_inversion_assemble_hessian_matrix);
   ymir_perf_counter_start (
@@ -1402,10 +1530,20 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
         (2 == inv_problem->newton_gradient_diff_vec_update_count);
 
       /* update BFGS approximation of the inverse Hessian matrix */
-      RHEA_ASSERT (NULL != step_vec);
-      rhea_inversion_assemble_hessian_bfgs_update (
-          inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
-          step_vec, step_length, inv_problem, reconstruct_init);
+      if (NULL != step_vec) { /* if step given as argument */
+        rhea_inversion_assemble_hessian_bfgs_update (
+            inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
+            step_vec, step_length, inv_problem, reconstruct_init);
+      }
+      else if (NULL != rhea_inversion_step_prev_file_path_txt) { /* if read */
+        rhea_inversion_assemble_hessian_bfgs_update (
+            inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
+            inv_problem->newton_step_vec, 1.0 /* step_length */, inv_problem,
+            reconstruct_init);
+      }
+      else { /* otherwise unknown state */
+        RHEA_ABORT_NOT_REACHED ();
+      }
     }
     break;
   case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
@@ -1446,7 +1584,7 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_UPDATE_HESSIAN]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 static double
