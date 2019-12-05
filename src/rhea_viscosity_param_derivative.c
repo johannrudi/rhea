@@ -469,6 +469,8 @@ rhea_viscosity_param_derivative_stress_exp (
   const double        stress_exp_deriv =
     rhea_inversion_param_derivative_n (stress_exp);
   const rhea_viscosity_t  visc_type = visc_options->type;
+  const double            visc_min = visc_options->min;
+  const double            visc_max = visc_options->max;
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (derivative);
   ymir_vec_t         *scal_vec, *visc_lin;
   double              scal_val;
@@ -490,11 +492,15 @@ rhea_viscosity_param_derivative_stress_exp (
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USMOOTH:
     rhea_strainrate_compute_sqrt_of_2inv (scal_vec, velocity);
     visc_options->type = RHEA_VISCOSITY_LINEAR;
+    visc_options->min = NAN;
+    visc_options->max = NAN;
     rhea_viscosity_compute (
         /* out: */ visc_lin, NULL, NULL,
         /* in:  */ temperature, NULL /* w/o weakzone */, NULL /* velocity */,
         visc_options);
     visc_options->type = visc_type;
+    visc_options->min = visc_min;
+    visc_options->max = visc_max;
     ymir_vec_multiply_in (visc_lin, scal_vec);
     break;
   case RHEA_VISCOSITY_MODEL_UWYL_LADD_USHIFT:
