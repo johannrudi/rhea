@@ -931,6 +931,20 @@ rhea_domain_elem_is_in_upper_mantle (const double *x, const double *y,
   return (lm_um_interface_radius <= r_center);
 }
 
+int
+rhea_domain_coord_is_in_upper_mantle (const double x,
+                                      const double y,
+                                      const double z,
+                                      const double tol,
+                                      rhea_domain_options_t *opt)
+{
+  const double        lm_um_interface_radius = opt->lm_um_interface_radius;
+  const double        r = rhea_domain_compute_radius (x, y, z, opt);
+
+  /* return if radius (with error tolerance) is in upper mantle */
+  return ((lm_um_interface_radius + tol) <= r);
+}
+
 void
 rhea_domain_project_to_surface (double *x, double *y, double *z,
                                 rhea_domain_options_t *opt)
