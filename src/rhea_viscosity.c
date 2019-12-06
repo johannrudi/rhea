@@ -195,7 +195,8 @@ rhea_viscosity_process_options (rhea_viscosity_options_t *opt,
   opt->upper_mantle_scaling = rhea_viscosity_upper_mantle_scaling;
   opt->upper_mantle_arrhenius_activation_energy =
     rhea_viscosity_upper_mantle_arrhenius_activation_energy;
-  if (0.0 < rhea_viscosity_lower_mantle_scaling) {
+  if (isfinite (rhea_viscosity_lower_mantle_scaling) &&
+      0.0 < rhea_viscosity_lower_mantle_scaling) {
     opt->lower_mantle_scaling = rhea_viscosity_lower_mantle_scaling;
   }
   else {
