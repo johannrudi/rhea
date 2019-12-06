@@ -79,6 +79,7 @@ typedef struct rhea_temperature_options
 
   /* buoyancy right-hand side derived from temperature */
   double              rhs_scaling;
+  double              lower_mantle_rhs_scaling;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t  *domain_options;

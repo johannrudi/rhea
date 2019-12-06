@@ -22,6 +22,7 @@
 #define RHEA_TEMPERATURE_DEFAULT_TEMPERATURE_DIFFERENCE_K (1400.0) /* [K] */
 #define RHEA_TEMPERATURE_DEFAULT_GAS_CONSTANT_J_KMOL (8.314) /* [J/K/mol] */
 #define RHEA_TEMPERATURE_DEFAULT_RHS_SCALING (1.0)
+#define RHEA_TEMPERATURE_DEFAULT_LOWER_MANTLE_RHS_SCALING (NAN)
 #define RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_BIN NULL
 #define RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_TXT NULL
 #define RHEA_TEMPERATURE_DEFAULT_WRITE_DATA_FILE_PATH_BIN NULL
@@ -70,6 +71,8 @@ double              rhea_temperature_gas_constant_J_Kmol =
   RHEA_TEMPERATURE_DEFAULT_GAS_CONSTANT_J_KMOL;
 double              rhea_temperature_rhs_scaling =
   RHEA_TEMPERATURE_DEFAULT_RHS_SCALING;
+double              rhea_temperature_lower_mantle_rhs_scaling =
+  RHEA_TEMPERATURE_DEFAULT_LOWER_MANTLE_RHS_SCALING;
 char               *rhea_temperature_data_file_path_bin =
   RHEA_TEMPERATURE_DEFAULT_DATA_FILE_PATH_BIN;
 char               *rhea_temperature_data_file_path_txt =
@@ -174,7 +177,11 @@ rhea_temperature_add_options (ymir_options_t * opt_sup)
 
   YMIR_OPTIONS_D, "right-hand-side-scaling", '\0',
     &(rhea_temperature_rhs_scaling), RHEA_TEMPERATURE_DEFAULT_RHS_SCALING,
-    "Scaling factor for velocity right-hand side from temperature",
+    "Scaling factor for momentum right-hand side derived from temperature",
+  YMIR_OPTIONS_D, "lower-mantle-right-hand-side-scaling", '\0',
+    &(rhea_temperature_lower_mantle_rhs_scaling),
+    RHEA_TEMPERATURE_DEFAULT_LOWER_MANTLE_RHS_SCALING,
+    "Scaling factor for momentum RHS derived from temperature (lower mantle)",
 
   YMIR_OPTIONS_S, "data-file-path-bin", '\0',
     &(rhea_temperature_data_file_path_bin),
@@ -445,6 +452,12 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
 
   /* set right-hand side options */
   opt->rhs_scaling = rhea_temperature_rhs_scaling;
+  if (isfinite (rhea_temperature_lower_mantle_rhs_scaling)) {
+    opt->lower_mantle_rhs_scaling = rhea_temperature_lower_mantle_rhs_scaling;
+  }
+  else {
+    opt->lower_mantle_rhs_scaling = rhea_temperature_rhs_scaling;
+  }
 
   /* store domain options */
   opt->domain_options = domain_options;
@@ -1331,8 +1344,18 @@ rhea_temperature_rhs_vel_node (double *rhs, const double x, const double y,
                                rhea_temperature_options_t *opt)
 {
   rhea_domain_options_t  *domain_options = opt->domain_options;
-  const double        scaling = opt->rhs_scaling;
+  const double        tol = SC_1000_EPS;
+  double              scaling;
 
+  /* set scaling factor depending on location */
+  if (rhea_domain_coord_is_in_upper_mantle (x, y, z, tol, domain_options)) {
+    scaling = opt->rhs_scaling;
+  }
+  else {
+    scaling = opt->lower_mantle_rhs_scaling;
+  }
+
+  /* compute right-hand side */
   switch (domain_options->shape) {
   case RHEA_DOMAIN_CUBE:
   case RHEA_DOMAIN_BOX:
