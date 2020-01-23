@@ -8,6 +8,7 @@
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>
+#include <rhea_composition.h>
 #include <rhea_plate.h>
 #include <rhea_weakzone.h>
 #include <rhea_topography.h>

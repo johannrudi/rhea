@@ -142,6 +142,7 @@ rhea_add_options_all (ymir_options_t *options)
   rhea_temperature_add_options (options);
   rhea_temperature_add_options_sinker (options);
   rhea_temperature_add_options_plume (options);
+  rhea_composition_add_options (options);
   rhea_plate_add_options (options);
   rhea_weakzone_add_options (options);
   rhea_topography_add_options (options);

@@ -1,0 +1,100 @@
+#!/bin/bash
+
+###############################################################################
+#
+# Configures the rhea code in the directory from which this script is called.
+#
+###############################################################################
+
+declare -r THIS_ARCHITECTURE="Apple Mac with macOS 10.13 (Clang compiler)"
+declare -r THIS_BLAS_LIBS="$HOME/build/blaslapack/lib/libfblas.a"
+declare -r THIS_LAPACK_LIBS="$HOME/build/blaslapack/lib/libflapack.a"
+declare -r THIS_PETSC_DIR="$HOME/build/petsc"
+declare -r THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
+#declare -r OPENMP_FLAG="-Xpreprocessor -fopenmp -lomp \
+#-I$(brew --prefix libomp)/include \
+#-L$(brew --prefix libomp)/lib"
+
+########################################
+# Functions
+########################################
+
+function print_usage()
+{
+  echo "Usage: ./configure_arch_mac [-o]"
+}
+
+########################################
+# Process options
+########################################
+
+# initialize parameters
+is_opt=0
+code_dir="$(dirname ${BASH_SOURCE[0]})"
+build_dir="$(pwd)"
+
+# check option flags
+while getopts ":ho" opt; do
+  case $opt in
+    h) # help
+      print_usage; exit 1
+      ;;
+    o) # optimized build
+      is_opt=1
+      ;;
+    \?) # invalid option
+      echo "Invalid option: -$OPTARG" >&2; exit 1
+      ;;
+    :) # option requires argument
+      echo "Option -$OPTARG requires an argument" >&2; exit 1
+      ;;
+  esac
+done
+
+########################################
+# Run configure
+########################################
+
+echo "========================================"
+echo "Build rhea for $THIS_ARCHITECTURE"
+echo "Code directory:  $code_dir"
+echo "Build directory: $build_dir"
+echo "Optimized build: $is_opt"
+echo "========================================"
+
+if [ 1 -le "$is_opt" ]; then
+  # configure optimized build
+  $code_dir/configure \
+  F77=mpif77 \
+   FC=mpif90 \
+   CC=mpicc \
+  CXX=mpicxx \
+    CFLAGS="-g -O2 -Wall -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
+  CXXFLAGS="-g -O2 -Wall" \
+  CPPFLAGS="-I${THIS_VALGRIND_INC}" \
+  --enable-mpi \
+  --with-fet="$code_dir/fet" \
+  --with-petsc="$THIS_PETSC_DIR" \
+  BLAS_LIBS="$THIS_BLAS_LIBS" \
+  LAPACK_LIBS="$THIS_LAPACK_LIBS"
+else
+  # configure development build
+  $code_dir/configure \
+  F77=mpif77 \
+   FC=mpif90 \
+   CC=mpicc \
+  CXX=mpicxx \
+    CFLAGS="-g -O0 -Wall" \
+  CXXFLAGS="-g -O0 -Wall" \
+  --enable-debug \
+  --enable-mpi \
+  --with-fet="$code_dir/fet" \
+  --with-petsc="$THIS_PETSC_DIR" \
+  BLAS_LIBS="$THIS_BLAS_LIBS" \
+  LAPACK_LIBS="$THIS_LAPACK_LIBS"
+fi
+
+#  CPPFLAGS="-I${THIS_VALGRIND_INC}" \
+#   CFLAGS="-g -O0 $OPENMP_FLAG -Wall" \
+# CXXFLAGS="-g -O0 $OPENMP_FLAG -Wall" \
+# --enable-openmp="$OPENMP_FLAG" \
