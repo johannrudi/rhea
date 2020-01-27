@@ -76,6 +76,7 @@ void                rhea_process_options_all (
                               rhea_weakzone_options_t *weakzone_options,
                               rhea_topography_options_t *topography_options,
                               rhea_viscosity_options_t *viscosity_options,
+							  rhea_composition_options_t *composition_options,
                               rhea_discretization_options_t *discr_options);
 
 /**

@@ -7,12 +7,14 @@
 #include <rhea_domain.h>
 #include <ymir_vec_ops.h>
 
+#define RHEA_COMPOSITION_MAXIMUM_FLAVOR (100)
+
 /* enumerator for types of composition field */
 typedef enum
 {
   RHEA_COMPOSITION_NONE, /* no input for composition */
-  RHEA_COMPOSITION_INT, /* use integers to define composition */
-  RHEA_COMPOSITION_DENS /* continuous field such as density */
+  RHEA_COMPOSITION_FLAVOR, /* use integers to define composition */
+  RHEA_COMPOSITION_DENSITY /* continuous field such as density */
 }
 rhea_composition_t;
 
@@ -26,9 +28,20 @@ typedef struct rhea_composition_options
   /* type of composition field */
   rhea_composition_t type;
 
+  /* number of flavor */
+  int				 n_flavor;
+
+  /* density anomaly for each flavor */
+  double			 density_flavor[RHEA_COMPOSITION_MAXIMUM_FLAVOR];
+  /* viscosity effect for each flavor */
+  double			 visc_flavor[RHEA_COMPOSITION_MAXIMUM_FLAVOR];
+
   /* data imported from file */
   char               *import_path_txt;
   char               *import_path_bin;
+
+  /* buoyancy right-hand side derived from temperature */
+  double              rhs_scaling_comp;
 
   /* options & properties of the computational domain */
   rhea_domain_options_t  *domain_options;
@@ -40,6 +53,13 @@ rhea_composition_options_t;
  * Defines options and adds them as sub-options.
  */
 void                rhea_composition_add_options (ymir_options_t * opt_sup);
+
+/**
+ * Processes options and stores them.
+ */
+void                rhea_composition_process_options (
+                                        rhea_composition_options_t *opt,
+                                        rhea_domain_options_t *domain_options);
 
 /**
  * Creates a new composition vector.
@@ -64,9 +84,30 @@ MPI_Offset         *rhea_composition_segment_offset_create (ymir_vec_t *vec);
 int                 rhea_composition_segment_size_get (ymir_vec_t *vec);
 
 /**
+ * convert composition to density and viscosity
+ */
+void rhea_composition_convert (ymir_vec_t *composition,
+							ymir_vec_t *comp_density, ymir_vec_t *comp_visc,
+							ymir_mesh_t *ymir_mesh,
+							rhea_composition_options_t *opt);
+
+/**
+ * Read composition field
+ */
+void				rhea_composition_read (ymir_vec_t *composition,
+										rhea_composition_options_t *opt);
+
+/**
  * Write out composition
  */
 void				rhea_composition_write (char *file_path_bin,
 										ymir_vec_t *composition, sc_MPI_Comm mpicomm);
+/**
+ * Computes velocity right-hand side in (primal) function space, given a
+ * compositional density vector.
+ */
+void rhea_composition_compute_rhs_vel (ymir_vec_t *rhs_vel,
+                                  ymir_vec_t *comp_density,
+                                  rhea_temperature_options_t *opt);
 
 #endif /* RHEA_COMPOSITION_H */

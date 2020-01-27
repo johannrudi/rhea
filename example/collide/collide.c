@@ -1647,6 +1647,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 {
   const char         *this_fn_name = "collide_setup_stokes";
   ymir_vec_t         *temperature;
+  ymir_vec_t		 *composition;
   ymir_vec_t         *coeff_TI_svisc, *TI_rotate = NULL;
   ymir_vec_t         *rhs_vel_nonzero_dirichlet;
 
@@ -1655,6 +1656,10 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* compute temperature */
   temperature = rhea_temperature_new (ymir_mesh);
   rhea_temperature_compute (temperature, temp_options);
+
+  /* read composition */
+  composition = rhea_composition_new (ymir_mesh);
+  rhea_composition_read (composition, comp_options);
 
   /* set velocity boundary conditions & nonzero Dirichlet values */
   if (domain_options->velocity_bc_type == RHEA_DOMAIN_VELOCITY_BC_USER) {
@@ -1708,8 +1713,11 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
 
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      ymir_mesh, press_elem, temperature, domain_options, temp_options,
+      ymir_mesh, press_elem, temperature, composition, domain_options, temp_options,
       weak_options, visc_options);
+
+  /* destroy vector composition */
+  rhea_composition_destroy (composition);
 
   /* set custom function to compute viscosity */
   rhea_stokes_problem_set_viscosity_compute_fn (
@@ -2127,7 +2135,7 @@ main (int argc, char **argv)
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options, NULL,
-                            &weak_options, &topo_options, &visc_options,
+                            &weak_options, &topo_options, &visc_options, &comp_options,
                             &discr_options);
 
   /*

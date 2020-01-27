@@ -9,6 +9,7 @@
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>
+#include <rhea_composition.h>
 #include <rhea_plate.h>
 #include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
@@ -57,10 +58,12 @@ rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
                                     ymir_vec_t *temperature,
+									ymir_vec_t *composition,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options,
                                     rhea_weakzone_options_t *weak_options,
-                                    rhea_viscosity_options_t *visc_options);
+                                    rhea_viscosity_options_t *visc_options,
+									rhea_composition_options_t *comp_options);
 
 void                rhea_stokes_problem_destroy (
                                     rhea_stokes_problem_t *stokes_problem);
@@ -198,6 +201,10 @@ ymir_pressure_elem_t *rhea_stokes_problem_get_press_elem (
 void                rhea_stokes_problem_set_temperature (
                                     rhea_stokes_problem_t *stokes_problem,
                                     ymir_vec_t *temperature);
+void                rhea_stokes_problem_set_composition (
+                                    rhea_stokes_problem_t *stokes_problem,
+									ymir_mesh_t *ymir_mesh,
+                                    ymir_vec_t *composition);
 ymir_vec_t         *rhea_stokes_problem_get_temperature (
                                     rhea_stokes_problem_t *stokes_problem);
 void                rhea_stokes_problem_remove_temperature (

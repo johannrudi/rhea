@@ -24,6 +24,7 @@ void                example_share_stokes_new (
                                   rhea_plate_options_t *plate_options,
                                   rhea_weakzone_options_t *weak_options,
                                   rhea_viscosity_options_t *visc_options,
+								  rhea_composition_options_t *comp_options,
                                   p4est_t *p4est,
                                   rhea_discretization_options_t *discr_options,
                                   const int performance_monitor_index_mesh,

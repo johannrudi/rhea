@@ -131,6 +131,7 @@ main (int argc, char **argv)
   rhea_weakzone_options_t       weak_options;
   rhea_topography_options_t     topo_options;
   rhea_viscosity_options_t      visc_options;
+  rhea_composition_options_t	comp_options;
   rhea_discretization_options_t discr_options;
   /* options local to this program */
   int                 solver_iter_max;
@@ -242,7 +243,7 @@ main (int argc, char **argv)
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options, &plate_options,
-                            &weak_options, &topo_options, &visc_options,
+                            &weak_options, &topo_options, &visc_options, &comp_options,
                             &discr_options);
 
   /*
@@ -259,7 +260,7 @@ main (int argc, char **argv)
 
   example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &plate_options,
-                            &weak_options, &visc_options,
+                            &weak_options, &visc_options, &comp_options,
                             p4est, &discr_options,
                             RHEA_MAIN_PERFMON_SETUP_MESH,
                             RHEA_MAIN_PERFMON_SETUP_STOKES,

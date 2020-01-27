@@ -61,6 +61,7 @@ main (int argc, char **argv)
   ymir_options_t     *opt;
   rhea_domain_options_t         domain_options;
   rhea_temperature_options_t    temp_options;
+  rhea_composition_options_t	comp_options;
   rhea_weakzone_options_t       weak_options;
   rhea_viscosity_options_t      visc_options;
   rhea_topography_options_t     topo_options;
@@ -154,7 +155,7 @@ main (int argc, char **argv)
 
   /*process rhea options */
   rhea_process_options_all (&domain_options, &temp_options, &plate_options, &weak_options,
-                            &topo_options, &visc_options, &discr_options);
+                            &topo_options, &visc_options, &comp_options, &discr_options);
 
   /*process subduction options */
   subduction_process_options (&subd_options, &domain_options, &visc_options,

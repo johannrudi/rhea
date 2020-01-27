@@ -168,6 +168,7 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
                           rhea_weakzone_options_t *weakzone_options,
                           rhea_topography_options_t *topography_options,
                           rhea_viscosity_options_t *viscosity_options,
+						  rhea_composition_options_t *composition_options,
                           rhea_discretization_options_t *discr_options)
 {
   rhea_domain_process_options (domain_options);
@@ -178,6 +179,8 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
   rhea_topography_process_options (topography_options, domain_options);
   rhea_viscosity_process_options (
       viscosity_options, domain_options, temperature_options);
+  rhea_composition_process_options (
+        composition_options, domain_options);
   rhea_discretization_process_options (
       discr_options, domain_options, topography_options);
   rhea_stokes_problem_process_options ();
