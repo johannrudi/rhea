@@ -392,10 +392,20 @@ rhea_composition_compute_rhs_vel (ymir_vec_t *rhs_vel,
 {
   rhea_composition_compute_rhs_vel_fn_data_t  data;
 
-  /* set right-hand side */
-  data.comp_density = comp_density;
-  data.comp_options = opt;
-  ymir_cvec_set_function (rhs_vel, rhea_composition_compute_rhs_vel_fn, &data);
+  switch (opt->type) {
+  case RHEA_COMPOSITION_FLAVOR:
+  case RHEA_COMPOSITION_DENSITY:
+    /* set right-hand side */
+    data.comp_density = comp_density;
+    data.comp_options = opt;
+    ymir_cvec_set_function (rhs_vel, rhea_composition_compute_rhs_vel_fn, &data);
+    break;
+  case RHEA_COMPOSITION_NONE:
+	ymir_vec_set_value (rhs_vel, 0.0);
+	break;
+  default: /* unknown composition type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 void rhea_composition_convert (ymir_vec_t *composition,

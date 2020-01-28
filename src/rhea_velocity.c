@@ -272,12 +272,29 @@ rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
  *****************************************************************************/
 
 void
-rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel, ymir_vec_t *temperature,
+rhea_velocity_temp_rhs_compute (ymir_vec_t *rhs_vel, ymir_vec_t *temperature,
                            void *data)
 {
   rhea_temperature_options_t *temp_options = data;
 
   rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
+}
+
+/******************************************************************************
+ * Right-Hand Side Computation, add compositional effect upon temperature
+ *****************************************************************************/
+void
+rhea_velocity_comp_rhs_compute (ymir_vec_t *rhs_vel, ymir_vec_t *composition,
+                           void *data)
+{
+  rhea_composition_options_t *comp_options = data;
+  ymir_vec_t				 *rhs_vel_comp = ymir_vec_template (rhs_vel);
+
+  rhea_composition_compute_rhs_vel (rhs_vel_comp, composition, comp_options);
+
+  ymir_vec_add (1.0, rhs_vel_comp, rhs_vel);
+
+  ymir_vec_destroy (rhs_vel_comp);
 }
 
 /******************************************************************************

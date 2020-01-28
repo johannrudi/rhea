@@ -143,9 +143,13 @@ void                rhea_velocity_get_elem_gll (sc_dmatrix_t *vel_el_mat,
  * Right-Hand Side Computation
  *****************************************************************************/
 
-typedef void      (*rhea_velocity_rhs_compute_fn_t) (ymir_vec_t *rhs_vel,
+typedef void      (*rhea_velocity_rhs_compute_temp_fn_t) (ymir_vec_t *rhs_vel,
                                                      ymir_vec_t *temperature,
                                                      void *data);
+
+typedef void      (*rhea_velocity_rhs_compute_comp_fn_t) (ymir_vec_t *rhs_vel,
+													 ymir_vec_t *composition,
+													 void *data);
 
 typedef void      (*rhea_velocity_rhs_nz_dir_compute_fn_t) (
                                       ymir_vec_t *rhs_vel_nonzero_dirichlet,
@@ -155,9 +159,13 @@ typedef void      (*rhea_velocity_rhs_nz_neu_compute_fn_t) (
                                       ymir_vec_t **rhs_vel_face_nonzero_neumann,
                                       void *data);
 
-void                rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel,
+void                rhea_velocity_temp_rhs_compute (ymir_vec_t *rhs_vel,
                                                ymir_vec_t *temperature,
-                                               void *data);
+											   void *data);
+
+void                rhea_velocity_comp_rhs_compute (ymir_vec_t *rhs_vel,
+                                               ymir_vec_t *composition,
+											   void *data);
 
 /******************************************************************************
  * Statistics

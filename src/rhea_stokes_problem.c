@@ -150,8 +150,10 @@ struct rhea_stokes_problem
   void                       *weakzone_compute_fn_data;
   rhea_viscosity_compute_fn_t viscosity_compute_fn;
   void                       *viscosity_compute_fn_data;
-  rhea_velocity_rhs_compute_fn_t         rhs_vel_compute_fn;
-  void                                  *rhs_vel_compute_fn_data;
+  rhea_velocity_rhs_compute_temp_fn_t    rhs_vel_compute_temp_fn;
+  void                                  *rhs_vel_compute_temp_fn_data;
+  rhea_velocity_rhs_compute_comp_fn_t	 rhs_vel_compute_comp_fn;
+  void                                  *rhs_vel_compute_comp_fn_data;
   rhea_velocity_rhs_nz_dir_compute_fn_t  rhs_vel_nonzero_dir_compute_fn;
   void                                  *rhs_vel_nonzero_dir_compute_fn_data;
   rhea_velocity_rhs_nz_neu_compute_fn_t  rhs_vel_nonzero_neu_compute_fn;
@@ -281,8 +283,10 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   }
   rhea_stokes_problem_set_viscosity_compute_fn (
       stokes_problem, rhea_viscosity_compute, visc_options);
-  stokes_problem->rhs_vel_compute_fn = rhea_velocity_rhs_compute;
-  stokes_problem->rhs_vel_compute_fn_data = temp_options;
+  stokes_problem->rhs_vel_compute_temp_fn = rhea_velocity_temp_rhs_compute;
+  stokes_problem->rhs_vel_compute_temp_fn_data = temp_options;
+  stokes_problem->rhs_vel_compute_comp_fn = rhea_velocity_comp_rhs_compute;
+  stokes_problem->rhs_vel_compute_comp_fn_data = comp_options;
   stokes_problem->rhs_vel_nonzero_dir_compute_fn = NULL;
   stokes_problem->rhs_vel_nonzero_dir_compute_fn_data = NULL;
   stokes_problem->rhs_vel_nonzero_neu_compute_fn = NULL;
@@ -680,10 +684,14 @@ rhea_stokes_problem_linear_create_mesh_data (
 
   /* create right-hand side vectors */
   stokes_problem_lin->rhs_vel = rhea_velocity_new (ymir_mesh);
-  stokes_problem_lin->rhs_vel_compute_fn (
+  stokes_problem_lin->rhs_vel_compute_temp_fn (
       stokes_problem_lin->rhs_vel,
       stokes_problem_lin->temperature,
-      stokes_problem_lin->rhs_vel_compute_fn_data);
+      stokes_problem_lin->rhs_vel_compute_temp_fn_data);
+  stokes_problem_lin->rhs_vel_compute_comp_fn (
+        stokes_problem_lin->rhs_vel,
+        stokes_problem_lin->compositional_density,
+        stokes_problem_lin->rhs_vel_compute_comp_fn_data);
   if (stokes_problem_lin->rhs_vel_nonzero_dir_compute_fn != NULL) {
     stokes_problem_lin->rhs_vel_nonzero_dirichlet = rhea_velocity_new (
         ymir_mesh);
@@ -2756,10 +2764,14 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
 
   /* create right-hand side vectors */
   stokes_problem_nl->rhs_vel = rhea_velocity_new (ymir_mesh);
-  stokes_problem_nl->rhs_vel_compute_fn (
+  stokes_problem_nl->rhs_vel_compute_temp_fn (
       stokes_problem_nl->rhs_vel,
       stokes_problem_nl->temperature,
-      stokes_problem_nl->rhs_vel_compute_fn_data);
+      stokes_problem_nl->rhs_vel_compute_temp_fn_data);
+  stokes_problem_nl->rhs_vel_compute_comp_fn (
+        stokes_problem_nl->rhs_vel,
+        stokes_problem_nl->compositional_density,
+        stokes_problem_nl->rhs_vel_compute_comp_fn_data);
   if (stokes_problem_nl->rhs_vel_nonzero_dir_compute_fn != NULL) {
     stokes_problem_nl->rhs_vel_nonzero_dirichlet = rhea_velocity_new (
         ymir_mesh);
@@ -2933,7 +2945,7 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
   rhea_stokes_problem_set_temperature (stokes_problem_nl, temperature);
 
   /* set composition */
-    rhea_stokes_problem_set_composition (stokes_problem_nl, composition);
+  rhea_stokes_problem_set_composition (stokes_problem_nl, composition);
 
   /* initialize nonlinear structure */
   stokes_problem_nl->linearization_type =
@@ -3754,7 +3766,7 @@ rhea_stokes_problem_set_viscosity_compute_fn (
 void
 rhea_stokes_problem_set_rhs_vel_compute_fn (
                                     rhea_stokes_problem_t *stokes_problem,
-                                    rhea_velocity_rhs_compute_fn_t fn,
+                                    rhea_velocity_rhs_compute_temp_fn_t fn,
                                     void *data)
 {
   /* check input */
@@ -3762,14 +3774,14 @@ rhea_stokes_problem_set_rhs_vel_compute_fn (
   RHEA_ASSERT (fn != NULL);
 
   /* set function and corresponding data */
-  stokes_problem->rhs_vel_compute_fn = fn;
-  stokes_problem->rhs_vel_compute_fn_data = data;
+  stokes_problem->rhs_vel_compute_temp_fn = fn;
+  stokes_problem->rhs_vel_compute_temp_fn_data = data;
 
   /* recompute */
-  stokes_problem->rhs_vel_compute_fn (
+  stokes_problem->rhs_vel_compute_temp_fn (
       stokes_problem->rhs_vel,
       stokes_problem->temperature,
-      stokes_problem->rhs_vel_compute_fn_data);
+      stokes_problem->rhs_vel_compute_temp_fn_data);
 }
 
 void
