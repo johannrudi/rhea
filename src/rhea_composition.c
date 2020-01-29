@@ -162,6 +162,13 @@ rhea_composition_check_vec_type (ymir_vec_t *vec)
   );
 }
 
+rhea_composition_options_t *
+rhea_stokes_problem_get_composition_options (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->comp_options;
+}
+
 MPI_Offset *
 rhea_composition_segment_offset_create (ymir_vec_t *vec)
 {

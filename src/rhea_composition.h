@@ -77,6 +77,12 @@ void                rhea_composition_destroy (ymir_vec_t *compositino);
 int                 rhea_composition_check_vec_type (ymir_vec_t *vec);
 
 /**
+ * Get composition options from stokes_problem.
+ */
+rhea_composition_options_t *rhea_stokes_problem_get_composition_options (
+										rhea_stokes_problem_t *stokes_problem);
+
+/**
  * Gets rank-global offsets or rank-local sizes of a distributed vector for
  * each MPI-rank.
  */

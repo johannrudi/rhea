@@ -2,6 +2,7 @@
 #include <rhea_base.h>
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
+#include <rhea_composition.h>
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
 #include <rhea_velocity_pressure.h>
@@ -18,9 +19,11 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_domain_options_t      *domain_options;
   rhea_temperature_options_t *temp_options;
   rhea_viscosity_options_t   *visc_options;
+  rhea_composition_options_t *comp_options;
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *temperature, *background_temp;
   ymir_vec_t         *weakzone, *viscosity, *marker;
+  ymir_vec_t		 *composition;
   ymir_vec_t         *rhs_vel;
 //ymir_vec_t         *rhs_vel_nonzero_dirichlet;
   const int           plates_exist =
@@ -40,6 +43,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
   temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
   visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
+  comp_options = rhea_stokes_problem_get_composition_options (stokes_problem);
 
   /* get mesh */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
@@ -92,6 +96,10 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
     RHEA_ABORT_NOT_REACHED ();
   }
 
+  /* read composition */
+  composition = rhea_composition_new (ymir_mesh);
+  rhea_composition_read (composition, comp_options);
+
   /* convert to physical dimensions */
   rhea_temperature_convert_to_dimensional_K (temperature, temp_options);
   rhea_temperature_convert_to_dimensional_K (background_temp, temp_options);
@@ -104,9 +112,22 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   }
 
   /* write vtk */
-  rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, weakzone, viscosity, marker,
-                             rhs_vel);
+  switch (comp_options->type) {
+  case RHEA_COMPOSITION_NONE:
+    rhea_vtk_write_input_data (vtk_write_input_path, temperature,
+                               background_temp, weakzone, viscosity, marker,
+                               NULL, rhs_vel);
+    break;
+  case RHEA_COMPOSITION_FLAVOR:
+  case RHEA_COMPOSITION_DENSITY:
+	rhea_vtk_write_input_data (vtk_write_input_path, temperature,
+	                           background_temp, weakzone, viscosity, marker,
+	                           composition, rhs_vel);
+	break;
+  default: /* unknown composition type */
+	RHEA_ABORT_NOT_REACHED ();
+  }
+
   if (plates_exist) {
     snprintf (path, BUFSIZ, "%s_obs", vtk_write_input_path);
     rhea_vtk_write_observation_data (path, plate_label, plate_weight,
@@ -120,6 +141,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (marker);
   ymir_vec_destroy (rhs_vel);
+  rhea_composition_destroy (composition);
   if (plates_exist) {
     rhea_viscosity_surface_destroy (plate_label);
     rhea_viscosity_surface_destroy (plate_weight);

@@ -180,7 +180,7 @@ main (int argc, char **argv)
   */
   adjoint_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                       &domain_options, &temp_options, &weak_options,
-                      &visc_options, &subd_options);
+                      &visc_options, &comp_options, &subd_options);
 
   /*
    * Solve Adjonit Problem

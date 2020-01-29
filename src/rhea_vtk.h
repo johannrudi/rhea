@@ -11,6 +11,7 @@ int                 rhea_vtk_write_input_data (const char *filepath,
                                                ymir_vec_t *weakzone,
                                                ymir_vec_t *viscosity,
                                                ymir_vec_t *marker,
+											   ymir_vec_t *composition,
                                                ymir_vec_t *rhs_vel);
 
 int                 rhea_vtk_write_observation_data (const char *filepath,

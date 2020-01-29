@@ -13,6 +13,7 @@
 #define RHEA_VTK_NAME_TEMPERATURE "temperature"
 #define RHEA_VTK_NAME_VELOCITY "velocity"
 #define RHEA_VTK_NAME_PRESSURE "pressure"
+#define RHEA_VTK_NAME_COMPOSITION "composition"
 
 #define RHEA_VTK_NAME_BACKGROUND_TEMPERATURE "background_temp"
 #define RHEA_VTK_NAME_VELOCITY_RHS "rhs_vel"
@@ -43,12 +44,14 @@ rhea_vtk_write_input_data (const char *filepath,
                            ymir_vec_t *weakzone,
                            ymir_vec_t *viscosity,
                            ymir_vec_t *marker,
+						   ymir_vec_t *composition,
                            ymir_vec_t *rhs_vel)
 {
   const int           in_temp = (temperature != NULL);
   const int           in_back = (background_temp != NULL);
   const int           in_weak = (weakzone != NULL);
   const int           in_marker = (marker != NULL);
+  const int			  in_comp = (composition != NULL);
   ymir_mesh_t        *ymir_mesh;
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
@@ -84,42 +87,88 @@ rhea_vtk_write_input_data (const char *filepath,
   }
 
   /* write vtk file fields (reduce output for common use cases) */
-  if (!in_temp && !in_back && !in_weak && !in_marker) {
-    ymir_vtk_write (ymir_mesh, filepath,
-                    viscosity, RHEA_VTK_NAME_VISCOSITY,
-                    rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS, NULL);
+  if (!in_comp) {
+    if (!in_temp && !in_back && !in_weak && !in_marker) {
+      ymir_vtk_write (ymir_mesh, filepath,
+                      viscosity, RHEA_VTK_NAME_VISCOSITY,
+                      rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS, NULL);
+    }
+    else if (!in_temp && !in_back) {
+      ymir_vtk_write (ymir_mesh, filepath,
+                      viscosity, RHEA_VTK_NAME_VISCOSITY,
+                      rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+                      weakzone, RHEA_VTK_NAME_WEAKZONE,
+                      marker, RHEA_VTK_NAME_MARKER, NULL);
+    }
+    else if (!in_weak && !in_marker) {
+      ymir_vtk_write (ymir_mesh, filepath,
+                      viscosity, RHEA_VTK_NAME_VISCOSITY,
+                      rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+                      temperature, RHEA_VTK_NAME_TEMPERATURE,
+                      background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+                      NULL);
+    }
+    else if (!in_marker) {
+      ymir_vtk_write (ymir_mesh, filepath,
+                      viscosity, RHEA_VTK_NAME_VISCOSITY,
+                      rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+                      temperature, RHEA_VTK_NAME_TEMPERATURE,
+                      background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+                      weakzone, RHEA_VTK_NAME_WEAKZONE, NULL);
+    }
+    else { /* otherwise write all fields */
+      ymir_vtk_write (ymir_mesh, filepath,
+                      viscosity, RHEA_VTK_NAME_VISCOSITY,
+                      rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+                      temperature, RHEA_VTK_NAME_TEMPERATURE,
+                      background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+                      weakzone, RHEA_VTK_NAME_WEAKZONE,
+                      marker, RHEA_VTK_NAME_MARKER, NULL);
+    }
   }
-  else if (!in_temp && !in_back) {
-    ymir_vtk_write (ymir_mesh, filepath,
-                    viscosity, RHEA_VTK_NAME_VISCOSITY,
-                    rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
-                    weakzone, RHEA_VTK_NAME_WEAKZONE,
-                    marker, RHEA_VTK_NAME_MARKER, NULL);
-  }
-  else if (!in_weak && !in_marker) {
-    ymir_vtk_write (ymir_mesh, filepath,
-                    viscosity, RHEA_VTK_NAME_VISCOSITY,
-                    rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
-                    temperature, RHEA_VTK_NAME_TEMPERATURE,
-                    background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
-                    NULL);
-  }
-  else if (!in_marker) {
-    ymir_vtk_write (ymir_mesh, filepath,
-                    viscosity, RHEA_VTK_NAME_VISCOSITY,
-                    rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
-                    temperature, RHEA_VTK_NAME_TEMPERATURE,
-                    background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
-                    weakzone, RHEA_VTK_NAME_WEAKZONE, NULL);
-  }
-  else { /* otherwise write all fields */
-    ymir_vtk_write (ymir_mesh, filepath,
-                    viscosity, RHEA_VTK_NAME_VISCOSITY,
-                    rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
-                    temperature, RHEA_VTK_NAME_TEMPERATURE,
-                    background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
-                    weakzone, RHEA_VTK_NAME_WEAKZONE,
-                    marker, RHEA_VTK_NAME_MARKER, NULL);
+  else {
+	if (!in_temp && !in_back && !in_weak && !in_marker) {
+      ymir_vtk_write (ymir_mesh, filepath,
+					  viscosity, RHEA_VTK_NAME_VISCOSITY,
+					  composition, RHEA_VTK_NAME_COMPOSITION,
+					  rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS, NULL);
+	}
+	else if (!in_temp && !in_back) {
+	  ymir_vtk_write (ymir_mesh, filepath,
+					  viscosity, RHEA_VTK_NAME_VISCOSITY,
+					  composition, RHEA_VTK_NAME_COMPOSITION,
+					  rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+					  weakzone, RHEA_VTK_NAME_WEAKZONE,
+					  marker, RHEA_VTK_NAME_MARKER, NULL);
+	}
+	else if (!in_weak && !in_marker) {
+	  ymir_vtk_write (ymir_mesh, filepath,
+					  viscosity, RHEA_VTK_NAME_VISCOSITY,
+					  composition, RHEA_VTK_NAME_COMPOSITION,
+					  rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+					  temperature, RHEA_VTK_NAME_TEMPERATURE,
+					  background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+					  NULL);
+	}
+	else if (!in_marker) {
+	  ymir_vtk_write (ymir_mesh, filepath,
+					  viscosity, RHEA_VTK_NAME_VISCOSITY,
+					  composition, RHEA_VTK_NAME_COMPOSITION,
+					  rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+					  temperature, RHEA_VTK_NAME_TEMPERATURE,
+					  background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+					  weakzone, RHEA_VTK_NAME_WEAKZONE, NULL);
+	}
+	else { /* otherwise write all fields */
+	  ymir_vtk_write (ymir_mesh, filepath,
+					  viscosity, RHEA_VTK_NAME_VISCOSITY,
+					  composition, RHEA_VTK_NAME_COMPOSITION,
+					  rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
+					  temperature, RHEA_VTK_NAME_TEMPERATURE,
+					  background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+					  weakzone, RHEA_VTK_NAME_WEAKZONE,
+					  marker, RHEA_VTK_NAME_MARKER, NULL);
+	}
   }
 
   /* destroy */

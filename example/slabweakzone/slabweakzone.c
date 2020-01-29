@@ -4417,7 +4417,7 @@ slabs_write_input (ymir_mesh_t *ymir_mesh,
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
                              background_temp, weakzone, viscosity, NULL,
-                             rhs_vel);
+                             NULL, rhs_vel);
 
   rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
@@ -5482,7 +5482,7 @@ main (int argc, char **argv)
 
   slabs_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                       &domain_options, &temp_options, &weak_options,
-                      &visc_options, &slabs_options, vtk_write_input_path);
+                      &visc_options, &comp_options, &slabs_options, vtk_write_input_path);
 
   }
   /*

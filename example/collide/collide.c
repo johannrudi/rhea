@@ -1602,7 +1602,7 @@ collide_write_input (ymir_mesh_t *ymir_mesh,
 
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
-                             background_temp, NULL, viscosity, NULL, rhs_vel);
+                             background_temp, NULL, viscosity, NULL, NULL, rhs_vel);
 
   rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
@@ -1642,6 +1642,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                       rhea_temperature_options_t *temp_options,
                       rhea_weakzone_options_t *weak_options,
                       rhea_viscosity_options_t *visc_options,
+					  rhea_composition_options_t *comp_options,
                       collide_options_t *collide_options,
                       const char *vtk_write_input_path)
 {
@@ -1921,6 +1922,7 @@ main (int argc, char **argv)
   rhea_temperature_options_t    temp_options;
   rhea_weakzone_options_t       weak_options;
   rhea_viscosity_options_t      visc_options;
+  rhea_composition_options_t	comp_options;
   rhea_topography_options_t     topo_options;
   rhea_discretization_options_t discr_options;
   /* collide options */
@@ -2151,7 +2153,7 @@ main (int argc, char **argv)
 
   collide_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                         &domain_options, &temp_options, &weak_options,
-                        &visc_options, &collide_options, vtk_write_input_path);
+                        &visc_options, &comp_options, &collide_options, vtk_write_input_path);
 
   /*
    * Run Tests
