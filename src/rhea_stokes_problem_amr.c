@@ -206,6 +206,12 @@ typedef struct rhea_stokes_problem_amr_data
   sc_dmatrix_t       *pressure_original;
   sc_dmatrix_t       *pressure_adapted;
 
+  sc_dmatrix_t       *compositional_density_original;
+  sc_dmatrix_t       *compositional_density_adapted;
+
+  sc_dmatrix_t       *compositional_viscosity_original;
+  sc_dmatrix_t       *compositional_viscosity_adapted;
+
   /* options (not owned) */
   rhea_discretization_options_t  *discr_options;
 
@@ -224,6 +230,7 @@ rhea_stokes_problem_amr_data_clear_fields (
 {
   rhea_stokes_problem_t *stokes_problem = amr_data->stokes_problem;
   ymir_vec_t         *temperature, *velocity_pressure;
+  ymir_vec_t         *compositional_density, *compositional_viscosity;
 
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
   if (temperature != NULL) {
@@ -237,6 +244,18 @@ rhea_stokes_problem_amr_data_clear_fields (
     rhea_velocity_pressure_destroy (velocity_pressure);
   }
   rhea_stokes_problem_remove_velocity_pressure (stokes_problem);
+
+  compositional_density = rhea_stokes_problem_get_compositional_density (
+		  stokes_problem);
+  if (compositional_density != NULL) {
+	  rhea_composition_destroy (compositional_density);
+  }
+  compositional_viscosity = rhea_stokes_problem_get_compositional_viscosity (
+  		  stokes_problem);
+  if (compositional_viscosity != NULL) {
+  	rhea_composition_destroy (compositional_viscosity);
+  }
+  rhea_stokes_problem_remove_composition (stokes_problem);
 }
 
 static void
@@ -264,12 +283,30 @@ rhea_stokes_problem_amr_data_clear_buffer (
     sc_dmatrix_destroy (amr_data->pressure_adapted);
   }
 
+  if (amr_data->compositional_density_original != NULL) {
+    sc_dmatrix_destroy (amr_data->compositional_density_original);
+  }
+  if (amr_data->compositional_density_adapted != NULL) {
+    sc_dmatrix_destroy (amr_data->compositional_density_adapted);
+  }
+
+  if (amr_data->compositinoal_viscosity_original != NULL) {
+	sc_dmatrix_destroy (amr_data->compositinoal_viscosity_original);
+  }
+  if (amr_data->compositinoal_viscosity_adapted != NULL) {
+	sc_dmatrix_destroy (amr_data->compositinoal_viscosity_adapted);
+  }
+
   amr_data->temperature_original = NULL;
   amr_data->temperature_adapted = NULL;
   amr_data->velocity_original = NULL;
   amr_data->velocity_adapted = NULL;
   amr_data->pressure_original = NULL;
   amr_data->pressure_adapted = NULL;
+  amr_data->compositional_density_original = NULL;
+  amr_data->compositional_density_adapted = NULL;
+  amr_data->compositinoal_viscosity_original = NULL;
+  amr_data->compositinoal_viscosity_adapted = NULL;
 }
 
 rhea_stokes_problem_amr_data_t *
@@ -301,6 +338,10 @@ rhea_stokes_problem_amr_data_new (rhea_stokes_problem_t *stokes_problem,
   amr_data->velocity_adapted = NULL;
   amr_data->pressure_original = NULL;
   amr_data->pressure_adapted = NULL;
+  amr_data->compositional_density_original = NULL;
+  amr_data->compositional_density_adapted = NULL;
+  amr_data->compositinoal_viscosity_original = NULL;
+  amr_data->compositinoal_viscosity_adapted = NULL;
 
   /* init options */
   amr_data->discr_options = discr_options;
@@ -1199,8 +1240,14 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
     rhea_stokes_problem_get_temperature (d->stokes_problem);
   ymir_vec_t         *velocity_pressure =
     rhea_stokes_problem_get_velocity_pressure (d->stokes_problem);
+  ymir_vec_t         *compositional_density =
+      rhea_stokes_problem_get_compositional_density (d->stokes_problem);
+  ymir_vec_t         *compositional_viscosity =
+      rhea_stokes_problem_get_compositional_viscosity (d->stokes_problem);
   const int           has_temp = (temperature != NULL);
   const int           has_vel_press = (velocity_pressure != NULL);
+  const int           has_comp_density = (compositional_density != NULL);
+  const int           has_comp_viscosity = (compositional_viscosity != NULL);
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "temperature=%i, velocity-pressure=%i",
@@ -1243,6 +1290,22 @@ rhea_stokes_problem_amr_data_initialize_fn (p4est_t *p4est, void *data)
     rhea_velocity_destroy (velocity);
     rhea_pressure_destroy (pressure);
   }
+  if (has_comp_density) {
+    RHEA_ASSERT (rhea_composition_check_vec_type (compositional_density));
+    RHEA_ASSERT (d->compositional_density_original == NULL);
+
+    d->compositional_density_original = rhea_stokes_problem_amr_field_to_buffer (
+    	compositional_density);
+    RHEA_ASSERT (d->compositional_density_original->n == d->ymir_mesh->ma->Np);
+  }
+  if (has_comp_viscosity) {
+    RHEA_ASSERT (rhea_composition_check_vec_type (compositional_viscosity));
+    RHEA_ASSERT (d->compositional_viscosity_original == NULL);
+
+    d->compositional_viscosity_original = rhea_stokes_problem_amr_field_to_buffer (
+    	compositional_viscosity);
+    RHEA_ASSERT (d->compositional_viscosity_original->n == d->ymir_mesh->ma->Np);
+  }
 
   /* destroy */
   rhea_stokes_problem_amr_data_clear_fields (d);
@@ -1273,7 +1336,10 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
+  const int           has_comp_density = (d->compositional_density_original != NULL);
+  const int           has_comp_viscosity = (d->compositional_viscosity_original != NULL);
   ymir_vec_t         *temperature, *velocity_pressure;
+  ymir_vec_t		 *compositional_density, *compositional_viscosity;
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "temperature=%i, velocity-pressure=%i-%i",
@@ -1337,6 +1403,16 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
     rhea_velocity_destroy (velocity);
     rhea_pressure_destroy (pressure);
   }
+  if (has_comp_density) {
+    compositional_density = rhea_composition_new (d->ymir_mesh);
+    rhea_stokes_problem_amr_buffer_to_field (
+        compositional_density, d->compositional_density_original, d->press_elem);
+  }
+  if (has_comp_viscosity) {
+    compositional_viscosity = rhea_composition_new (d->ymir_mesh);
+    rhea_stokes_problem_amr_buffer_to_field (
+        compositional_viscosity, d->compositional_viscosity_original, d->press_elem);
+  }
 
   /* destroy buffers */
   rhea_stokes_problem_amr_data_clear_buffer (d);
@@ -1349,6 +1425,12 @@ rhea_stokes_problem_amr_data_finalize_fn (p4est_t *p4est, void *data)
     rhea_stokes_problem_set_velocity_pressure (d->stokes_problem,
                                                velocity_pressure);
   }
+  if (has_comp_density) {
+    rhea_stokes_problem_set_compositional_density (d->stokes_problem, compositional_density);
+  }
+  if (has_comp_viscosity) {
+      rhea_stokes_problem_set_compositional_viscosity (d->stokes_problem, compositional_viscosity);
+    }
   rhea_stokes_problem_create_mesh_dependencies (d->stokes_problem,
                                                 d->ymir_mesh, d->press_elem);
 
@@ -1362,6 +1444,8 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
   const int           has_temp = (d->temperature_original != NULL);
   const int           has_vel = (d->velocity_original != NULL);
   const int           has_press = (d->pressure_original != NULL);
+  const int           has_comp_density = (d->compositional_density_original != NULL);
+  const int           has_comp_viscosity = (d->compositional_viscosity_original != NULL);
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "temperature=%i, velocity-pressure=%i-%i",
@@ -1404,6 +1488,20 @@ rhea_stokes_problem_amr_data_project_fn (p4est_t *p4est, void *data)
         d->mangll_original, d->mangll_adapted);
     d->pressure_original = NULL;
   }
+  if (has_comp_density) {
+    RHEA_ASSERT (d->compositional_density_adapted == NULL);
+    d->compositional_density_adapted = rhea_stokes_problem_amr_project_field (
+        d->compositional_density_original, 1 /* #fields */,
+        d->mangll_original, d->mangll_adapted);
+    d->compositional_density_original = NULL;
+  }
+  if (has_comp_viscosity) {
+    RHEA_ASSERT (d->compositional_viscosity_adapted == NULL);
+    d->compositional_viscosity_adapted = rhea_stokes_problem_amr_project_field (
+        d->compositional_viscosity_original, 1 /* #fields */,
+        d->mangll_original, d->mangll_adapted);
+    d->compositional_viscosity_original = NULL;
+  }
 
   /* destroy original mangll */
   if (d->first_amr) {
@@ -1425,6 +1523,8 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
   const int           has_temp = (d->temperature_adapted != NULL);
   const int           has_vel = (d->velocity_adapted != NULL);
   const int           has_press = (d->pressure_adapted != NULL);
+  const int           has_comp_density = (d->compositional_density_adapted != NULL);
+  const int           has_comp_viscosity = (d->compositional_viscosity_adapted != NULL);
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "temperature=%i, velocity-pressure=%i-%i",
@@ -1462,6 +1562,20 @@ rhea_stokes_problem_amr_data_partition_fn (p4est_t *p4est, void *data)
         d->pressure_adapted, 1 /* #fields*/,
         d->mangll_adapted, d->mangll_partitioned);
     d->pressure_adapted = NULL;
+  }
+  if (has_comp_density) {
+    RHEA_ASSERT (d->compositional_density_original == NULL);
+    d->compositional_density_original = rhea_stokes_problem_amr_partition_field (
+        d->compositional_density_adapted, 1 /* #fields*/,
+        d->mangll_adapted, d->mangll_partitioned);
+    d->compositional_density_adapted = NULL;
+  }
+  if (has_comp_viscosity) {
+    RHEA_ASSERT (d->compositional_viscosity_original == NULL);
+    d->compositional_viscosity_original = rhea_stokes_problem_amr_partition_field (
+        d->compositional_viscosity_adapted, 1 /* #fields*/,
+        d->mangll_adapted, d->mangll_partitioned);
+    d->compositional_viscosity_adapted = NULL;
   }
 
   /* destroy adapted but unpartitioned mangll */

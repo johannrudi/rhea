@@ -73,11 +73,16 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
                               rhea_viscosity_options_t *visc_options)
 {
   ymir_vec_t         *temperature;
+  ymir_vec_t		 *compositional_density, *compositional_viscosity;
 
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
   /* get temperature */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
+  /* get compositional density */
+  compositional_density = rhea_stokes_problem_get_compositional_density (stokes_problem);
+  /* get compositional viscosity */
+  compositional_viscosity = rhea_stokes_problem_get_compositional_viscosity (stokes_problem);
 
   /* destroy Stokes problem */
   rhea_stokes_problem_destroy (stokes_problem);
@@ -85,6 +90,12 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
   /* destroy vectors */
   if (temperature != NULL) {
     rhea_temperature_destroy (temperature);
+  }
+  if (compositional_density != NULL) {
+    rhea_composition_destroy (compositional_density);
+  }
+  if (compositional_viscosity != NULL) {
+    rhea_composition_destroy (compositional_viscosity);
   }
 
   /* destroy data */

@@ -3513,22 +3513,6 @@ rhea_stokes_problem_set_temperature (rhea_stokes_problem_t *stokes_problem,
   stokes_problem->temperature = temperature;
 }
 
-void
-rhea_stokes_problem_set_composition (rhea_stokes_problem_t *stokes_problem,
-									ymir_mesh_t *ymir_mesh,
-                                    ymir_vec_t *composition)
-{
-  ymir_vec_t		*comp_density, *comp_visc;
-  comp_density = NULL;
-  comp_visc = NULL;
-  /* allocate memory side the function */
-  rhea_composition_convert(composition, comp_density, comp_visc,
-		 ymir_mesh, stokes_problem->comp_options);
-
-  stokes_problem->compositional_density = comp_density;
-  stokes_problem->compositional_viscosity = comp_visc;
-}
-
 ymir_vec_t *
 rhea_stokes_problem_get_temperature (rhea_stokes_problem_t *stokes_problem)
 {
@@ -3539,6 +3523,56 @@ void
 rhea_stokes_problem_remove_temperature (rhea_stokes_problem_t *stokes_problem)
 {
   rhea_stokes_problem_set_temperature (stokes_problem, NULL);
+}
+
+void
+rhea_stokes_problem_set_composition (rhea_stokes_problem_t *stokes_problem,
+									ymir_mesh_t *ymir_mesh,
+                                    ymir_vec_t *composition)
+{
+  ymir_vec_t		*comp_density, *comp_visc;
+  comp_density = NULL;
+  comp_visc = NULL;
+  /* allocate memory side the function */
+  if (composition != NULL) {
+    rhea_composition_convert(composition, comp_density, comp_visc,
+		   ymir_mesh, stokes_problem->comp_options);
+  }
+
+  stokes_problem->compositional_density = comp_density;
+  stokes_problem->compositional_viscosity = comp_visc;
+}
+
+void
+rhea_stokes_problem_set_compositional_density (rhea_stokes_problem_t *stokes_problem,
+                                     ymir_vec_t *compositional_density)
+{
+  stokes_problem->compositional_density = compositional_density;
+}
+
+void
+rhea_stokes_problem_set_compositional_viscosity (rhea_stokes_problem_t *stokes_problem,
+                                     ymir_vec_t *compositional_viscosity)
+{
+  stokes_problem->compositional_viscosity = compositional_viscosity;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_compositional_density (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->compositional_density;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_compositional_viscosity (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->compositional_viscosity;
+}
+
+void
+rhea_stokes_problem_remove_composition (rhea_stokes_problem_t *stokes_problem)
+{
+  rhea_stokes_problem_set_composition (stokes_problem, NULL);
 }
 
 void

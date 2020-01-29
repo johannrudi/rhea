@@ -25,6 +25,7 @@ librhea_installed_headers = \
         src/rhea_velocity.h \
         src/rhea_pressure.h \
         src/rhea_velocity_pressure.h \
+        src/rhea_composition.h \
         src/rhea_strainrate.h \
         src/rhea_stress.h \
         src/rhea_stokes_norm.h \
@@ -62,6 +63,7 @@ librhea_compiled_sources = \
         src/rhea_velocity.c \
         src/rhea_pressure.c \
         src/rhea_velocity_pressure.c \
+        src/rhea_composition.c \
         src/rhea_strainrate.c \
         src/rhea_stress.c \
         src/rhea_stokes_norm.c \

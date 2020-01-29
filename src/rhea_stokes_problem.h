@@ -201,13 +201,26 @@ ymir_pressure_elem_t *rhea_stokes_problem_get_press_elem (
 void                rhea_stokes_problem_set_temperature (
                                     rhea_stokes_problem_t *stokes_problem,
                                     ymir_vec_t *temperature);
+ymir_vec_t         *rhea_stokes_problem_get_temperature (
+                                    rhea_stokes_problem_t *stokes_problem);
+void                rhea_stokes_problem_remove_temperature (
+                                    rhea_stokes_problem_t *stokes_problem);
+
 void                rhea_stokes_problem_set_composition (
                                     rhea_stokes_problem_t *stokes_problem,
 									ymir_mesh_t *ymir_mesh,
                                     ymir_vec_t *composition);
-ymir_vec_t         *rhea_stokes_problem_get_temperature (
+void				rhea_stokes_problem_set_compositional_density (
+									rhea_stokes_problem_t *stokes_problem,
+                                     ymir_vec_t *compositional_density);
+void				rhea_stokes_problem_set_compositional_viscosity (
+									rhea_stokes_problem_t *stokes_problem,
+                                     ymir_vec_t *compositional_viscosity);
+ymir_vec_t         *rhea_stokes_problem_get_compositional_density (
                                     rhea_stokes_problem_t *stokes_problem);
-void                rhea_stokes_problem_remove_temperature (
+ymir_vec_t         *rhea_stokes_problem_get_compositional_viscosity (
+                                    rhea_stokes_problem_t *stokes_problem);
+void                rhea_stokes_problem_remove_composition (
                                     rhea_stokes_problem_t *stokes_problem);
 
 void                rhea_stokes_problem_set_velocity_pressure (
