@@ -6,6 +6,7 @@
 
 #include <rhea_domain.h>
 #include <rhea_temperature.h>
+#include <rhea_composition.h>
 
 /******************************************************************************
  * Options

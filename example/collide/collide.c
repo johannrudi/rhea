@@ -1715,7 +1715,7 @@ collide_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
       ymir_mesh, press_elem, temperature, composition, domain_options, temp_options,
-      weak_options, visc_options);
+      weak_options, visc_options, comp_options);
 
   /* destroy vector composition */
   rhea_composition_destroy (composition);

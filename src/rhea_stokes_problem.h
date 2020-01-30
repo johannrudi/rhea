@@ -244,6 +244,8 @@ rhea_temperature_options_t *rhea_stokes_problem_get_temperature_options (
 void                        rhea_stokes_problem_set_temperature_options (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_temperature_options_t *temp_options);
+rhea_composition_options_t *rhea_stokes_problem_get_composition_options (
+										rhea_stokes_problem_t *stokes_problem);
 rhea_plate_options_t       *rhea_stokes_problem_get_plate_options (
                                     rhea_stokes_problem_t *stokes_problem);
 void                        rhea_stokes_problem_set_plate_options (

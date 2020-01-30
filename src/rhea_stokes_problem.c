@@ -2945,7 +2945,7 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
   rhea_stokes_problem_set_temperature (stokes_problem_nl, temperature);
 
   /* set composition */
-  rhea_stokes_problem_set_composition (stokes_problem_nl, composition);
+  rhea_stokes_problem_set_composition (stokes_problem_nl, ymir_mesh, composition);
 
   /* initialize nonlinear structure */
   stokes_problem_nl->linearization_type =
@@ -3572,7 +3572,7 @@ rhea_stokes_problem_get_compositional_viscosity (rhea_stokes_problem_t *stokes_p
 void
 rhea_stokes_problem_remove_composition (rhea_stokes_problem_t *stokes_problem)
 {
-  rhea_stokes_problem_set_composition (stokes_problem, NULL);
+  rhea_stokes_problem_set_composition (stokes_problem, NULL, NULL);
 }
 
 void
@@ -3633,6 +3633,13 @@ rhea_stokes_problem_set_temperature_options (
                                     rhea_temperature_options_t *temp_options)
 {
   stokes_problem->temp_options = temp_options;
+}
+
+rhea_composition_options_t *
+rhea_stokes_problem_get_composition_options (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->comp_options;
 }
 
 rhea_plate_options_t *

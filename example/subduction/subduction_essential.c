@@ -53,7 +53,7 @@ subd_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     rhea_temperature_options_t *temp_options,
                     rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
-					rhea_viscosity_options_t *comp_options,
+					rhea_composition_options_t *comp_options,
                     subd_options_t *subd_options,
                     const char *vtk_write_input_path,
                     const char *solver_bin_path,
@@ -73,7 +73,7 @@ subd_setup_stokes (rhea_stokes_problem_t **stokes_problem,
   subd_compute_temperature (temperature, temp_options, subd_options);
 
   /* read composition */
-  composition = rhea_composition_new (ymir_mesh);
+  composition = rhea_composition_new (*ymir_mesh);
   rhea_composition_read (composition, comp_options);
 
   subd_set_velocity_dirichlet_bc (domain_options, subd_options);

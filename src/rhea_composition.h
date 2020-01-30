@@ -40,7 +40,7 @@ typedef struct rhea_composition_options
   char               *import_path_txt;
   char               *import_path_bin;
 
-  /* buoyancy right-hand side derived from temperature */
+  /* buoyancy right-hand side derived from composition */
   double              rhs_scaling_comp;
 
   /* options & properties of the computational domain */
@@ -77,16 +77,11 @@ void                rhea_composition_destroy (ymir_vec_t *compositino);
 int                 rhea_composition_check_vec_type (ymir_vec_t *vec);
 
 /**
- * Get composition options from stokes_problem.
- */
-rhea_composition_options_t *rhea_stokes_problem_get_composition_options (
-										rhea_stokes_problem_t *stokes_problem);
-
-/**
  * Gets rank-global offsets or rank-local sizes of a distributed vector for
  * each MPI-rank.
  */
 MPI_Offset         *rhea_composition_segment_offset_create (ymir_vec_t *vec);
+MPI_Offset          rhea_composition_segment_offset_get (ymir_vec_t *vec);
 int                 rhea_composition_segment_size_get (ymir_vec_t *vec);
 
 /**
@@ -106,7 +101,7 @@ void				rhea_composition_read (ymir_vec_t *composition,
 /**
  * Write out composition
  */
-void				rhea_composition_write (char *file_path_bin,
+int				rhea_composition_write (char *file_path_bin,
 										ymir_vec_t *composition, sc_MPI_Comm mpicomm);
 /**
  * Computes velocity right-hand side in (primal) function space, given a
@@ -114,6 +109,6 @@ void				rhea_composition_write (char *file_path_bin,
  */
 void rhea_composition_compute_rhs_vel (ymir_vec_t *rhs_vel,
                                   ymir_vec_t *comp_density,
-                                  rhea_temperature_options_t *opt);
+                                  rhea_composition_options_t *opt);
 
 #endif /* RHEA_COMPOSITION_H */

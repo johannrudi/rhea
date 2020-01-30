@@ -290,11 +290,11 @@ rhea_stokes_problem_amr_data_clear_buffer (
     sc_dmatrix_destroy (amr_data->compositional_density_adapted);
   }
 
-  if (amr_data->compositinoal_viscosity_original != NULL) {
-	sc_dmatrix_destroy (amr_data->compositinoal_viscosity_original);
+  if (amr_data->compositional_viscosity_original != NULL) {
+	sc_dmatrix_destroy (amr_data->compositional_viscosity_original);
   }
-  if (amr_data->compositinoal_viscosity_adapted != NULL) {
-	sc_dmatrix_destroy (amr_data->compositinoal_viscosity_adapted);
+  if (amr_data->compositional_viscosity_adapted != NULL) {
+	sc_dmatrix_destroy (amr_data->compositional_viscosity_adapted);
   }
 
   amr_data->temperature_original = NULL;
@@ -305,8 +305,8 @@ rhea_stokes_problem_amr_data_clear_buffer (
   amr_data->pressure_adapted = NULL;
   amr_data->compositional_density_original = NULL;
   amr_data->compositional_density_adapted = NULL;
-  amr_data->compositinoal_viscosity_original = NULL;
-  amr_data->compositinoal_viscosity_adapted = NULL;
+  amr_data->compositional_viscosity_original = NULL;
+  amr_data->compositional_viscosity_adapted = NULL;
 }
 
 rhea_stokes_problem_amr_data_t *
@@ -340,8 +340,8 @@ rhea_stokes_problem_amr_data_new (rhea_stokes_problem_t *stokes_problem,
   amr_data->pressure_adapted = NULL;
   amr_data->compositional_density_original = NULL;
   amr_data->compositional_density_adapted = NULL;
-  amr_data->compositinoal_viscosity_original = NULL;
-  amr_data->compositinoal_viscosity_adapted = NULL;
+  amr_data->compositional_viscosity_original = NULL;
+  amr_data->compositional_viscosity_adapted = NULL;
 
   /* init options */
   amr_data->discr_options = discr_options;

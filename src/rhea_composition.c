@@ -162,13 +162,6 @@ rhea_composition_check_vec_type (ymir_vec_t *vec)
   );
 }
 
-rhea_composition_options_t *
-rhea_stokes_problem_get_composition_options (
-                                        rhea_stokes_problem_t *stokes_problem)
-{
-  return stokes_problem->comp_options;
-}
-
 MPI_Offset *
 rhea_composition_segment_offset_create (ymir_vec_t *vec)
 {
@@ -194,6 +187,30 @@ rhea_composition_segment_offset_create (ymir_vec_t *vec)
   return segment_offset;
 }
 
+MPI_Offset
+rhea_composition_segment_offset_get (ymir_vec_t *vec)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
+  const mangll_locidx_t *n_nodes = ymir_mesh->cnodes->Ngo;
+  const int           n_fields = vec->ncfields;
+  sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  int                 mpirank, mpiret;
+  MPI_Offset          segment_offset;
+  int                 r;
+
+  /* get parallel environment */
+  mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+
+  /* add up segment offsets */
+  segment_offset = 0;
+  for (r = 0; r < mpirank; r++) {
+    segment_offset += (MPI_Offset) (n_fields * n_nodes[r]);
+  }
+
+  return segment_offset;
+}
+
+
 int
 rhea_composition_segment_size_get (ymir_vec_t *vec)
 {
@@ -205,23 +222,6 @@ rhea_composition_segment_size_get (ymir_vec_t *vec)
 
   mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
   return (int) (n_fields * n_nodes[mpirank]);
-}
-
-void rhea_composition_read (ymir_vec_t *composition,
-							rhea_composition_options_t *opt)
-{
-  switch (opt->type) {
-  case RHEA_COMPOSITION_FLAVOR:
-	  rhea_composition_read_internal (composition);
-	  break;
-  case RHEA_COMPOSITION_DENSITY:
-	  rhea_composition_read_internal (composition);
-	  break;
-  case RHEA_COMPOSITION_NONE:
-	  break;
-  default: /* unknown composition type */
-	  RHEA_ABORT_NOT_REACHED ();
-  }
 }
 
 static void
@@ -288,6 +288,23 @@ rhea_composition_read_internal (ymir_vec_t *composition)
 
   /* communicate shared node values */
   ymir_vec_share_owned (composition);
+}
+
+void rhea_composition_read (ymir_vec_t *composition,
+							rhea_composition_options_t *opt)
+{
+  switch (opt->type) {
+  case RHEA_COMPOSITION_FLAVOR:
+	  rhea_composition_read_internal (composition);
+	  break;
+  case RHEA_COMPOSITION_DENSITY:
+	  rhea_composition_read_internal (composition);
+	  break;
+  case RHEA_COMPOSITION_NONE:
+	  break;
+  default: /* unknown composition type */
+	  RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 int
@@ -415,28 +432,21 @@ rhea_composition_compute_rhs_vel (ymir_vec_t *rhs_vel,
   }
 }
 
-void rhea_composition_convert (ymir_vec_t *composition,
-							ymir_vec_t *comp_density, ymir_vec_t *comp_visc,
-							ymir_mesh_t *ymir_mesh,
-							rhea_composition_options_t *opt)
+/**
+ * Callback function to compute the density based on composition.
+ */
+static void
+rhea_composition_to_density_fn (double *comp_density, double x, double y, double z,
+                                     ymir_locidx_t nodeid, void *data)
 {
-  switch (opt->type) {
-  case RHEA_COMPOSITION_FLAVOR:
-	  comp_density = rhea_composition_to_density(composition, ymir_mesh, opt);
-	  comp_visc = rhea_composition_to_viscosity(composition, ymir_mesh, opt);;
-	  break;
-  case RHEA_COMPOSITION_DENSITY:
-	  comp_density = rhea_composition_new(ymir_mesh);
-	  ymir_vec_copy (composition, comp_density);
-	  comp_visc = NULL;
-	  break;
-  case RHEA_COMPOSITION_NONE:
-	  comp_density = NULL;
-	  comp_visc = NULL;
-	  break;
-  default: /* unknown composition type */
-  	  RHEA_ABORT_NOT_REACHED ();
-  }
+  rhea_composition_compute_rhs_vel_fn_data_t  *d = data;
+  rhea_composition_options_t  *opt = d->comp_options;
+  const double  composition = *ymir_cvec_index (d->comp_density, nodeid, 0);
+  int			index;
+
+  /* compute right-hand side */
+  index = composition;
+  *comp_density = opt->density_flavor[index];
 }
 
 static ymir_vec_t *
@@ -462,17 +472,17 @@ rhea_composition_to_density(ymir_vec_t *composition,
  * Callback function to compute the density based on composition.
  */
 static void
-rhea_composition_to_density_fn (double *comp_density, double x, double y, double z,
+rhea_composition_to_viscosity_fn (double *comp_visc, double x, double y, double z,
                                      ymir_locidx_t nodeid, void *data)
 {
   rhea_composition_compute_rhs_vel_fn_data_t  *d = data;
   rhea_composition_options_t  *opt = d->comp_options;
-  const double  composition = *ymir_cvec_index (d->comp_density, nodeid, 0);
-  int			index;
+  const double      composition = *ymir_cvec_index (d->comp_density, nodeid, 0);
+  int				index;
 
   /* compute right-hand side */
   index = composition;
-  *comp_density = opt->density_flavor[index];
+  *comp_visc = opt->visc_flavor[index];
 }
 
 static ymir_vec_t *
@@ -494,19 +504,26 @@ rhea_composition_to_viscosity(ymir_vec_t *composition,
 	return comp_visc;
 }
 
-/**
- * Callback function to compute the density based on composition.
- */
-static void
-rhea_composition_to_viscosity_fn (double *comp_visc, double x, double y, double z,
-                                     ymir_locidx_t nodeid, void *data)
+void rhea_composition_convert (ymir_vec_t *composition,
+							ymir_vec_t *comp_density, ymir_vec_t *comp_visc,
+							ymir_mesh_t *ymir_mesh,
+							rhea_composition_options_t *opt)
 {
-  rhea_composition_compute_rhs_vel_fn_data_t  *d = data;
-  rhea_composition_options_t  *opt = d->comp_options;
-  const double      composition = *ymir_cvec_index (d->comp_density, nodeid, 0);
-  int				index;
-
-  /* compute right-hand side */
-  index = composition;
-  *comp_visc = opt->visc_flavor[index];
+  switch (opt->type) {
+  case RHEA_COMPOSITION_FLAVOR:
+	  comp_density = rhea_composition_to_density(composition, ymir_mesh, opt);
+	  comp_visc = rhea_composition_to_viscosity(composition, ymir_mesh, opt);;
+	  break;
+  case RHEA_COMPOSITION_DENSITY:
+	  comp_density = rhea_composition_new(ymir_mesh);
+	  ymir_vec_copy (composition, comp_density);
+	  comp_visc = NULL;
+	  break;
+  case RHEA_COMPOSITION_NONE:
+	  comp_density = NULL;
+	  comp_visc = NULL;
+	  break;
+  default: /* unknown composition type */
+  	  RHEA_ABORT_NOT_REACHED ();
+  }
 }
