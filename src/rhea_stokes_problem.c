@@ -3535,7 +3535,7 @@ rhea_stokes_problem_set_composition (rhea_stokes_problem_t *stokes_problem,
   comp_visc = NULL;
   /* allocate memory side the function */
   if (composition != NULL) {
-    rhea_composition_convert(composition, comp_density, comp_visc,
+    rhea_composition_convert(composition, &comp_density, &comp_visc,
 		   ymir_mesh, stokes_problem->comp_options);
   }
 

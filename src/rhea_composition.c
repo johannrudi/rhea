@@ -121,7 +121,7 @@ rhea_composition_process_options (rhea_composition_options_t *opt,
 					  "Mismatch with provided number of flavors");
 	for (k = 0; k < flavors; k++) {
 	  opt->density_flavor[k] = (double) n_density_labels[k];
-	  opt->visc_flavor[k] = (double) n_visc_labels[k];
+	  opt->visc_flavor[k] = (double) log(n_visc_labels[k]);
 	}
 	YMIR_FREE (n_density_labels); /* was allocated in ymir */
 	YMIR_FREE (n_visc_labels); /* was allocated in ymir */
@@ -359,7 +359,7 @@ rhea_composition_rhs_vel_node (double *rhs, const double x, const double y,
      */
     rhs[0] = 0.0;
     rhs[1] = 0.0;
-    rhs[2] = scaling * comp_density;
+    rhs[2] = -scaling * comp_density;
     break;
   case RHEA_DOMAIN_SHELL:
   case RHEA_DOMAIN_CUBE_SPHERICAL:
@@ -376,9 +376,9 @@ rhea_composition_rhs_vel_node (double *rhs, const double x, const double y,
       const double        radius = rhea_domain_compute_radius (x, y, z,
                                                                domain_options);
 
-      rhs[0] = scaling * x / radius * comp_density;
-      rhs[1] = scaling * y / radius * comp_density;
-      rhs[2] = scaling * z / radius * comp_density;
+      rhs[0] = -scaling * x / radius * comp_density;
+      rhs[1] = -scaling * y / radius * comp_density;
+      rhs[2] = -scaling * z / radius * comp_density;
     }
     break;
   default: /* unknown domain shape */
@@ -505,23 +505,23 @@ rhea_composition_to_viscosity(ymir_vec_t *composition,
 }
 
 void rhea_composition_convert (ymir_vec_t *composition,
-							ymir_vec_t *comp_density, ymir_vec_t *comp_visc,
+							ymir_vec_t **comp_density, ymir_vec_t **comp_visc,
 							ymir_mesh_t *ymir_mesh,
 							rhea_composition_options_t *opt)
 {
   switch (opt->type) {
   case RHEA_COMPOSITION_FLAVOR:
-	  comp_density = rhea_composition_to_density(composition, ymir_mesh, opt);
-	  comp_visc = rhea_composition_to_viscosity(composition, ymir_mesh, opt);;
+	  *comp_density = rhea_composition_to_density(composition, ymir_mesh, opt);
+	  *comp_visc = rhea_composition_to_viscosity(composition, ymir_mesh, opt);;
 	  break;
   case RHEA_COMPOSITION_DENSITY:
-	  comp_density = rhea_composition_new(ymir_mesh);
-	  ymir_vec_copy (composition, comp_density);
-	  comp_visc = NULL;
+	  *comp_density = rhea_composition_new(ymir_mesh);
+	  ymir_vec_copy (composition, *comp_density);
+	  *comp_visc = NULL;
 	  break;
   case RHEA_COMPOSITION_NONE:
-	  comp_density = NULL;
-	  comp_visc = NULL;
+	  *comp_density = NULL;
+	  *comp_visc = NULL;
 	  break;
   default: /* unknown composition type */
   	  RHEA_ABORT_NOT_REACHED ();

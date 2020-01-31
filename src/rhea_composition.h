@@ -88,7 +88,7 @@ int                 rhea_composition_segment_size_get (ymir_vec_t *vec);
  * convert composition to density and viscosity
  */
 void rhea_composition_convert (ymir_vec_t *composition,
-							ymir_vec_t *comp_density, ymir_vec_t *comp_visc,
+							ymir_vec_t **comp_density, ymir_vec_t **comp_visc,
 							ymir_mesh_t *ymir_mesh,
 							rhea_composition_options_t *opt);
 
