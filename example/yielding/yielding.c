@@ -37,6 +37,58 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 };
 
 /******************************************************************************
+ * Boundary Conditions
+ *****************************************************************************/
+
+/* types of boundary conditions */
+typedef enum
+{
+  YIELDING_NZ_DIR_BC_NONE,
+  YIELDING_NZ_DIR_BC_INFLOW_LR_CONST  /* const inflow from left & right side */
+}
+yielding_nonzero_dir_bc_t;
+
+/* data for boundary conditions */
+typedef struct yielding_nonzero_dir_bc_data
+{
+  yielding_nonzero_dir_bc_t type;
+  double              inflow_velocity_magn;
+}
+yielding_nonzero_dir_bc_data_t;
+
+static void
+yielding_set_rhs_vel_nonzero_dir_fn (ymir_vec_t *vel_nonzero_dirichlet,
+                                     void *data)
+{
+  yielding_nonzero_dir_bc_data_t *d = data;
+
+  switch (d->type) {
+  case YIELDING_NZ_DIR_BC_NONE:
+    ymir_vec_set_zero (vel_nonzero_dirichlet);
+    break;
+
+  case YIELDING_NZ_DIR_BC_INFLOW_LR_CONST:
+    {
+      const double    vel = -d->inflow_velocity_magn;
+      double normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_N];
+
+      normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_BASE ] = NAN; /* -z */
+      normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_TOP  ] = NAN; /* +z */
+      normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE1] = vel; /* -x */
+      normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE2] = vel; /* +x */
+      normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE3] = NAN; /* -y */
+      normal_flow_vel[RHEA_DOMAIN_BOUNDARY_FACE_SIDE4] = NAN; /* +y */
+      rhea_velocity_nonzero_boundary_set_face_normals_fn (vel_nonzero_dirichlet,
+                                                          normal_flow_vel);
+    }
+    break;
+
+  default: /* unkown boundary condition */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/******************************************************************************
  * Main Program
  *****************************************************************************/
 
@@ -60,6 +112,9 @@ main (int argc, char **argv)
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
   /* options local to this program */
+  yielding_nonzero_dir_bc_t       nonzero_dir_bc_type;
+  yielding_nonzero_dir_bc_data_t  nonzero_dir_bc_data;
+  double              nonzero_dir_bc_inflow_velocity_magn;
   int                 solver_iter_max;
   double              solver_rel_tol;
   char               *velocity_file_path_bin;
@@ -94,6 +149,14 @@ main (int argc, char **argv)
   /* add options of this program */
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
+
+  /* boundary conditions options */
+  YMIR_OPTIONS_I, "nonzero-dirichlet-bc-type", '\0',
+    &nonzero_dir_bc_type, YIELDING_NZ_DIR_BC_NONE,
+    "Type of nonzero Dirichlet boundary conditions",
+  YMIR_OPTIONS_D, "nonzero-dirichlet-bc-inflow-velocity-magn", '\0',
+    &nonzero_dir_bc_inflow_velocity_magn, 1.0,
+    "Nonzero Dir. BC: Magnitude of inflow velocity",
 
   /* solver options */
   YMIR_OPTIONS_I, "solver-iter-max", '\0',
@@ -185,6 +248,19 @@ main (int argc, char **argv)
                             RHEA_MAIN_PERFMON_SETUP_MESH,
                             RHEA_MAIN_PERFMON_SETUP_STOKES,
                             bin_solver_path, vtk_solver_path);
+
+  /* set nonzero Dirichlet BC's */
+  if (YIELDING_NZ_DIR_BC_NONE != nonzero_dir_bc_type) {
+    /* set params from options */
+    nonzero_dir_bc_data.type = nonzero_dir_bc_type;
+    nonzero_dir_bc_data.inflow_velocity_magn =
+      nonzero_dir_bc_inflow_velocity_magn;
+
+    /* set callback function for nonzero velocity */
+    rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
+        stokes_problem, yielding_set_rhs_vel_nonzero_dir_fn,
+        &nonzero_dir_bc_data);
+  }
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
