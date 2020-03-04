@@ -18,6 +18,9 @@
 /* Stokes solver */
 #define RHEA_STOKES_PROBLEM_NONLINEAR_GRAD_NORM_N_COMPONENTS 2
 
+//###DEV### testing another dual variable update
+#define RHEA_STOKES_PROBLEM_NONLINEAR_NEWTON_DUAL_VARIABLE 0
+
 /* I/O labels that are attached at the end of file names */
 #define RHEA_STOKES_PROBLEM_IO_LABEL_P4EST ".p4est"
 #define RHEA_STOKES_PROBLEM_IO_LABEL_TEMPERATURE "_temp"
@@ -335,7 +338,8 @@ rhea_stokes_problem_velocity_boundary_clear (
 }
 
 /**
- * Retrieves velocity.
+ * Retrieves velocity (static use only because a pointer to data inside
+ * `rhea_stokes_problem_t` is returned).
  */
 static ymir_vec_t *
 rhea_stokes_problem_retrieve_velocity (ymir_vec_t *velocity_pressure,
@@ -1244,7 +1248,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
         /* compute and normalize strain rate tensor */
         ymir_stress_op_optimized_compute_strain_rate (
-            proj_tens, sol_vel, stress_op);
+            proj_tens, sol_vel, stress_op, 1 /* nonzero Dir */);
         ymir_stress_op_tensor_normalize (proj_tens);
       }
       else { /* if solution is not provided */
@@ -1338,12 +1342,14 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
           /* compute stress tensor at previous solution velocity */
           ymir_stress_op_optimized_compute_visc_stress (
-              prev_stress, prev_vel, stress_op, 0 /* !linearized */);
+              prev_stress, prev_vel, stress_op,
+              0 /* !linearized */, 1 /* nonzero Dir */);
           RHEA_ASSERT (rhea_stress_is_valid (prev_stress));
 
           /* compute stress tensor of step velocity (scaled with step length) */
           ymir_stress_op_optimized_compute_visc_stress (
-              proj_tens_stress, step_vel, stress_op, 1 /* linearized */);
+              proj_tens_stress, step_vel, stress_op,
+              1 /* linearized */, 0 /* zero Dir */);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_stress));
 
           /* combine to get the updated stress tensor */
@@ -1358,7 +1364,8 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
         else { /* if step is not provided */
           /* compute stress tensor at current solution velocity */
           ymir_stress_op_optimized_compute_visc_stress (
-              proj_tens_stress, sol_vel, stress_op, 0 /* !linearized */);
+              proj_tens_stress, sol_vel, stress_op,
+              0 /* !linearized */, 1 /* nonzero Dir */);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_stress));
         }
 
@@ -1368,7 +1375,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
           double              alignment;
 
           ymir_stress_op_optimized_compute_strain_rate (
-              proj_tens_strain, sol_vel, stress_op);
+              proj_tens_strain, sol_vel, stress_op, 1 /* nonzero Dir */);
           ymir_vec_multiply_in1 (viscosity, proj_tens_strain);
           ymir_vec_scale (2.0, proj_tens_strain);
           ymir_mass_apply_gauss (proj_tens_strain);
@@ -1409,7 +1416,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
         /* compute and normalize strain rate tensor */
         ymir_stress_op_optimized_compute_strain_rate (
-            proj_tens_strain, sol_vel, stress_op);
+            proj_tens_strain, sol_vel, stress_op, 1 /* nonzero Dir */);
         ymir_stress_op_tensor_normalize (proj_tens_strain);
       }
       else { /* if solution is not provided */
@@ -1456,6 +1463,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
       /* check input */
       RHEA_ASSERT (stokes_problem_nl->proj_scal != NULL);
       RHEA_ASSERT (rhea_viscosity_check_vec_type (proj_scal));
+      RHEA_ASSERT (sc_dmatrix_is_valid (proj_scal->dataown));
 
       /* set coefficient data */
       if (solution_exists) { /* if solution is provided */
@@ -1486,27 +1494,56 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
           /* compute previous solution velocity (before step) */
           ymir_vec_copy (sol_vel, prev_vel);
-          ymir_vec_scale (step_length, step_vel);
-          ymir_vec_add (-1.0, step_vel, prev_vel);
+          ymir_vec_add (-step_length, step_vel, prev_vel);
           RHEA_ASSERT (rhea_velocity_is_valid (prev_vel));
+          /* enforce boundary conditions */
+          rhea_stokes_problem_velocity_set_boundary (
+              prev_vel, stokes_problem_nl->vel_nonzero_dirichlet,
+              stokes_problem_nl);
 
           /* compute strain rate at previous solution velocity */
           ymir_stress_op_optimized_compute_strain_rate (
-              prev_strain, prev_vel, stress_op);
+              prev_strain, prev_vel, stress_op, 1 /* nonzero Dir */);
           RHEA_ASSERT (rhea_stress_is_valid (prev_strain));
 
           /* compute "strain rate of step velocity" (scaled with step length) */
           visc_invisible = rhea_viscosity_new (ymir_mesh);
           ymir_vec_set_value (visc_invisible, 2.0/2.0); //TODO rem. scaling by 2
           ymir_stress_op_optimized_compute_visc_stress_override_viscosity (
-              proj_tens_model, step_vel, stress_op, 1 /* linearized */,
-              visc_invisible);
+              proj_tens_model, step_vel, stress_op,
+              1 /* linearized */, 0 /* zero Dir */, visc_invisible);
           rhea_viscosity_destroy (visc_invisible);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
 
-          /* combine to get the updated stress tensor */
+#if (0 < RHEA_STOKES_PROBLEM_NONLINEAR_NEWTON_DUAL_VARIABLE)
+          /* combine prev strain rate and step */
+          ymir_vec_add (1.0, prev_strain, proj_tens_model);
+          ymir_vec_scale (step_length, proj_tens_model);
+          RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
+
+          /* divide by 2nd invariant of the (prev) strain rate */
+          {
+            ymir_vec_t         *prev_strain_2inv =
+                                  rhea_strainrate_2inv_new (ymir_mesh);
+            double              prev_strain_2inv_reg;
+
+            rhea_strainrate_compute_sqrt_of_2inv (prev_strain_2inv, prev_vel);
+            ymir_vec_scale (M_SQRT2, prev_strain_2inv);
+            prev_strain_2inv_reg = 1.0e-3*ymir_vec_max_global (prev_strain_2inv);
+            if (0.0 < prev_strain_2inv_reg) {
+              ymir_vec_bound_min (prev_strain_2inv, prev_strain_2inv_reg);
+              ymir_vec_divide_in1 (prev_strain_2inv, proj_tens_model);
+              RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
+            }
+
+            rhea_strainrate_2inv_destroy (prev_strain_2inv);
+          }
+#else
+          /* combine prev strain rate and step */
+          ymir_vec_scale (step_length, proj_tens_model);
           ymir_vec_add (1.0, prev_strain, proj_tens_model);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
+#endif
 
           /* destroy */
           rhea_velocity_destroy (step_vel);
@@ -1515,9 +1552,35 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
         else { /* if step is not provided */
           /* compute strain rate at current solution velocity */
           ymir_stress_op_optimized_compute_strain_rate (
-              proj_tens_model, sol_vel, stress_op);
+              proj_tens_model, sol_vel, stress_op, 1 /* nonzero Dir */);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
         }
+
+#if (0 < RHEA_STOKES_PROBLEM_NONLINEAR_NEWTON_DUAL_VARIABLE)
+        /* add previous tensor */
+        if (isfinite (step_length)) {
+          ymir_vec_add (1.0 - step_length, stokes_problem_nl->proj_tens,
+                        proj_tens_model);
+          RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
+        }
+
+        /* compute pointwise norm of tensor and transfer to proj. scaling
+         * (this is necessary because the proj. tensor will be normalized) */
+        {
+          ymir_vec_t         *ptw_norm = rhea_strainrate_2inv_new (ymir_mesh);
+
+          ymir_stress_op_tensor_get_pointwise_norm (ptw_norm, proj_tens_model);
+          ymir_vec_bound_max (ptw_norm, 1.0);
+          RHEA_ASSERT (0.0 <= ymir_dvec_min_local (ptw_norm));
+          ymir_vec_multiply_in (ptw_norm, proj_scal);
+          RHEA_ASSERT (sc_dmatrix_is_valid (proj_scal->dataown));
+
+          rhea_strainrate_2inv_destroy (ptw_norm);
+        }
+
+        /* store copy of tensor */
+        ymir_vec_copy (proj_tens_model, stokes_problem_nl->proj_tens);
+#endif
 
         /*
          * Primal-Dual Projection Tensors
@@ -1525,11 +1588,11 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
         /* compute strain rate tensor */
         ymir_stress_op_optimized_compute_strain_rate (
-            proj_tens_strain, sol_vel, stress_op);
+            proj_tens_strain, sol_vel, stress_op, 1 /* nonzero Dir */);
 
         /* normalize tensors */
-        ymir_stress_op_tensor_normalize (proj_tens_model);
         ymir_stress_op_tensor_normalize (proj_tens_strain);
+        ymir_stress_op_tensor_normalize (proj_tens_model);
 
         /* calculate how well the model prediction is aligned with the true
          * strain rate tensor */
@@ -1639,15 +1702,15 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
           /* compute strain rate at previous solution velocity */
           ymir_stress_op_optimized_compute_strain_rate (
-              prev_strain, prev_vel, stress_op);
+              prev_strain, prev_vel, stress_op, 1 /* nonzero Dir */);
           RHEA_ASSERT (rhea_stress_is_valid (prev_strain));
 
           /* compute "strain rate of step velocity" (scaled with step length) */
           visc_invisible = rhea_viscosity_new (ymir_mesh);
           ymir_vec_set_value (visc_invisible, 2.0/2.0); //TODO rem. scaling by 2
           ymir_stress_op_optimized_compute_visc_stress_override_viscosity (
-              proj_tens_model, step_vel, stress_op, 1 /* linearized */,
-              visc_invisible);
+              proj_tens_model, step_vel, stress_op,
+              1 /* linearized */, 0 /* zero Dir */, visc_invisible);
           rhea_viscosity_destroy (visc_invisible);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
 
@@ -1662,7 +1725,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
         else { /* if step is not provided */
           /* compute strain rate at current solution velocity */
           ymir_stress_op_optimized_compute_strain_rate (
-              proj_tens_model, sol_vel, stress_op);
+              proj_tens_model, sol_vel, stress_op, 1 /* nonzero Dir */);
           RHEA_ASSERT (rhea_stress_is_valid (proj_tens_model));
         }
 
@@ -1672,7 +1735,7 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
 
         /* compute strain rate tensor */
         ymir_stress_op_optimized_compute_strain_rate (
-            proj_tens_strain, sol_vel, stress_op);
+            proj_tens_strain, sol_vel, stress_op, 1 /* nonzero Dir */);
 
         /* normalize tensors */
         ymir_stress_op_tensor_normalize (proj_tens_model);
@@ -2085,8 +2148,9 @@ rhea_stokes_problem_nonlinear_compute_gradient_norm_fn (
       norm_type, norm_op, stokes_problem_nl->press_elem);
   RHEA_ASSERT (isfinite (ip_vel));
   RHEA_ASSERT (isfinite (ip_press));
-  RHEA_ASSERT (0.0 <= ip_vel);
-  RHEA_ASSERT (0.0 <= ip_press);
+  /* avoid negative values due to rounding and communication */
+  ip_vel   = SC_MAX (0.0, ip_vel);
+  ip_press = SC_MAX (0.0, ip_press);
 
   /* destroy */
   if (ymir_stokes_pc_block_type == YMIR_STOKES_PC_BLOCK_L) {
@@ -2785,6 +2849,10 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_PRIMALDUAL_SYMM:
   case RHEA_STOKES_PROBLEM_NONLINEAR_LINEARIZATION_NEWTON_DEV1:
     stokes_problem_nl->proj_scal = rhea_viscosity_new (ymir_mesh);
+#if (0 < RHEA_STOKES_PROBLEM_NONLINEAR_NEWTON_DUAL_VARIABLE)
+    stokes_problem_nl->proj_tens = rhea_strainrate_new (ymir_mesh);
+    ymir_vec_set_zero (stokes_problem_nl->proj_tens);
+#endif
     break;
   default: /* unknown linearization type */
     RHEA_ABORT_NOT_REACHED ();
@@ -2841,6 +2909,9 @@ rhea_stokes_problem_nonlinear_clear_mesh_data (
     RHEA_ASSERT (stokes_problem_nl->proj_scal != NULL);
     RHEA_ASSERT (stokes_problem_nl->proj_tens == NULL);
     rhea_viscosity_destroy (stokes_problem_nl->proj_scal);
+#if (0 < RHEA_STOKES_PROBLEM_NONLINEAR_NEWTON_DUAL_VARIABLE)
+    rhea_viscosity_destroy (stokes_problem_nl->proj_tens);
+#endif
     break;
   default: /* unknown linearization type */
     RHEA_ABORT_NOT_REACHED ();
