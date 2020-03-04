@@ -392,3 +392,143 @@
       -bbt_stiff_gmg_coarse_mg_coarse_sub_pc_type cholesky
       -bbt_stiff_gmg_coarse_mg_coarse_sub_pc_factor_shift_type positive_definite
 
+
+###### Mass Matrix Inversion KSP ######
+
+  ### KSP type
+
+    # CG
+    -mass_ksp_type cg
+    -mass_ksp_cg_single_reduction  # combine 2 inner prods into 1 allreduce
+    -mass_ksp_pc_side left
+
+  ### KSP tolerances
+  -mass_ksp_rtol 1.0e-6
+  -mass_ksp_atol 0
+  -mass_ksp_max_it 25
+
+  ### KSP monitoring
+ #-mass_ksp_view
+ #-mass_ksp_monitor
+ #-mass_ksp_monitor_true_residual
+ #-mass_ksp_monitor_singular_value
+
+
+###### Mass Matrix Inversion PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -mass_pc_use_amat true
+
+
+###### H^-1 norm KSP ######
+
+  ### KSP type
+
+    # CG
+    -Hminus1_norm_ksp_type cg
+    -Hminus1_norm_ksp_cg_single_reduction
+    -Hminus1_norm_ksp_pc_side left
+
+  ### KSP tolerances
+  -Hminus1_norm_ksp_rtol 1.0e-6
+  -Hminus1_norm_ksp_atol 0.0
+  -Hminus1_norm_ksp_max_it 50
+
+
+###### H^-1 norm PC ######
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -Hminus1_norm_pc_use_amat true
+
+  ### GMG smoother
+
+    ### KSP type
+
+      # Chebyshev smoother
+      -Hminus1_norm_gmg_levels_ksp_type chebyshev
+      -Hminus1_norm_gmg_levels_ksp_chebyshev_estimate_eigenvalues
+     #-Hminus1_norm_gmg_levels_ksp_chebyshev_estimate_eigenvalues_random
+      -Hminus1_norm_gmg_levels_est_ksp_type gmres
+      -Hminus1_norm_gmg_levels_est_ksp_pc_side left  # same as chebyshev
+      -Hminus1_norm_gmg_levels_est_ksp_gmres_restart 10
+      -Hminus1_norm_gmg_levels_est_ksp_max_it 10
+      -Hminus1_norm_gmg_levels_est_ksp_norm_type none
+     #-Hminur1_norm_gmg_levels_est_ksp_monitor_singular_value
+
+    ### KSP tolerances
+    -Hminus1_norm_gmg_levels_ksp_rtol 1.0e-16
+    -Hminus1_norm_gmg_levels_ksp_atol 0.0
+    -Hminus1_norm_gmg_levels_ksp_max_it 1
+    -Hminus1_norm_gmg_levels_ksp_norm_type none
+
+    ### PC type
+
+      # Jacobi
+     #-Hminus1_norm_gmg_levels_pc_type jacobi
+
+    -Hminus1_norm_gmg_levels_pc_use_amat true
+
+  ### GMG coarse KSP
+
+    ### AMG preconditioner
+    -Hminus1_norm_gmg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -Hminus1_norm_gmg_coarse_ksp_max_it 1
+
+  ### GMG coarse PC
+
+  # inner preconditioner uses the matrix that defines the linear system
+  -Hminus1_norm_gmg_coarse_pc_use_amat false
+
+  ### AMG Galerkin coarse grid generation
+  -Hminus1_norm_gmg_coarse_pc_mg_levels 5
+
+    # GAMG
+    -Hminus1_norm_gmg_coarse_pc_type gamg
+    -Hminus1_norm_gmg_coarse_pc_gamg_verbose 10
+    -Hminus1_norm_gmg_coarse_pc_gamg_threshold 0.0
+    -Hminus1_norm_gmg_coarse_pc_gamg_process_eq_limit 50
+    -Hminus1_norm_gmg_coarse_pc_gamg_coarse_eq_limit 1500
+    -Hminus1_norm_gmg_coarse_pc_gamg_agg_nsmooths 1
+
+  ### AMG algorithmic options
+  -Hminus1_norm_gmg_coarse_pc_mg_type multiplicative
+  -Hminus1_norm_gmg_coarse_pc_mg_multiplicative_cycles 1
+
+  ### AMG smoother
+
+    ### KSP type
+
+      # Chebyshev smoother
+      -Hminus1_norm_gmg_coarse_mg_levels_ksp_type chebyshev
+
+    ### KSP tolerances
+    -Hminus1_norm_gmg_coarse_mg_levels_ksp_rtol 1.0e-16
+    -Hminus1_norm_gmg_coarse_mg_levels_ksp_atol 0.0
+    -Hminus1_norm_gmg_coarse_mg_levels_ksp_max_it 1
+    -Hminus1_norm_gmg_coarse_mg_levels_ksp_norm_type none
+
+    ### PC type
+
+      # Jacobi
+      -Hminus1_norm_gmg_coarse_mg_levels_pc_type jacobi
+
+    -Hminus1_norm_gmg_coarse_mg_levels_pc_use_amat false
+
+  ### AMG coarse solver
+
+    ### KSP type
+
+      # none
+      -Hminus1_norm_gmg_coarse_mg_coarse_ksp_type preonly
+
+    ### KSP tolerances
+    -Hminus1_norm_gmg_coarse_mg_coarse_ksp_max_it 1
+
+    ### PC type
+
+      # Block Jacobi with Cholesky factorization as subsolver
+      -Hminus1_norm_gmg_coarse_mg_coarse_pc_type bjacobi
+      -Hminus1_norm_gmg_coarse_mg_coarse_sub_ksp_type preonly
+      -Hminus1_norm_gmg_coarse_mg_coarse_sub_pc_type cholesky
