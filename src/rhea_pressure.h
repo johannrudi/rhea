@@ -70,6 +70,13 @@ int                 rhea_pressure_project_out_mean (
                                             ymir_vec_t *pressure,
                                             ymir_pressure_elem_t *press_elem);
 
+/**
+ * Inverts (lumped) mass matrix.
+ */
+void                rhea_pressure_remove_mass (
+                                            ymir_vec_t *press,
+                                            ymir_pressure_elem_t *press_elem);
+
 /******************************************************************************
  * Statistics
  *****************************************************************************/

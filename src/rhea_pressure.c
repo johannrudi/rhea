@@ -61,6 +61,27 @@ rhea_pressure_is_valid (ymir_vec_t *vec)
   return sc_dmatrix_is_valid (vec->dataown);
 }
 
+void
+rhea_pressure_remove_mass (ymir_vec_t *press, ymir_pressure_elem_t *press_elem)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (press);
+  ymir_vec_t         *press_lump;
+
+  /* check input */
+  RHEA_ASSERT (rhea_pressure_check_vec_type (press, press_elem));
+  RHEA_ASSERT (rhea_pressure_is_valid (press));
+
+  /* invert (lumped) mass matrix */
+  press_lump = ymir_pressure_vec_new (mesh, press_elem);
+  ymir_pressure_vec_lump_mass (press_lump, press_elem);
+  ymir_vec_fabs (press_lump, press_lump);
+  ymir_vec_divide_in (press_lump, press);
+  RHEA_ASSERT (rhea_pressure_is_valid (press));
+
+  /* destroy */
+  ymir_vec_destroy (press_lump);
+}
+
 MPI_Offset *
 rhea_pressure_segment_offset_create (ymir_vec_t *vec)
 {
