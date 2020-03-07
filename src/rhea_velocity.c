@@ -180,6 +180,27 @@ rhea_velocity_segment_size_get (ymir_vec_t *vec)
   return (int) (n_fields * n_nodes[mpirank]);
 }
 
+void
+rhea_velocity_remove_mass (ymir_vec_t *vel)
+{
+  ymir_mesh_t        *mesh = ymir_vec_get_mesh (vel);
+  ymir_vec_t         *vel_lump;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel));
+  RHEA_ASSERT (rhea_velocity_is_valid (vel));
+
+  /* invert (lumped) mass matrix */
+  vel_lump = ymir_cvec_new (mesh, 1);
+  ymir_mass_lump (vel_lump);
+  ymir_cvec_fabs (vel_lump, vel_lump);
+  ymir_cvec_divide_in1 (vel_lump, vel);
+  RHEA_ASSERT (rhea_velocity_is_valid (vel));
+
+  /* destroy */
+  ymir_vec_destroy (vel_lump);
+}
+
 /******************************************************************************
  * Velocity Surface Vector
  *****************************************************************************/

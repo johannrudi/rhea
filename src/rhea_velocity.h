@@ -92,6 +92,11 @@ MPI_Offset         *rhea_velocity_segment_offset_create (ymir_vec_t *vec);
 MPI_Offset          rhea_velocity_segment_offset_get (ymir_vec_t *vec);
 int                 rhea_velocity_segment_size_get (ymir_vec_t *vec);
 
+/**
+ * Inverts (lumped) mass matrix.
+ */
+void                rhea_velocity_remove_mass (ymir_vec_t *vel);
+
 /******************************************************************************
  * Velocity Surface Vector
  *****************************************************************************/
