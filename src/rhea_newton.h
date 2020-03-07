@@ -165,6 +165,7 @@ typedef int       (*rhea_newton_setup_poststep_fn_t) (ymir_vec_t **solution,
  * \param [in] data     User data
  */
 typedef void      (*rhea_newton_output_prestep_fn_t) (ymir_vec_t *solution,
+                                                      ymir_vec_t *neg_gradient,
                                                       const int iter,
                                                       void *data);
 
@@ -480,6 +481,7 @@ int                 rhea_newton_problem_output_prestep_exists (
                                             rhea_newton_problem_t *nl_problem);
 void                rhea_newton_problem_output_prestep (
                                             ymir_vec_t *solution,
+                                            ymir_vec_t *neg_gradient,
                                             const int iter,
                                             rhea_newton_problem_t *nl_problem);
 

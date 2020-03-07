@@ -781,11 +781,12 @@ rhea_newton_problem_output_prestep_exists (rhea_newton_problem_t *nl_problem)
 
 void
 rhea_newton_problem_output_prestep (ymir_vec_t *solution,
+                                    ymir_vec_t *neg_gradient,
                                     const int iter,
                                     rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_output_prestep_exists (nl_problem)) {
-    nl_problem->output_prestep (solution, iter, nl_problem->data);
+    nl_problem->output_prestep (solution, neg_gradient, iter, nl_problem->data);
   }
 }
 
@@ -2062,7 +2063,9 @@ rhea_newton_solve (ymir_vec_t **solution,
       }
 
       /* call user output function */
-      rhea_newton_problem_output_prestep (*solution, iter, nl_problem);
+      rhea_newton_problem_output_prestep (
+          *solution, (neg_gradient_updated ? nl_problem->neg_gradient_vec : NULL),
+          iter, nl_problem);
     }
 
     /*
