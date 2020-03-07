@@ -19,6 +19,8 @@
 #define RHEA_VTK_NAME_STRAINRATE_SQRT_2INV "strainrate_sqrt_2inv"
 #define RHEA_VTK_NAME_VISCSTRESS_SQRT_2INV "viscstress_sqrt_2inv"
 #define RHEA_VTK_NAME_STRESS_NORM "stress_norm"
+#define RHEA_VTK_NAME_RESIDUAL_MOM "residual_mom"
+#define RHEA_VTK_NAME_RESIDUAL_MASS "residual_mass"
 
 #define RHEA_VTK_NAME_WEAKZONE "weakzone"
 #define RHEA_VTK_NAME_VISCOSITY "viscosity"
@@ -377,8 +379,12 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
                                            ymir_vec_t *velocity,
                                            ymir_vec_t *pressure,
                                            ymir_vec_t *viscosity,
-                                           ymir_vec_t *marker)
+                                           ymir_vec_t *marker,
+                                           ymir_vec_t *residual_mom,
+                                           ymir_vec_t *residual_mass)
 {
+  const int           in_residual = (NULL != residual_mom &&
+                                     NULL != residual_mass);
   ymir_mesh_t        *ymir_mesh;
   ymir_vec_t         *strainrate_sqrt_2inv;
 
@@ -398,12 +404,24 @@ rhea_vtk_write_nonlinear_stokes_iteration (const char *filepath,
   rhea_strainrate_compute_sqrt_of_2inv (strainrate_sqrt_2inv, velocity);
 
   /* write vtk file */
-  ymir_vtk_write (ymir_mesh, filepath,
-                  velocity, RHEA_VTK_NAME_VELOCITY,
-                  pressure, RHEA_VTK_NAME_PRESSURE,
-                  strainrate_sqrt_2inv, RHEA_VTK_NAME_STRAINRATE_SQRT_2INV,
-                  viscosity, RHEA_VTK_NAME_VISCOSITY,
-                  marker, RHEA_VTK_NAME_MARKER, NULL);
+  if (in_residual) {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    velocity, RHEA_VTK_NAME_VELOCITY,
+                    pressure, RHEA_VTK_NAME_PRESSURE,
+                    strainrate_sqrt_2inv, RHEA_VTK_NAME_STRAINRATE_SQRT_2INV,
+                    viscosity, RHEA_VTK_NAME_VISCOSITY,
+                    marker, RHEA_VTK_NAME_MARKER,
+                    residual_mom, RHEA_VTK_NAME_RESIDUAL_MOM,
+                    residual_mass, RHEA_VTK_NAME_RESIDUAL_MASS, NULL);
+  }
+  else {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    velocity, RHEA_VTK_NAME_VELOCITY,
+                    pressure, RHEA_VTK_NAME_PRESSURE,
+                    strainrate_sqrt_2inv, RHEA_VTK_NAME_STRAINRATE_SQRT_2INV,
+                    viscosity, RHEA_VTK_NAME_VISCOSITY,
+                    marker, RHEA_VTK_NAME_MARKER, NULL);
+  }
 
   /* destroy */
   rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);

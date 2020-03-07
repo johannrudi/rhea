@@ -2446,6 +2446,7 @@ rhea_stokes_problem_nonlinear_amr_fn (ymir_vec_t **solution, const int iter,
  */
 static void
 rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
+                                                 ymir_vec_t *neg_gradient,
                                                  const int iter, void *data)
 {
   rhea_stokes_problem_t *stokes_problem_nl = data;
@@ -2464,10 +2465,16 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   RHEA_ASSERT (stokes_problem_nl->marker != NULL);
 
   /* get volume fields */
-  rhea_velocity_pressure_create_components (&velocity, &pressure, solution,
-                                            press_elem);
+  velocity = rhea_velocity_new (ymir_mesh);
+  pressure = rhea_pressure_new (ymir_mesh, press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
+  rhea_velocity_pressure_copy_components (velocity, pressure, solution,
+                                          press_elem);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_nl);
+
+  /* enforce boundary conditions */
+  rhea_stokes_problem_velocity_set_boundary (
+      velocity, stokes_problem_nl->vel_nonzero_dirichlet, stokes_problem_nl);
 
   /* get surface fields */
   velocity_surf = rhea_velocity_surface_new (ymir_mesh);
@@ -2685,20 +2692,50 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
 
   /* create visualization */
   if (vtk_path != NULL) {
+    ymir_vec_t         *residual_mom, *residual_mass;
     char                path[BUFSIZ];
+
+    /* process residual */
+    if (NULL != neg_gradient) {
+      /* get components of residual */
+      residual_mom  = rhea_velocity_new (ymir_mesh);
+      residual_mass = rhea_pressure_new (ymir_mesh, press_elem);
+      rhea_velocity_pressure_copy_components (
+          residual_mom, residual_mass, neg_gradient, press_elem);
+
+      /* flip sign; remove mass */
+      ymir_vec_scale (-1.0, residual_mom);
+      ymir_vec_scale (-1.0, residual_mass);
+      rhea_velocity_remove_mass (residual_mom);
+      rhea_pressure_remove_mass (residual_mass, press_elem);
+
+      /* communicate shared node values */
+      ymir_vec_share_owned (residual_mom);
+    }
+    else {
+      residual_mom = NULL;
+      residual_mass = NULL;
+    }
 
     /* set path */
     snprintf (path, BUFSIZ, "%s%s%02i", vtk_path,
               RHEA_STOKES_PROBLEM_IO_LABEL_NL_ITER, iter);
 
+    /* set VTK path for debugging within ymir */
+    ymir_vtk_set_debug_path (path);
+
     /* write VTK */
     rhea_vtk_write_nonlinear_stokes_iteration (
-        path, velocity, pressure, viscosity, stokes_problem_nl->marker);
+        path, velocity, pressure, viscosity, stokes_problem_nl->marker,
+        residual_mom, residual_mass);
     rhea_vtk_write_nonlinear_stokes_iteration_surf (
         path, velocity_surf, stress_norm_surf, viscosity_surf);
 
-    /* set VTK path for debugging within ymir */
-    ymir_vtk_set_debug_path (path);
+    /* destroy */
+    if (NULL != neg_gradient) {
+      rhea_velocity_destroy (residual_mom);
+      rhea_pressure_destroy (residual_mass);
+    }
   }
 
   RHEA_GLOBAL_STATISTICS ("========================================\n");
