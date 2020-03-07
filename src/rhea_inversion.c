@@ -2515,8 +2515,9 @@ rhea_inversion_write_vis (const char *vtk_path_vol,
 }
 
 static void
-rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution, const int iter,
-                                         void *data)
+rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution,
+                                         ymir_vec_t *neg_residual,
+                                         const int iter, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
