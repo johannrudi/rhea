@@ -921,6 +921,11 @@ rhea_plate_data_create (rhea_plate_options_t *opt, sc_MPI_Comm mpicomm)
   /* check input */
   RHEA_ASSERT (opt != NULL);
 
+  /* exit if nothing to do */
+  if (rhea_plate_data_exists (opt)) {
+    return 0;
+  }
+
   /* start performance monitors */
   ymir_perf_counter_start (
       &rhea_plate_perfmon[RHEA_PLATE_PERFMON_DATA_CREATE]);
