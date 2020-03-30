@@ -8,6 +8,7 @@
 #include <example_share_mesh.h>
 #include <example_share_stokes.h>
 #include <example_share_vtk.h>
+#include <ymir_interp_vec.h>
 
 /******************************************************************************
  * Monitoring
@@ -33,6 +34,119 @@ static const char  *rhea_main_performance_monitor_name[RHEA_MAIN_PERFMON_N] =
 };
 
 /******************************************************************************
+ * Boundary Conditions
+ *****************************************************************************/
+
+/* types of boundary conditions */
+typedef enum
+{
+  /* default: set from domain options */
+  PAXSEC_VEL_BC_DIR_DEFAULT,
+
+  /* Dirichlet in normal direction & zero velocity of South American plate */
+  PAXSEC_VEL_BC_DIR_NORMAL_ZERO_1ST_PLATE,
+
+  /* Dirichlet in normal direction & fixed velocity of South American plate */
+  PAXSEC_VEL_BC_DIR_NORMAL_FIX_1ST_PLATE
+}
+paxsec_vel_bc_t;
+
+/* data for boundary conditions */
+typedef struct paxsec_vel_bc_data
+{
+  paxsec_vel_bc_t     type;
+  rhea_plate_options_t *plate_options;
+}
+paxsec_vel_bc_data_t;
+
+/**
+ * Sets type of Dirichlet boundary conditions for velocity.
+ */
+static ymir_dir_code_t
+paxsec_vel_bc_dir_fn (double x, double y, double z,
+                      double nx, double ny, double nz,
+                      ymir_topidx_t face, ymir_locidx_t node_id,
+                      void *data)
+{
+  paxsec_vel_bc_data_t *d = data;
+  rhea_plate_options_t *plate_options = d->plate_options;
+
+  switch (d->type) {
+  case PAXSEC_VEL_BC_DIR_DEFAULT:
+    /* set Dirichlet in normal direction for all points */
+    return YMIR_VEL_DIRICHLET_NORM;
+  case PAXSEC_VEL_BC_DIR_NORMAL_ZERO_1ST_PLATE:
+  case PAXSEC_VEL_BC_DIR_NORMAL_FIX_1ST_PLATE:
+    {
+      const int     pid = 0; /* index of South American plate */
+      const float   boundary_begin = plate_options->xsection_boundary[2*pid  ];
+      const float   boundary_end   = plate_options->xsection_boundary[2*pid+1];
+      double        tmp_x, tmp_y;
+
+      rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
+                                   RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
+                                   plate_options->domain_options);
+      if ( face == RHEA_DOMAIN_BOUNDARY_FACE_TOP &&
+           (boundary_begin <= tmp_x && tmp_x <= boundary_end) ) {
+        /* set Dirichlet in all directions */
+        return YMIR_VEL_DIRICHLET_ALL;
+      }
+      else {
+        /* set Dirichlet in normal direction */
+        return YMIR_VEL_DIRICHLET_NORM;
+      }
+    }
+  default: /* unknown boundary condition */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/**
+ * Sets values for Dirichlet boundary conditions for velocity.
+ */
+static void
+paxsec_vel_bc_dir_nonzero_fn (ymir_vec_t *vel_nonzero_dirichlet, void *data)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_nonzero_dirichlet);
+  paxsec_vel_bc_data_t *d = data;
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_check_vec_type (vel_nonzero_dirichlet));
+
+  /* initialize */
+  ymir_vec_set_zero (vel_nonzero_dirichlet);
+
+  /* set nonzero boundary values */
+  switch (d->type) {
+  case PAXSEC_VEL_BC_DIR_DEFAULT:
+  case PAXSEC_VEL_BC_DIR_NORMAL_ZERO_1ST_PLATE:
+    /* nothing to do */
+    break;
+  case PAXSEC_VEL_BC_DIR_NORMAL_FIX_1ST_PLATE:
+    {
+      const ymir_topidx_t face = RHEA_DOMAIN_BOUNDARY_FACE_TOP;
+      const int           plate_label = 0; /* index of South American plate */
+      ymir_vec_t         *vel_vol = rhea_velocity_new (ymir_mesh);
+      ymir_vec_t         *vel_face = ymir_face_cvec_new (ymir_mesh, face, 3);
+
+      /* set values of face vector */
+      rhea_plate_velocity_generate (vel_face, plate_label, d->plate_options);
+
+      /* interpolate face vector to volume vector */
+      ymir_interp_vec (vel_face, vel_vol);
+      ymir_vec_add (1.0, vel_vol, vel_nonzero_dirichlet);
+
+      /* destroy */
+      ymir_vec_destroy (vel_face);
+      rhea_velocity_destroy (vel_vol);
+    }
+    break;
+  default: /* unknown boundary condition */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+}
+
+/******************************************************************************
  * Main Program
  *****************************************************************************/
 
@@ -56,8 +170,8 @@ main (int argc, char **argv)
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
   /* options local to this program */
-  int                 solver_iter_max;
-  double              solver_rel_tol;
+  int                 vel_bc_type;
+  paxsec_vel_bc_data_t  vel_bc_data;
   char               *bin_solver_path;
   char               *txt_inv_solver_path;
   char               *vtk_input_path;
@@ -91,12 +205,9 @@ main (int argc, char **argv)
   ymir_options_addv (opt,
 
   /* solver options */
-  YMIR_OPTIONS_I, "solver-iter-max", '\0',
-    &(solver_iter_max), 100,
-    "Maximum number of iterations for Stokes solver",
-  YMIR_OPTIONS_D, "solver-rel-tol", '\0',
-    &(solver_rel_tol), 1.0e-6,
-    "Relative tolerance for Stokes solver",
+  YMIR_OPTIONS_I, "velocity-boundary-condition", '\0',
+    &(vel_bc_type), PAXSEC_VEL_BC_DIR_DEFAULT,
+    "Type of velocity boundary condition",
 
   /* binary file output */
   YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
@@ -172,6 +283,24 @@ main (int argc, char **argv)
    * Setup Stokes Problem
    */
 
+  /* set boundary conditions */
+  switch (vel_bc_type) {
+  case PAXSEC_VEL_BC_DIR_DEFAULT:
+    break;
+  case PAXSEC_VEL_BC_DIR_NORMAL_ZERO_1ST_PLATE:
+  case PAXSEC_VEL_BC_DIR_NORMAL_FIX_1ST_PLATE:
+    domain_options.velocity_bc_type = RHEA_DOMAIN_VELOCITY_BC_USER;
+    rhea_plate_data_create (&plate_options, ymir_mesh_get_MPI_Comm (ymir_mesh));
+    vel_bc_data.type = vel_bc_type;
+    vel_bc_data.plate_options = &plate_options;
+    rhea_domain_set_user_velocity_dirichlet_bc (
+        paxsec_vel_bc_dir_fn, &vel_bc_data, 0 /* zero Dir (nonzero -> RHS) */);
+    break;
+  default: /* unknown boundary condition */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* setup stokes problem */
   example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
                             &temp_options, &plate_options,
                             &weak_options, &visc_options,
@@ -179,6 +308,19 @@ main (int argc, char **argv)
                             RHEA_MAIN_PERFMON_SETUP_MESH,
                             RHEA_MAIN_PERFMON_SETUP_STOKES,
                             bin_solver_path, vtk_solver_path);
+
+  /* set callback function for nonzero Dirichlet boundary conditions */
+  switch (vel_bc_type) {
+  case PAXSEC_VEL_BC_DIR_DEFAULT:
+  case PAXSEC_VEL_BC_DIR_NORMAL_ZERO_1ST_PLATE:
+    break;
+  case PAXSEC_VEL_BC_DIR_NORMAL_FIX_1ST_PLATE:
+    rhea_stokes_problem_set_rhs_vel_nonzero_dir_compute_fn (
+        stokes_problem, paxsec_vel_bc_dir_nonzero_fn, &vel_bc_data);
+    break;
+  default: /* unknown boundary condition */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 
   /* write vtk of input data */
   example_share_vtk_write_input_data (vtk_input_path, stokes_problem,
