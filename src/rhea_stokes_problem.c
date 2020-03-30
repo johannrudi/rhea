@@ -346,8 +346,6 @@ rhea_stokes_problem_retrieve_velocity (ymir_vec_t *velocity_pressure,
                                        rhea_stokes_problem_t *stokes_problem)
 {
   ymir_pressure_elem_t *press_elem = stokes_problem->press_elem;
-  ymir_vec_t         *vel_nonzero_dirichlet =
-                        stokes_problem->vel_nonzero_dirichlet;
   ymir_vec_t         *vel = stokes_problem->sol_vel;
 
   /* check input */
@@ -359,11 +357,11 @@ rhea_stokes_problem_retrieve_velocity (ymir_vec_t *velocity_pressure,
   /* retrieve velocity */
   if (velocity_pressure != NULL) { /* if velocity is given */
     RHEA_ASSERT (rhea_velocity_pressure_is_valid (velocity_pressure));
-    rhea_velocity_pressure_copy_components (vel, NULL, velocity_pressure,
-                                            press_elem);
+    rhea_velocity_pressure_copy_components (
+        vel, NULL, velocity_pressure, press_elem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
-    rhea_stokes_problem_velocity_set_boundary (vel, vel_nonzero_dirichlet,
-                                               stokes_problem);
+    rhea_stokes_problem_velocity_enforce_boundary_conditions (
+        vel, stokes_problem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
   }
   else { /* otherwise assume zero velocity */
@@ -1497,9 +1495,8 @@ rhea_stokes_problem_nonlinear_update_hessian_fn (ymir_vec_t *solution,
           ymir_vec_add (-step_length, step_vel, prev_vel);
           RHEA_ASSERT (rhea_velocity_is_valid (prev_vel));
           /* enforce boundary conditions */
-          rhea_stokes_problem_velocity_set_boundary (
-              prev_vel, stokes_problem_nl->vel_nonzero_dirichlet,
-              stokes_problem_nl);
+          rhea_stokes_problem_velocity_enforce_boundary_conditions (
+              prev_vel, stokes_problem_nl);
 
           /* compute strain rate at previous solution velocity */
           ymir_stress_op_optimized_compute_strain_rate (
@@ -2473,8 +2470,8 @@ rhea_stokes_problem_nonlinear_output_prestep_fn (ymir_vec_t *solution,
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem_nl);
 
   /* enforce boundary conditions */
-  rhea_stokes_problem_velocity_set_boundary (
-      velocity, stokes_problem_nl->vel_nonzero_dirichlet, stokes_problem_nl);
+  rhea_stokes_problem_velocity_enforce_boundary_conditions (
+      velocity, stokes_problem_nl);
 
   /* get surface fields */
   velocity_surf = rhea_velocity_surface_new (ymir_mesh);
@@ -3535,21 +3532,9 @@ rhea_stokes_problem_solve (ymir_vec_t **sol_vel_press,
       NULL /* num_iter */, NULL /* res_reduc */,
       NULL /* mesh_modified_by_solver */);
 
-  /* enforce nonzero Dirichlet BC */
-  if (NULL != stokes_problem->vel_nonzero_dirichlet) {
-    ymir_vec_t         *vel;
-    int                 is_view;
-
-    is_view = rhea_velocity_pressure_create_components (
-        &vel, NULL, *sol_vel_press, stokes_problem->press_elem);
-    rhea_stokes_problem_velocity_set_boundary (
-        vel, stokes_problem->vel_nonzero_dirichlet, stokes_problem);
-    if (!is_view) {
-      rhea_velocity_pressure_set_components (
-          *sol_vel_press, vel, NULL, stokes_problem->press_elem);
-    }
-    ymir_vec_destroy (vel);
-  }
+  /* enforce boundary conditions */
+  rhea_stokes_problem_enforce_boundary_conditions (
+      *sol_vel_press, stokes_problem);
 
   /* return stopping reason */
   return stop_reason;
@@ -4096,6 +4081,37 @@ rhea_stokes_problem_velocity_set_boundary_zero (
   return rhea_stokes_problem_velocity_set_boundary (velocity,
                                                     NULL /* zero Dir BC */,
                                                     stokes_problem);
+}
+
+int
+rhea_stokes_problem_velocity_enforce_boundary_conditions (
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return rhea_stokes_problem_velocity_set_boundary (
+        velocity, stokes_problem->vel_nonzero_dirichlet, stokes_problem);
+}
+
+int
+rhea_stokes_problem_enforce_boundary_conditions (
+                                        ymir_vec_t *velocity_pressure,
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_vec_t         *velocity;
+  int                 is_view;
+  int                 enforced;
+
+  is_view = rhea_velocity_pressure_create_components (
+      &velocity, NULL, velocity_pressure, stokes_problem->press_elem);
+  enforced = rhea_stokes_problem_velocity_enforce_boundary_conditions (
+      velocity, stokes_problem);
+  if (!is_view) {
+    rhea_velocity_pressure_set_components (
+        velocity_pressure, velocity, NULL, stokes_problem->press_elem);
+  }
+  ymir_vec_destroy (velocity);
+
+  return enforced;
 }
 
 int

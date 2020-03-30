@@ -327,8 +327,16 @@ int                 rhea_stokes_problem_velocity_set_boundary (
                                         rhea_stokes_problem_t *stokes_problem);
 
 int                 rhea_stokes_problem_velocity_set_boundary_zero (
-                                    ymir_vec_t *velocity,
-                                    rhea_stokes_problem_t *stokes_problem);
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem);
+
+int                 rhea_stokes_problem_velocity_enforce_boundary_conditions (
+                                        ymir_vec_t *velocity,
+                                        rhea_stokes_problem_t *stokes_problem);
+
+int                 rhea_stokes_problem_enforce_boundary_conditions (
+                                        ymir_vec_t *velocity_pressure,
+                                        rhea_stokes_problem_t *stokes_problem);
 
 /**
  * Computes mean rotation of the velocity.
