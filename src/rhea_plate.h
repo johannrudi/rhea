@@ -180,7 +180,7 @@ void                rhea_plate_perfmon_print (sc_MPI_Comm mpicomm,
                                               const int print_flops);
 
 /******************************************************************************
- * Plate Boundary Data
+ * Plate Data
  *****************************************************************************/
 
 /**
@@ -203,6 +203,15 @@ int                 rhea_plate_get_n_plates (rhea_plate_options_t *opt);
 /******************************************************************************
  * Plate Retrieval
  *****************************************************************************/
+
+/**
+ * Checks whether the given (x,y,z) coordinates are inside a specific plate.
+ */
+int                 rhea_plate_is_inside (const double x,
+                                          const double y,
+                                          const double z,
+                                          const int plate_label,
+                                          rhea_plate_options_t *opt);
 
 /**
  * Sets plate labels at all entries of a vector.

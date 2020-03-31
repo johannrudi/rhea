@@ -1412,10 +1412,7 @@ rhea_plate_is_inside_interval (const double x, const double y, const double z,
   return (boundary_begin <= tmp_x && tmp_x <= boundary_end);
 }
 
-/**
- * Checks whether the given (x,y,z) coordinates are inside a specific plate.
- */
-static int
+int
 rhea_plate_is_inside (const double x, const double y, const double z,
                       const int plate_label, rhea_plate_options_t *opt)
 {
@@ -1870,6 +1867,7 @@ rhea_plate_set_unit_tangential_component_fn (double *vec,
                                              void *data)
 {
   rhea_plate_options_t *opt = data;
+  double              magn;
 
   RHEA_ASSERT (opt->domain_options->box_subdivision_y == 1);
 
@@ -1879,8 +1877,14 @@ rhea_plate_set_unit_tangential_component_fn (double *vec,
    *          [-1 0  0]   [nz]
    */
   vec[0] = +nz;
-  vec[1] =  ny;
+  vec[1] = 0.0; /* neutralize y-component */
   vec[2] = -nx;
+
+  /* normalize */
+  magn = sqrt (vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2]);
+  vec[0] *= 1.0/magn;
+  vec[1] *= 1.0/magn;
+  vec[2] *= 1.0/magn;
 }
 
 static void
