@@ -69,7 +69,6 @@ paxsec_vel_bc_dir_fn (double x, double y, double z,
                       void *data)
 {
   paxsec_vel_bc_data_t *d = data;
-  rhea_plate_options_t *plate_options = d->plate_options;
 
   switch (d->type) {
   case PAXSEC_VEL_BC_DIR_DEFAULT:
@@ -78,16 +77,10 @@ paxsec_vel_bc_dir_fn (double x, double y, double z,
   case PAXSEC_VEL_BC_DIR_NORMAL_ZERO_1ST_PLATE:
   case PAXSEC_VEL_BC_DIR_NORMAL_FIX_1ST_PLATE:
     {
-      const int     pid = 0; /* index of South American plate */
-      const float   boundary_begin = plate_options->xsection_boundary[2*pid  ];
-      const float   boundary_end   = plate_options->xsection_boundary[2*pid+1];
-      double        tmp_x, tmp_y;
+      const int     plate_label = 0; /* index of South American plate */
 
-      rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
-                                   RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
-                                   plate_options->domain_options);
       if ( face == RHEA_DOMAIN_BOUNDARY_FACE_TOP &&
-           (boundary_begin <= tmp_x && tmp_x <= boundary_end) ) {
+           rhea_plate_is_inside (x, y, z, plate_label, d->plate_options) ) {
         /* set Dirichlet in all directions */
         return YMIR_VEL_DIRICHLET_ALL;
       }
