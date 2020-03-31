@@ -11,9 +11,7 @@
 #include <ymir_stokes_pc.h>
 #include <ymir_vtk.h>
 #include <p8est_extended.h>
-#ifdef RHEA_ENABLE_DEBUG
-# include <ymir_comm.h>
-#endif
+#include <ymir_comm.h>
 
 /* Stokes solver */
 #define RHEA_STOKES_PROBLEM_NONLINEAR_GRAD_NORM_N_COMPONENTS 2
