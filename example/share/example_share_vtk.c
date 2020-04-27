@@ -62,7 +62,7 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
     plate_weight = rhea_viscosity_surface_new (ymir_mesh);
     plate_vel    = rhea_velocity_surface_new (ymir_mesh);
     rhea_plate_set_label_vec (plate_label, plate_options);
-    rhea_plate_set_weight_vec (plate_weight, NULL, plate_options);
+    rhea_plate_set_weight_vec (plate_weight, NULL, plate_options, NULL);
     rhea_plate_velocity_generate_all (plate_vel, plate_options);
   }
   else {
