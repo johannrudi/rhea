@@ -1216,7 +1216,7 @@ rhea_inversion_assemble_hessian_bfgs_init (
   /* compute lumped Hessian to extract diagonal entries of its prior term */
   ymir_vec_set_value (param_vec_in, 1.0);
   rhea_inversion_apply_hessian (param_vec_out, param_vec_in, inv_problem,
-                                RHEA_INVERSION_HESSIAN_BFGS);
+                                RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND);
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (param_vec_out, inv_param));
   param_vec_reduced = rhea_inversion_param_vec_reduced_new (param_vec_out,
                                                             inv_param);
@@ -2421,15 +2421,53 @@ rhea_inversion_write_txt (const char *txt_path, ymir_vec_t *solution,
     rhea_inversion_param_vec_reduced_destroy (step);
   }
 
-  /* write Hessian */
-  if (iter_start < iter && rhea_inversion_assemble_hessian_matrix) {
-    snprintf (path, BUFSIZ, "%s%s%02i_hessian.txt", txt_path,
-              RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
-    rhea_io_std_write_double_to_txt (
-        path, inv_problem->hessian_matrix->e[0],
-        (size_t) inv_problem->hessian_matrix->m *
-                 inv_problem->hessian_matrix->n,
-        inv_problem->hessian_matrix->n);
+  /* write Hessian/covariance */
+  if (rhea_inversion_assemble_hessian_matrix) {
+    if (iter_start == iter) { /* at first iteration */
+      ymir_vec_t         *param_vec_in, *param_vec_out;
+      sc_dmatrix_t       *param_vec_reduced;
+      double             *C;
+      const size_t        n = inv_problem->hessian_matrix->n;
+      size_t              k;
+
+      /* extract prior covariance */
+      param_vec_in = rhea_inversion_param_vec_new (inv_param);
+      param_vec_out = rhea_inversion_param_vec_new (inv_param);
+      ymir_vec_set_value (param_vec_in, 1.0);
+      rhea_inversion_apply_hessian (param_vec_out, param_vec_in, inv_problem,
+                                    RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND);
+      param_vec_reduced = rhea_inversion_param_vec_reduced_new (param_vec_out,
+                                                                inv_param);
+      RHEA_ASSERT (n == param_vec_reduced->m &&
+                   n == inv_problem->hessian_matrix->m &&
+                   n == inv_problem->hessian_matrix->n);
+
+      /* create diagonal covariance matrix */
+      C = RHEA_ALLOC_ZERO (double, n*n);
+      for (k = 0; k < n; k++) {
+        C[n*k + k] = 1.0/param_vec_reduced->e[k][0];
+      }
+
+      /* write covariance */
+      snprintf (path, BUFSIZ, "%s%s%02i_prior_covariance.txt", txt_path,
+                RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+      rhea_io_std_write_double_to_txt (path, C, n*n, n);
+
+      /* destroy */
+      RHEA_FREE (C);
+      rhea_inversion_param_vec_reduced_destroy (param_vec_reduced);
+      rhea_inversion_param_vec_destroy (param_vec_in);
+      rhea_inversion_param_vec_destroy (param_vec_out);
+    }
+    else { /* otherwise at iterations after first */
+      snprintf (path, BUFSIZ, "%s%s%02i_hessian.txt", txt_path,
+                RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
+      rhea_io_std_write_double_to_txt (
+          path, inv_problem->hessian_matrix->e[0],
+          inv_problem->hessian_matrix->m *
+          inv_problem->hessian_matrix->n,
+          inv_problem->hessian_matrix->n);
+    }
   }
 }
 
