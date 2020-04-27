@@ -231,7 +231,8 @@ typedef double    (*rhea_plate_area_to_weight_fn_t) (double plate_area,
 void                rhea_plate_set_weight_vec (
                              ymir_vec_t *vec,
                              rhea_plate_area_to_weight_fn_t area_to_weight_fn,
-                             rhea_plate_options_t *opt);
+                             rhea_plate_options_t *opt,
+                             double *calculated_plate_weights);
 
 /**
  * Filters values of a vector inside a plate.  Sets values outside this plate

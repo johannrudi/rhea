@@ -43,10 +43,11 @@ rhea_inversion_project_out_null_t;
  *****************************************************************************/
 
 /* default options */
-#define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_WEIGHT (NAN)
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE \
   (RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM)
+#define RHEA_INVERSION_DEFAULT_VEL_OBS_REL_STDDEV_MM_YR (1.0)
+#define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_STDDEV (1.0)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_MATRIX (1)
 #define RHEA_INVERSION_DEFAULT_ASSEMBLE_HESSIAN_ENFORCE_SYMM (0)
@@ -74,12 +75,14 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_PRIOR_PRECONDITIONER (0)
 
 /* initialize options */
-double              rhea_inversion_parameter_prior_rel_weight =
-                      RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_WEIGHT;
 int                 rhea_inversion_vel_obs_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE;
 int                 rhea_inversion_vel_obs_weight_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE;
+double              rhea_inversion_vel_obs_rel_stddev_mm_yr =
+                      RHEA_INVERSION_DEFAULT_VEL_OBS_REL_STDDEV_MM_YR;
+double              rhea_inversion_parameter_prior_rel_stddev =
+                      RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_STDDEV;
 int                 rhea_inversion_hessian_type =
                       RHEA_INVERSION_DEFAULT_HESSIAN_TYPE;
 int                 rhea_inversion_assemble_hessian_matrix =
@@ -137,13 +140,7 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
 
-  /* parameter options */
-  YMIR_OPTIONS_D, "parameter-prior-weight", '\0',
-    &(rhea_inversion_parameter_prior_rel_weight),
-    RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_WEIGHT,
-    "Relative weight of the prior term in the objective functional",
-
-  /* observational data options */
+  /* data options */
   YMIR_OPTIONS_I, "velocity-observations-type", '\0',
     &(rhea_inversion_vel_obs_type), RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE,
     "Type of velocity observations at the surface",
@@ -151,6 +148,16 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_vel_obs_weight_type),
     RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE,
     "Type of weights for velocity observations",
+  YMIR_OPTIONS_D, "velocity-observations-rel-stddev-mm-yr", '\0',
+    &(rhea_inversion_vel_obs_rel_stddev_mm_yr),
+    RHEA_INVERSION_DEFAULT_VEL_OBS_REL_STDDEV_MM_YR,
+    "Relative std. dev. of velocity observations [mm/yr]",
+
+  /* parameter options */
+  YMIR_OPTIONS_D, "parameter-prior-rel-stddev", '\0',
+    &(rhea_inversion_parameter_prior_rel_stddev),
+    RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_STDDEV,
+    "Relative std. dev. of the prior term in the objective functional",
 
   /* outer solver options (inversion) */
   YMIR_OPTIONS_I, "hessian-type", '\0',
@@ -439,30 +446,46 @@ rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
 }
 
 static void
-rhea_inversion_set_weight_obs_misfit (rhea_inversion_problem_t *inv_problem)
+rhea_inversion_set_weight_data (rhea_inversion_problem_t *inv_problem)
 {
-  rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
+  double              vel_rel_stddev = rhea_inversion_vel_obs_rel_stddev_mm_yr;
+  rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
 
-  inv_problem->data_abs_weight = 1.0 / rhea_inversion_obs_velocity_misfit (
-        NULL /* vel_fwd_vol */, inv_problem->vel_obs_surf,
-        inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
-        rhea_stokes_problem_get_domain_options (stokes_problem));
+  if (isfinite (vel_rel_stddev) && 0.0 < vel_rel_stddev) {
+    vel_rel_stddev *= 1.0 / rhea_velocity_get_dim_mm_yr (
+        rhea_stokes_problem_get_domain_options (stokes_problem),
+        rhea_stokes_problem_get_temperature_options (stokes_problem));
+    inv_problem->data_abs_weight = 1.0 / (vel_rel_stddev*vel_rel_stddev);
+  }
+  else if (isfinite (vel_rel_stddev)) {
+    inv_problem->data_abs_weight = 0.0;
+  }
+  else {
+    inv_problem->data_abs_weight =
+      1.0 / rhea_inversion_obs_velocity_misfit (
+          NULL /* !vel_fwd_vol */, inv_problem->vel_obs_surf,
+          inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
+          rhea_stokes_problem_get_domain_options (stokes_problem));
+  }
 }
 
 static void
 rhea_inversion_set_weight_prior (rhea_inversion_problem_t *inv_problem)
 {
-  const double        prior_rel_weight =
-                        rhea_inversion_parameter_prior_rel_weight;
-  rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+  const double        prior_rel_stddev =
+                        rhea_inversion_parameter_prior_rel_stddev;
 
-  if (isfinite (prior_rel_weight) && 0.0 < prior_rel_weight) {
-    inv_problem->prior_abs_weight =
-      prior_rel_weight / rhea_inversion_param_prior (NULL /* !param */,
-                                                     inv_param);
+  if (isfinite (prior_rel_stddev) && 0.0 < prior_rel_stddev) {
+    inv_problem->prior_abs_weight = 1.0 / (prior_rel_stddev*prior_rel_stddev);
+  }
+  else if (isfinite (prior_rel_stddev)) {
+    inv_problem->prior_abs_weight = 0.0;
   }
   else {
-    inv_problem->prior_abs_weight = 0.0;
+    rhea_inversion_param_t *inv_param = inv_problem->inv_param;
+
+    inv_problem->prior_abs_weight =
+      1.0 / rhea_inversion_param_prior (NULL /* !param */, inv_param);
   }
 }
 
@@ -511,13 +534,49 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
   /* create and generate observational data */
   RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
   RHEA_ASSERT (inv_problem->vel_obs_weight_surf == NULL);
-  inv_problem->vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
-  inv_problem->vel_obs_weight_surf = ymir_face_cvec_new (
-      ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
-  rhea_inversion_obs_velocity_generate (
-      inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
-      inv_problem->vel_obs_type, inv_problem->vel_obs_weight_type,
-      rhea_stokes_problem_get_plate_options (stokes_problem));
+  {
+    rhea_plate_options_t *plate_options =
+      rhea_stokes_problem_get_plate_options (stokes_problem);
+    const int           n_plates = rhea_plate_get_n_plates (plate_options);
+    double             *calculated_vel_stddev;
+
+    inv_problem->vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
+    inv_problem->vel_obs_weight_surf = ymir_face_cvec_new (
+        ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
+    if (0 < n_plates) {
+      calculated_vel_stddev = RHEA_ALLOC (double, n_plates);
+    }
+    else {
+      calculated_vel_stddev = NULL;
+    }
+
+    rhea_inversion_obs_velocity_generate (
+        inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
+        inv_problem->vel_obs_type, inv_problem->vel_obs_weight_type,
+        plate_options, calculated_vel_stddev);
+
+    if (0 < n_plates) { /* if plates exist */
+      const double        vel_rel_stddev_mm_yr =
+                            rhea_inversion_vel_obs_rel_stddev_mm_yr;
+      const double        vel_dim_mm_yr = rhea_velocity_get_dim_mm_yr (
+          rhea_stokes_problem_get_domain_options (stokes_problem),
+          rhea_stokes_problem_get_temperature_options (stokes_problem));
+      double              stddev;
+      int                 pid;
+
+      /* print std. dev. of velocity data of plates */
+      RHEA_GLOBAL_INFO ("========================================\n");
+      RHEA_GLOBAL_INFO ("rhea_inversion_obs_velocity_stddev\n");
+      RHEA_GLOBAL_INFO ("----------------------------------------\n");
+      for (pid = 0; pid < n_plates; pid++) {
+        stddev = vel_rel_stddev_mm_yr *
+                 vel_dim_mm_yr * calculated_vel_stddev[pid];
+        RHEA_GLOBAL_INFOF ("plate_idx %3i: %g\n", pid, stddev);
+      }
+      RHEA_GLOBAL_INFO ("========================================\n");
+      RHEA_FREE (calculated_vel_stddev);
+    }
+  }
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -639,6 +698,8 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
       stokes_problem, resume, 0 /* !force linear solve */,
       RHEA_INVERSION_KRYLOV_SOLVER_IDX_FORWARD,
       &n_iter, &res_reduc, &mesh_modified_by_solver);
+  rhea_stokes_problem_enforce_boundary_conditions (
+      inv_problem->forward_vel_press, stokes_problem);
   inv_problem->forward_is_outdated = 0;
   //inv_problem->forward_nonzero_init = 1; //TODO
 
@@ -1197,7 +1258,7 @@ rhea_inversion_assemble_hessian_bfgs_init (
 
   /* scale inverse Hessian matrix */
   if (isfinite (scaling) && 0.0 < scaling && scaling < 1.0) {
-    RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "scaling=%g", scaling);
+    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "scaling=%g", scaling);
     for (k = 0; k < hessian_dim; k++) {
       inv_hessian_matrix->e[k][k] *= scaling;
     }
@@ -1284,7 +1345,7 @@ rhea_inversion_assemble_hessian_bfgs_update (
         gradient_diff_mod_vec, gradient_diff_mod_vec, NULL /* weight */,
         inv_param, 0 /* !normalization wrt. size */));
     rhea_inversion_assemble_hessian_bfgs_init (
-        inv_hessian_matrix, gradient_diff_mod_vec,
+        inv_hessian_matrix, NULL /* !gradient_vec */,
         curvature_effective/grad_diff_norm /* damping */, inv_problem);
   }
 
@@ -1465,8 +1526,6 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
 {
   const rhea_inversion_hessian_t  type = (rhea_inversion_hessian_t)
                                          rhea_inversion_hessian_type;
-  const double        prior_rel_weight =
-                        rhea_inversion_parameter_prior_rel_weight;
   rhea_inversion_problem_t *inv_problem = data;
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (
@@ -1485,21 +1544,10 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
     RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
     RHEA_ASSERT (NULL != inv_problem->newton_gradient_diff_vec);
     if (1 == inv_problem->newton_gradient_diff_vec_update_count) {
-      double              damping;
-
-      /* set damping factor in case of rel. small prior term */
-      if (isfinite (prior_rel_weight) &&
-          0.0 < prior_rel_weight && prior_rel_weight < 1.0) {
-        damping = prior_rel_weight;
-      }
-      else {
-        damping = NAN;
-      }
-
       /* set inverse Hessian matrix */
       rhea_inversion_assemble_hessian_gradient_descend (
           inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
-          damping, inv_problem);
+          NAN /* damping */, inv_problem);
     }
     else if (step_length < 0.5) { /* if adjust scaling of Hessian */
       sc_dmatrix_scale (step_length, inv_problem->hessian_matrix);
@@ -1509,21 +1557,10 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
     RHEA_ASSERT (rhea_inversion_assemble_hessian_matrix);
     RHEA_ASSERT (NULL != inv_problem->newton_gradient_diff_vec);
     if (1 == inv_problem->newton_gradient_diff_vec_update_count) {
-      double              damping;
-
-      /* set damping factor for Hessian in case of rel. small prior term */
-      if (isfinite (prior_rel_weight) &&
-          0.0 < prior_rel_weight && prior_rel_weight < 1.0) {
-        damping = prior_rel_weight;
-      }
-      else {
-        damping = NAN;
-      }
-
       /* compute initial BFGS approximation of the inverse Hessian matrix */
       rhea_inversion_assemble_hessian_bfgs_init (
           inv_problem->hessian_matrix, inv_problem->newton_gradient_diff_vec,
-          damping, inv_problem);
+          NAN /* damping */, inv_problem);
     }
     else { /* otherwise at 2nd nonlinear iteration and above */
       const int           reconstruct_init =
@@ -1601,7 +1638,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
 
   /* set weights if they do not exist */
   if (!isfinite (inv_problem->data_abs_weight)) {
-    rhea_inversion_set_weight_obs_misfit (inv_problem);
+    rhea_inversion_set_weight_data (inv_problem);
   }
   if (!isfinite (inv_problem->prior_abs_weight)) {
     rhea_inversion_set_weight_prior (inv_problem);
@@ -1627,7 +1664,8 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
     vel = rhea_velocity_new (ymir_mesh);
     rhea_velocity_pressure_copy_components (
         vel, NULL, inv_problem->forward_vel_press, press_elem);
-    rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
+    rhea_stokes_problem_velocity_enforce_boundary_conditions (
+        vel, stokes_problem);
     RHEA_ASSERT (rhea_velocity_is_valid (vel));
   }
 
@@ -1743,7 +1781,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   /* retrieve velocity of the forward state */
   rhea_velocity_pressure_copy_components (
       vel, NULL, inv_problem->forward_vel_press, press_elem);
-  rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
+  rhea_stokes_problem_velocity_enforce_boundary_conditions (
+      vel, stokes_problem);
   RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
   /* set the right-hand side of the momentum eq. for the adjoint problem */

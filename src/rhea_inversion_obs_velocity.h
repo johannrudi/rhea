@@ -37,7 +37,8 @@ void                rhea_inversion_obs_velocity_generate (
                         ymir_vec_t *weight_surf,
                         const rhea_inversion_obs_velocity_t obs_type,
                         const rhea_inversion_obs_velocity_weight_t weight_type,
-                        rhea_plate_options_t *plate_options);
+                        rhea_plate_options_t *plate_options,
+                        double *calculated_vel_stddev);
 
 /**
  * Compute the misfit of the velocity at the surface:
