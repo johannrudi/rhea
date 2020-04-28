@@ -99,12 +99,13 @@ typedef int       (*rhea_newton_solve_hessian_system_fn_t) (
 /**
  * Modfies the Newton step after it has been.computed.
  *
+ * \return              Step length modification factor
  * \param [in/out] step Newton step (previously computed)
  * \param [in] solution Current solution vector
  * \param [in] iter     Iteration number of Newton's method
  * \param [in] data     User data
  */
-typedef void      (*rhea_newton_modify_step_fn_t) (ymir_vec_t *step,
+typedef double    (*rhea_newton_modify_step_fn_t) (ymir_vec_t *step,
                                                    ymir_vec_t *solution,
                                                    const int iter,
                                                    void *data);

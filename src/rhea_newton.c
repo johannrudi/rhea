@@ -742,14 +742,18 @@ rhea_newton_problem_modify_step_vec_exists (rhea_newton_problem_t *nl_problem)
   return (NULL != nl_problem->modify_step_vec);
 }
 
-static void
+static double
 rhea_newton_problem_modify_step_vec (ymir_vec_t *step_vec,
                                      ymir_vec_t *solution,
                                      const int iter,
                                      rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_modify_step_vec_exists (nl_problem)) {
-    nl_problem->modify_step_vec (step_vec, solution, iter, nl_problem->data);
+    return nl_problem->modify_step_vec (step_vec, solution, iter,
+                                        nl_problem->data);
+  }
+  else {
+    return 1.0;
   }
 }
 
@@ -1492,7 +1496,8 @@ static void
 rhea_newton_status_summary_add (rhea_newton_status_summary_t *summary,
                                 rhea_newton_status_t *status,
                                 const int evaluate_objective_exists,
-                                rhea_newton_step_t *step)
+                                rhea_newton_step_t *step,
+                                const double step_modification_factor)
 {
   double              obj, obj_reduction;
   double              grad_norm, grad_norm_reduction;
@@ -1525,7 +1530,8 @@ rhea_newton_status_summary_add (rhea_newton_status_summary_t *summary,
   snprintf (summary->iteration_stats[summary->iteration_current_idx], BUFSIZ,
             "%3d ; %.15e [%s], %.15e [%s] ; %i, %2i, %.15f ; %4d, %.3e (%.3e)",
             step->iter, obj, obj_comp, grad_norm, grad_norm_comp,
-            step->search_success, step->search_iter_count, step->length,
+            step->search_success, step->search_iter_count,
+            step->length * step_modification_factor,
             step->lin_iter_count,
             step->lin_res_norm_reduction, step->lin_res_norm_rtol);
   summary->iteration_current_idx++;
@@ -1978,6 +1984,7 @@ rhea_newton_solve (ymir_vec_t **solution,
   int                 neg_gradient_updated;
   int                 solution_post_update = 0;
   int                 stop_reason = 0;
+  double              step_modification_factor = 1.0;
   rhea_newton_step_t            step;
   rhea_newton_status_t          status;
   rhea_newton_status_summary_t *summary = NULL;
@@ -2059,7 +2066,8 @@ rhea_newton_solve (ymir_vec_t **solution,
       if (opt->print_summary) {
         rhea_newton_status_summary_add (
             summary, &status,
-            rhea_newton_problem_evaluate_objective_exists (nl_problem), &step);
+            rhea_newton_problem_evaluate_objective_exists (nl_problem),
+            &step, step_modification_factor);
       }
 
       /* call user output function */
@@ -2139,7 +2147,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       rhea_newton_compute_step (
           /* out: */ &step,
           /* in:  */ nl_problem, opt);
-      rhea_newton_problem_modify_step_vec (
+      step_modification_factor = rhea_newton_problem_modify_step_vec (
           nl_problem->step_vec, *solution, iter, nl_problem);
 
       /* perform line search to get the step length (updates the solution and
@@ -2212,14 +2220,14 @@ rhea_newton_solve (ymir_vec_t **solution,
     rhea_newton_status_clear (&status);
     nl_problem->status = NULL;
 
-    /* clear data */
-    rhea_newton_problem_data_clear (nl_problem);
-
     /* print summary */
     if (opt->print_summary) {
       rhea_newton_status_summary_print (summary, opt->print_summary_name);
       rhea_newton_status_summary_destroy (summary);
     }
+
+    /* clear data */
+    rhea_newton_problem_data_clear (nl_problem);
   }
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
