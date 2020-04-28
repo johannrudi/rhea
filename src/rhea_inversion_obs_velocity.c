@@ -113,7 +113,7 @@ rhea_inversion_obs_velocity_generate (
                         const rhea_inversion_obs_velocity_t obs_type,
                         const rhea_inversion_obs_velocity_weight_t weight_type,
                         rhea_plate_options_t *plate_options,
-                        double *calculated_vel_stddev)
+                        double *calculated_vel_rel_stddev)
 {
   const int           n_plates = rhea_plate_get_n_plates (plate_options);
 
@@ -148,7 +148,7 @@ rhea_inversion_obs_velocity_generate (
   case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_SQRT:
     if (0 < n_plates) { /* if plates exist */
       rhea_plate_set_weight_vec (weight_surf, _area_to_weight_sqrt,
-                                 plate_options, calculated_vel_stddev);
+                                 plate_options, calculated_vel_rel_stddev);
     }
     else {
       ymir_vec_set_value (weight_surf, 1.0);
@@ -157,7 +157,7 @@ rhea_inversion_obs_velocity_generate (
   case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LOG:
     if (0 < n_plates) { /* if plates exist */
       rhea_plate_set_weight_vec (weight_surf, _area_to_weight_log,
-                                 plate_options, calculated_vel_stddev);
+                                 plate_options, calculated_vel_rel_stddev);
     }
     else {
       ymir_vec_set_value (weight_surf, 1.0);
@@ -166,7 +166,7 @@ rhea_inversion_obs_velocity_generate (
   case RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LIN:
     if (0 < n_plates) { /* if plates exist */
       rhea_plate_set_weight_vec (weight_surf, _area_to_weight_lin,
-                                 plate_options, calculated_vel_stddev);
+                                 plate_options, calculated_vel_rel_stddev);
     }
     else {
       ymir_vec_set_value (weight_surf, 1.0);
@@ -177,21 +177,22 @@ rhea_inversion_obs_velocity_generate (
   }
 
   /* transform plate weights to standard deviations */
-  if (NULL != calculated_vel_stddev) {
+  if (NULL != calculated_vel_rel_stddev) {
     int                 pid;
 
     if (weight_type ==  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM) {
       /* set same std. dev. for all plates = 1.0 */
       for (pid = 0; pid < n_plates; pid++) {
-        calculated_vel_stddev[pid] = 1.0;
+        calculated_vel_rel_stddev[pid] = 1.0;
       }
     }
     else {
       /* set std. dev. from calculated weights */
       for (pid = 0; pid < n_plates; pid++) {
-        RHEA_ASSERT (isfinite (calculated_vel_stddev[pid]) &&
-                     0.0 < calculated_vel_stddev[pid]);
-        calculated_vel_stddev[pid] = 1.0 / sqrt(calculated_vel_stddev[pid]);
+        RHEA_ASSERT (isfinite (calculated_vel_rel_stddev[pid]) &&
+                     0.0 < calculated_vel_rel_stddev[pid]);
+        calculated_vel_rel_stddev[pid] =
+          1.0 / sqrt(calculated_vel_rel_stddev[pid]);
       }
     }
   }

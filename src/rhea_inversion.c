@@ -46,8 +46,8 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE \
   (RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM)
-#define RHEA_INVERSION_DEFAULT_VEL_OBS_REL_STDDEV_MM_YR (1.0)
-#define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_STDDEV (1.0)
+#define RHEA_INVERSION_DEFAULT_VEL_OBS_STDDEV_MM_YR (1.0)
+#define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV (1.0)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE_WRITE_AFTER_SOLVE \
   (RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX)
@@ -81,10 +81,10 @@ int                 rhea_inversion_vel_obs_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE;
 int                 rhea_inversion_vel_obs_weight_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE;
-double              rhea_inversion_vel_obs_rel_stddev_mm_yr =
-                      RHEA_INVERSION_DEFAULT_VEL_OBS_REL_STDDEV_MM_YR;
-double              rhea_inversion_parameter_prior_rel_stddev =
-                      RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_STDDEV;
+double              rhea_inversion_vel_obs_stddev_mm_yr =
+                      RHEA_INVERSION_DEFAULT_VEL_OBS_STDDEV_MM_YR;
+double              rhea_inversion_parameter_prior_stddev =
+                      RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV;
 int                 rhea_inversion_hessian_type =
                       RHEA_INVERSION_DEFAULT_HESSIAN_TYPE;
 int                 rhea_inversion_hessian_type_write_after_solve =
@@ -152,16 +152,16 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_vel_obs_weight_type),
     RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE,
     "Type of weights for velocity observations",
-  YMIR_OPTIONS_D, "velocity-observations-rel-stddev-mm-yr", '\0',
-    &(rhea_inversion_vel_obs_rel_stddev_mm_yr),
-    RHEA_INVERSION_DEFAULT_VEL_OBS_REL_STDDEV_MM_YR,
-    "Relative std. dev. of velocity observations [mm/yr]",
+  YMIR_OPTIONS_D, "velocity-observations-stddev-mm-yr", '\0',
+    &(rhea_inversion_vel_obs_stddev_mm_yr),
+    RHEA_INVERSION_DEFAULT_VEL_OBS_STDDEV_MM_YR,
+    "Standard deviation of velocity observations [mm/yr]",
 
   /* parameter options */
-  YMIR_OPTIONS_D, "parameter-prior-rel-stddev", '\0',
-    &(rhea_inversion_parameter_prior_rel_stddev),
-    RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_REL_STDDEV,
-    "Relative std. dev. of the prior term in the objective functional",
+  YMIR_OPTIONS_D, "parameter-prior-stddev", '\0',
+    &(rhea_inversion_parameter_prior_stddev),
+    RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV,
+    "Standard deviation of the prior term in the objective functional",
 
   /* outer solver options (inversion) */
   YMIR_OPTIONS_I, "hessian-type", '\0',
@@ -456,16 +456,16 @@ rhea_inversion_solver_data_exists (rhea_inversion_problem_t *inv_problem)
 static void
 rhea_inversion_set_weight_data (rhea_inversion_problem_t *inv_problem)
 {
-  double              vel_rel_stddev = rhea_inversion_vel_obs_rel_stddev_mm_yr;
+  double              vel_stddev = rhea_inversion_vel_obs_stddev_mm_yr;
   rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
 
-  if (isfinite (vel_rel_stddev) && 0.0 < vel_rel_stddev) {
-    vel_rel_stddev *= 1.0 / rhea_velocity_get_dim_mm_yr (
+  if (isfinite (vel_stddev) && 0.0 < vel_stddev) {
+    vel_stddev *= 1.0 / rhea_velocity_get_dim_mm_yr (
         rhea_stokes_problem_get_domain_options (stokes_problem),
         rhea_stokes_problem_get_temperature_options (stokes_problem));
-    inv_problem->data_abs_weight = 1.0 / (vel_rel_stddev*vel_rel_stddev);
+    inv_problem->data_abs_weight = 1.0 / (vel_stddev*vel_stddev);
   }
-  else if (isfinite (vel_rel_stddev)) {
+  else if (isfinite (vel_stddev)) {
     inv_problem->data_abs_weight = 0.0;
   }
   else {
@@ -480,13 +480,12 @@ rhea_inversion_set_weight_data (rhea_inversion_problem_t *inv_problem)
 static void
 rhea_inversion_set_weight_prior (rhea_inversion_problem_t *inv_problem)
 {
-  const double        prior_rel_stddev =
-                        rhea_inversion_parameter_prior_rel_stddev;
+  const double        prior_stddev = rhea_inversion_parameter_prior_stddev;
 
-  if (isfinite (prior_rel_stddev) && 0.0 < prior_rel_stddev) {
-    inv_problem->prior_abs_weight = 1.0 / (prior_rel_stddev*prior_rel_stddev);
+  if (isfinite (prior_stddev) && 0.0 < prior_stddev) {
+    inv_problem->prior_abs_weight = 1.0 / (prior_stddev*prior_stddev);
   }
-  else if (isfinite (prior_rel_stddev)) {
+  else if (isfinite (prior_stddev)) {
     inv_problem->prior_abs_weight = 0.0;
   }
   else {
@@ -546,43 +545,39 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
     rhea_plate_options_t *plate_options =
       rhea_stokes_problem_get_plate_options (stokes_problem);
     const int           n_plates = rhea_plate_get_n_plates (plate_options);
-    double             *calculated_vel_stddev;
+    double             *calculated_vel_rel_stddev;
 
     inv_problem->vel_obs_surf = rhea_velocity_surface_new (ymir_mesh);
     inv_problem->vel_obs_weight_surf = ymir_face_cvec_new (
         ymir_mesh, RHEA_DOMAIN_BOUNDARY_FACE_TOP, 1);
     if (0 < n_plates) {
-      calculated_vel_stddev = RHEA_ALLOC (double, n_plates);
+      calculated_vel_rel_stddev = RHEA_ALLOC (double, n_plates);
     }
     else {
-      calculated_vel_stddev = NULL;
+      calculated_vel_rel_stddev = NULL;
     }
 
     rhea_inversion_obs_velocity_generate (
         inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
         inv_problem->vel_obs_type, inv_problem->vel_obs_weight_type,
-        plate_options, calculated_vel_stddev);
+        plate_options, calculated_vel_rel_stddev);
 
     if (0 < n_plates) { /* if plates exist */
-      const double        vel_rel_stddev_mm_yr =
-                            rhea_inversion_vel_obs_rel_stddev_mm_yr;
-      const double        vel_dim_mm_yr = rhea_velocity_get_dim_mm_yr (
-          rhea_stokes_problem_get_domain_options (stokes_problem),
-          rhea_stokes_problem_get_temperature_options (stokes_problem));
+      const double        vel_stddev_mm_yr =
+                            rhea_inversion_vel_obs_stddev_mm_yr;
       double              stddev;
       int                 pid;
 
       /* print std. dev. of velocity data of plates */
       RHEA_GLOBAL_INFO ("========================================\n");
-      RHEA_GLOBAL_INFO ("rhea_inversion_obs_velocity_stddev\n");
+      RHEA_GLOBAL_INFO ("rhea_inversion_obs_velocity_stddev [mm/yr]\n");
       RHEA_GLOBAL_INFO ("----------------------------------------\n");
       for (pid = 0; pid < n_plates; pid++) {
-        stddev = vel_rel_stddev_mm_yr *
-                 vel_dim_mm_yr * calculated_vel_stddev[pid];
+        stddev = vel_stddev_mm_yr * calculated_vel_rel_stddev[pid];
         RHEA_GLOBAL_INFOF ("plate_idx %3i: %g\n", pid, stddev);
       }
       RHEA_GLOBAL_INFO ("========================================\n");
-      RHEA_FREE (calculated_vel_stddev);
+      RHEA_FREE (calculated_vel_rel_stddev);
     }
   }
 
