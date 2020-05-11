@@ -93,6 +93,7 @@ rhea_newton_calculate_reduction (const double start_value,
 
 /* default options */
 #define RHEA_NEWTON_DEFAULT_ITER_START (0)
+#define RHEA_NEWTON_DEFAULT_ITER_MIN (0)
 #define RHEA_NEWTON_DEFAULT_ITER_MAX (10)
 #define RHEA_NEWTON_DEFAULT_RTOL (1.0e-6)
 #define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
@@ -154,6 +155,9 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
   YMIR_OPTIONS_I, "iter-start", '\0',
     &(newton_opt->iter_start), RHEA_NEWTON_DEFAULT_ITER_START,
     "Start at this iteration number",
+  YMIR_OPTIONS_I, "iter-min", '\0',
+    &(newton_opt->iter_min), RHEA_NEWTON_DEFAULT_ITER_MIN,
+    "Minimum number of iterations",
   YMIR_OPTIONS_I, "iter-max", '\0',
     &(newton_opt->iter_max), RHEA_NEWTON_DEFAULT_ITER_MAX,
     "Maximum number of iterations",
@@ -244,6 +248,7 @@ rhea_newton_get_options (rhea_newton_options_t *opt)
   rhea_newton_options_set_defaults (opt);
 
   opt->iter_start = rhea_newton_options.iter_start;
+  opt->iter_min   = rhea_newton_options.iter_min;
   opt->iter_max   = rhea_newton_options.iter_max;
   opt->rtol       = rhea_newton_options.rtol;
 
@@ -288,6 +293,7 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->abort_failed_step_search = RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH;
 
   opt->iter_start = RHEA_NEWTON_DEFAULT_ITER_START;
+  opt->iter_min   = RHEA_NEWTON_DEFAULT_ITER_MIN;
   opt->iter_max   = RHEA_NEWTON_DEFAULT_ITER_MAX;
   opt->rtol       = RHEA_NEWTON_DEFAULT_RTOL;
 
@@ -1978,6 +1984,7 @@ rhea_newton_solve (ymir_vec_t **solution,
                    rhea_newton_options_t *opt)
 {
   const int           iter_start = opt->iter_start;
+  const int           iter_min = opt->iter_min;
   const int           iter_max = opt->iter_max;
   int                 iter;
   const double        rtol = opt->rtol;
@@ -1993,11 +2000,13 @@ rhea_newton_solve (ymir_vec_t **solution,
   char                func_tag_stop[BUFSIZ];
 
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (
-      __func__, "iter_start=%i, iter_max=%i, rtol=%.1e, nonzero_init_guess=%i",
-      iter_start, iter_max, rtol, opt->nonzero_initial_guess);
+      __func__, "iter_start=%i, iter_min=%i, iter_max=%i, rtol=%.1e, "
+      "nonzero_init_guess=%i", iter_start, iter_min, iter_max, rtol,
+      opt->nonzero_initial_guess);
 
   /* check input */
   RHEA_ASSERT (rhea_newton_problem_is_valid (nl_problem));
+  RHEA_ASSERT ((iter_start + iter_min) <= iter_max);
 
   /*
    * Initialize
@@ -2081,7 +2090,8 @@ rhea_newton_solve (ymir_vec_t **solution,
      */
 
     /* stop if converged */
-    if (rhea_newton_status_get_grad_reduction (&status) < rtol) {
+    if (rhea_newton_status_get_grad_reduction (&status) < rtol &&
+        (iter_start + iter_min) <= iter) {
       RHEA_GLOBAL_PRODUCTIONF_FN_TAG (
           func_tag_stop, "newton_iter=%i, reason=\"converged to rtol=%.3e\"",
           iter, rtol);

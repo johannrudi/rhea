@@ -195,6 +195,7 @@ typedef struct rhea_newton_options
 
   /* options for the nonlinear solver */
   int                 iter_start;
+  int                 iter_min;
   int                 iter_max;
   double              rtol;
 
