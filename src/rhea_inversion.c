@@ -704,7 +704,7 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
   rhea_stokes_problem_enforce_boundary_conditions (
       inv_problem->forward_vel_press, stokes_problem);
   inv_problem->forward_is_outdated = 0;
-  //inv_problem->forward_nonzero_init = 1; //TODO
+  inv_problem->forward_nonzero_init = 1;
 
   /* write solver statistics */
   rhea_inversion_fwd_adj_solve_stats_write (inv_problem, 0 /* forward */,
