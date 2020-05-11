@@ -22,6 +22,8 @@ prior_max_txt = sys.argv[2]
 prior_cov_txt = sys.argv[3]
 post_max_txt  = sys.argv[4]
 post_cov_txt  = sys.argv[5]
+invert_prior_cov = False
+invert_post_cov = True
 
 # set output path
 if 6 <= argn:
@@ -202,6 +204,12 @@ prior_max = np.loadtxt(prior_max_txt)
 prior_cov = np.loadtxt(prior_cov_txt)
 post_max  = np.loadtxt(post_max_txt)
 post_cov  = np.loadtxt(post_cov_txt)
+
+# invert matrices
+if invert_prior_cov:
+    prior_cov = np.linalg.inv(prior_cov)
+if invert_post_cov:
+    post_cov = np.linalg.inv(post_cov)
 
 # set sizes and indices
 n_glo    = len(phys_glo_dim)
