@@ -2001,8 +2001,8 @@ rhea_newton_solve (ymir_vec_t **solution,
 
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (
       __func__, "iter_start=%i, iter_min=%i, iter_max=%i, rtol=%.1e, "
-      "nonzero_init_guess=%i", iter_start, iter_min, iter_max, rtol,
-      opt->nonzero_initial_guess);
+      "nonzero_init_guess=%i, resume=%i", iter_start, iter_min, iter_max, rtol,
+      opt->nonzero_initial_guess, opt->resume);
 
   /* check input */
   RHEA_ASSERT (rhea_newton_problem_is_valid (nl_problem));
@@ -2024,14 +2024,14 @@ rhea_newton_solve (ymir_vec_t **solution,
 
     /* initialize solution vector and status */
     if (opt->nonzero_initial_guess) { /* if nonzero initial guess */
-      rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
-                                       RHEA_NEWTON_CONV_CRITERION_ALL,
-                                       *solution, iter_start, nl_problem);
-      if (opt->resume) { /* if resume a previously started solve */
+      if (opt->resume) { /* if resuming a previously started solve */
         rhea_newton_status_get_resume_init (&status, opt);
         rhea_newton_status_get_resume_prev (&status, opt);
       }
-      else {
+      rhea_newton_status_compute_curr (&status, &neg_gradient_updated,
+                                       RHEA_NEWTON_CONV_CRITERION_ALL,
+                                       *solution, iter_start, nl_problem);
+      if (!opt->resume) { /* if not resuming a previously started solve */
         rhea_newton_status_copy_curr_to_init (&status);
         rhea_newton_status_set_resume_init (opt, &status);
       }
