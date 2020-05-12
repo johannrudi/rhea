@@ -55,8 +55,6 @@ main (int argc, char **argv)
   rhea_viscosity_options_t      visc_options;
   rhea_discretization_options_t discr_options;
   /* options local to this program */
-  int                 solver_iter_max;
-  double              solver_rel_tol;
   char               *bin_solver_path;
   char               *txt_inv_solver_path;
   char               *vtk_input_path;
@@ -88,14 +86,6 @@ main (int argc, char **argv)
   /* add options of this program */
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
-
-  /* solver options */
-  YMIR_OPTIONS_I, "solver-iter-max", '\0',
-    &(solver_iter_max), 100,
-    "Maximum number of iterations for Stokes solver",
-  YMIR_OPTIONS_D, "solver-rel-tol", '\0',
-    &(solver_rel_tol), 1.0e-6,
-    "Relative tolerance for Stokes solver",
 
   /* binary file output */
   YMIR_OPTIONS_S, "bin-write-solver-path", '\0',
