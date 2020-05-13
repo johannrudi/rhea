@@ -389,6 +389,7 @@ rhea_plate_modify_vertices_shell_set (float *translation_x,
                                       const int bins_y[180])
 {
   int                 bin_east, bin_west, bin_south, bin_north;
+  int                 is_circle;
   int                 i;
 
   /* find east & west bounds */
@@ -410,6 +411,7 @@ rhea_plate_modify_vertices_shell_set (float *translation_x,
       break;
     }
   }
+  is_circle = (0 == bin_west && bin_east == 35);
 
   /* find north & south bounds */
   for (i = 0; i <= 179; i++) { /* loop south (down) */
@@ -424,7 +426,7 @@ rhea_plate_modify_vertices_shell_set (float *translation_x,
       break;
     }
   }
-  if (0 == bin_west && bin_east == 35) { /* if whole circle */
+  if (is_circle) {
     if (bin_north < 90 && bin_south < 90) { /* if polygon in north hemisph. */
       bin_north = 0;
     }
@@ -437,31 +439,30 @@ rhea_plate_modify_vertices_shell_set (float *translation_x,
   }
 
   /* set translations */
-  if (bin_west <= bin_east && 0 < bin_north && bin_south < 179) { /* no wrap */
-    *translation_x = 0.0;
-    *translation_y = 0.0;
-    *insert_y = NAN;
-  }
-  else if (0 < bin_north && bin_south < 179) { /* set translation in west dir */
-    RHEA_ASSERT (bin_east < bin_west);
+  if (bin_east < bin_west) { /* set translation in west dir */
     *translation_x = -10.0 * (float) bin_west;
     *translation_y = 0.0;
     *insert_y = NAN;
   }
-  else if (0 == bin_north) { /* insert north pole (0,0) and (360,0) */
+  else if (is_circle && 0 == bin_north) { /* insert north pole *
+                                           * (0,0) and (360,0) */
     RHEA_ASSERT (bin_south < 179);
     *translation_x = 0.0;
     *translation_y = 0.0;
     *insert_y = 0.0;
   }
-  else if (bin_south == 179) { /* insert south pole (0,180) and (360,180) */
+  else if (is_circle && 179 == bin_south) { /* insert south pole *
+                                             * (0,180) and (360,180) */
     RHEA_ASSERT (0 < bin_north);
     *translation_x = 0.0;
     *translation_y = 0.0;
     *insert_y = 180.0;
   }
   else {
-    RHEA_ABORT_NOT_REACHED ();
+    RHEA_ASSERT (bin_west <= bin_east);
+    *translation_x = 0.0;
+    *translation_y = 0.0;
+    *insert_y = NAN;
   }
 
   RHEA_GLOBAL_VERBOSEF_FN_TAG (
@@ -508,73 +509,76 @@ rhea_plate_modify_vertices_shell_insert (float **vertices_x,
                                          const size_t n_vertices,
                                          const float insert_y)
 {
+  const float         tol_wrap = 340.0;
   float              *vertices_old_x = *vertices_x;
   float              *vertices_old_y = *vertices_y;
+  float              *vertices_new_x;
+  float              *vertices_new_y;
   float               x, y, prev_x, prev_y;
-  size_t              vid;
+  const size_t        n_inserted_max = 4*8;
+  size_t              vid_old, vid_new, n_inserted;
 
   /* create larger arrays */
-  *vertices_x = RHEA_ALLOC (float, n_vertices + 4);
-  *vertices_y = RHEA_ALLOC (float, n_vertices + 4);
+  vertices_new_x = RHEA_ALLOC (float, n_vertices + n_inserted_max);
+  vertices_new_y = RHEA_ALLOC (float, n_vertices + n_inserted_max);
 
-  /* copy vertices until wrapping occurs */
+  /* copy and insert vertices */
+  n_inserted = 0;
   prev_x = vertices_old_x[0];
   prev_y = vertices_old_y[0];
-  for (vid = 0; vid < n_vertices; vid++) {
-    x = vertices_old_x[vid];
-    y = vertices_old_y[vid];
-    if (fabs (x - prev_x) <= 10.0) {
-      (*vertices_x)[vid] = x;
-      (*vertices_y)[vid] = y;
-      prev_x = x;
-      prev_y = y;
+  for (vid_old = 0; vid_old < n_vertices; vid_old++) {
+    x = vertices_old_x[vid_old];
+    y = vertices_old_y[vid_old];
+    vid_new = vid_old + n_inserted;
+    if (fabs (x - prev_x) < tol_wrap) { /* if no wrap */
+      /* copy vertices */
+      vertices_new_x[vid_new] = x;
+      vertices_new_y[vid_new] = y;
     }
-    else {
-      break;
+    else { /* otherwise is wrap */
+      /* insert new vertex coordinates */
+      if (x <= prev_x) { /* if wraps counter-clockwise */
+        vertices_new_x[vid_new  ] = 360.0;
+        vertices_new_y[vid_new  ] = prev_y;
+        vertices_new_x[vid_new+1] = 360.0;
+        vertices_new_y[vid_new+1] = insert_y;
+        vertices_new_x[vid_new+2] = 0.0;
+        vertices_new_y[vid_new+2] = insert_y;
+        vertices_new_x[vid_new+3] = 0.0;
+        vertices_new_y[vid_new+3] = prev_y;
+      }
+      else { /* otherwise wraps clockwise */
+        vertices_new_x[vid_new  ] = 0.0;
+        vertices_new_y[vid_new  ] = prev_y;
+        vertices_new_x[vid_new+1] = 0.0;
+        vertices_new_y[vid_new+1] = insert_y;
+        vertices_new_x[vid_new+2] = 360.0;
+        vertices_new_y[vid_new+2] = insert_y;
+        vertices_new_x[vid_new+3] = 360.0;
+        vertices_new_y[vid_new+3] = prev_y;
+      }
+      n_inserted += 4;
+      RHEA_ASSERT (n_inserted <= n_inserted_max);
     }
-  }
-
-  /* insert new vertex coordinates */
-  if (x <= prev_x) { /* if wraps counter-clockwise */
-    (*vertices_x)[vid  ] = 360.0;
-    (*vertices_y)[vid  ] = prev_y;
-    (*vertices_x)[vid+1] = 360.0;
-    (*vertices_y)[vid+1] = insert_y;
-    (*vertices_x)[vid+2] = 0.0;
-    (*vertices_y)[vid+2] = insert_y;
-    (*vertices_x)[vid+3] = 0.0;
-    (*vertices_y)[vid+3] = prev_y;
-  }
-  else { /* otherwise wraps clockwise */
-    (*vertices_x)[vid  ] = 0.0;
-    (*vertices_y)[vid  ] = prev_y;
-    (*vertices_x)[vid+1] = 0.0;
-    (*vertices_y)[vid+1] = insert_y;
-    (*vertices_x)[vid+2] = 360.0;
-    (*vertices_y)[vid+2] = insert_y;
-    (*vertices_x)[vid+3] = 360.0;
-    (*vertices_y)[vid+3] = prev_y;
-  }
-
-  /* continue copying vertices */
-  prev_x = x;
-  prev_y = y;
-  for (/* resume */; vid < n_vertices; vid++) {
-    x = vertices_old_x[vid];
-    y = vertices_old_y[vid];
-    RHEA_ASSERT (fabs (x - prev_x) <= 10.0);
-    (*vertices_x)[vid+4] = x;
-    (*vertices_y)[vid+4] = y;
     prev_x = x;
     prev_y = y;
   }
 
+  /* create output arrays */
+  RHEA_ASSERT (4 == n_inserted); /* otherwise polygon errors possible */
+  *vertices_x = RHEA_ALLOC (float, n_vertices + n_inserted);
+  *vertices_y = RHEA_ALLOC (float, n_vertices + n_inserted);
+  memcpy (*vertices_x, vertices_new_x, (n_vertices + n_inserted)*sizeof(float));
+  memcpy (*vertices_y, vertices_new_y, (n_vertices + n_inserted)*sizeof(float));
+
   /* destroy old arrays */
   RHEA_FREE (vertices_old_x);
   RHEA_FREE (vertices_old_y);
+  RHEA_FREE (vertices_new_x);
+  RHEA_FREE (vertices_new_y);
 
   /* return new #vertices */
-  return n_vertices + 4;
+  return n_vertices + n_inserted;
 }
 
 static void
