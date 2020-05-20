@@ -2552,14 +2552,16 @@ rhea_inversion_write_vis (const int iter,
   visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
 
   /* get volume fields */
-  rhea_velocity_pressure_create_components (
-      &vel_fwd_vol, &press_fwd_vol, inv_problem->forward_vel_press,
-      press_elem);
-  rhea_velocity_pressure_create_components (
-      &vel_adj_vol, &press_adj_vol, inv_problem->adjoint_vel_press,
-      press_elem);
-  viscosity = rhea_viscosity_new (ymir_mesh);
-  marker = rhea_viscosity_new (ymir_mesh);
+  vel_fwd_vol   = rhea_velocity_new (ymir_mesh);
+  press_fwd_vol = rhea_pressure_new (ymir_mesh, press_elem);
+  vel_adj_vol   = rhea_velocity_new (ymir_mesh);
+  press_adj_vol = rhea_pressure_new (ymir_mesh, press_elem);
+  viscosity     = rhea_viscosity_new (ymir_mesh);
+  marker        = rhea_viscosity_new (ymir_mesh);
+  rhea_velocity_pressure_copy_components (
+      vel_fwd_vol, press_fwd_vol, inv_problem->forward_vel_press, press_elem);
+  rhea_velocity_pressure_copy_components (
+      vel_adj_vol, press_adj_vol, inv_problem->adjoint_vel_press, press_elem);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
   rhea_stokes_problem_copy_marker (marker, stokes_problem);
 
