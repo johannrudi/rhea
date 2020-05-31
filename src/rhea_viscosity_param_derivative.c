@@ -459,9 +459,9 @@ rhea_viscosity_param_derivative_log_fn (double *val, double x, double y,
 }
 
 /**
- * Computes derivative w.r.t. the stress exponent:
- *   n = X(param_n)
- *   deriv = (d X(param_n)) * (-1/n^2) * log(c*a(T)*(strainrate-shift)) * visc
+ * Computes derivative w.r.t. the strain rate weakening exponent:
+ *   1/n = X(param_1_n)
+ *   deriv = (d X(param_1_n)) * log(c*a(T)*(strainrate-shift)) * visc
  */
 static void
 rhea_viscosity_param_derivative_stress_exp (
@@ -481,7 +481,6 @@ rhea_viscosity_param_derivative_stress_exp (
   const double            visc_max = visc_options->max;
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (derivative);
   ymir_vec_t         *scal_vec, *visc_lin;
-  double              scal_val;
 
   /* check input */
   RHEA_ASSERT (rhea_viscosity_check_vec_type (derivative));
@@ -527,8 +526,7 @@ rhea_viscosity_param_derivative_stress_exp (
   rhea_strainrate_2inv_destroy (scal_vec);
 
   /* multiply by constant scaling */
-  scal_val = SC_MAX (0.0, stress_exp_deriv) / (-stress_exp*stress_exp);
-  ymir_vec_scale (scal_val, derivative);
+  ymir_vec_scale (SC_MAX (0.0, stress_exp_deriv), derivative);
 
   /* check output */
   RHEA_ASSERT (sc_dmatrix_is_valid (derivative->dataown));
