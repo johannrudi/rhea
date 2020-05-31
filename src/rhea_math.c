@@ -1,5 +1,38 @@
 #include <rhea_math.h>
 #include <rhea_base.h>
+#include <fenv.h>
+
+double
+rhea_math_exp (const double x)
+{
+  double              result;
+
+  RHEA_ASSERT (isfinite (x));
+
+  feclearexcept (FE_ALL_EXCEPT);
+  result = exp (x);
+  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp is too large */
+    result = DBL_MAX;
+  }
+
+  return result;
+}
+
+double
+rhea_math_log (const double x)
+{
+  double              result;
+
+  RHEA_ASSERT (isfinite (x));
+  RHEA_ASSERT (0.0 <= x);
+
+  result = log (x);
+  if (!isfinite (result)) {
+    result = -DBL_MAX;
+  }
+
+  return result;
+}
 
 double
 rhea_math_smin_logexp_nondim (const double x, const double y, const double p,

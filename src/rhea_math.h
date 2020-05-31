@@ -7,6 +7,12 @@
 #define RHEA_MATH_H
 
 /**
+ * Computes exponential or (natural) logarithm and catches infinite output.
+ */
+double              rhea_math_exp (const double x);
+double              rhea_math_log (const double x);
+
+/**
  * Computes a smooth version of the minimum avoiding overflow and underflow:
  *
  *   smin (x, y) = log (exp (p*x) + exp(p*y)) / p
