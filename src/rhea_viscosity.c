@@ -8,7 +8,6 @@
 #include <ymir_mass_vec.h>
 #include <ymir_interp_vec.h>
 #include <ymir_stress_op.h>
-#include <fenv.h>
 
 /******************************************************************************
  * Options
@@ -717,20 +716,13 @@ rhea_viscosity_linear_arrhenius (const double temp,
                                  const double temp_neutral,
                                  const double activation_energy)
 {
-  double              result;
-
   RHEA_ASSERT (isfinite (temp));
+  RHEA_ASSERT (isfinite (temp_neutral));
   RHEA_ASSERT (isfinite (activation_energy));
   RHEA_ASSERT (0.0 <= temp && temp <= 1.0);
   RHEA_ASSERT (0.0 <= activation_energy);
 
-  feclearexcept (FE_ALL_EXCEPT);
-  result = exp (activation_energy * (temp_neutral - temp));
-  if (fetestexcept (FE_OVERFLOW)) { /* if argument of exp too large */
-    result = DBL_MAX;
-  }
-
-  return result;
+  return rhea_math_exp (activation_energy * (temp_neutral - temp));
 }
 
 /**
