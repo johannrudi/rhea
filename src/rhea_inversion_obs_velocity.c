@@ -117,6 +117,13 @@ rhea_inversion_obs_velocity_generate (
 {
   const int           n_plates = rhea_plate_get_n_plates (plate_options);
 
+  /* return if nothing to do */
+  if (RHEA_INVERSION_OBS_VELOCITY_NONE == obs_type) {
+    ymir_vec_set_value (vel_obs_surf, 0.0);
+    ymir_vec_set_value (weight_surf, -1.0);
+    return;
+  }
+
   /* generate velocity data */
   switch (obs_type) {
   case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
@@ -289,9 +296,17 @@ rhea_inversion_obs_velocity_misfit (
                                   rhea_domain_options_t *domain_options)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vel_obs_surf);
-  ymir_vec_t         *misfit_surf = rhea_velocity_surface_new (ymir_mesh);
-  ymir_vec_t         *misfit_surf_mass = rhea_velocity_surface_new (ymir_mesh);
+  ymir_vec_t         *misfit_surf, *misfit_surf_mass;
   double              misfit_norm_sq;
+
+  /* return if nothing to do */
+  if (RHEA_INVERSION_OBS_VELOCITY_NONE == obs_type) {
+    return 0.0;
+  }
+
+  /* create work vectors */
+  misfit_surf      = rhea_velocity_surface_new (ymir_mesh);
+  misfit_surf_mass = rhea_velocity_surface_new (ymir_mesh);
 
   /* compute misfit vector */
   rhea_inversion_obs_velocity_misfit_vec (
