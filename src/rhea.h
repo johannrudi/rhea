@@ -8,6 +8,7 @@
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>
+#include <rhea_composition.h>
 #include <rhea_plate.h>
 #include <rhea_weakzone.h>
 #include <rhea_topography.h>
@@ -71,6 +72,7 @@ void                rhea_add_options_newton (ymir_options_t *options);
 void                rhea_process_options_all (
                               rhea_domain_options_t *domain_options,
                               rhea_temperature_options_t *temperature_options,
+                              rhea_composition_options_t *composition_options,
                               rhea_plate_options_t *plate_options,
                               rhea_weakzone_options_t *weakzone_options,
                               rhea_topography_options_t *topography_options,

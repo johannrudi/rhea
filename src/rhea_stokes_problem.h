@@ -9,6 +9,7 @@
 #include <rhea_domain.h>
 #include <rhea_discretization.h>
 #include <rhea_temperature.h>
+#include <rhea_composition.h>
 #include <rhea_plate.h>
 #include <rhea_weakzone.h>
 #include <rhea_viscosity.h>
@@ -57,8 +58,10 @@ rhea_stokes_problem_t *rhea_stokes_problem_new (
                                     ymir_mesh_t *ymir_mesh,
                                     ymir_pressure_elem_t *press_elem,
                                     ymir_vec_t *temperature,
+                                    ymir_vec_t *composition,
                                     rhea_domain_options_t *domain_options,
                                     rhea_temperature_options_t *temp_options,
+                                    rhea_composition_options_t *comp_options,
                                     rhea_weakzone_options_t *weak_options,
                                     rhea_viscosity_options_t *visc_options);
 
@@ -203,6 +206,15 @@ ymir_vec_t         *rhea_stokes_problem_get_temperature (
 void                rhea_stokes_problem_remove_temperature (
                                     rhea_stokes_problem_t *stokes_problem);
 
+void                rhea_stokes_problem_set_composition (
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    ymir_vec_t *composition_density,
+                                    ymir_vec_t *composition_viscosity);
+ymir_vec_t         *rhea_stokes_problem_get_composition_density (
+                                    rhea_stokes_problem_t *stokes_problem);
+void                rhea_stokes_problem_remove_composition (
+                                    rhea_stokes_problem_t *stokes_problem);
+
 void                rhea_stokes_problem_set_velocity_pressure (
                                     rhea_stokes_problem_t *stokes_problem,
                                     ymir_vec_t *velocity_pressure);
@@ -224,6 +236,8 @@ rhea_temperature_options_t *rhea_stokes_problem_get_temperature_options (
 void                        rhea_stokes_problem_set_temperature_options (
                                     rhea_stokes_problem_t *stokes_problem,
                                     rhea_temperature_options_t *temp_options);
+rhea_composition_options_t *rhea_stokes_problem_get_composition_options (
+                                    rhea_stokes_problem_t *stokes_problem);
 rhea_plate_options_t       *rhea_stokes_problem_get_plate_options (
                                     rhea_stokes_problem_t *stokes_problem);
 void                        rhea_stokes_problem_set_plate_options (

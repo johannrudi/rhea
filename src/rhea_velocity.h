@@ -6,6 +6,7 @@
 
 #include <rhea_domain.h>
 #include <rhea_temperature.h>
+#include <rhea_composition.h>
 
 /******************************************************************************
  * Options
@@ -167,8 +168,16 @@ void                  rhea_velocity_nonzero_boundary_set_face_normals_fn (
  * Right-Hand Side Computation
  *****************************************************************************/
 
+typedef struct rhea_velocity_rhs_compute_data
+{
+  rhea_temperature_options_t *temp_options;
+  rhea_composition_options_t *comp_options;
+}
+rhea_velocity_rhs_compute_data_t;
+
 typedef void      (*rhea_velocity_rhs_compute_fn_t) (ymir_vec_t *rhs_vel,
                                                      ymir_vec_t *temperature,
+                                                     ymir_vec_t *composition,
                                                      void *data);
 
 typedef void      (*rhea_velocity_rhs_nz_dir_compute_fn_t) (
@@ -181,6 +190,7 @@ typedef void      (*rhea_velocity_rhs_nz_neu_compute_fn_t) (
 
 void                rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel,
                                                ymir_vec_t *temperature,
+                                               ymir_vec_t *composition,
                                                void *data);
 
 /******************************************************************************

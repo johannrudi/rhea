@@ -203,10 +203,10 @@ void                rhea_temperature_background_compute (
                                               rhea_temperature_options_t *opt);
 
 /**
- * Computes velocity right-hand side in (primal) function space, given a
- * temperature vector.
+ * Computes and adds velocity right-hand side in (primal) function space, given
+ * a temperature vector.
  */
-void                rhea_temperature_compute_rhs_vel (
+void                rhea_temperature_add_rhs_vel (
                                               ymir_vec_t *rhs_vel,
                                               ymir_vec_t *temperature,
                                               rhea_temperature_options_t *opt);

@@ -13,6 +13,7 @@
 #define RHEA_VTK_NAME_TEMPERATURE "temperature"
 #define RHEA_VTK_NAME_VELOCITY "velocity"
 #define RHEA_VTK_NAME_PRESSURE "pressure"
+#define RHEA_VTK_NAME_COMPOSITION "composition"
 
 #define RHEA_VTK_NAME_BACKGROUND_TEMPERATURE "background_temp"
 #define RHEA_VTK_NAME_VELOCITY_RHS "rhs_vel"
@@ -42,6 +43,7 @@ int
 rhea_vtk_write_input_data (const char *filepath,
                            ymir_vec_t *temperature,
                            ymir_vec_t *background_temp,
+                           ymir_vec_t *composition,
                            ymir_vec_t *weakzone,
                            ymir_vec_t *viscosity,
                            ymir_vec_t *marker,
@@ -49,6 +51,7 @@ rhea_vtk_write_input_data (const char *filepath,
 {
   const int           in_temp = (temperature != NULL);
   const int           in_back = (background_temp != NULL);
+  const int           in_comp = (composition != NULL);
   const int           in_weak = (weakzone != NULL);
   const int           in_marker = (marker != NULL);
   ymir_mesh_t        *ymir_mesh;
@@ -75,6 +78,10 @@ rhea_vtk_write_input_data (const char *filepath,
   if (!in_back) {
     background_temp = rhea_temperature_new (ymir_mesh);
     ymir_vec_set_value (background_temp, -1.0);
+  }
+  if (!in_comp) {
+    composition = rhea_composition_new (ymir_mesh);
+    ymir_vec_set_value (composition, -1.0);
   }
   if (!in_weak) {
     weakzone = rhea_weakzone_new (ymir_mesh);
@@ -120,6 +127,7 @@ rhea_vtk_write_input_data (const char *filepath,
                     rhs_vel, RHEA_VTK_NAME_VELOCITY_RHS,
                     temperature, RHEA_VTK_NAME_TEMPERATURE,
                     background_temp, RHEA_VTK_NAME_BACKGROUND_TEMPERATURE,
+                    composition, RHEA_VTK_NAME_COMPOSITION,
                     weakzone, RHEA_VTK_NAME_WEAKZONE,
                     marker, RHEA_VTK_NAME_MARKER, NULL);
   }

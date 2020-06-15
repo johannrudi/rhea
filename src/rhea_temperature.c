@@ -1399,41 +1399,47 @@ rhea_temperature_rhs_vel_node (double *rhs, const double x, const double y,
 }
 
 /* data for callback function to compute the velocity right-hand side */
-typedef struct rhea_temperature_compute_rhs_vel_fn_data
+typedef struct rhea_temperature_rhs_vel_fn_data
 {
   ymir_vec_t          *temperature;
   rhea_temperature_options_t  *temp_options;
 }
-rhea_temperature_compute_rhs_vel_fn_data_t;
+rhea_temperature_rhs_vel_fn_data_t;
 
 /**
  * Callback function to compute the velocity right-hand side.
  */
 static void
-rhea_temperature_compute_rhs_vel_fn (double *rhs, double x, double y, double z,
-                                     ymir_locidx_t nodeid, void *data)
+rhea_temperature_add_rhs_vel_fn (double *rhs, double x, double y, double z,
+                                 ymir_locidx_t nodeid, void *data)
 {
-  rhea_temperature_compute_rhs_vel_fn_data_t  *d = data;
+  rhea_temperature_rhs_vel_fn_data_t *d = data;
   rhea_temperature_options_t  *opt = d->temp_options;
   const double        temp = *ymir_cvec_index (d->temperature, nodeid, 0);
   double              back_temp;
+  double              rhs_node[3];
 
   /* compute background temperature */
   back_temp = rhea_temperature_background_node (x, y, z, opt);
 
   /* compute right-hand side */
-  rhea_temperature_rhs_vel_node (rhs, x, y, z, temp, back_temp, opt);
+  rhea_temperature_rhs_vel_node (rhs_node, x, y, z, temp, back_temp, opt);
+
+  /* add to right-hand side */
+  rhs[0] += rhs_node[0];
+  rhs[1] += rhs_node[1];
+  rhs[2] += rhs_node[2];
 }
 
 void
-rhea_temperature_compute_rhs_vel (ymir_vec_t *rhs_vel,
-                                  ymir_vec_t *temperature,
-                                  rhea_temperature_options_t *opt)
+rhea_temperature_add_rhs_vel (ymir_vec_t *rhs_vel,
+                              ymir_vec_t *temperature,
+                              rhea_temperature_options_t *opt)
 {
-  rhea_temperature_compute_rhs_vel_fn_data_t  data;
+  rhea_temperature_rhs_vel_fn_data_t  data;
 
-  /* set right-hand side */
+  /* add to right-hand side */
   data.temperature = temperature;
   data.temp_options = opt;
-  ymir_cvec_set_function (rhs_vel, rhea_temperature_compute_rhs_vel_fn, &data);
+  ymir_cvec_set_function (rhs_vel, rhea_temperature_add_rhs_vel_fn, &data);
 }

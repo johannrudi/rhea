@@ -7,6 +7,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
                           ymir_mesh_t **ymir_mesh,
                           ymir_pressure_elem_t **press_elem,
                           rhea_temperature_options_t *temp_options,
+                          rhea_composition_options_t *comp_options,
                           rhea_plate_options_t *plate_options,
                           rhea_weakzone_options_t *weak_options,
                           rhea_viscosity_options_t *visc_options,
@@ -19,7 +20,7 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
 {
   rhea_domain_options_t *domain_options = visc_options->domain_options;
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (*ymir_mesh);
-  ymir_vec_t         *temperature;
+  ymir_vec_t         *temperature, *composition;
 
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
@@ -31,11 +32,20 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
   temperature = rhea_temperature_new (*ymir_mesh);
   rhea_temperature_compute (temperature, temp_options);
 
+  /* read composition */
+  if (rhea_composition_exists (comp_options)) {
+    composition = rhea_composition_new (*ymir_mesh);
+    rhea_composition_read (composition, comp_options);
+  }
+  else {
+    composition = NULL;
+  }
+
   /* create Stokes problem */
   rhea_performance_monitor_start_barrier (performance_monitor_index_stokes);
   *stokes_problem = rhea_stokes_problem_new (
-      *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options);
+      *ymir_mesh, *press_elem, temperature, composition,
+      domain_options, temp_options, comp_options, weak_options, visc_options);
   rhea_stokes_problem_set_plate_options (*stokes_problem, plate_options);
   rhea_stokes_problem_set_solver_amr (*stokes_problem, p4est, discr_options);
   rhea_stokes_problem_set_solver_bin_output (*stokes_problem, solver_bin_path);
@@ -59,16 +69,25 @@ example_share_stokes_new (rhea_stokes_problem_t **stokes_problem,
 void
 example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
                               rhea_temperature_options_t *temp_options,
+                              rhea_composition_options_t *comp_options,
                               rhea_plate_options_t *plate_options,
                               rhea_weakzone_options_t *weak_options,
                               rhea_viscosity_options_t *visc_options)
 {
-  ymir_vec_t         *temperature;
+  ymir_vec_t         *temperature, *composition;
 
   RHEA_GLOBAL_PRODUCTION_FN_BEGIN (__func__);
 
   /* get temperature */
   temperature = rhea_stokes_problem_get_temperature (stokes_problem);
+
+  /* get composition */
+  if (rhea_composition_exists (comp_options)) {
+    composition = rhea_stokes_problem_get_composition_density (stokes_problem);
+  }
+  else {
+    composition = NULL;
+  }
 
   /* destroy Stokes problem */
   rhea_stokes_problem_destroy (stokes_problem);
@@ -76,6 +95,9 @@ example_share_stokes_destroy (rhea_stokes_problem_t *stokes_problem,
   /* destroy vectors */
   if (temperature != NULL) {
     rhea_temperature_destroy (temperature);
+  }
+  if (composition != NULL) {
+    rhea_composition_destroy (composition);
   }
 
   /* destroy data */

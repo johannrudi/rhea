@@ -110,6 +110,7 @@ main (int argc, char **argv)
   rhea_weakzone_options_t       weak_options;
   rhea_topography_options_t     topo_options;
   rhea_viscosity_options_t      visc_options;
+  rhea_composition_options_t    comp_options;
   rhea_discretization_options_t discr_options;
   /* options local to this program */
   yielding_nonzero_dir_bc_t       nonzero_dir_bc_type;
@@ -225,9 +226,9 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_process_options_all (&domain_options, &temp_options, &plate_options,
-                            &weak_options, &topo_options, &visc_options,
-                            &discr_options);
+  rhea_process_options_all (&domain_options, &temp_options, &comp_options,
+                            &plate_options, &weak_options, &topo_options,
+                            &visc_options, &discr_options);
 
   /*
    * Setup Mesh
@@ -242,7 +243,7 @@ main (int argc, char **argv)
    */
 
   example_share_stokes_new (&stokes_problem, &ymir_mesh, &press_elem,
-                            &temp_options, &plate_options,
+                            &temp_options, &comp_options, &plate_options,
                             &weak_options, &visc_options,
                             p4est, &discr_options,
                             RHEA_MAIN_PERFMON_SETUP_MESH,
@@ -337,8 +338,8 @@ main (int argc, char **argv)
   /* destroy Stokes problem */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-  example_share_stokes_destroy (stokes_problem, &temp_options, &plate_options,
-                                &weak_options, &visc_options);
+  example_share_stokes_destroy (stokes_problem, &temp_options, &comp_options,
+                                &plate_options, &weak_options, &visc_options);
 
   /* destroy mesh */
   example_share_mesh_destroy (ymir_mesh, press_elem, p4est, &topo_options,

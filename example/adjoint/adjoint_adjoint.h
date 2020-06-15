@@ -59,6 +59,7 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
                     rhea_temperature_options_t *temp_options,
                     rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
+					rhea_composition_options_t *comp_options,
                     subd_options_t *subd_options);
 
 adjoint_problem_t *

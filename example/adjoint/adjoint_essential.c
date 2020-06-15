@@ -104,8 +104,8 @@ subd_setup_clear_all (rhea_stokes_problem_t *stokes_problem,
     }
   }
 
-  example_share_stokes_destroy (stokes_problem, temp_options, plate_options, weak_options,
-                                visc_options);
+  example_share_stokes_destroy (stokes_problem, temp_options, NULL /* comp_options */,
+                                plate_options, weak_options, visc_options);
 
   /* destroy mesh */
   example_share_mesh_destroy (ymir_mesh, press_elem, p4est, topo_options,

@@ -89,7 +89,7 @@ subd_write_input_basic (rhea_stokes_problem_t *stokes_problem,
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
                              background_temp, weakzone, viscosity, bounds_marker,
-                             rhs_vel);
+                             NULL, rhs_vel);
 
   rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);

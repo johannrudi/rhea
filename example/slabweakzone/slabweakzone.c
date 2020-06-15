@@ -4417,7 +4417,7 @@ slabs_write_input (ymir_mesh_t *ymir_mesh,
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
                              background_temp, weakzone, viscosity, NULL,
-                             rhs_vel);
+                             NULL, rhs_vel);
 
   rhea_temperature_destroy (background_temp);
   rhea_viscosity_destroy (viscosity);
@@ -4580,11 +4580,13 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
                     rhea_temperature_options_t *temp_options,
                     rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
+					rhea_composition_options_t *comp_options,
                     slabs_options_t *slabs_options,
                     const char *vtk_write_input_path)
 {
   const char         *this_fn_name = "slabs_setup_stokes";
   ymir_vec_t         *temperature;
+  ymir_vec_t		 *composition;
   ymir_vec_t         *coeff_TI_svisc = NULL, *TI_rotate = NULL;
   int                 mpirank = ymir_mesh->ma->mpirank;
 
@@ -4620,10 +4622,17 @@ slabs_setup_stokes (rhea_stokes_problem_t **stokes_problem,
       RHEA_ABORT_NOT_REACHED ();
   }
 
+  /* read composition */
+  composition = rhea_composition_new (ymir_mesh);
+  rhea_composition_read (composition, comp_options);
+
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      ymir_mesh, press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options);
+      ymir_mesh, press_elem, temperature, composition, domain_options, temp_options,
+      weak_options, visc_options, comp_options);
+
+  /* destroy vector composition */
+  rhea_composition_destroy (composition);
 
   /* provide own function to compute weak zones and viscosity */
   switch (slabs_options->buoyancy_type) {
@@ -4908,6 +4917,7 @@ main (int argc, char **argv)
   rhea_temperature_options_t    temp_options;
   rhea_weakzone_options_t       weak_options;
   rhea_viscosity_options_t      visc_options;
+  rhea_composition_options_t	comp_options;
   rhea_topography_options_t     topo_options;
   rhea_discretization_options_t discr_options;
 
@@ -5345,7 +5355,7 @@ main (int argc, char **argv)
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
   rhea_process_options_all (&domain_options, &temp_options, NULL,
-                            &weak_options, &topo_options, &visc_options,
+                            &weak_options, &topo_options, &visc_options, &comp_options,
                             &discr_options);
 
   /* copy rhea domain options into local example domain options */
@@ -5472,7 +5482,7 @@ main (int argc, char **argv)
 
   slabs_setup_stokes (&stokes_problem, ymir_mesh, press_elem,
                       &domain_options, &temp_options, &weak_options,
-                      &visc_options, &slabs_options, vtk_write_input_path);
+                      &visc_options, &comp_options, &slabs_options, vtk_write_input_path);
 
   }
   /*
@@ -5957,7 +5967,7 @@ main (int argc, char **argv)
 
     slabs_setup_stokes (&stokes_problem2, ymir_mesh2, press_elem2,
                         &domain_options, &temp_options, &weak_options,
-                        &visc_options, &slabs_options, vtk_write_input2_path);
+                        &visc_options, &comp_options, &slabs_options, vtk_write_input2_path);
 
     /* initialize solution vector */
     sol_vel_press2 = rhea_velocity_pressure_new (ymir_mesh2, press_elem2);

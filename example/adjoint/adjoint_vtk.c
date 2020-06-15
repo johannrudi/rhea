@@ -73,7 +73,7 @@ subd_write_input_basic (rhea_stokes_problem_t *stokes_problem,
 
   rhea_vtk_write_input_data (vtk_write_input_path, temperature,
                              background_temp, weakzone, viscosity, NULL,
-                             rhs_vel);
+                             NULL, rhs_vel);
 //  {
 //     snprintf (path, BUFSIZ, "%s", vtk_write_input_path);
 //     ymir_vtk_write (ymir_mesh, path,

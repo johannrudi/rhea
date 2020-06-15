@@ -139,6 +139,7 @@ struct rhea_stokes_problem
   /* options (not owned) */
   rhea_domain_options_t      *domain_options;
   rhea_temperature_options_t *temp_options;
+  rhea_composition_options_t *comp_options;
   rhea_plate_options_t       *plate_options;
   rhea_weakzone_options_t    *weak_options;
   rhea_viscosity_options_t   *visc_options;
@@ -150,6 +151,7 @@ struct rhea_stokes_problem
   void                       *viscosity_compute_fn_data;
   rhea_velocity_rhs_compute_fn_t         rhs_vel_compute_fn;
   void                                  *rhs_vel_compute_fn_data;
+  int                                    rhs_vel_compute_fn_data_owned;
   rhea_velocity_rhs_nz_dir_compute_fn_t  rhs_vel_nonzero_dir_compute_fn;
   void                                  *rhs_vel_nonzero_dir_compute_fn_data;
   rhea_velocity_rhs_nz_neu_compute_fn_t  rhs_vel_nonzero_neu_compute_fn;
@@ -164,10 +166,12 @@ struct rhea_stokes_problem
   ymir_vec_t         *proj_scal;        /* out: nonlinear Stokes only */
   ymir_vec_t         *marker;           /* out: linear & nonlinear Stokes */
   ymir_vec_t         *weakzone;         /* in: linear & nonlinear Stokes */
+  //ymir_vec_t         *composition_viscosity;
   ymir_vec_t         *sol_vel;          /* in: nonlinear Stokes only */
   ymir_vec_t         *proj_tens;        /* in: deprecated TODO */
 
   /* right-hand side (mesh data) */
+  ymir_vec_t         *composition_density;
   ymir_vec_t         *rhs_vel;
   ymir_vec_t        **rhs_vel_face_nonzero_neumann;
   ymir_vec_t         *rhs_vel_press;
@@ -206,6 +210,7 @@ static rhea_stokes_problem_t *
 rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options,
+                                rhea_composition_options_t *comp_options,
                                 rhea_plate_options_t *plate_options,
                                 rhea_weakzone_options_t *weak_options,
                                 rhea_viscosity_options_t *visc_options)
@@ -224,6 +229,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
 
   stokes_problem->domain_options = domain_options;
   stokes_problem->temp_options = temp_options;
+  stokes_problem->comp_options = comp_options;
   stokes_problem->plate_options = plate_options;
   stokes_problem->weak_options = weak_options;
   stokes_problem->visc_options = visc_options;
@@ -235,9 +241,11 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->proj_scal = NULL;
   stokes_problem->marker = NULL;
   stokes_problem->weakzone = NULL;
+  //stokes_problem->composition_viscosity = NULL;
   stokes_problem->sol_vel = NULL;
   stokes_problem->proj_tens = NULL;
 
+  stokes_problem->composition_density = NULL;
   stokes_problem->rhs_vel = NULL;
   stokes_problem->rhs_vel_face_nonzero_neumann = NULL;
   stokes_problem->rhs_vel_press = NULL;
@@ -264,7 +272,7 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   stokes_problem->solver_bin_path = NULL;
   stokes_problem->solver_vtk_path = NULL;
 
-  /* set default callback functions */
+  /* set default callback for viscosity */
   if (rhea_weakzone_exists (weak_options)) {
     stokes_problem->weakzone_compute_fn = rhea_weakzone_compute;
     stokes_problem->weakzone_compute_fn_data = weak_options;
@@ -275,8 +283,19 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
   }
   rhea_stokes_problem_set_viscosity_compute_fn (
       stokes_problem, rhea_viscosity_compute, visc_options);
-  stokes_problem->rhs_vel_compute_fn = rhea_velocity_rhs_compute;
-  stokes_problem->rhs_vel_compute_fn_data = temp_options;
+
+  /* set default callback for right-hand side */
+  {
+    rhea_velocity_rhs_compute_data_t *rhs_data;
+
+    rhs_data = RHEA_ALLOC (rhea_velocity_rhs_compute_data_t, 1);
+    rhs_data->temp_options = temp_options;
+    rhs_data->comp_options = comp_options;
+
+    stokes_problem->rhs_vel_compute_fn = rhea_velocity_rhs_compute;
+    stokes_problem->rhs_vel_compute_fn_data = rhs_data;
+    stokes_problem->rhs_vel_compute_fn_data_owned = 1;
+  }
   stokes_problem->rhs_vel_nonzero_dir_compute_fn = NULL;
   stokes_problem->rhs_vel_nonzero_dir_compute_fn_data = NULL;
   stokes_problem->rhs_vel_nonzero_neu_compute_fn = NULL;
@@ -291,6 +310,14 @@ rhea_stokes_problem_struct_new (const rhea_stokes_problem_type_t type,
 static void
 rhea_stokes_problem_struct_destroy (rhea_stokes_problem_t *stokes_problem)
 {
+  /* destroy right-hand side data */
+  if (stokes_problem->rhs_vel_compute_fn_data_owned) {
+    rhea_velocity_rhs_compute_data_t *d =
+      stokes_problem->rhs_vel_compute_fn_data;
+
+    RHEA_FREE (d);
+  }
+
   /* destroy structure */
   RHEA_FREE (stokes_problem);
 }
@@ -685,6 +712,7 @@ rhea_stokes_problem_linear_create_mesh_data (
   stokes_problem_lin->rhs_vel_compute_fn (
       stokes_problem_lin->rhs_vel,
       stokes_problem_lin->temperature,
+      stokes_problem_lin->composition_density,
       stokes_problem_lin->rhs_vel_compute_fn_data);
   if (stokes_problem_lin->rhs_vel_nonzero_neu_compute_fn != NULL) {
     ymir_topidx_t       fm;
@@ -862,8 +890,10 @@ static rhea_stokes_problem_t *
 rhea_stokes_problem_linear_new (ymir_mesh_t *ymir_mesh,
                                 ymir_pressure_elem_t *press_elem,
                                 ymir_vec_t *temperature,
+                                ymir_vec_t *composition,
                                 rhea_domain_options_t *domain_options,
                                 rhea_temperature_options_t *temp_options,
+                                rhea_composition_options_t *comp_options,
                                 rhea_plate_options_t *plate_options,
                                 rhea_weakzone_options_t *weak_options,
                                 rhea_viscosity_options_t *visc_options)
@@ -877,11 +907,16 @@ rhea_stokes_problem_linear_new (ymir_mesh_t *ymir_mesh,
 
   /* initialize general Stokes problem structure */
   stokes_problem_lin = rhea_stokes_problem_struct_new (
-      RHEA_STOKES_PROBLEM_LINEAR,
-      domain_options, temp_options, plate_options, weak_options, visc_options);
+      RHEA_STOKES_PROBLEM_LINEAR, domain_options, temp_options, comp_options,
+      plate_options, weak_options, visc_options);
 
   /* set temperature */
   rhea_stokes_problem_set_temperature (stokes_problem_lin, temperature);
+
+  /* set composition */
+  rhea_stokes_problem_set_composition (stokes_problem_lin,
+                                       composition /* comp. density */,
+                                       NULL /* comp. viscosity */);
 
   /* create mesh data */
   rhea_stokes_problem_linear_create_mesh_data (stokes_problem_lin, ymir_mesh,
@@ -2850,6 +2885,7 @@ rhea_stokes_problem_nonlinear_create_mesh_data (
   stokes_problem_nl->rhs_vel_compute_fn (
       stokes_problem_nl->rhs_vel,
       stokes_problem_nl->temperature,
+      stokes_problem_nl->composition_density,
       stokes_problem_nl->rhs_vel_compute_fn_data);
   if (stokes_problem_nl->rhs_vel_nonzero_neu_compute_fn != NULL) {
     ymir_topidx_t       fm;
@@ -2998,8 +3034,10 @@ static rhea_stokes_problem_t *
 rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
                                    ymir_pressure_elem_t *press_elem,
                                    ymir_vec_t *temperature,
+                                   ymir_vec_t *composition,
                                    rhea_domain_options_t *domain_options,
                                    rhea_temperature_options_t *temp_options,
+                                   rhea_composition_options_t *comp_options,
                                    rhea_plate_options_t *plate_options,
                                    rhea_weakzone_options_t *weak_options,
                                    rhea_viscosity_options_t *visc_options)
@@ -3015,11 +3053,16 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
 
   /* initialize general Stokes problem structure */
   stokes_problem_nl = rhea_stokes_problem_struct_new (
-      RHEA_STOKES_PROBLEM_NONLINEAR,
-      domain_options, temp_options, plate_options, weak_options, visc_options);
+      RHEA_STOKES_PROBLEM_NONLINEAR, domain_options, temp_options,
+      comp_options, plate_options, weak_options, visc_options);
 
   /* set temperature */
   rhea_stokes_problem_set_temperature (stokes_problem_nl, temperature);
+
+  /* set composition */
+  rhea_stokes_problem_set_composition (stokes_problem_nl,
+                                       composition /* comp. density */,
+                                       NULL /* comp. viscosity */);
 
   /* initialize nonlinear structure */
   stokes_problem_nl->linearization_type =
@@ -3270,20 +3313,24 @@ rhea_stokes_problem_t *
 rhea_stokes_problem_new (ymir_mesh_t *ymir_mesh,
                          ymir_pressure_elem_t *press_elem,
                          ymir_vec_t *temperature,
+                         ymir_vec_t *composition,
                          rhea_domain_options_t *domain_options,
                          rhea_temperature_options_t *temp_options,
+                         rhea_composition_options_t *comp_options,
                          rhea_weakzone_options_t *weak_options,
                          rhea_viscosity_options_t *visc_options)
 {
   switch (visc_options->type) {
   case RHEA_VISCOSITY_LINEAR:
     return rhea_stokes_problem_linear_new (
-        ymir_mesh, press_elem, temperature, domain_options, temp_options,
-        NULL /* plate_options */, weak_options, visc_options);
+        ymir_mesh, press_elem, temperature, composition, domain_options,
+        temp_options, comp_options, NULL /* plate_options */,
+        weak_options, visc_options);
   case RHEA_VISCOSITY_NONLINEAR:
     return rhea_stokes_problem_nonlinear_new (
-        ymir_mesh, press_elem, temperature, domain_options, temp_options,
-        NULL /* plate_options */, weak_options, visc_options);
+        ymir_mesh, press_elem, temperature, composition, domain_options,
+        temp_options, comp_options, NULL /* plate_options */,
+        weak_options, visc_options);
   default: /* not clear which Stokes type to choose */
     RHEA_ABORT_NOT_REACHED ();
   }
@@ -3608,6 +3655,33 @@ rhea_stokes_problem_remove_temperature (rhea_stokes_problem_t *stokes_problem)
 }
 
 void
+rhea_stokes_problem_set_composition (rhea_stokes_problem_t *stokes_problem,
+                                     ymir_vec_t *composition_density,
+                                     ymir_vec_t *composition_viscosity)
+{
+  stokes_problem->composition_density = composition_density;
+  //stokes_problem->composition_viscosity = composition_viscosity;
+}
+
+ymir_vec_t *
+rhea_stokes_problem_get_composition_density (rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->composition_density;
+}
+
+//ymir_vec_t *
+//rhea_stokes_problem_get_composition_viscosity (rhea_stokes_problem_t *stokes_problem)
+//{
+//  return stokes_problem->composition_viscosity;
+//}
+
+void
+rhea_stokes_problem_remove_composition (rhea_stokes_problem_t *stokes_problem)
+{
+  rhea_stokes_problem_set_composition (stokes_problem, NULL, NULL);
+}
+
+void
 rhea_stokes_problem_set_velocity_pressure (rhea_stokes_problem_t *stokes_problem,
                                            ymir_vec_t *velocity_pressure)
 {
@@ -3665,6 +3739,13 @@ rhea_stokes_problem_set_temperature_options (
                                     rhea_temperature_options_t *temp_options)
 {
   stokes_problem->temp_options = temp_options;
+}
+
+rhea_composition_options_t *
+rhea_stokes_problem_get_composition_options (
+                                        rhea_stokes_problem_t *stokes_problem)
+{
+  return stokes_problem->comp_options;
 }
 
 rhea_plate_options_t *
@@ -3839,6 +3920,15 @@ rhea_stokes_problem_set_rhs_vel_compute_fn (
   RHEA_ASSERT (stokes_problem->rhs_vel != NULL);
   RHEA_ASSERT (fn != NULL);
 
+  /* destroy right-hand side data */
+  if (stokes_problem->rhs_vel_compute_fn_data_owned) {
+    rhea_velocity_rhs_compute_data_t *d =
+      stokes_problem->rhs_vel_compute_fn_data;
+
+    RHEA_FREE (d);
+  }
+  stokes_problem->rhs_vel_compute_fn_data_owned = 0;
+
   /* set function and corresponding data */
   stokes_problem->rhs_vel_compute_fn = fn;
   stokes_problem->rhs_vel_compute_fn_data = data;
@@ -3847,6 +3937,7 @@ rhea_stokes_problem_set_rhs_vel_compute_fn (
   stokes_problem->rhs_vel_compute_fn (
       stokes_problem->rhs_vel,
       stokes_problem->temperature,
+      stokes_problem->composition_density,
       stokes_problem->rhs_vel_compute_fn_data);
 }
 

@@ -13,10 +13,12 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
                     rhea_temperature_options_t *temp_options,
                     rhea_weakzone_options_t *weak_options,
                     rhea_viscosity_options_t *visc_options,
+					rhea_composition_options_t *comp_options,
                     subd_options_t *subd_options)
 {
   sc_MPI_Comm         mpicomm = ymir_mesh_get_MPI_Comm (*ymir_mesh);
   ymir_vec_t         *temperature;
+  ymir_vec_t		 *composition;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
 
@@ -27,12 +29,19 @@ adjoint_stokes_new (rhea_stokes_problem_t **stokes_problem,
   temperature = rhea_temperature_new (*ymir_mesh);
   subd_compute_temperature (temperature, temp_options, subd_options);
 
+  /* read composition */
+  composition = rhea_composition_new (*ymir_mesh);
+  rhea_composition_read (composition, comp_options);
+
   subd_set_velocity_dirichlet_bc (domain_options, subd_options);
 
   /* create Stokes problem */
   *stokes_problem = rhea_stokes_problem_new (
-      *ymir_mesh, *press_elem, temperature, domain_options, temp_options,
-      weak_options, visc_options);
+      *ymir_mesh, *press_elem, temperature, composition, domain_options, temp_options,
+      weak_options, visc_options, comp_options);
+
+  /* destroy vector composition */
+  rhea_composition_destroy (composition);
 
 //  subd_compute_weakzone (stokes_problem, subd_options); //see whether it is necessary for different cases
 

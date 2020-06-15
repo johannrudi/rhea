@@ -142,6 +142,7 @@ rhea_add_options_all (ymir_options_t *options)
   rhea_temperature_add_options (options);
   rhea_temperature_add_options_sinker (options);
   rhea_temperature_add_options_plume (options);
+  rhea_composition_add_options (options);
   rhea_plate_add_options (options);
   rhea_weakzone_add_options (options);
   rhea_topography_add_options (options);
@@ -163,6 +164,7 @@ rhea_add_options_newton (ymir_options_t *options)
 void
 rhea_process_options_all (rhea_domain_options_t *domain_options,
                           rhea_temperature_options_t *temperature_options,
+                          rhea_composition_options_t *composition_options,
                           rhea_plate_options_t *plate_options,
                           rhea_weakzone_options_t *weakzone_options,
                           rhea_topography_options_t *topography_options,
@@ -171,6 +173,7 @@ rhea_process_options_all (rhea_domain_options_t *domain_options,
 {
   rhea_domain_process_options (domain_options);
   rhea_temperature_process_options (temperature_options, domain_options);
+  rhea_composition_process_options (composition_options, domain_options);
   rhea_plate_process_options (
       plate_options, domain_options, temperature_options);
   rhea_weakzone_process_options (weakzone_options, domain_options);

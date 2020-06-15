@@ -377,12 +377,21 @@ rhea_velocity_nonzero_boundary_set_face_normals_fn (
  *****************************************************************************/
 
 void
-rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel, ymir_vec_t *temperature,
+rhea_velocity_rhs_compute (ymir_vec_t *rhs_vel,
+                           ymir_vec_t *temperature,
+                           ymir_vec_t *composition,
                            void *data)
 {
-  rhea_temperature_options_t *temp_options = data;
+  rhea_velocity_rhs_compute_data_t *d = data;
+  rhea_temperature_options_t *temp_options = d->temp_options;
+  rhea_composition_options_t *comp_options = d->comp_options;
 
-  rhea_temperature_compute_rhs_vel (rhs_vel, temperature, temp_options);
+  ymir_vec_set_value (rhs_vel, 0.0);
+  rhea_temperature_add_rhs_vel (rhs_vel, temperature, temp_options);
+  if (rhea_composition_exists (comp_options)) {
+    RHEA_ASSERT (NULL != composition);
+    rhea_composition_add_rhs_vel (rhs_vel, composition, comp_options);
+  }
 }
 
 /******************************************************************************
