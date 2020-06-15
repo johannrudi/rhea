@@ -139,6 +139,9 @@ rhea_vtk_write_input_data (const char *filepath,
   if (!in_back) {
     rhea_temperature_destroy (background_temp);
   }
+  if (!in_comp) {
+    rhea_composition_destroy (composition);
+  }
   if (!in_weak) {
     rhea_weakzone_destroy (weakzone);
   }

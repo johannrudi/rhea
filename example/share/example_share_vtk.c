@@ -127,12 +127,14 @@ example_share_vtk_write_input_data (const char *vtk_write_input_path,
 
   /* destroy */
   ymir_vec_destroy (temperature);
-  ymir_vec_destroy (composition);
   rhea_temperature_destroy (background_temp);
   rhea_weakzone_destroy (weakzone);
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (marker);
   ymir_vec_destroy (rhs_vel);
+  if (rhea_composition_exists (comp_options)) {
+    ymir_vec_destroy (composition);
+  }
   if (plates_exist) {
     rhea_viscosity_surface_destroy (plate_label);
     rhea_viscosity_surface_destroy (plate_weight);
