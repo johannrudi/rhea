@@ -19,7 +19,7 @@ include example/sphere_inversion/Makefile.am
 include example/yielding/Makefile.am
 
 # examples created by Xi Liu
-include example/collide/Makefile.am
-include example/slabweakzone/Makefile.am
-include example/subduction/Makefile.am
-include example/adjoint/Makefile.am
+#include example/collide/Makefile.am
+#include example/slabweakzone/Makefile.am
+#include example/subduction/Makefile.am
+#include example/adjoint/Makefile.am
