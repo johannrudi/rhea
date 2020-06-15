@@ -868,19 +868,19 @@ rhea_inversion_param_diff_to_feasible_n (const double inv_param_val,
 static double
 rhea_inversion_param_convert_to_model_yield (const double inv_param_val)
 {
-  return _posexp_convert_to_model (inv_param_val);
+  return _poslin_convert_to_model (inv_param_val);
 }
 
 static double
 rhea_inversion_param_convert_from_model_yield (const double model_val)
 {
-  return _posexp_convert_from_model (model_val);
+  return _poslin_convert_from_model (model_val);
 }
 
 double
 rhea_inversion_param_derivative_yield (const double model_val)
 {
-  return _posexp_derivative (model_val);
+  return _poslin_derivative (model_val);
 }
 
 static double
@@ -890,7 +890,7 @@ rhea_inversion_param_diff_to_feasible_yield (
                                         const double restrict_to_prior_stddev,
                                         rhea_inversion_param_t *inv_param)
 {
-  return _diff_to_feasible (inv_param_val, idx, NAN, NAN,
+  return _diff_to_feasible (inv_param_val, idx, SC_1000_EPS, NAN,
                             restrict_to_prior_stddev, inv_param);
 }
 
