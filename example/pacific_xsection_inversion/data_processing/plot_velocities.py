@@ -114,27 +114,30 @@ fig, ax = plt.subplots(3, 1, figsize=(6, 9))
 ax[0].plot(x, z, color='0.5')
 ax[0].quiver(qx, qy, qu, qv, qc)
 ax[0].axis("equal")
-ax[0].set_ylabel("model velocity (spherical)")
+ax[0].set_ylabel("Model velocity (spherical)")
+ax[0].set_title(data_in)
 
 # plot forward and observational velocities
 ax[1].plot([XLIM[0], XLIM[1]], [0, 0], color='0.5', linestyle=':', linewidth=0.5)
-ax[1].plot(longitude, fwd, 'b-')
-ax[1].plot(longitude, obs, 'g-')
+ax[1].plot(longitude, fwd, 'b-', label='model')
+ax[1].plot(longitude, obs, 'g-', label='data')
 ax[1].set_xlim(XLIM[1], XLIM[0]) # decreasing
 ax[1].set_xticks(np.arange(XLIM[0], XLIM[1]+1, XTICKS_INCREMENT))
-ax[1].set_ylabel("model vel. vs. data [mm/yr]")
+ax[1].set_xlabel("Longitude [degree]")
+ax[1].set_ylabel("Model vs. data [mm/yr]")
+ax[1].legend(loc='upper right', fontsize='small')
 
 # plot data misfit
 ax[2].plot([XLIM[0], XLIM[1]], [0, 0], color='0.5', linestyle=':', linewidth=0.5)
 ax[2].plot(longitude, misfit, 'r-')
 ax[2].set_xlim(XLIM[1], XLIM[0]) # decreasing
 ax[2].set_xticks(np.arange(XLIM[0], XLIM[1]+1, XTICKS_INCREMENT))
-ax[2].set_ylabel("weighted data misfit [mm/yr]")
+ax[2].set_xlabel("Longitude [degree]")
+ax[2].set_ylabel("Weighted data misfit [mm/yr]")
 
-# set figure annotations
-ax[0].set_title(data_in)
-ax[2].set_xlabel("longitude [degree]")
+# set spacing between subplots
+fig.set_tight_layout({'pad': 0.5})
 
 # save & show plots
-fig.savefig(plot_out)
+fig.savefig(plot_out, dpi=360)
 #plt.show()
