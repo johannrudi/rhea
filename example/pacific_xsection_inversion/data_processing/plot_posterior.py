@@ -81,6 +81,7 @@ idx_inverted = [idx_stress_exp]
 # set colors
 COLOR_PRIOR='dimgray'
 COLOR_POST='darkviolet'
+COLOR_POST_COND='darkcyan'
 
 ###############################################################################
 # Functions
@@ -234,7 +235,7 @@ post_cov  = np.loadtxt(post_cov_txt)
 if invert_prior_cov:
     prior_cov = np.linalg.inv(prior_cov)
 if invert_post_cov:
-    post_cov = np.linalg.inv(post_cov)
+    post_cov = np.linalg.inv(0.5*(post_cov + post_cov.T))
 
 # set sizes and indices
 n_glo    = len(phys_glo_dim)
@@ -245,25 +246,28 @@ idx_lognormal = np.hstack((idx_lognormal_glo, idx_weak))
 
 # set mean and covariance of prior
 prior_cov_diag = np.diag(prior_cov)
-prior_mean = np.copy(prior_max)
+prior_mean     = np.copy(prior_max)
 for i in idx_lognormal:
     prior_mean[i] = adjust_mean_of_lognormal(prior_mean[i], prior_cov_diag[i], param_dim[i])
 # set mean and covariance of posterior
 post_cov_diag = np.diag(post_cov)
-post_mean = np.copy(post_max)
+post_mean     = np.copy(post_max)
 for i in idx_lognormal:
     post_mean[i] = adjust_mean_of_lognormal(post_mean[i], post_cov_diag[i], param_dim[i])
 
 # set physical dimensions
 phys_dim = np.concatenate([phys_glo_dim, np.ones(n_weak)])
+phys_lim = np.concatenate(
+        [phys_glo_lim, np.repeat([[1.0e-10, 1.0]], n_weak, axis=0)],
+        axis=0)
 # convert variances to physical dimensions
-prior_cov_diag_dim = np.zeros_like(prior_cov_diag)
-post_cov_diag_dim = np.zeros_like(post_cov_diag)
+prior_std_diag_dim = np.zeros_like(prior_cov_diag)
+post_std_diag_dim  = np.zeros_like(post_cov_diag)
 for i in range(n_glo+n_weak):
-    prior_cov_diag_dim[i] = transfer_param_to_physical(
+    prior_std_diag_dim[i] = transfer_param_to_physical(
             np.sqrt(prior_cov_diag[i]), param_dim[i], phys_dim[i],
             i in idx_lognormal)
-    post_cov_diag_dim[i] = transfer_param_to_physical(
+    post_std_diag_dim[i] = transfer_param_to_physical(
             np.sqrt(post_cov_diag[i]), param_dim[i], phys_dim[i],
             i in idx_lognormal)
 
@@ -329,6 +333,32 @@ print_info("Compare integrals of prior pdf's vs. posterior pdf's")
 print(np.array([int_pdf_prior, int_pdf_post]))
 
 ########################################
+# Text Output
+########################################
+
+with open(plot_base+'_data.txt', 'w') as f:
+    f.write('Info: index, axis min, axis max, lognormal, inverted, name\n')
+    for i in range(n_glo):
+        f.write( '%d, %.6e, %.6e, %d, %d, "%s"\n' %
+                 (i, phys_lim[i,0], phys_lim[i,1],
+                  i in idx_lognormal_glo, i in idx_inverted,
+                  PLOT_TITLES_GLO[i]) )
+    for i in range(n_weak):
+        f.write( '%d, %.6e, %.6e, %d, %d, "%s"\n' %
+                 (n_glo+i, phys_lim[i,0], phys_lim[i,1], 1, 0,
+                 PLOT_TITLE_WEAK+(" %i" % i)) )
+    f.write('\n')
+
+    f.write('Prior: index, max, standard deviation\n')
+    for i in range(n_glo + n_weak):
+        f.write('%d, %.6e, %.6e\n' % (i, p_prior_max[i], prior_std_diag_dim[i]))
+    f.write('\n')
+
+    f.write('Posterior: index, max, standard deviation\n')
+    for i in range(n_glo + n_weak):
+        f.write('%d, %.6e, %.6e\n' % (i, p_post_max[i], post_std_diag_dim[i]))
+
+########################################
 # 1D Plots
 ########################################
 
@@ -371,8 +401,8 @@ for i in range(n_glo):
     pdf1_max = 1.0
     plot_pdfs_1d(ax[i,0], x, pdf0, x0_max, pdf0_max, pdf1, x1_max, pdf1_max)
     handles, labels = ax[i,0].get_legend_handles_labels()
-    labels = ("m=%.2e s=%.2e" % (x0_max, prior_cov_diag_dim[i]),
-              "m=%.2e s=%.2e" % (x1_max, post_cov_diag_dim[i]))
+    labels = ("m=%.2e s=%.2e" % (x0_max, prior_std_diag_dim[i]),
+              "m=%.2e s=%.2e" % (x1_max, post_std_diag_dim[i]))
     ax[i,0].legend(handles, labels, loc='upper right', fontsize='xx-small')
     ax[i,0].ticklabel_format(axis='x', style='sci', scilimits=(1,3))
     ax[i,0].set_xlim(phys_glo_lim[i,0], phys_glo_lim[i,1])
@@ -390,8 +420,8 @@ for ii in range(n_weak):
     pdf1_max = 1.0
     plot_pdfs_1d(ax[ii,1], x, pdf0, x0_max, pdf0_max, pdf1, x1_max, pdf1_max)
     handles, labels = ax[ii,1].get_legend_handles_labels()
-    labels = ("m=%.2e s=%.2e" % (x0_max, prior_cov_diag_dim[i]),
-              "m=%.2e s=%.2e" % (x1_max, post_cov_diag_dim[i]))
+    labels = ("m=%.2e s=%.2e" % (x0_max, prior_std_diag_dim[i]),
+              "m=%.2e s=%.2e" % (x1_max, post_std_diag_dim[i]))
     ax[ii,1].legend(handles, labels, loc='upper left', fontsize='xx-small')
     ax[ii,1].set_ylim(0.0, 1.1)
 
@@ -425,7 +455,7 @@ fig.savefig(plot_base+"_pdf_1d.png", dpi=360)
 from matplotlib.lines import Line2D
 
 def plot_add_confidence_ellipse(ax, mean, cov, n_std=3.0,
-                                param_dim=(1.0, 1.0), phys_glo_dim=(1.0, 1.0),
+                                param_dim=(1.0, 1.0), phys_dim=(1.0, 1.0),
                                 lognormal=(False, False),
                                 inverted=(False, False),
                                 edgecolor='k', **kwargs):
@@ -454,57 +484,61 @@ def plot_add_confidence_ellipse(ax, mean, cov, n_std=3.0,
     ellipse = ellipse + mean[:,np.newaxis]
     # apply transfer to physical dimensions
     ellipse[0,:] = transfer_param_to_physical(
-            ellipse[0,:], param_dim[0], phys_glo_dim[0], lognormal[0])
+            ellipse[0,:], param_dim[0], phys_dim[0], lognormal[0])
     if inverted[0]:
         ellipse[0,:] = 1.0/np.abs(ellipse[0,:])
     ellipse[1,:] = transfer_param_to_physical(
-            ellipse[1,:], param_dim[1], phys_glo_dim[1], lognormal[1])
+            ellipse[1,:], param_dim[1], phys_dim[1], lognormal[1])
     if inverted[1]:
         ellipse[1,:] = 1.0/np.abs(ellipse[1,:])
     # plot ellipse
     return ax.plot(ellipse[0,:], ellipse[1,:], color=edgecolor, **kwargs)
 
-def plot_confidence_2d(ax, indices, m,
-                       prior_max, prior_cov, post_max, post_cov,
-                       param_dim, phys_glo_dim, idx_lognormal, idx_inverted):
+def cov_marginal_2d(indices, cov):
     i = indices[0]
     j = indices[1]
-    param_dim    = [param_dim[i], param_dim[j]]
-    phys_glo_dim = [phys_glo_dim[i], phys_glo_dim[j]]
-    lognormal    = [i in idx_lognormal, j in idx_lognormal]
-    inverted     = [i in idx_inverted, j in idx_inverted]
-    # plot prior confidences
+    return np.array([ [cov[i,i], cov[i,j]],
+                      [cov[j,i], cov[j,j]] ])
+
+def plot_marginal_2d(ax, indices, m,
+                     prior_max, prior_cov, post_max, post_cov,
+                     param_dim, phys_dim, idx_lognormal, idx_inverted):
+    i = indices[0]
+    j = indices[1]
+    param_dim = [param_dim[i], param_dim[j]]
+    phys_dim  = [phys_dim[i], phys_dim[j]]
+    lognormal = [i in idx_lognormal, j in idx_lognormal]
+    inverted  = [i in idx_inverted, j in idx_inverted]
+    # plot prior marginal
     shift = np.array([prior_max[i], prior_max[j]])
-    cov = np.array([ [prior_cov[i,i], prior_cov[i,j]],
-                     [prior_cov[j,i], prior_cov[j,j]] ])
+    cov   = cov_marginal_2d(indices, prior_cov)
     for n_stddev in [1.0, 2.0, 3.0]:
         plot_add_confidence_ellipse(ax, shift, cov, n_stddev,
-                                    param_dim, phys_glo_dim, lognormal, inverted,
+                                    param_dim, phys_dim, lognormal, inverted,
                                     edgecolor=COLOR_PRIOR, linewidth=2)
     # plot prior max
     p_prior_max = np.array([
         transfer_param_to_physical(prior_max[i], param_dim[0],
-                                   phys_glo_dim[0], lognormal[0]),
+                                   phys_dim[0], lognormal[0]),
         transfer_param_to_physical(prior_max[j], param_dim[1],
-                                   phys_glo_dim[1], lognormal[1])
+                                   phys_dim[1], lognormal[1])
     ])
     p_prior_max[np.where(inverted)] = 1.0/p_prior_max[np.where(inverted)]
     ax.plot(p_prior_max[0], p_prior_max[1], color=COLOR_PRIOR, marker='.')
-    # plot posterior confidences
+    # plot posterior marginal
     #   (1*sigma, 2*sigma, 3*sigma) = (0.682, 0.954, 0.997) confidence
     shift = np.array([post_max[i], post_max[j]])
-    cov = np.array([ [post_cov[i,i], post_cov[i,j]],
-                     [post_cov[j,i], post_cov[j,j]] ])
+    cov   = cov_marginal_2d(indices, post_cov)
     for n_stddev in [1.0, 2.0, 3.0]:
         plot_add_confidence_ellipse(ax, shift, cov, n_stddev,
-                                    param_dim, phys_glo_dim, lognormal, inverted,
+                                    param_dim, phys_dim, lognormal, inverted,
                                     edgecolor=COLOR_POST, linewidth=2)
     # plot posterior max
     p_post_max = np.array([
         transfer_param_to_physical(post_max[i], param_dim[0],
-                                   phys_glo_dim[0], lognormal[0]),
+                                   phys_dim[0], lognormal[0]),
         transfer_param_to_physical(post_max[j], param_dim[1],
-                                   phys_glo_dim[1], lognormal[1])
+                                   phys_dim[1], lognormal[1])
     ])
     p_post_max[np.where(inverted)] = 1.0/p_post_max[np.where(inverted)]
     ax.plot(p_post_max[0], p_post_max[1], color=COLOR_POST, marker='.')
@@ -514,27 +548,84 @@ def plot_confidence_2d(ax, indices, m,
     if lognormal[1]:
         ax.set_yscale('log')
 
+def cov_conditional_2d(indices, cov):
+    i = indices[0]
+    j = indices[1]
+    cov_d1 = np.array([ [cov[i,i], cov[i,j]],
+                        [cov[j,i], cov[j,j]] ])
+    cov_u  = np.delete(np.array([cov[i,:], cov[j,:]]), (i,j), axis=1)
+    cov_d2 = np.delete(np.delete(cov, (i,j), axis=0), (i,j), axis=1)
+    return cov_d1 - np.dot(np.dot(cov_u, np.linalg.inv(cov_d2)), cov_u.T)
+
+def plot_conditional_2d(ax, indices, m,
+                        prior_max, prior_cov, post_max, post_cov,
+                        param_dim, phys_dim, idx_lognormal, idx_inverted):
+    i = indices[0]
+    j = indices[1]
+    param_dim = [param_dim[i], param_dim[j]]
+    phys_dim  = [phys_dim[i], phys_dim[j]]
+    lognormal = [i in idx_lognormal, j in idx_lognormal]
+    inverted  = [i in idx_inverted, j in idx_inverted]
+    # plot posterior marginal
+    shift = np.array([post_max[i], post_max[j]])
+    cov   = cov_marginal_2d(indices, post_cov)
+   #for n_stddev in [1.0, 2.0, 3.0]:
+   #    plot_add_confidence_ellipse(ax, shift, cov, n_stddev,
+   #                                param_dim, phys_dim, lognormal, inverted,
+   #                                edgecolor=COLOR_POST, linewidth=1)
+    # plot prior max
+    p_post_max = np.array([
+        transfer_param_to_physical(post_max[i], param_dim[0],
+                                   phys_dim[0], lognormal[0]),
+        transfer_param_to_physical(post_max[j], param_dim[1],
+                                   phys_dim[1], lognormal[1])
+    ])
+    p_post_max[np.where(inverted)] = 1.0/p_post_max[np.where(inverted)]
+    ax.plot(p_post_max[0], p_post_max[1], color=COLOR_POST, marker='.')
+    # plot posterior conditional
+    #   (1*sigma, 2*sigma, 3*sigma) = (0.682, 0.954, 0.997) confidence
+    shift = np.array([post_max[i], post_max[j]])
+    cov   = cov_conditional_2d(indices, post_cov)
+    for n_stddev in [1.0, 2.0, 3.0]:
+        plot_add_confidence_ellipse(ax, shift, cov, n_stddev,
+                                    param_dim, phys_dim, lognormal, inverted,
+                                    edgecolor=COLOR_POST_COND, linewidth=1)
+    # plot posterior max
+    p_post_max = np.array([
+        transfer_param_to_physical(post_max[i], param_dim[0],
+                                   phys_dim[0], lognormal[0]),
+        transfer_param_to_physical(post_max[j], param_dim[1],
+                                   phys_dim[1], lognormal[1])
+    ])
+    p_post_max[np.where(inverted)] = 1.0/p_post_max[np.where(inverted)]
+    ax.plot(p_post_max[0], p_post_max[1], color=COLOR_POST_COND, marker='.')
+    # set axis to logscale
+    if lognormal[0]:
+        ax.set_xscale('log')
+    if lognormal[1]:
+        ax.set_yscale('log')
+
 #def generate_plot_data_2d(indices, m, prior_mean, prior_cov, post_mean, post_cov,
-#                          p, param_dim, phys_glo_dim, idx_lognormal):
+#                          p, param_dim, phys_dim, idx_lognormal):
 #    i = indices[0]
 #    j = indices[1]
 #    Pi, Pj = np.meshgrid(p[i,:], p[j,:])
 #    Pdf_prior = pdf_2d([i,j], m, prior_mean, prior_cov,
-#                       p, param_dim, phys_glo_dim, idx_lognormal)
+#                       p, param_dim, phys_dim, idx_lognormal)
 #    Pdf_post  = pdf_2d([i,j], m, post_mean, post_cov,
-#                       p, param_dim, phys_glo_dim, idx_lognormal)
+#                       p, param_dim, phys_dim, idx_lognormal)
 #    return (Pi, Pj, Pdf_prior, Pdf_post)
 #
 #def plot_pdfs_2d(ax, indices, m,
 #                 prior_mean, prior_cov, p_prior_max,
 #                 post_mean, post_cov, p_post_max,
-#                 p, param_dim, phys_glo_dim, idx_lognormal):
+#                 p, param_dim, phys_dim, idx_lognormal):
 #    i = indices[0]
 #    j = indices[1]
 #    # generate data
 #    (Pi, Pj, Pdf_prior, Pdf_post) = generate_plot_data_2d(
 #            indices, m, prior_mean, prior_cov, post_mean, post_cov,
-#            p, param_dim, phys_glo_dim, idx_lognormal)
+#            p, param_dim, phys_dim, idx_lognormal)
 #    # plot prior
 #    levels = np.array([0.3, 0.6, 0.9]) * np.max(Pdf_prior)
 #    CS = ax.contour(Pi, Pj, Pdf_prior, levels, colors=COLOR_PRIOR, linewidths=2)
@@ -553,9 +644,9 @@ fig, ax = plt.subplots(2, 2, figsize=(8, 8))
 
 # plot (stress exponent vs. yield stress)
 if idx_stress_exp is not None and idx_yield_stress is not None:
-    plot_confidence_2d(ax[0,0], [idx_stress_exp,idx_yield_stress], m,
-                       prior_max, prior_cov, post_max, post_cov,
-                       param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
+    plot_marginal_2d(ax[0,0], [idx_stress_exp,idx_yield_stress], m,
+                     prior_max, prior_cov, post_max, post_cov,
+                     param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
     ax[0,0].set_xlabel(PLOT_TITLES_GLO[idx_stress_exp])
     ax[0,0].set_ylabel(PLOT_TITLES_GLO[idx_yield_stress])
     ax[0,0].legend(custom_lines, ('prior', 'posterior'),
@@ -567,9 +658,9 @@ if idx_stress_exp is not None and idx_yield_stress is not None:
 
 # plot (stress exponent vs. activation energy)
 if idx_stress_exp is not None and idx_activation_um is not None:
-    plot_confidence_2d(ax[0,1], [idx_stress_exp,idx_activation_um], m,
-                       prior_max, prior_cov, post_max, post_cov,
-                       param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
+    plot_marginal_2d(ax[0,1], [idx_stress_exp,idx_activation_um], m,
+                     prior_max, prior_cov, post_max, post_cov,
+                     param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
     ax[0,1].set_xlabel(PLOT_TITLES_GLO[idx_stress_exp])
     ax[0,1].set_ylabel(PLOT_TITLES_GLO[idx_activation_um])
     ax[0,1].legend(custom_lines, ('prior', 'posterior'),
@@ -581,9 +672,9 @@ if idx_stress_exp is not None and idx_activation_um is not None:
 
 # plot (stress exponent vs. scaling in upper mantle)
 if idx_stress_exp is not None and idx_scaling_um is not None:
-    plot_confidence_2d(ax[1,0], [idx_stress_exp,idx_scaling_um], m,
-                       prior_max, prior_cov, post_max, post_cov,
-                       param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
+    plot_marginal_2d(ax[1,0], [idx_stress_exp,idx_scaling_um], m,
+                     prior_max, prior_cov, post_max, post_cov,
+                     param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
     ax[1,0].set_xlabel(PLOT_TITLES_GLO[idx_stress_exp])
     ax[1,0].set_ylabel(PLOT_TITLES_GLO[idx_scaling_um])
     ax[1,0].legend(custom_lines, ('prior', 'posterior'),
@@ -595,9 +686,9 @@ if idx_stress_exp is not None and idx_scaling_um is not None:
 
 # plot (stress exponent vs. scaling in lower mantle)
 if idx_stress_exp is not None and idx_scaling_lm is not None:
-    plot_confidence_2d(ax[1,1], [idx_stress_exp,idx_scaling_lm], m,
-                       prior_max, prior_cov, post_max, post_cov,
-                       param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
+    plot_marginal_2d(ax[1,1], [idx_stress_exp,idx_scaling_lm], m,
+                     prior_max, prior_cov, post_max, post_cov,
+                     param_dim, phys_glo_dim, idx_lognormal, idx_inverted)
     ax[1,1].set_xlabel(PLOT_TITLES_GLO[idx_stress_exp])
     ax[1,1].set_ylabel(PLOT_TITLES_GLO[idx_scaling_lm])
     ax[1,1].legend(custom_lines, ('prior', 'posterior'),
@@ -611,12 +702,70 @@ if idx_stress_exp is not None and idx_scaling_lm is not None:
 for i in [0,1]:
     for j in [0,1]:
         ax[i,j].grid(True)
-
 # set spacing between subplots
 fig.set_tight_layout({'pad': 0.5})
-
 # save & show plots
-fig.savefig(plot_base+"_confidence_2d.png", dpi=360)
+fig.savefig(plot_base+"_marginal_2d.png", dpi=360)
+#plt.show()
+
+# create figure with all 2D maginals of the posterior
+fig, ax = plt.subplots(n_glo+n_weak, n_glo+n_weak, figsize=(26, 22))
+for axcol in range(0, n_glo+n_weak):
+    if axcol < n_glo:
+        ax[0,axcol].set_title(PLOT_TITLES_GLO[axcol])
+    else:
+        ax[0,axcol].set_title(PLOT_TITLE_WEAK+(" %i" % (axcol-n_glo)))
+    for axrow in range(0, n_glo+n_weak):
+        axcurr = ax[axrow,axcol]
+        if axcol == 0:
+            if axrow < n_glo:
+                axcurr.set_ylabel(PLOT_TITLES_GLO[axrow])
+            else:
+                axcurr.set_ylabel(PLOT_TITLE_WEAK+(" %i" % (axrow-n_glo)))
+        if axrow == axcol:
+            axcurr.get_xaxis().set_ticks([])
+            axcurr.get_yaxis().set_ticks([])
+            continue
+        plot_marginal_2d(axcurr, [axcol,axrow], m,
+                         prior_max, prior_cov, post_max, post_cov,
+                         param_dim, phys_dim, idx_lognormal, idx_inverted)
+        axcurr.set_xlim(phys_lim[axcol,0], phys_lim[axcol,1])
+        axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
+        axcurr.grid(True)
+# set spacing between subplots
+fig.set_tight_layout({'pad': 0.5})
+# save & show plots
+fig.savefig(plot_base+"_marginal_2d_all.png", dpi=360)
+#plt.show()
+
+# create figure with all 2D conditionals of the posterior
+fig, ax = plt.subplots(n_glo+n_weak, n_glo+n_weak, figsize=(26, 22))
+for axcol in range(0, n_glo+n_weak):
+    if axcol < n_glo:
+        ax[0,axcol].set_title(PLOT_TITLES_GLO[axcol])
+    else:
+        ax[0,axcol].set_title(PLOT_TITLE_WEAK+(" %i" % (axcol-n_glo)))
+    for axrow in range(0, n_glo+n_weak):
+        axcurr = ax[axrow,axcol]
+        if axcol == 0:
+            if axrow < n_glo:
+                axcurr.set_ylabel(PLOT_TITLES_GLO[axrow])
+            else:
+                axcurr.set_ylabel(PLOT_TITLE_WEAK+(" %i" % (axrow-n_glo)))
+        if axrow == axcol:
+            axcurr.get_xaxis().set_ticks([])
+            axcurr.get_yaxis().set_ticks([])
+            continue
+        plot_conditional_2d(axcurr, [axcol,axrow], m,
+                            prior_max, prior_cov, post_max, post_cov,
+                            param_dim, phys_dim, idx_lognormal, idx_inverted)
+       #axcurr.set_xlim(phys_lim[axcol,0], phys_lim[axcol,1])
+       #axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
+        axcurr.grid(True)
+# set spacing between subplots
+fig.set_tight_layout({'pad': 0.5})
+# save & show plots
+fig.savefig(plot_base+"_conditional_2d_all.png", dpi=360)
 #plt.show()
 
 ########################################
