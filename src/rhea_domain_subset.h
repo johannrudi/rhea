@@ -18,9 +18,15 @@ typedef struct rhea_domain_subset_column
   size_t                        polygon_n_vertices;
   rhea_domain_coordinate_type_t polygon_coord_type;
 
+  /* cross sectional domain: column boundaries */
+  float               xsection_boundary[2];
+
   /* column boundaries w.r.t. radius/depth */
   float               radius_min;
   float               radius_max;
+
+  /* volume of column */
+  float               volume;
 }
 rhea_domain_subset_column_t;
 

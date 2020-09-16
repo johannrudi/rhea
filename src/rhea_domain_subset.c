@@ -17,7 +17,7 @@ rhea_domain_subset_point_is_in_column (const double x,
 {
   const float         rmin = column->radius_min;
   const float         rmax = column->radius_max;
-  float               test_r;
+  float               test_r, test_x, test_y;
   int                 is_inside;
 
   /* check input */
@@ -26,25 +26,66 @@ rhea_domain_subset_point_is_in_column (const double x,
   /* calculate radius */
   test_r = (float) rhea_domain_compute_radius (x, y, z, domain_options);
 
-  /* check radial coordinate first, then lateral coordinates */
-  if (rmin <= test_r && test_r <= rmax) { /* if radial coordinate matches */
-    const float        *_sc_restrict vx = column->polygon_vertices_x;
-    const float        *_sc_restrict vy = column->polygon_vertices_y;
-    const size_t        nv = column->polygon_n_vertices;
-    double              tmp_x, tmp_y;
-    float               test_x, test_y;
-
-    /* calculate (2-dim) lateral test coordinates */
-    rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
-                                 column->polygon_coord_type, domain_options);
-    test_x = (float) tmp_x;
-    test_y = (float) tmp_y;
-
-    /* check if lateral coordinates are inside polygon */
-    is_inside = rhea_point_in_polygon_is_inside (test_x, test_y, vx, vy, nv);
+  /* check radial coordinate first */
+  if (test_r < rmin || rmax < test_r) { /* if radial coordinate matches */
+    return 0;
   }
-  else { /* if radial coordinate is out of bounds */
-    is_inside = 0;
+
+  /* check lateral coordinates */
+  switch (domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    RHEA_ASSERT (column->polygon_vertices_x != NULL &&
+                 column->polygon_vertices_y != NULL);
+    {
+      const float        *_sc_restrict vx = column->polygon_vertices_x;
+      const float        *_sc_restrict vy = column->polygon_vertices_y;
+      const size_t        nv = column->polygon_n_vertices;
+      double              tmp_x, tmp_y;
+
+      /* calculate (2-dim) lateral test coordinates */
+      rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
+                                   column->polygon_coord_type, domain_options);
+      test_x = (float) tmp_x;
+      test_y = (float) tmp_y;
+
+      /* check if lateral coordinates are inside polygon */
+      is_inside = rhea_point_in_polygon_is_inside (test_x, test_y, vx, vy, nv);
+    }
+    break;
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    RHEA_ASSERT (isfinite (column->xsection_boundary[0]) &&
+                 isfinite (column->xsection_boundary[1]));
+    {
+      const float         boundary_begin = column->xsection_boundary[0];
+      const float         boundary_end   = column->xsection_boundary[1];
+      double              tmp_x, tmp_y;
+
+      /* calculate test coordinates */
+      rhea_domain_extract_lateral (&tmp_x, &tmp_y, x, y, z,
+                                   RHEA_DOMAIN_COORDINATE_SPHERICAL_GEO,
+                                   domain_options);
+
+      /* shift by min longitude */
+      switch (domain_options->shape) {
+      case RHEA_DOMAIN_BOX:
+        test_x = (float) tmp_x;
+        break;
+      case RHEA_DOMAIN_BOX_SPHERICAL:
+        test_x = (float) (tmp_x - domain_options->lon_min);
+        break;
+      default: /* unknown domain shape */
+        RHEA_ABORT_NOT_REACHED ();
+      }
+
+      /* check if inside interval */
+      is_inside = (boundary_begin <= test_x && test_x <= boundary_end);
+    }
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
   }
 
   /* return if point is inside column */
