@@ -2,6 +2,7 @@
 #include <rhea_base.h>
 #include <rhea_inversion_param.h>
 #include <rhea_inversion_obs_velocity.h>
+#include <rhea_inversion_obs_viscosity.h>
 #include <rhea_newton.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
@@ -46,7 +47,10 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_TYPE (RHEA_INVERSION_OBS_VELOCITY_NONE)
 #define RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE \
   (RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM)
-#define RHEA_INVERSION_DEFAULT_VEL_OBS_STDDEV_MM_YR (1.0)
+#define RHEA_INVERSION_DEFAULT_VEL_OBS_STDDEV_MM_YR (NAN)
+#define RHEA_INVERSION_DEFAULT_VISC_OBS_TYPE (RHEA_INVERSION_OBS_VISCOSITY_NONE)
+#define RHEA_INVERSION_DEFAULT_VISC_OBS_PAS_LIST NULL
+#define RHEA_INVERSION_DEFAULT_VISC_OBS_STDDEV_LIST NULL
 #define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV (1.0)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE_WRITE_AFTER_SOLVE \
@@ -83,6 +87,12 @@ int                 rhea_inversion_vel_obs_weight_type =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_WEIGHT_TYPE;
 double              rhea_inversion_vel_obs_stddev_mm_yr =
                       RHEA_INVERSION_DEFAULT_VEL_OBS_STDDEV_MM_YR;
+int                 rhea_inversion_visc_obs_type =
+                      RHEA_INVERSION_DEFAULT_VISC_OBS_TYPE;
+char               *rhea_inversion_visc_obs_Pas_list =
+                      RHEA_INVERSION_DEFAULT_VISC_OBS_PAS_LIST;
+char               *rhea_inversion_visc_obs_stddev_list =
+                      RHEA_INVERSION_DEFAULT_VISC_OBS_STDDEV_LIST;
 double              rhea_inversion_parameter_prior_stddev =
                       RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV;
 int                 rhea_inversion_hessian_type =
@@ -156,6 +166,27 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_vel_obs_stddev_mm_yr),
     RHEA_INVERSION_DEFAULT_VEL_OBS_STDDEV_MM_YR,
     "Standard deviation of velocity observations [mm/yr]",
+
+  YMIR_OPTIONS_I, "viscosity-observations-type", '\0',
+    &(rhea_inversion_visc_obs_type), RHEA_INVERSION_DEFAULT_VISC_OBS_TYPE,
+    "Type of viscosity observations",
+//TODO
+//YMIR_OPTIONS_S, "viscosity-observations-polygon-vertices-file-path-txt", '\0',
+//  &(rhea_inversion_visc_obs_polygon_vertices_file_path_txt),
+//  RHEA_INVERSION_DEFAULT_VISC_OBS_POLYGON_VERTICES_FILE_PATH_TXT,
+//  "",
+//YMIR_OPTIONS_I, "viscosity-observations-polygon-vertices-num-total", '\0',
+//  &(rhea_inversion_visc_obs_polygon_vertices_n_total),
+//  RHEA_INVERSION_DEFAULT_VISC_OBS_POLYGON_VERTICES_N_TOTAL,
+//  "",
+  YMIR_OPTIONS_S, "viscosity-observations-Pas-list", '\0',
+    &(rhea_inversion_visc_obs_Pas_list),
+    RHEA_INVERSION_DEFAULT_VISC_OBS_PAS_LIST,
+    "Viscosity obs.: List of (average) viscosities [Pa*s]",
+  YMIR_OPTIONS_S, "viscosity-observations-stddev-list", '\0',
+    &(rhea_inversion_visc_obs_stddev_list),
+    RHEA_INVERSION_DEFAULT_VISC_OBS_STDDEV_LIST,
+    "Viscosity obs.: List of standard deviations for log(viscosity)",
 
   /* parameter options */
   YMIR_OPTIONS_D, "parameter-prior-stddev", '\0',
@@ -368,8 +399,15 @@ struct rhea_inversion_problem
   /* observations: velocity at the surface */
   rhea_inversion_obs_velocity_t         vel_obs_type;
   rhea_inversion_obs_velocity_weight_t  vel_obs_weight_type;
-  ymir_vec_t         *vel_obs_surf;
-  ymir_vec_t         *vel_obs_weight_surf;
+  ymir_vec_t                           *vel_obs_surf;
+  ymir_vec_t                           *vel_obs_weight_surf;
+
+  /* observations: viscosity inside mantle */
+  rhea_inversion_obs_viscosity_t  visc_obs_type;
+  int                             visc_obs_n;
+  rhea_domain_subset_column_t   **visc_obs_column;
+  double                         *visc_obs_value;
+  double                         *visc_obs_weight;
 
   /* weights for observational data and prior terms */
   double              data_abs_weight;
@@ -438,12 +476,23 @@ rhea_inversion_mesh_data_exists (rhea_inversion_problem_t *inv_problem)
 {
   int                 fwd_adj_states_exist;
   int                 vel_obs_exist;
+  int                 visc_obs_exist;
 
   fwd_adj_states_exist = (inv_problem->forward_vel_press != NULL &&
                           inv_problem->adjoint_vel_press != NULL &&
                           inv_problem->incremental_forward_vel_press != NULL &&
                           inv_problem->incremental_adjoint_vel_press != NULL);
-  vel_obs_exist = (inv_problem->vel_obs_surf != NULL);
+  vel_obs_exist = (
+      inv_problem->vel_obs_type == RHEA_INVERSION_OBS_VELOCITY_NONE ||
+      inv_problem->vel_obs_surf != NULL
+  );
+  visc_obs_exist = (
+      inv_problem->visc_obs_type == RHEA_INVERSION_OBS_VISCOSITY_NONE ||
+      (inv_problem->visc_obs_column != NULL &&
+       inv_problem->visc_obs_value != NULL &&
+       inv_problem->visc_obs_weight != NULL &&
+       0 < inv_problem->visc_obs_n)
+  );
 
   return (fwd_adj_states_exist && vel_obs_exist);
 }
@@ -461,6 +510,7 @@ rhea_inversion_set_weight_data (rhea_inversion_problem_t *inv_problem)
   rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
 
   if (isfinite (vel_stddev) && 0.0 < vel_stddev) {
+    //TODO take into account that there is vel and visc data
     vel_stddev *= 1.0 / rhea_velocity_get_dim_mm_yr (
         rhea_stokes_problem_get_domain_options (stokes_problem),
         rhea_stokes_problem_get_temperature_options (stokes_problem));
@@ -470,6 +520,7 @@ rhea_inversion_set_weight_data (rhea_inversion_problem_t *inv_problem)
     inv_problem->data_abs_weight = 0.0;
   }
   else {
+    //TODO take into account that there is vel and visc data
     inv_problem->data_abs_weight =
       1.0 / rhea_inversion_obs_velocity_misfit (
           NULL /* !vel_fwd_vol */, inv_problem->vel_obs_surf,
@@ -543,7 +594,7 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
   /* create and generate observational data */
   RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
   RHEA_ASSERT (inv_problem->vel_obs_weight_surf == NULL);
-  {
+  if (RHEA_INVERSION_OBS_VELOCITY_NONE != inv_problem->vel_obs_type) {
     rhea_plate_options_t *plate_options =
       rhea_stokes_problem_get_plate_options (stokes_problem);
     const int           n_plates = rhea_plate_get_n_plates (plate_options);
@@ -608,10 +659,16 @@ rhea_inversion_newton_clear_mesh_data (rhea_inversion_problem_t *inv_problem,
   inv_problem->incremental_adjoint_vel_press = NULL;
 
   /* destroy observational data */
-  rhea_velocity_surface_destroy (inv_problem->vel_obs_surf);
-  ymir_vec_destroy (inv_problem->vel_obs_weight_surf);
-  inv_problem->vel_obs_surf = NULL;
-  inv_problem->vel_obs_weight_surf = NULL;
+  if (RHEA_INVERSION_OBS_VELOCITY_NONE != inv_problem->vel_obs_type) {
+    rhea_velocity_surface_destroy (inv_problem->vel_obs_surf);
+    ymir_vec_destroy (inv_problem->vel_obs_weight_surf);
+    inv_problem->vel_obs_surf = NULL;
+    inv_problem->vel_obs_weight_surf = NULL;
+  }
+  else {
+    RHEA_ASSERT (NULL == inv_problem->vel_obs_surf);
+    RHEA_ASSERT (NULL == inv_problem->vel_obs_weight_surf);
+  }
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -1669,7 +1726,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   double              data_abs_weight;
   double              prior_abs_weight;
   ymir_vec_t         *vel;
-  double              obj_data_misfit, obj_prior_misfit, obj_val;
+  double              obj_data_misfit[2], obj_prior_misfit, obj_val;
 
   /* set weights if they do not exist */
   if (!isfinite (inv_problem->data_abs_weight)) {
@@ -1706,14 +1763,20 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
 
   /* compute the observation data misfit term */
   if (0.0 < data_abs_weight) {
-    obj_data_misfit =
+    obj_data_misfit[0] =
       0.5 * data_abs_weight * rhea_inversion_obs_velocity_misfit (
         vel, inv_problem->vel_obs_surf, inv_problem->vel_obs_weight_surf,
         inv_problem->vel_obs_type,
         rhea_stokes_problem_get_domain_options (stokes_problem));
+    obj_data_misfit[1] =
+      0.5 * data_abs_weight * rhea_inversion_obs_viscosity_misfit (
+        vel, inv_problem->visc_obs_type, inv_problem->visc_obs_n,
+        inv_problem->visc_obs_column, inv_problem->visc_obs_value,
+        inv_problem->visc_obs_weight, stokes_problem);
   }
   else {
-    obj_data_misfit = 0.0;
+    obj_data_misfit[0] = 0.0;
+    obj_data_misfit[1] = 0.0;
   }
   rhea_velocity_destroy (vel);
 
@@ -1727,17 +1790,17 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   }
 
   /* add terms to get full objective value */
-  obj_val = obj_data_misfit + obj_prior_misfit;
+  obj_val = obj_data_misfit[0] + obj_data_misfit[1] + obj_prior_misfit;
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_OBJ]);
   RHEA_GLOBAL_INFOF_FN_END (
-      __func__, "value=%.15e, components[%.15e, %.15e]",
-      obj_val, obj_data_misfit, obj_prior_misfit);
+      __func__, "value=%.15e, components[%.15e, %.15e; %.15e]",
+      obj_val, obj_data_misfit[0], obj_data_misfit[1], obj_prior_misfit);
 
   /* return value of objective functional */
   if (NULL != obj_comp) {
-    obj_comp[0] = obj_data_misfit;
+    obj_comp[0] = obj_data_misfit[0] + obj_data_misfit[1];
     obj_comp[1] = obj_prior_misfit;
   }
   return obj_val;
@@ -1826,6 +1889,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       inv_problem->vel_obs_weight_surf, inv_problem->vel_obs_type,
       rhea_stokes_problem_get_domain_options (stokes_problem));
   ymir_vec_scale (data_abs_weight, rhs_vel_mass);
+
+  //TODO set rhs from viscosity obs.
 
   /* project out null spaces and enforce Dirichlet BC's on right-hand side */
   if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_RESIDUAL ||
@@ -2087,7 +2152,7 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
       rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
       RHEA_ASSERT (rhea_velocity_is_valid (vel));
 
-      RHEA_ABORT_NOT_REACHED (); //TODO
+      RHEA_ABORT_NOT_REACHED (); //TODO missing implementation
       break;
     default: /* unknown Hessian type */
       RHEA_ABORT_NOT_REACHED ();
@@ -2983,12 +3048,6 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   /* initialize inverse problem */
   inv_problem = RHEA_ALLOC (rhea_inversion_problem_t, 1);
   inv_problem->stokes_problem = stokes_problem;
-  inv_problem->vel_obs_type =
-    (rhea_inversion_obs_velocity_t) rhea_inversion_vel_obs_type;
-  inv_problem->vel_obs_weight_type =
-    (rhea_inversion_obs_velocity_weight_t) rhea_inversion_vel_obs_weight_type;
-  inv_problem->vel_obs_surf = NULL;
-  inv_problem->vel_obs_weight_surf = NULL;
   inv_problem->forward_vel_press = NULL;
   inv_problem->adjoint_vel_press = NULL;
   inv_problem->incremental_forward_vel_press = NULL;
@@ -3002,6 +3061,22 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->project_out_null =
       (rhea_inversion_project_out_null_t) rhea_inversion_project_out_null;
   inv_problem->hessian_matrix = NULL;
+
+  /* initialize velocity data */
+  inv_problem->vel_obs_type =
+    (rhea_inversion_obs_velocity_t) rhea_inversion_vel_obs_type;
+  inv_problem->vel_obs_weight_type =
+    (rhea_inversion_obs_velocity_weight_t) rhea_inversion_vel_obs_weight_type;
+  inv_problem->vel_obs_surf        = NULL;
+  inv_problem->vel_obs_weight_surf = NULL;
+
+  /* initialize viscosity data */
+  inv_problem->visc_obs_type =
+    (rhea_inversion_obs_viscosity_t) rhea_inversion_visc_obs_type;
+  inv_problem->visc_obs_n = 0;
+  inv_problem->visc_obs_column = NULL;
+  inv_problem->visc_obs_value  = NULL;
+  inv_problem->visc_obs_weight = NULL;
 
   /* create parameters */
   inv_problem->inv_param_options = &rhea_inversion_param_options;
