@@ -6,9 +6,9 @@
 #
 ###############################################################################
 
-declare -r THIS_ARCHITECTURE="Apple Mac with macOS 10.13 (Clang compiler)"
-declare -r THIS_BLAS_LIBS="$HOME/apps/clang-1001.0.46.3/fblaslapack-3.4.2/lib/libfblas.a"
-declare -r THIS_LAPACK_LIBS="$HOME/apps/clang-1001.0.46.3/fblaslapack-3.4.2/lib/libflapack.a"
+declare -r THIS_ARCHITECTURE="Apple Mac with macOS 10.14 (Clang compiler)"
+declare -r THIS_BLAS_LIBS="$HOME/apps/clang-1100.0.33.17/fblaslapack/3.4.2/lib/libfblas.a"
+declare -r THIS_LAPACK_LIBS="$HOME/apps/clang-1100.0.33.17/fblaslapack/3.4.2/lib/libflapack.a"
 declare -r THIS_PETSC_DIR="$HOME/build/dev/rhea_petsc"
 declare -r THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
 #declare -r OPENMP_FLAG="-Xpreprocessor -fopenmp -lomp \
