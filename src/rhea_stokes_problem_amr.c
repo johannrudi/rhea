@@ -36,6 +36,7 @@ char                _amr_solution_type_name[BUFSIZ];
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MAX (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_FIRST (0)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_LAST (-1)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_INCR (1)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_TYPE_NAME "NONE"
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MIN (0)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_LEVEL_MAX (-1)
@@ -63,6 +64,8 @@ int                 rhea_stokes_problem_amr_nonlinear_iter_first =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_FIRST;
 int                 rhea_stokes_problem_amr_nonlinear_iter_last =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_LAST;
+int                 rhea_stokes_problem_amr_nonlinear_iter_incr =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_INCR;
 char               *rhea_stokes_problem_amr_solution_type_name =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_SOLUTION_TYPE_NAME;
 int                 rhea_stokes_problem_amr_solution_level_min =
@@ -126,6 +129,10 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
     &(rhea_stokes_problem_amr_nonlinear_iter_last),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_LAST,
     "AMR for nl. solver/grid cont.: max # of nonlinear iterations with AMR",
+  YMIR_OPTIONS_I, "nonlinear-amr-iter-increment", '\0',
+    &(rhea_stokes_problem_amr_nonlinear_iter_incr),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_ITER_INCR,
+    "AMR for nl. solver/grid cont.: increment at which nl. iter to run AMR",
 
   YMIR_OPTIONS_S, "solution-amr-name", '\0',
     &(rhea_stokes_problem_amr_solution_type_name),
@@ -1639,7 +1646,8 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
   const double        flagged_elements_thresh_cycle =
     rhea_stokes_problem_amr_flagged_elements_thresh_cycle;
   const int           iter_first = rhea_stokes_problem_amr_nonlinear_iter_first;
-  const int           iter_last = rhea_stokes_problem_amr_nonlinear_iter_last;
+  const int           iter_last  = rhea_stokes_problem_amr_nonlinear_iter_last;
+  const int           iter_incr  = rhea_stokes_problem_amr_nonlinear_iter_incr;
 
   rhea_stokes_problem_amr_data_t *amr_data;
   rhea_amr_flag_elements_fn_t     flag_fn;
@@ -1649,7 +1657,8 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
   /* exit if nothing to do */
   if (strcmp (type_name, "NONE") == 0 ||
       nonlinear_iter < iter_first ||
-      (0 <= iter_last && iter_last < nonlinear_iter)) {
+      (0 <= iter_last && iter_last < nonlinear_iter) ||
+      (nonlinear_iter - iter_first) % iter_incr != 0) {
     return 0;
   }
 
