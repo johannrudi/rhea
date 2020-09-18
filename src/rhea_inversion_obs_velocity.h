@@ -22,7 +22,7 @@ rhea_inversion_obs_velocity_t;
 /* enumerator for weights of observational data */
 typedef enum
 {
-  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_UNIFORM = 0,
+  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_VALUES = 0,
   RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_SQRT,
   RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LOG,
   RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LIN
@@ -37,8 +37,9 @@ void                rhea_inversion_obs_velocity_generate (
                         ymir_vec_t *weight_surf,
                         const rhea_inversion_obs_velocity_t obs_type,
                         const rhea_inversion_obs_velocity_weight_t weight_type,
+                        const double *weight_values,
                         rhea_plate_options_t *plate_options,
-                        double *calculated_vel_stddev);
+                        double *calculated_weight_values);
 
 /**
  * Compute the misfit of the velocity at the surface:
@@ -79,6 +80,7 @@ void                rhea_inversion_obs_velocity_adjoint_rhs (
 void                rhea_inversion_obs_velocity_incremental_adjoint_rhs (
                                   ymir_vec_t *rhs_vel_mass,
                                   ymir_vec_t *vel_incrfwd_vol,
+                                  ymir_vec_t *weight_surf,
                                   const rhea_inversion_obs_velocity_t obs_type,
                                   rhea_domain_options_t *domain_options);
 

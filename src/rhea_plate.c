@@ -1565,6 +1565,7 @@ rhea_plate_set_label_vec (ymir_vec_t *vec, rhea_plate_options_t *opt)
 void
 rhea_plate_set_weight_vec (ymir_vec_t *vec,
                            rhea_plate_area_to_weight_fn_t area_to_weight_fn,
+                           const double *weight_values,
                            rhea_plate_options_t *opt,
                            double *calculated_plate_weights)
 {
@@ -1614,6 +1615,9 @@ rhea_plate_set_weight_vec (ymir_vec_t *vec,
     }
     else {
       weight = 1.0;
+    }
+    if (NULL != weight_values) {
+      weight *= weight_values[pid];
     }
     ymir_vec_add (weight, plate_filter, vec);
 
