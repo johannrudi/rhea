@@ -23,9 +23,9 @@ rhea_inversion_obs_velocity_t;
 typedef enum
 {
   RHEA_INVERSION_OBS_VELOCITY_WEIGHT_VALUES = 0,
-  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_SQRT,
-  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LOG,
-  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LIN
+  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_SQRT, /* sqrt(total/plate) */
+  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LOG,  /* 1+log(total/plate) */
+  RHEA_INVERSION_OBS_VELOCITY_WEIGHT_INV_AREA_LIN   /* total/plate */
 }
 rhea_inversion_obs_velocity_weight_t;
 
@@ -42,10 +42,10 @@ void                rhea_inversion_obs_velocity_generate (
                         double *calculated_weight_values);
 
 /**
- * Compute the misfit of the velocity at the surface:
+ * Compute the difference of the velocities at the surface:
  *   ObsOp(vel) - vel_obs
  */
-void                rhea_inversion_obs_velocity_misfit_vec (
+void                rhea_inversion_obs_velocity_diff (
                                   ymir_vec_t *misfit_surf,
                                   ymir_vec_t *vel_fwd_vol,
                                   ymir_vec_t *vel_obs_surf,
@@ -54,7 +54,8 @@ void                rhea_inversion_obs_velocity_misfit_vec (
                                   rhea_domain_options_t *domain_options);
 
 /**
- * Computes the (squared norm of the) misfit of velocities at the surface.
+ * Computes misfit term (squared norm of the difference) of the of velocities
+ * at the surface.
  */
 double              rhea_inversion_obs_velocity_misfit (
                                   ymir_vec_t *vel_fwd_vol,
@@ -64,9 +65,9 @@ double              rhea_inversion_obs_velocity_misfit (
                                   rhea_domain_options_t *domain_options);
 
 /**
- * Computes the right-hand side for adjoint equations.
+ * Adds contribution to the right-hand side for adjoint equations.
  */
-void                rhea_inversion_obs_velocity_adjoint_rhs (
+void                rhea_inversion_obs_velocity_add_adjoint_rhs (
                                   ymir_vec_t *rhs_vel_mass,
                                   ymir_vec_t *vel_fwd_vol,
                                   ymir_vec_t *vel_obs_surf,
