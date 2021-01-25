@@ -2706,6 +2706,8 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution,
 {
   rhea_inversion_problem_t *inv_problem = data;
   const int           iter_start = inv_problem->newton_options->iter_start;
+  const int           amr_n_iter = rhea_inversion_allow_amr_for_outer_n_iter;
+  const int           amr_active = (iter + 1) < amr_n_iter;
 
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "newton_iter=%i", iter);
 
@@ -2724,19 +2726,8 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution,
   /* write visualization output */
   rhea_inversion_write_vis (iter, inv_problem);
 
-  RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "newton_iter=%i", iter);
-}
-
-static int
-rhea_inversion_newton_setup_poststep_fn (ymir_vec_t **solution, const int iter,
-                                         void *data)
-{
-  const int           amr_n_iter = rhea_inversion_allow_amr_for_outer_n_iter;
-  const int           amr_active = (iter + 1) < amr_n_iter;
-
-  RHEA_GLOBAL_INFOF_FN_TAG (__func__, "nonlinear_amr=%i\n", amr_active);
-
   /* activate/deactivate AMR for next nonlinear iteration */
+  RHEA_GLOBAL_INFOF_FN_TAG (__func__, "nonlinear_amr=%i\n", amr_active);
   if (amr_active) {
     rhea_stokes_problem_amr_process_options ();
   }
@@ -2744,9 +2735,14 @@ rhea_inversion_newton_setup_poststep_fn (ymir_vec_t **solution, const int iter,
     rhea_stokes_problem_amr_set_nonlinear_type_name ("NONE");
   }
 
-  /* return that the solution was not changed */
-  return 0;
+  RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "newton_iter=%i", iter);
 }
+
+//static int
+//rhea_inversion_newton_setup_poststep_fn (ymir_vec_t **solution, const int iter,
+//                                         void *data)
+//{
+//}
 
 static void
 rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
@@ -2813,8 +2809,8 @@ rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
       rhea_inversion_newton_update_operator_fn,
       rhea_inversion_newton_update_hessian_fn,
       NULL /*rhea_inversion_newton_modify_hessian_system_fn*/, newton_problem);
-  rhea_newton_problem_set_setup_poststep_fn (
-      rhea_inversion_newton_setup_poststep_fn, newton_problem);
+//rhea_newton_problem_set_setup_poststep_fn (
+//    rhea_inversion_newton_setup_poststep_fn, newton_problem);
   rhea_newton_problem_set_output_fn (
       rhea_inversion_newton_output_prestep_fn, newton_problem);
   rhea_newton_problem_set_mpicomm (
