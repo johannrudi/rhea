@@ -2732,9 +2732,12 @@ rhea_inversion_newton_setup_poststep_fn (ymir_vec_t **solution, const int iter,
                                          void *data)
 {
   const int           amr_n_iter = rhea_inversion_allow_amr_for_outer_n_iter;
+  const int           amr_active = (iter + 1) < amr_n_iter;
+
+  RHEA_GLOBAL_INFOF_FN_TAG (__func__, "nonlinear_amr=%i\n", amr_active);
 
   /* activate/deactivate AMR for next nonlinear iteration */
-  if ((iter + 1) < amr_n_iter) {
+  if (amr_active) {
     rhea_stokes_problem_amr_process_options ();
   }
   else {
