@@ -71,6 +71,7 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_FORWARD_SOLVER_RTOL (1.0e-6)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_ITER_MAX (100)
 #define RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL (1.0e-6)
+#define RHEA_INVERSION_DEFAULT_ALLOW_AMR_FOR_OUTER_N_ITER (1)
 #define RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL \
   (RHEA_INVERSION_PROJECT_OUT_NULL_NONE)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
@@ -131,6 +132,8 @@ double              rhea_inversion_incremental_adjoint_solver_rtol =
                       RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL;
 int                 rhea_inversion_inner_solver_rtol_adaptive =
                       RHEA_INVERSION_DEFAULT_INNER_SOLVER_RTOL_ADAPTIVE;
+int                 rhea_inversion_allow_amr_for_outer_n_iter =
+                      RHEA_INVERSION_DEFAULT_ALLOW_AMR_FOR_OUTER_N_ITER;
 int                 rhea_inversion_project_out_null =
                       RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL;
 int                 rhea_inversion_check_gradient =
@@ -267,6 +270,10 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_incremental_adjoint_solver_rtol),
     RHEA_INVERSION_DEFAULT_INCREMENTAL_ADJOINT_SOLVER_RTOL,
     "Incr. adjoint solver: Relative tolerance for Stokes solver",
+  YMIR_OPTIONS_I, "allow-amr-for-outer-n-iter", '\0',
+    &(rhea_inversion_allow_amr_for_outer_n_iter),
+    RHEA_INVERSION_DEFAULT_ALLOW_AMR_FOR_OUTER_N_ITER,
+    "Allow AMR within inner solves until this number of outer iterations",
   YMIR_OPTIONS_I, "project-out-null", '\0',
     &(rhea_inversion_project_out_null),
     RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL,
@@ -753,7 +760,7 @@ rhea_inversion_inner_solve_forward (rhea_inversion_problem_t *inv_problem)
     rhea_inversion_newton_clear_mesh_data (inv_problem, 1 /* keep forward */);
     rhea_inversion_newton_create_mesh_data (inv_problem);
 
-    /* deactivate AMR during future nonlinear solves */
+    /* deactivate AMR during nonlinear solves (e.g., during backtracking) */
     rhea_stokes_problem_amr_set_nonlinear_type_name ("NONE");
   }
 
@@ -2720,6 +2727,24 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution,
   RHEA_GLOBAL_VERBOSEF_FN_END (__func__, "newton_iter=%i", iter);
 }
 
+static int
+rhea_inversion_newton_setup_poststep_fn (ymir_vec_t **solution, const int iter,
+                                         void *data)
+{
+  const int           amr_n_iter = rhea_inversion_allow_amr_for_outer_n_iter;
+
+  /* activate/deactivate AMR for next nonlinear iteration */
+  if ((iter + 1) < amr_n_iter) {
+    rhea_stokes_problem_amr_process_options ();
+  }
+  else {
+    rhea_stokes_problem_amr_set_nonlinear_type_name ("NONE");
+  }
+
+  /* return that the solution was not changed */
+  return 0;
+}
+
 static void
 rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
 {
@@ -2785,8 +2810,8 @@ rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
       rhea_inversion_newton_update_operator_fn,
       rhea_inversion_newton_update_hessian_fn,
       NULL /*rhea_inversion_newton_modify_hessian_system_fn*/, newton_problem);
-//rhea_newton_problem_set_setup_poststep_fn (
-//    rhea_inversion_newton_amr_fn, newton_problem);
+  rhea_newton_problem_set_setup_poststep_fn (
+      rhea_inversion_newton_setup_poststep_fn, newton_problem);
   rhea_newton_problem_set_output_fn (
       rhea_inversion_newton_output_prestep_fn, newton_problem);
   rhea_newton_problem_set_mpicomm (
@@ -3041,7 +3066,7 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
   inv_problem->project_out_null =
-      (rhea_inversion_project_out_null_t) rhea_inversion_project_out_null;
+    (rhea_inversion_project_out_null_t) rhea_inversion_project_out_null;
   inv_problem->hessian_matrix = NULL;
 
   /* initialize velocity data */
