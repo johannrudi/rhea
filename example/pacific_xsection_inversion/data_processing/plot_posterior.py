@@ -43,6 +43,8 @@ PLOT_TITLES_GLO = [
     "Yield stress"
 ]
 PLOT_TITLE_WEAK = "Weak zone factor"
+PLOT_MARGINALS_ALL    = False
+PLOT_CONDITIONALS_ALL = False
 
 # set physical parameters for nondimensialization
 phys_glo_dim = np.array([
@@ -709,64 +711,66 @@ fig.savefig(plot_base+"_marginal_2d.png", dpi=360)
 #plt.show()
 
 # create figure with all 2D maginals of the posterior
-fig, ax = plt.subplots(n_glo+n_weak, n_glo+n_weak, figsize=(26, 22))
-for axcol in range(0, n_glo+n_weak):
-    if axcol < n_glo:
-        ax[0,axcol].set_title(PLOT_TITLES_GLO[axcol])
-    else:
-        ax[0,axcol].set_title(PLOT_TITLE_WEAK+(" %i" % (axcol-n_glo)))
-    for axrow in range(0, n_glo+n_weak):
-        axcurr = ax[axrow,axcol]
-        if axcol == 0:
-            if axrow < n_glo:
-                axcurr.set_ylabel(PLOT_TITLES_GLO[axrow])
-            else:
-                axcurr.set_ylabel(PLOT_TITLE_WEAK+(" %i" % (axrow-n_glo)))
-        if axrow == axcol:
-            axcurr.get_xaxis().set_ticks([])
-            axcurr.get_yaxis().set_ticks([])
-            continue
-        plot_marginal_2d(axcurr, [axcol,axrow], m,
-                         prior_max, prior_cov, post_max, post_cov,
-                         param_dim, phys_dim, idx_lognormal, idx_inverted)
-        axcurr.set_xlim(phys_lim[axcol,0], phys_lim[axcol,1])
-        axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
-        axcurr.grid(True)
-# set spacing between subplots
-fig.set_tight_layout({'pad': 0.5})
-# save & show plots
-fig.savefig(plot_base+"_marginal_2d_all.png", dpi=360)
-#plt.show()
+if PLOT_MARGINALS_ALL:
+    fig, ax = plt.subplots(n_glo+n_weak, n_glo+n_weak, figsize=(26, 22))
+    for axcol in range(0, n_glo+n_weak):
+        if axcol < n_glo:
+            ax[0,axcol].set_title(PLOT_TITLES_GLO[axcol])
+        else:
+            ax[0,axcol].set_title(PLOT_TITLE_WEAK+(" %i" % (axcol-n_glo)))
+        for axrow in range(0, n_glo+n_weak):
+            axcurr = ax[axrow,axcol]
+            if axcol == 0:
+                if axrow < n_glo:
+                    axcurr.set_ylabel(PLOT_TITLES_GLO[axrow])
+                else:
+                    axcurr.set_ylabel(PLOT_TITLE_WEAK+(" %i" % (axrow-n_glo)))
+            if axrow == axcol:
+                axcurr.get_xaxis().set_ticks([])
+                axcurr.get_yaxis().set_ticks([])
+                continue
+            plot_marginal_2d(axcurr, [axcol,axrow], m,
+                             prior_max, prior_cov, post_max, post_cov,
+                             param_dim, phys_dim, idx_lognormal, idx_inverted)
+            axcurr.set_xlim(phys_lim[axcol,0], phys_lim[axcol,1])
+            axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
+            axcurr.grid(True)
+    # set spacing between subplots
+    fig.set_tight_layout({'pad': 0.5})
+    # save & show plots
+    fig.savefig(plot_base+"_marginal_2d_all.png", dpi=360)
+    #plt.show()
 
 # create figure with all 2D conditionals of the posterior
-fig, ax = plt.subplots(n_glo+n_weak, n_glo+n_weak, figsize=(26, 22))
-for axcol in range(0, n_glo+n_weak):
-    if axcol < n_glo:
-        ax[0,axcol].set_title(PLOT_TITLES_GLO[axcol])
-    else:
-        ax[0,axcol].set_title(PLOT_TITLE_WEAK+(" %i" % (axcol-n_glo)))
-    for axrow in range(0, n_glo+n_weak):
-        axcurr = ax[axrow,axcol]
-        if axcol == 0:
-            if axrow < n_glo:
-                axcurr.set_ylabel(PLOT_TITLES_GLO[axrow])
-            else:
-                axcurr.set_ylabel(PLOT_TITLE_WEAK+(" %i" % (axrow-n_glo)))
-        if axrow == axcol:
-            axcurr.get_xaxis().set_ticks([])
-            axcurr.get_yaxis().set_ticks([])
-            continue
-        plot_conditional_2d(axcurr, [axcol,axrow], m,
-                            prior_max, prior_cov, post_max, post_cov,
-                            param_dim, phys_dim, idx_lognormal, idx_inverted)
-       #axcurr.set_xlim(phys_lim[axcol,0], phys_lim[axcol,1])
-       #axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
-        axcurr.grid(True)
-# set spacing between subplots
-fig.set_tight_layout({'pad': 0.5})
-# save & show plots
-fig.savefig(plot_base+"_conditional_2d_all.png", dpi=360)
-#plt.show()
+if PLOT_CONDITIONALS_ALL:
+    fig, ax = plt.subplots(n_glo+n_weak, n_glo+n_weak, figsize=(26, 22))
+    for axcol in range(0, n_glo+n_weak):
+        if axcol < n_glo:
+            ax[0,axcol].set_title(PLOT_TITLES_GLO[axcol])
+        else:
+            ax[0,axcol].set_title(PLOT_TITLE_WEAK+(" %i" % (axcol-n_glo)))
+        for axrow in range(0, n_glo+n_weak):
+            axcurr = ax[axrow,axcol]
+            if axcol == 0:
+                if axrow < n_glo:
+                    axcurr.set_ylabel(PLOT_TITLES_GLO[axrow])
+                else:
+                    axcurr.set_ylabel(PLOT_TITLE_WEAK+(" %i" % (axrow-n_glo)))
+            if axrow == axcol:
+                axcurr.get_xaxis().set_ticks([])
+                axcurr.get_yaxis().set_ticks([])
+                continue
+            plot_conditional_2d(axcurr, [axcol,axrow], m,
+                                prior_max, prior_cov, post_max, post_cov,
+                                param_dim, phys_dim, idx_lognormal, idx_inverted)
+           #axcurr.set_xlim(phys_lim[axcol,0], phys_lim[axcol,1])
+           #axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
+            axcurr.grid(True)
+    # set spacing between subplots
+    fig.set_tight_layout({'pad': 0.5})
+    # save & show plots
+    fig.savefig(plot_base+"_conditional_2d_all.png", dpi=360)
+    #plt.show()
 
 ########################################
 # Correlation Plots
