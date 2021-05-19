@@ -127,16 +127,19 @@ void                rhea_weakzone_perfmon_print (sc_MPI_Comm mpicomm,
  * Creates a new weak zone vector.
  */
 ymir_vec_t         *rhea_weakzone_new (ymir_mesh_t *ymir_mesh);
+ymir_vec_t         *rhea_weakzone_normal_new (ymir_mesh_t *ymir_mesh);
 
 /**
  * Destroys a weak zone vector.
  */
 void                rhea_weakzone_destroy (ymir_vec_t *weakzone);
+void                rhea_weakzone_normal_destroy (ymir_vec_t *weakzone_normal);
 
 /**
  * Checks whether a vector is of the right type.
  */
 int                 rhea_weakzone_check_vec_type (ymir_vec_t *vec);
+int                 rhea_weakzone_normal_check_vec_type (ymir_vec_t *vec);
 
 /**
  * Checks entries of a vector.
@@ -188,6 +191,13 @@ void                rhea_weakzone_compute_distance (
 void                rhea_weakzone_compute_indicator (
                                                 ymir_vec_t *indicator,
                                                 const int label_filter,
+                                                rhea_weakzone_options_t *opt);
+
+/**
+ * Computes the normal to the weak zone surfaces at each node of the mesh.
+ */
+void                rhea_weakzone_compute_normal (
+                                                ymir_vec_t *weakzone_normal,
                                                 rhea_weakzone_options_t *opt);
 
 /**

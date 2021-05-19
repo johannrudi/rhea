@@ -166,16 +166,21 @@ main (int argc, char **argv)
 
   /* write vtk of weak zone data */
   if (vtk_input_path != NULL && rhea_weakzone_exists (&weak_options)) {
-    ymir_vec_t         *distance;
+    ymir_vec_t         *distance, *normal;
     char                path[BUFSIZ];
 
     distance = rhea_weakzone_new (ymir_mesh);
+    normal   = rhea_weakzone_normal_new (ymir_mesh);
     rhea_weakzone_compute_distance (distance, &weak_options);
+    rhea_weakzone_compute_normal (normal, &weak_options);
 
     snprintf (path, BUFSIZ, "%s_weakzone", vtk_input_path);
-    ymir_vtk_write (ymir_mesh, path, distance, "distance", NULL);
+    ymir_vtk_write (ymir_mesh, path,
+                    distance, "distance",
+                    normal, "normal", NULL);
 
     rhea_weakzone_destroy (distance);
+    rhea_weakzone_normal_destroy (normal);
   }
 
   /* write vtk of topography data */

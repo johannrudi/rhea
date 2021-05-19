@@ -478,10 +478,22 @@ rhea_weakzone_new (ymir_mesh_t *ymir_mesh)
   return ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
 }
 
+ymir_vec_t *
+rhea_weakzone_normal_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 3, YMIR_GAUSS_NODE);
+}
+
 void
 rhea_weakzone_destroy (ymir_vec_t *weakzone)
 {
   ymir_vec_destroy (weakzone);
+}
+
+void
+rhea_weakzone_normal_destroy (ymir_vec_t *weakzone_normal)
+{
+  ymir_vec_destroy (weakzone_normal);
 }
 
 int
@@ -490,6 +502,16 @@ rhea_weakzone_check_vec_type (ymir_vec_t *vec)
   return (
       ymir_vec_is_dvec (vec) &&
       vec->ndfields == 1 &&
+      vec->node_type == YMIR_GAUSS_NODE
+  );
+}
+
+int
+rhea_weakzone_normal_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_dvec (vec) &&
+      vec->ndfields == 3 &&
       vec->node_type == YMIR_GAUSS_NODE
   );
 }
@@ -1456,6 +1478,194 @@ rhea_weakzone_compute_indicator (ymir_vec_t *indicator,
   RHEA_ASSERT (sc_dmatrix_is_valid (indicator->dataown) &&
                0.0 <= ymir_dvec_min_global (indicator) &&
                ymir_dvec_max_global (indicator) <= 1.0);
+}
+
+/**
+ * Solves a linear least squares problem for a plane's normal `n`,
+ * which, depending on stability properties, is one of
+ *   d        + y_i*n[1] + z_i*n[2] = -x_i,  1<=i<=N
+ *   x_i*n[0] + d        + z_i*n[2] = -y_i,  1<=i<=N
+ *   x_i*n[0] + y_i*n[1] + d        = -z_i,  1<=i<=N
+ *
+ * If the coordinates (x_i,y_i,z_i) are centered, such that
+ * `sum_i (x_i,y_i,z_i) = (0,0,0)`, then the least squares matrix, for example
+ *   [1   .. 1  ]   [1  y_1  z_1]   [N          sum_i y_i  sum_i z_i]
+ *   [y_1 .. y_N] * [:  :    :  ] = [sum_i y_i  y^T*y      y^T*z    ]
+ *   [z_1 .. z_N]   [1  y_N  z_N]   [sum_i z_i  z^T*y      z^T*z    ]
+ * essentially reduces to a (2x2) matrix,
+ *   [N  0      0    ]   [d   ]   [ 0    ]
+ *   [0  y^T*y  y^T*z] * [n[1]] = [-y^T*x]
+ *   [0  z^T*y  z^T*z]   [n[2]]   [-z^T*x]
+ * and we use Cramer's rule to solve the (2x2) subsystem.
+ *
+ * See: https://www.ilikebigbits.com/2015_03_04_plane_from_points.html
+ */
+static void
+_approximate_plane_from_points (double plane_norm[3], const double *points,
+                                const int n_points)
+{
+  sc_dmatrix_t       *M = sc_dmatrix_new (n_points, 3);
+  sc_dmatrix_t       *MtM = sc_dmatrix_new (3, 3);
+  double              c[3], det[3], scale;
+  int                 i, idx_max;
+
+  /* check input */
+  RHEA_ASSERT (3 <= n_points);
+
+  /* compute centroid of points */
+  c[0] = 0.0;
+  c[1] = 0.0;
+  c[2] = 0.0;
+  for (i = 0; i < n_points; i++) {
+    c[0] += points[i*3    ];
+    c[1] += points[i*3 + 1];
+    c[2] += points[i*3 + 2];
+  }
+  c[0] *= 1.0/((double) n_points);
+  c[1] *= 1.0/((double) n_points);
+  c[2] *= 1.0/((double) n_points);
+
+  /* create squared matrix from point coordinates */
+  for (i = 0; i < n_points; i++) {
+    M->e[i][0] = points[i*3    ] - c[0];
+    M->e[i][1] = points[i*3 + 1] - c[1];
+    M->e[i][2] = points[i*3 + 2] - c[2];
+  }
+  sc_dmatrix_multiply (SC_TRANS, SC_NO_TRANS, 1.0, M, M, 0.0, MtM);
+  sc_dmatrix_destroy (M);
+
+  /* compute determinants */
+  det[0] = MtM->e[1][1] * MtM->e[2][2] - MtM->e[1][2] * MtM->e[1][2];
+  det[1] = MtM->e[2][2] * MtM->e[0][0] - MtM->e[2][0] * MtM->e[2][0];
+  det[2] = MtM->e[0][0] * MtM->e[1][1] - MtM->e[0][1] * MtM->e[0][1];
+
+  /* find largest determinant to have good stability of solution */
+  if (det[0] < det[1]) {
+    if (det[1] < det[2]) { idx_max = 2; }
+    else                 { idx_max = 1; }
+  }
+  else {
+    if (det[0] < det[2]) { idx_max = 2; }
+    else                 { idx_max = 0; }
+  }
+
+  /* compute normal of plane */
+  switch (idx_max) {
+  case 0:
+    /* apply Cramer's rule for the system *
+     *   MtM[1][1] MtM[1][2] | -MtM[1][0] *
+     *   MtM[2][1] MtM[2][2] | -MtM[2][0] */
+    plane_norm[0] = det[0];
+    plane_norm[1] = - MtM->e[1][0] * MtM->e[2][2] + MtM->e[2][0] * MtM->e[1][2];
+    plane_norm[2] = - MtM->e[2][0] * MtM->e[1][1] + MtM->e[1][0] * MtM->e[2][1];
+    break;
+  case 1:
+    /* apply Cramer's rule for the system *
+     *   MtM[0][0] MtM[0][2] | -MtM[0][1] *
+     *   MtM[2][0] MtM[2][2] | -MtM[2][1] */
+    plane_norm[0] = - MtM->e[0][1] * MtM->e[2][2] + MtM->e[2][1] * MtM->e[0][2];
+    plane_norm[1] = det[1];
+    plane_norm[2] = - MtM->e[2][1] * MtM->e[0][0] + MtM->e[0][1] * MtM->e[2][0];
+    break;
+  case 2:
+    /* apply Cramer's rule for the system *
+     *   MtM[0][0] MtM[0][1] | -MtM[0][2] *
+     *   MtM[1][0] MtM[1][1] | -MtM[1][2] */
+    plane_norm[0] = - MtM->e[0][2] * MtM->e[1][1] + MtM->e[1][2] * MtM->e[0][1];
+    plane_norm[1] = - MtM->e[1][2] * MtM->e[0][0] + MtM->e[0][2] * MtM->e[1][0];
+    plane_norm[2] = det[2];
+    break;
+  default:
+    RHEA_ABORT_NOT_REACHED ();
+  }
+  sc_dmatrix_destroy (MtM);
+
+  /* normalize */
+  scale = sqrt (plane_norm[0]*plane_norm[0] +
+                plane_norm[1]*plane_norm[1] +
+                plane_norm[2]*plane_norm[2]);
+  RHEA_ASSERT (0.0 < scale);
+  plane_norm[0] *= 1.0/scale;
+  plane_norm[1] *= 1.0/scale;
+  plane_norm[2] *= 1.0/scale;
+}
+
+#define _N_NEAREST 12  /* number (>=3) of nearest points to compute normal */
+
+static void
+rhea_weakzone_norm_node_fn (double *norm, double x, double y, double z,
+                            ymir_locidx_t nid, void *data)
+{
+  rhea_weakzone_options_t *opt = data;
+  const double        threshold_normalize = SC_EPS*SC_EPS;
+  const double        threshold_innerproduct = SC_EPS*SC_EPS*SC_EPS*SC_EPS;
+  double              pt[3] = {x, y, z}, s;
+  double              weak_pt[3], plane_pt[_N_NEAREST*3];
+  const int           n_nearest = _N_NEAREST;
+  int                 n_found;
+
+  RHEA_ASSERT (3 <= _N_NEAREST);
+
+  /* set zero if distance is expected to be large */
+  if (rhea_weakzone_dist_node_is_large (x, y, z, opt)) {
+    norm[0] = 0.0;
+    norm[1] = 0.0;
+    norm[2] = 0.0;
+    return;
+  }
+
+  /* find nearest points of the weakzone cloud / surface */
+  rhea_pointcloud_weakzone_find_nearest (
+      weak_pt, NULL, NULL, opt->pointcloud, pt);
+  n_found = rhea_pointcloud_weakzone_find_n_nearest (
+      NULL, plane_pt, NULL, NULL, n_nearest, opt->pointcloud, weak_pt);
+  RHEA_ASSERT (n_nearest == n_found);
+
+  /* compute approximation of normal of plane */
+  _approximate_plane_from_points (norm, plane_pt, _N_NEAREST);
+
+  /* compute normal vector in radial direction */
+  s = sqrt (pt[0]*pt[0] + pt[1]*pt[1] + pt[2]*pt[2]);
+  if (threshold_normalize < s) {
+    pt[0] *= 1.0/s;
+    pt[1] *= 1.0/s;
+    pt[2] *= 1.0/s;
+
+    /* modify sign of plate normal to point in radial direction */
+    s = pt[0]*norm[0] + pt[1]*norm[1] + pt[2]*norm[2];
+    if (s < -threshold_innerproduct) {
+      norm[0] *= -1.0;
+      norm[1] *= -1.0;
+      norm[2] *= -1.0;
+    }
+  }
+}
+
+void
+rhea_weakzone_compute_normal (ymir_vec_t *weakzone_normal,
+                              rhea_weakzone_options_t *opt)
+{
+  /* check input */
+  RHEA_ASSERT (opt->type == RHEA_WEAKZONE_NONE || weakzone_normal != NULL);
+  RHEA_ASSERT (opt->type == RHEA_WEAKZONE_NONE ||
+               rhea_weakzone_normal_check_vec_type (weakzone_normal));
+
+  switch (opt->type) {
+  case RHEA_WEAKZONE_NONE:
+    if (weakzone_normal != NULL) {
+      ymir_vec_set_value (weakzone_normal, NAN);
+    }
+    break;
+  case RHEA_WEAKZONE_DEPTH:
+  case RHEA_WEAKZONE_DATA_POINTS:
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS:
+  case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
+    ymir_dvec_set_function (weakzone_normal, rhea_weakzone_norm_node_fn, opt);
+    RHEA_ASSERT (sc_dmatrix_is_valid (weakzone_normal->dataown));
+    break;
+  default: /* unknown weak zone type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
 }
 
 /******************************************************************************
