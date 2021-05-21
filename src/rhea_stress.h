@@ -94,6 +94,22 @@ void                rhea_stress_separate_diag_offdiag (
                                                     ymir_vec_t *stress_offdiag,
                                                     ymir_vec_t *stress);
 
+/**
+ * Computes the normal component of the normal stress.
+ */
+void                rhea_stress_normal_compute_nornal (
+                                         ymir_vec_t *stress_normal_normal,
+                                         ymir_vec_t *stress,
+                                         ymir_vec_t *normal);
+
+/**
+ * Computes the tangential component of the normal stress.
+ */
+void                rhea_stress_normal_compute_tangential (
+                                         ymir_vec_t *stress_normal_tangential,
+                                         ymir_vec_t *stress,
+                                         ymir_vec_t *normal);
+
 /******************************************************************************
  * Stress Surface Vector
  *****************************************************************************/
