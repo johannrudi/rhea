@@ -2,6 +2,8 @@
 #include <rhea_base.h>
 #include <rhea_strainrate.h>
 #include <rhea_velocity.h>
+#include <rhea_pressure.h>
+#include <ymir_interp_vec.h>
 #include <ymir_mass_vec.h>
 
 /******************************************************************************
@@ -80,6 +82,45 @@ rhea_stress_compute_viscstress (ymir_vec_t *viscstress,
   RHEA_ASSERT (rhea_stress_is_valid (viscstress));
 }
 
+void
+rhea_stress_combine_stresses (ymir_vec_t *stress,
+                              ymir_vec_t *pressure,
+                              ymir_pressure_elem_t *press_elem)
+{
+  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (pressure);
+  ymir_vec_t         *press_gauss = ymir_dvec_new (ymir_mesh, 1,
+                                                   YMIR_GAUSS_NODE);
+  const ymir_locidx_t n_elements = stress->K;
+  const int           n_nodes_per_el = stress->Np;
+  ymir_locidx_t       elid;
+  int                 nodeid;
+
+  /* check input */
+  RHEA_ASSERT (rhea_stress_check_vec_type (stress));
+  RHEA_ASSERT (rhea_stress_is_valid (stress));
+  RHEA_ASSERT (rhea_pressure_check_vec_type (pressure, press_elem));
+  RHEA_ASSERT (rhea_pressure_is_valid (pressure));
+
+  /* interpolate pressure onto Gauss nodes */
+  ymir_interp_vec (pressure, press_gauss);
+
+  /* combine viscous stress and isotropic stress from negative pressure */
+  for (elid = 0; elid < n_elements; elid++) {
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+      const double       *P = ymir_dvec_index (press_gauss, elid, nodeid, 0);
+      double             *S = ymir_dvec_index (stress, elid, nodeid, 0);
+
+      S[0] -= P[0];
+      S[3] -= P[0];
+      S[5] -= P[0];
+    }
+  }
+  RHEA_ASSERT (rhea_stress_is_valid (stress));
+
+  /* destroy */
+  ymir_vec_destroy (press_gauss);
+}
+
 double
 rhea_stress_compute_norm (ymir_vec_t *stress)
 {
@@ -137,8 +178,64 @@ rhea_stress_separate_diag_offdiag (ymir_vec_t *stress_diag,
   }
 }
 
+ymir_vec_t *
+rhea_stress_normal_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
+}
+
 void
-rhea_stress_normal_compute_nornal (ymir_vec_t *stress_normal_normal,
+rhea_stress_normal_destroy (ymir_vec_t *stress_norm)
+{
+  ymir_vec_destroy (stress_norm);
+}
+
+ymir_vec_t *
+rhea_stress_tangential_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 3, YMIR_GAUSS_NODE);
+}
+
+void
+rhea_stress_tangential_destroy (ymir_vec_t *stress_tang)
+{
+  ymir_vec_destroy (stress_tang);
+}
+
+int
+rhea_stress_normal_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_dvec (vec) &&
+      vec->ndfields == 1 &&
+      vec->node_type == YMIR_GAUSS_NODE
+  );
+}
+
+int
+rhea_stress_normal_is_valid (ymir_vec_t *vec)
+{
+  return sc_dmatrix_is_valid (vec->dataown);
+}
+
+int
+rhea_stress_tangential_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_dvec (vec) &&
+      vec->ndfields == 3 &&
+      vec->node_type == YMIR_GAUSS_NODE
+  );
+}
+
+int
+rhea_stress_tangential_is_valid (ymir_vec_t *vec)
+{
+  return sc_dmatrix_is_valid (vec->dataown);
+}
+
+void
+rhea_stress_normal_compute_normal (ymir_vec_t *stress_normal_normal,
                                    ymir_vec_t *stress,
                                    ymir_vec_t *normal)
 {
@@ -149,14 +246,13 @@ rhea_stress_normal_compute_nornal (ymir_vec_t *stress_normal_normal,
   double              Sn[3];
 
   /* check input */
-  RHEA_ASSERT (ymir_vec_is_dvec (stress_normal_normal) &&
-               stress_normal_normal->ndfields == 1 &&
-               stress_normal_normal->node_type == stress->node_type);
+  RHEA_ASSERT (rhea_stress_normal_check_vec_type (stress_normal_normal));
   RHEA_ASSERT (rhea_stress_check_vec_type (stress));
   RHEA_ASSERT (rhea_stress_is_valid (stress));
   RHEA_ASSERT (ymir_vec_is_dvec (normal) &&
                normal->ndfields == 3 &&
                normal->node_type == stress->node_type);
+  RHEA_ASSERT (sc_dmatrix_is_valid (normal->dataown));
 
   /* apply normal and then get its normal component;
      assume: stress tensor is upper-triangular */
@@ -175,6 +271,7 @@ rhea_stress_normal_compute_nornal (ymir_vec_t *stress_normal_normal,
       nSn[0] = Sn[0]*N[0] + Sn[1]*N[1] + Sn[2]*N[2];
     }
   }
+  RHEA_ASSERT (rhea_stress_normal_is_valid (stress_normal_normal));
 }
 
 void
@@ -186,17 +283,17 @@ rhea_stress_normal_compute_tangential (ymir_vec_t *stress_normal_tangential,
   const int           n_nodes_per_el = stress->Np;
   ymir_locidx_t       elid;
   int                 nodeid;
-  double              T[6], Sn[3];
+  double              Sn[3], nSn;
 
   /* check input */
-  RHEA_ASSERT (ymir_vec_is_dvec (stress_normal_tangential) &&
-               stress_normal_tangential->ndfields == 3 &&
-               stress_normal_tangential->node_type == stress->node_type);
+  RHEA_ASSERT (
+      rhea_stress_tangential_check_vec_type (stress_normal_tangential));
   RHEA_ASSERT (rhea_stress_check_vec_type (stress));
   RHEA_ASSERT (rhea_stress_is_valid (stress));
   RHEA_ASSERT (ymir_vec_is_dvec (normal) &&
                normal->ndfields == 3 &&
                normal->node_type == stress->node_type);
+  RHEA_ASSERT (sc_dmatrix_is_valid (normal->dataown));
 
   /* apply normal and then get its tangential component;
      assume: stress tensor is upper-triangular */
@@ -206,22 +303,21 @@ rhea_stress_normal_compute_tangential (ymir_vec_t *stress_normal_tangential,
       const double *N = ymir_dvec_index (normal, elid, nodeid, 0);
       double *tSn = ymir_dvec_index (stress_normal_tangential, elid, nodeid, 0);
 
-      /* compute T = I - N * N^T */
-      T[0] = 1.0-N[0]*N[0];  T[1] =    -N[0]*N[1];  T[2] =    -N[0]*N[2];
-                             T[3] = 1.0-N[1]*N[1];  T[4] =    -N[1]*N[2];
-                                                    T[5] = 1.0-N[2]*N[2];
-
       /* compute Sn = S * N */
       Sn[0] = S[0]*N[0] + S[1]*N[1] + S[2]*N[2];
       Sn[1] = S[1]*N[0] + S[3]*N[1] + S[4]*N[2];
       Sn[2] = S[2]*N[0] + S[4]*N[1] + S[5]*N[2];
 
-      /* compute tSn = T * Sn = T * S * N */
-      tSn[0] = T[0]*Sn[0] + T[1]*Sn[1] + T[2]*Sn[2];
-      tSn[1] = T[1]*Sn[0] + T[3]*Sn[1] + T[4]*Sn[2];
-      tSn[2] = T[2]*Sn[0] + T[4]*Sn[1] + T[5]*Sn[2];
+      /* compute nSn = N^T * Sn = N^T * S * N */
+      nSn = Sn[0]*N[0] + Sn[1]*N[1] + Sn[2]*N[2];
+
+      /* compute tSn = Sn - nSn*N */
+      tSn[0] = Sn[0] - nSn*N[0];
+      tSn[1] = Sn[1] - nSn*N[1];
+      tSn[2] = Sn[2] - nSn*N[2];
     }
   }
+  RHEA_ASSERT (rhea_stress_tangential_is_valid (stress_normal_tangential));
 }
 
 ymir_vec_t *

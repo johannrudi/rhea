@@ -6,6 +6,7 @@
 #include <rhea_domain.h>
 #include <rhea_temperature.h>
 #include <rhea_viscosity.h>
+#include <ymir_pressure_elem.h>
 
 /******************************************************************************
  * Options
@@ -26,16 +27,24 @@ double              rhea_stress_get_dim_Pa (
  *****************************************************************************/
 
 /**
- * Creates a new (second invariant of) stress tensor.
+ * Creates a new stress tensor, stress components, and the second invariant.
  */
 ymir_vec_t         *rhea_stress_new (ymir_mesh_t *ymir_mesh);
+
+ymir_vec_t         *rhea_stress_normal_new (ymir_mesh_t *ymir_mesh);
+
+ymir_vec_t         *rhea_stress_tangential_new (ymir_mesh_t *ymir_mesh);
 
 ymir_vec_t         *rhea_stress_2inv_new (ymir_mesh_t *ymir_mesh);
 
 /**
- * Destroys a (second invariant of) stress tensor.
+ * Destroys a stress tensor, stress components, and the second invariant.
  */
 void                rhea_stress_destroy (ymir_vec_t *stress);
+
+void                rhea_stress_normal_destroy (ymir_vec_t *stress_norm);
+
+void                rhea_stress_tangential_destroy (ymir_vec_t *stress_tang);
 
 void                rhea_stress_2inv_destroy (ymir_vec_t *stress_2inv);
 
@@ -55,12 +64,20 @@ void                rhea_stress_convert_to_dimensional_Pa (
  */
 int                 rhea_stress_check_vec_type (ymir_vec_t *vec);
 
+int                 rhea_stress_normal_check_vec_type (ymir_vec_t *vec);
+
+int                 rhea_stress_tangential_check_vec_type (ymir_vec_t *vec);
+
 int                 rhea_stress_2inv_check_vec_type (ymir_vec_t *vec);
 
 /**
  * Checks entries of a vector.
  */
 int                 rhea_stress_is_valid (ymir_vec_t *vec);
+
+int                 rhea_stress_normal_is_valid (ymir_vec_t *vec);
+
+int                 rhea_stress_tangential_is_valid (ymir_vec_t *vec);
 
 int                 rhea_stress_2inv_is_valid (ymir_vec_t *vec);
 
@@ -70,6 +87,16 @@ int                 rhea_stress_2inv_is_valid (ymir_vec_t *vec);
 void                rhea_stress_compute_viscstress (ymir_vec_t *viscstress,
                                                     ymir_vec_t *strainrate,
                                                     ymir_vec_t *viscosity);
+
+/**
+ * Combines viscous stress and (negative) pressure into a stress tensor.
+ * Note that `stress` contains the viscous stress and its diagonal is modified
+ * to reflect the stress coming from the pressure.
+ */
+void                rhea_stress_combine_stresses (
+                                            ymir_vec_t *stress,
+                                            ymir_vec_t *pressure,
+                                            ymir_pressure_elem_t *press_elem);
 
 /**
  * Computes the square root of the second invariant of the viscous stress
@@ -97,7 +124,7 @@ void                rhea_stress_separate_diag_offdiag (
 /**
  * Computes the normal component of the normal stress.
  */
-void                rhea_stress_normal_compute_nornal (
+void                rhea_stress_normal_compute_normal (
                                          ymir_vec_t *stress_normal_normal,
                                          ymir_vec_t *stress,
                                          ymir_vec_t *normal);
