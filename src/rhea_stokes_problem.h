@@ -376,6 +376,14 @@ int                 rhea_stokes_problem_project_out_nullspace (
                                         rhea_stokes_problem_t *stokes_problem);
 
 /**
+ * Computes stress tensor.
+ */
+int                 rhea_stokes_problem_stress_compute (
+                                    ymir_vec_t *stress,
+                                    ymir_vec_t *vel_press,
+                                    rhea_stokes_problem_t *stokes_problem);
+
+/**
  * Computes normal stress at the surface of the domain.
  */
 int                 rhea_stokes_problem_stress_compute_normal_at_surface (

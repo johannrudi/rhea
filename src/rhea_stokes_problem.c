@@ -4295,6 +4295,56 @@ rhea_stokes_problem_project_out_nullspace (
 }
 
 int
+rhea_stokes_problem_stress_compute (ymir_vec_t *stress,
+                                    ymir_vec_t *vel_press,
+                                    rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_pressure_elem_t *press_elem = rhea_stokes_problem_get_press_elem (
+                            stokes_problem);
+
+  int                 data_exists_lin, data_exists_nl;
+  ymir_stokes_op_t   *stokes_op;
+  ymir_stress_op_t   *stress_op;
+  ymir_vec_t         *velocity, *pressure;
+
+  /* check input */
+  RHEA_ASSERT (rhea_stress_check_vec_type (stress));
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (vel_press));
+  RHEA_ASSERT (rhea_velocity_pressure_is_valid (vel_press));
+
+  /* get Stokes operator */
+  data_exists_lin = (
+      stokes_problem->type == RHEA_STOKES_PROBLEM_LINEAR &&
+      rhea_stokes_problem_linear_solver_data_exists (stokes_problem));
+  data_exists_nl = (
+      stokes_problem->type == RHEA_STOKES_PROBLEM_NONLINEAR &&
+      rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem));
+  if (data_exists_lin || data_exists_nl) {
+    stokes_op = stokes_problem->stokes_op;
+  }
+  else {
+    return 0;
+  }
+
+  /* get viscous stress operator */
+  stress_op = stokes_op->stress_op;
+
+  /* compute viscous stress and combine with pressure */
+  rhea_velocity_pressure_create_components (
+      &velocity, &pressure, vel_press, press_elem);
+  ymir_stress_op_optimized_compute_visc_stress (
+      stress, velocity, stress_op, 0 /* !linearized */, 0 /* zero Dir */);
+  rhea_stress_combine_stresses (
+      stress, pressure, press_elem);
+
+  /* destroy */
+  ymir_vec_destroy (velocity);
+  ymir_vec_destroy (pressure);
+
+  return 1;
+}
+
+int
 rhea_stokes_problem_stress_compute_normal_at_surface (
                                     ymir_vec_t *stress_norm_surf,
                                     ymir_vec_t *vel_press,
