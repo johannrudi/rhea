@@ -24,6 +24,8 @@ int                 rhea_vtk_write_solution (const char *filepath,
                                              ymir_vec_t *pressure,
                                              ymir_vec_t *viscosity,
                                              ymir_vec_t *marker,
+                                             ymir_vec_t *stress,
+                                             ymir_vec_t *stress_direction,
                                              const double strainrate_dim_1_s);
 
 int                 rhea_vtk_write_solution_surf (const char *filepath,
@@ -55,6 +57,8 @@ int                 rhea_vtk_write_inversion_iteration (
                                           ymir_vec_t *pressure_adj,
                                           ymir_vec_t *viscosity,
                                           ymir_vec_t *marker,
+                                          ymir_vec_t *stress,
+                                          ymir_vec_t *stress_direction,
                                           const double strainrate_dim_1_s);
 
 int                 rhea_vtk_write_inversion_iteration_surf (

@@ -7,6 +7,7 @@
 #include <rhea_velocity.h>
 #include <rhea_pressure.h>
 #include <rhea_strainrate.h>
+#include <rhea_stress.h>
 #include <ymir_vtk.h>
 
 /* constants: field names for vtk files */
@@ -20,6 +21,7 @@
 #define RHEA_VTK_NAME_STRAINRATE_SQRT_2INV "strainrate_sqrt_2inv"
 #define RHEA_VTK_NAME_VISCSTRESS_SQRT_2INV "viscstress_sqrt_2inv"
 #define RHEA_VTK_NAME_STRESS_NORM "stress_norm"
+#define RHEA_VTK_NAME_STRESS_TANG "stress_tang"
 #define RHEA_VTK_NAME_RESIDUAL_MOM "residual_mom"
 #define RHEA_VTK_NAME_RESIDUAL_MASS "residual_mass"
 
@@ -231,7 +233,9 @@ rhea_vtk_write_primary (const char *filepath,
   const int           in_press = (pressure != NULL);
   ymir_mesh_t        *ymir_mesh;
 
-  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "path=\"%s\", velocity=%i, pressure=%i",
+      filepath, in_vel, in_press);
 
   /* check input */
   RHEA_ASSERT (in_vel || in_press);
@@ -265,17 +269,23 @@ rhea_vtk_write_primary (const char *filepath,
 
 static int
 rhea_vtk_write_secondary (const char *filepath,
+                          ymir_vec_t *velocity,
                           ymir_vec_t *viscosity,
                           ymir_vec_t *marker,
-                          ymir_vec_t *velocity,
+                          ymir_vec_t *stress,
+                          ymir_vec_t *stress_direction,
                           const double strainrate_dim_1_s)
 {
-  const int           in_marker = (marker != NULL);
-  const int           in_vel = (velocity != NULL);
+  const int           in_vel    = (NULL != velocity);
+  const int           in_marker = (NULL != marker);
+  const int           in_stress = (NULL != stress &&
+                                   NULL != stress_direction);
   ymir_mesh_t        *ymir_mesh;
-  ymir_vec_t         *strainrate_sqrt_2inv;
+  ymir_vec_t         *strainrate_sqrt_2inv, *stress_normal, *stress_tangential;
 
-  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (
+      __func__, "path=\"%s\", velocity=%i, marker=%i, stress=%i",
+      filepath, in_vel, in_marker, in_stress);
 
   /* check input */
   RHEA_ASSERT (viscosity != NULL);
@@ -292,8 +302,26 @@ rhea_vtk_write_secondary (const char *filepath,
     }
   }
 
+  /* compute stress components */
+  if (in_stress) {
+    stress_normal = rhea_stress_normal_new (ymir_mesh);
+    stress_tangential = rhea_stress_tangential_new (ymir_mesh);
+    rhea_stress_normal_compute_normal (stress_normal, stress,
+                                       stress_direction);
+    rhea_stress_normal_compute_tangential (stress_tangential, stress,
+                                           stress_direction);
+  }
+
   /* write vtk file */
-  if (in_marker && in_vel) {
+  if (in_marker && in_vel && in_stress) {
+    ymir_vtk_write (ymir_mesh, filepath,
+                    strainrate_sqrt_2inv, RHEA_VTK_NAME_STRAINRATE_SQRT_2INV,
+                    viscosity, RHEA_VTK_NAME_VISCOSITY,
+                    marker, RHEA_VTK_NAME_MARKER,
+                    stress_normal, RHEA_VTK_NAME_STRESS_NORM,
+                    stress_tangential, RHEA_VTK_NAME_STRESS_TANG, NULL);
+  }
+  else if (in_marker && in_vel) {
     ymir_vtk_write (ymir_mesh, filepath,
                     strainrate_sqrt_2inv, RHEA_VTK_NAME_STRAINRATE_SQRT_2INV,
                     viscosity, RHEA_VTK_NAME_VISCOSITY,
@@ -313,6 +341,10 @@ rhea_vtk_write_secondary (const char *filepath,
   if (in_vel) {
     rhea_strainrate_2inv_destroy (strainrate_sqrt_2inv);
   }
+  if (in_stress) {
+    rhea_stress_normal_destroy (stress_normal);
+    rhea_stress_tangential_destroy (stress_tangential);
+  }
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 
@@ -326,6 +358,8 @@ rhea_vtk_write_solution (const char *filepath,
                          ymir_vec_t *pressure,
                          ymir_vec_t *viscosity,
                          ymir_vec_t *marker,
+                         ymir_vec_t *stress,
+                         ymir_vec_t *stress_direction,
                          const double strainrate_dim_1_s)
 {
   char                path[BUFSIZ];
@@ -337,7 +371,8 @@ rhea_vtk_write_solution (const char *filepath,
   success += rhea_vtk_write_primary (path, velocity, pressure);
 
   snprintf (path, BUFSIZ, "%s_secondary", filepath);
-  success += rhea_vtk_write_secondary (path, viscosity, marker, velocity,
+  success += rhea_vtk_write_secondary (path, velocity, viscosity, marker,
+                                       stress, stress_direction,
                                        strainrate_dim_1_s);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
@@ -479,6 +514,8 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
                                     ymir_vec_t *pressure_adj,
                                     ymir_vec_t *viscosity,
                                     ymir_vec_t *marker,
+                                    ymir_vec_t *stress,
+                                    ymir_vec_t *stress_direction,
                                     const double strainrate_dim_1_s)
 {
   ymir_mesh_t        *ymir_mesh;
@@ -498,7 +535,9 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
   /* write forward state */
   snprintf (path, BUFSIZ, "%s_fwd", filepath);
   success = rhea_vtk_write_solution (path, velocity_fwd, pressure_fwd,
-                                     viscosity, marker, strainrate_dim_1_s);
+                                     viscosity, marker,
+                                     stress, stress_direction,
+                                     strainrate_dim_1_s);
 
   /* write adjoint state */
   if (NULL != velocity_adj && NULL != pressure_adj) {
