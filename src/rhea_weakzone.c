@@ -1593,8 +1593,17 @@ _approximate_plane_from_points (double plane_norm[3], const double *points,
 #define _N_NEAREST 12  /* number (>=3) of nearest points to compute normal */
 
 static void
-rhea_weakzone_norm_node_fn (double *norm, double x, double y, double z,
-                            ymir_locidx_t nid, void *data)
+_depth_norm_node_fn (double *norm, double x, double y, double z,
+                     ymir_locidx_t nid, void *data)
+{
+  norm[0] = 0.0;
+  norm[1] = 0.0;
+  norm[2] = 1.0;
+}
+
+static void
+_points_norm_node_fn (double *norm, double x, double y, double z,
+                      ymir_locidx_t nid, void *data)
 {
   rhea_weakzone_options_t *opt = data;
   const double        threshold_normalize = SC_EPS*SC_EPS;
@@ -1657,10 +1666,13 @@ rhea_weakzone_compute_normal (ymir_vec_t *weakzone_normal,
     }
     break;
   case RHEA_WEAKZONE_DEPTH:
+    ymir_dvec_set_function (weakzone_normal, _depth_norm_node_fn, NULL);
+    RHEA_ASSERT (sc_dmatrix_is_valid (weakzone_normal->dataown));
+    break;
   case RHEA_WEAKZONE_DATA_POINTS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
-    ymir_dvec_set_function (weakzone_normal, rhea_weakzone_norm_node_fn, opt);
+    ymir_dvec_set_function (weakzone_normal, _points_norm_node_fn, opt);
     RHEA_ASSERT (sc_dmatrix_is_valid (weakzone_normal->dataown));
     break;
   default: /* unknown weak zone type */
