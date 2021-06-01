@@ -204,8 +204,9 @@ subd_vtk_write_solution (ymir_mesh_t *ymir_mesh,
                                     press_elem);
     rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
-    rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
-                             viscosity, NULL, NAN);
+  //DEPRECATED
+  //rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
+  //                         viscosity, NULL, NAN);
 
     rhea_pressure_destroy (pressure);
     rhea_viscosity_destroy (viscosity);

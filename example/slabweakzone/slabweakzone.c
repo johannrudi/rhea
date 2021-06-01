@@ -5506,8 +5506,9 @@ main (int argc, char **argv)
                                     press_elem);
     rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
 
-    rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
-                             viscosity, NULL, NAN);
+  //DEPRECATED
+  //rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
+  //                         viscosity, NULL, NAN);
 
     rhea_pressure_destroy (pressure);
     rhea_viscosity_destroy (viscosity);
@@ -5985,8 +5986,9 @@ main (int argc, char **argv)
                                       press_elem2);
       rhea_stokes_problem_copy_viscosity (viscosity2, stokes_problem2);
 
-      rhea_vtk_write_solution (vtk_write_solution2_path, velocity2, pressure2,
-                               viscosity2, NULL, NAN);
+    //DEPRECATED
+    //rhea_vtk_write_solution (vtk_write_solution2_path, velocity2, pressure2,
+    //                         viscosity2, NULL, NAN);
 
       rhea_pressure_destroy (pressure2);
       rhea_viscosity_destroy (viscosity2);
