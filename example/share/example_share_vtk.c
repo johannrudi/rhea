@@ -152,9 +152,11 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   rhea_domain_options_t      *domain_options;
   rhea_temperature_options_t *temp_options;
   rhea_viscosity_options_t   *visc_options;
+  rhea_weakzone_options_t    *weak_options;
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
-  ymir_vec_t         *velocity, *pressure, *viscosity, *marker;
+  ymir_vec_t         *velocity, *pressure, *viscosity, *marker, *weak_normal,
+                     *stress;
   ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf,
                      *marker_surf;
   double              strainrate_dim_1_s;
@@ -171,6 +173,7 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
   temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
   visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
+  weak_options = rhea_stokes_problem_get_weakzone_options (stokes_problem);
 
   /* get mesh */
   ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
@@ -181,12 +184,16 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   pressure = rhea_pressure_new (ymir_mesh, press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
   marker = rhea_viscosity_new (ymir_mesh);
+  weak_normal = rhea_weakzone_normal_new (ymir_mesh);
+  stress = rhea_stress_new (ymir_mesh);
 
   /* get volume fields */
   rhea_velocity_pressure_copy_components (velocity, pressure, sol_vel_press,
                                           press_elem);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
   rhea_stokes_problem_copy_marker (marker, stokes_problem);
+  rhea_weakzone_compute_normal (weak_normal, weak_options);
+  rhea_stokes_problem_stress_compute (stress, sol_vel_press, stokes_problem);
 
   /* create surface variables */
   velocity_surf = rhea_velocity_surface_new (ymir_mesh);
@@ -214,13 +221,16 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
                                          temp_options, visc_options);
   rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
   rhea_viscosity_convert_to_dimensional_Pas (viscosity_surf, visc_options);
+  rhea_stress_convert_to_dimensional_Pa (stress, domain_options, temp_options,
+                                         visc_options);
   strainrate_dim_1_s =
     rhea_strainrate_get_dim_1_s (domain_options, temp_options) /
     rhea_velocity_get_dim_mm_yr (domain_options, temp_options);
 
   /* write vtk */
   rhea_vtk_write_solution (vtk_write_solution_path, velocity, pressure,
-                           viscosity, marker, NAN /*TODO*/);
+                           viscosity, marker, stress, weak_normal,
+                           strainrate_dim_1_s);
   rhea_vtk_write_solution_surf (vtk_write_solution_path, velocity_surf,
                                 stress_norm_surf, viscosity_surf, marker_surf);
 
@@ -229,6 +239,8 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   rhea_pressure_destroy (pressure);
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (marker);
+  rhea_stress_destroy (stress);
+  rhea_weakzone_normal_destroy (weak_normal);
   rhea_velocity_surface_destroy (velocity_surf);
   rhea_stress_surface_destroy (stress_norm_surf);
   rhea_viscosity_surface_destroy (viscosity_surf);
