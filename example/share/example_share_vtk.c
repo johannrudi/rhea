@@ -193,7 +193,8 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
   rhea_stokes_problem_copy_marker (marker, stokes_problem);
   rhea_weakzone_compute_normal (weak_normal, weak_options);
-  rhea_stokes_problem_stress_compute (stress, sol_vel_press, stokes_problem);
+  rhea_stokes_problem_stress_compute (stress, sol_vel_press, stokes_problem,
+                                      0 /* !linearized */);
 
   /* create surface variables */
   velocity_surf = rhea_velocity_surface_new (ymir_mesh);
