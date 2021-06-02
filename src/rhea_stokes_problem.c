@@ -4297,7 +4297,8 @@ rhea_stokes_problem_project_out_nullspace (
 int
 rhea_stokes_problem_stress_compute (ymir_vec_t *stress,
                                     ymir_vec_t *vel_press,
-                                    rhea_stokes_problem_t *stokes_problem)
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    const int linearized_visc_coeff)
 {
   ymir_pressure_elem_t *press_elem = rhea_stokes_problem_get_press_elem (
                             stokes_problem);
@@ -4333,7 +4334,7 @@ rhea_stokes_problem_stress_compute (ymir_vec_t *stress,
   rhea_velocity_pressure_create_components (
       &velocity, &pressure, vel_press, press_elem);
   ymir_stress_op_optimized_compute_visc_stress (
-      stress, velocity, stress_op, 0 /* !linearized */, 0 /* zero Dir */);
+      stress, velocity, stress_op, linearized_visc_coeff, 0 /* zero Dir */);
   rhea_stress_combine_stresses (
       stress, pressure, press_elem);
 
@@ -4438,6 +4439,42 @@ rhea_stokes_problem_stress_compute_normal_at_surface (
   RHEA_ASSERT (rhea_velocity_surface_is_valid (stress_norm_surf));
   rhea_velocity_destroy (residual_vel);
   rhea_velocity_destroy (tmp);
+
+  return 1;
+}
+
+int
+rhea_stokes_problem_stress_div_compute (
+                                    ymir_vec_t *velocity,
+                                    ymir_vec_t *strain_rate,
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    const int linearized_visc_coeff)
+{
+  int                 data_exists_lin, data_exists_nl;
+  ymir_stokes_op_t   *stokes_op;
+  ymir_stress_op_t   *stress_op;
+
+  /* get Stokes operator */
+  data_exists_lin = (
+      stokes_problem->type == RHEA_STOKES_PROBLEM_LINEAR &&
+      rhea_stokes_problem_linear_solver_data_exists (stokes_problem));
+  data_exists_nl = (
+      stokes_problem->type == RHEA_STOKES_PROBLEM_NONLINEAR &&
+      rhea_stokes_problem_nonlinear_solver_data_exists (stokes_problem));
+  if (data_exists_lin || data_exists_nl) {
+    stokes_op = stokes_problem->stokes_op;
+  }
+  else {
+    return 0;
+  }
+
+  /* get viscous stress operator */
+  stress_op = stokes_op->stress_op;
+
+  /* compute divergence of coeff multiplied by strain rate */
+  ymir_stress_op_optimized_compute_stress_div (
+      velocity, strain_rate, stress_op, linearized_visc_coeff,
+      0 /* zero Dir */);
 
   return 1;
 }

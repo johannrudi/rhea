@@ -381,7 +381,8 @@ int                 rhea_stokes_problem_project_out_nullspace (
 int                 rhea_stokes_problem_stress_compute (
                                     ymir_vec_t *stress,
                                     ymir_vec_t *vel_press,
-                                    rhea_stokes_problem_t *stokes_problem);
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    const int linearized_visc_coeff);
 
 /**
  * Computes normal stress at the surface of the domain.
@@ -390,5 +391,14 @@ int                 rhea_stokes_problem_stress_compute_normal_at_surface (
                                     ymir_vec_t *stress_norm_surf,
                                     ymir_vec_t *vel_press,
                                     rhea_stokes_problem_t *stokes_problem);
+
+/**
+ * Computes divergence of strain rate multiplied by viscous stress coefficient.
+ */
+int                 rhea_stokes_problem_stress_div_compute (
+                                    ymir_vec_t *velocity,
+                                    ymir_vec_t *strain_rate,
+                                    rhea_stokes_problem_t *stokes_problem,
+                                    const int linearized_visc_coeff);
 
 #endif /* RHEA_STOKES_PROBLEM_H */
