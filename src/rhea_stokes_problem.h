@@ -382,7 +382,8 @@ int                 rhea_stokes_problem_stress_compute (
                                     ymir_vec_t *stress,
                                     ymir_vec_t *vel_press,
                                     rhea_stokes_problem_t *stokes_problem,
-                                    const int linearized_visc_coeff);
+                                    ymir_stress_op_t *override_stress_op,
+                                    int linearized_visc_coeff);
 
 /**
  * Computes normal stress at the surface of the domain.
@@ -397,8 +398,9 @@ int                 rhea_stokes_problem_stress_compute_normal_at_surface (
  */
 int                 rhea_stokes_problem_stress_div_compute (
                                     ymir_vec_t *velocity,
-                                    ymir_vec_t *strain_rate,
+                                    ymir_vec_t *stress_like_tensor,
                                     rhea_stokes_problem_t *stokes_problem,
-                                    const int linearized_visc_coeff);
+                                    ymir_stress_op_t *override_stress_op,
+                                    int linearized_visc_coeff);
 
 #endif /* RHEA_STOKES_PROBLEM_H */
