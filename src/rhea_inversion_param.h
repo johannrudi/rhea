@@ -7,6 +7,7 @@
 #define RHEA_INVERSION_PARAM_H
 
 #include <rhea_stokes_problem.h>
+#include <rhea_weakzone_label.h>
 
 /******************************************************************************
  * Options
@@ -174,6 +175,22 @@ double              rhea_inversion_param_derivative_weak (
  *****************************************************************************/
 
 /**
+ * Callback function that computes the derivative with respect to a single
+ * parameter.
+ *
+ * \param [in] parameter_idx  Index of parameter.
+ */
+typedef double    (*rhea_inversion_param_derivative_fn_t) (
+                                  ymir_vec_t *forward_vel_press,
+                                  ymir_vec_t *adjoint_vel_press,
+                                  const int parameter_idx,
+                                  const int derivative_type,
+                                  const rhea_weakzone_label_t weak_label,
+                                  ymir_vec_t *coeff_param_derivative,
+                                  ymir_stress_op_t *stress_op_param_derivative,
+                                  void *data);
+
+/**
  * Computes the (squared norm of the) prior term for the objective functional.
  */
 double              rhea_inversion_param_prior (
@@ -183,14 +200,17 @@ double              rhea_inversion_param_prior (
  * Computes the gradient vector of the Stokes model w.r.t. model parameters.
  */
 void                rhea_inversion_param_compute_gradient (
-                                        ymir_vec_t *gradient_vec,
-                                        ymir_vec_t *parameter_vec,
-                                        ymir_vec_t *forward_vel_press,
-                                        ymir_vec_t *adjoint_vel_press,
-                                        const double prior_weight,
-                                        rhea_inversion_param_t *inv_param,
-                                        ymir_vec_t *gradient_adjoint_comp_vec,
-                                        ymir_vec_t *gradient_prior_comp_vec);
+                            ymir_vec_t *gradient_vec,
+                            ymir_vec_t *parameter_vec,
+                            ymir_vec_t *forward_vel_press,
+                            ymir_vec_t *adjoint_vel_press,
+                            const double prior_weight,
+                            rhea_inversion_param_t *inv_param,
+                            ymir_vec_t *gradient_adjoint_comp_vec,
+                            ymir_vec_t *gradient_prior_comp_vec,
+                            ymir_vec_t *gradient_callback_comp_vec,
+                            rhea_inversion_param_derivative_fn_t derivative_fn,
+                            void *derivative_fn_data);
 
 /**
  * Computes the norm of the provided gradient vector.

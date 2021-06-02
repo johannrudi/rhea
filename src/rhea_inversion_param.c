@@ -2215,15 +2215,34 @@ rhea_inversion_param_prior (ymir_vec_t *parameter_vec,
   return 0.5*prior_val;
 }
 
+static double
+_param_derivative_from_adjoint (ymir_vec_t *forward_vel,
+                                ymir_vec_t *adjoint_vel,
+                                ymir_stress_op_t *stress_op_param_derivative,
+                                ymir_vec_t *tmp_vel)
+{
+  /* apply viscous stress operator to forward velocity */
+  ymir_stress_pc_apply_stress_op (forward_vel, tmp_vel,
+                                  stress_op_param_derivative,
+                                  0 /* !linearized */, 1 /* dirty */);
+
+  /* compute inner product with adjoint velocity */
+  return ymir_vec_innerprod (tmp_vel, adjoint_vel);
+}
+
 void
-rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
-                                       ymir_vec_t *parameter_vec,
-                                       ymir_vec_t *forward_vel_press,
-                                       ymir_vec_t *adjoint_vel_press,
-                                       const double prior_weight,
-                                       rhea_inversion_param_t *inv_param,
-                                       ymir_vec_t *gradient_adjoint_comp_vec,
-                                       ymir_vec_t *gradient_prior_comp_vec)
+rhea_inversion_param_compute_gradient (
+                              ymir_vec_t *gradient_vec,
+                              ymir_vec_t *parameter_vec,
+                              ymir_vec_t *forward_vel_press,
+                              ymir_vec_t *adjoint_vel_press,
+                              const double prior_weight,
+                              rhea_inversion_param_t *inv_param,
+                              ymir_vec_t *gradient_adjoint_comp_vec,
+                              ymir_vec_t *gradient_prior_comp_vec,
+                              ymir_vec_t *gradient_callback_comp_vec,
+                              rhea_inversion_param_derivative_fn_t derivative_fn,
+                              void *derivative_fn_data)
 {
   rhea_stokes_problem_t    *stokes_problem = inv_param->stokes_problem;
   rhea_domain_options_t    *domain_options =
@@ -2236,7 +2255,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
                         rhea_stokes_problem_get_temperature (stokes_problem);
   ymir_vec_t         *weakzone =
                         rhea_stokes_problem_get_weakzone (stokes_problem);
-  ymir_vec_t         *forward_vel, *adjoint_vel, *op_out_vel;
+  ymir_vec_t         *forward_vel, *adjoint_vel, *tmp_vel;
   ymir_vec_t         *viscosity, *marker;
   ymir_vel_dir_t     *vel_dir;
   ymir_stress_op_t   *stress_op;
@@ -2247,10 +2266,10 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
     (dim_exists ? inv_param->dimensional_scaling->meshfree->e[0] : NULL);
   const int          *active = inv_param->active;
   double             *grad = gradient_vec->meshfree->e[0];
-  double             *grad_adj = NULL;
-  double             *grad_prior = NULL;
-  double              g;
+  double             *grad_adj=NULL, *grad_prior=NULL, *grad_callback=NULL;
   int                 idx;
+
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "prior_weight=%g", prior_weight);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (gradient_vec, inv_param));
@@ -2262,7 +2281,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   /* retrieve forward and adjoint velocities */
   forward_vel = rhea_velocity_new (ymir_mesh);
   adjoint_vel = rhea_velocity_new (ymir_mesh);
-  op_out_vel  = rhea_velocity_new (ymir_mesh);
+  tmp_vel     = rhea_velocity_new (ymir_mesh);
   rhea_velocity_pressure_copy_components (forward_vel, NULL, forward_vel_press,
                                           press_elem);
   rhea_velocity_pressure_copy_components (adjoint_vel, NULL, adjoint_vel_press,
@@ -2279,7 +2298,7 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   derivative = rhea_viscosity_new (ymir_mesh);
   ymir_vec_set_value (derivative, 1.0);
 
-  /* create stress operator */
+  /* create new viscous stress operator */
   vel_dir = rhea_domain_create_velocity_dirichlet_bc (
       ymir_mesh, NULL /* dirscal */, domain_options);
   stress_op = ymir_stress_op_new_ext (
@@ -2299,10 +2318,15 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
     ymir_vec_set_zero (gradient_prior_comp_vec);
     grad_prior = gradient_prior_comp_vec->meshfree->e[0];
   }
+  if (gradient_callback_comp_vec != NULL) {
+    ymir_vec_set_zero (gradient_callback_comp_vec);
+    grad_callback = gradient_callback_comp_vec->meshfree->e[0];
+  }
   for (idx = 0; idx < inv_param->n_parameters; idx++) {
     if (active[idx]) {
       rhea_viscosity_param_derivative_t deriv_type;
       rhea_weakzone_label_t             weak_label;
+      double                            ga, gc;
 
       RHEA_GLOBAL_VERBOSEF_FN_TAG (__func__, "param_idx=%i", idx);
 
@@ -2333,15 +2357,27 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
       /* set derivative as the coefficient of the viscous stress operator */
       ymir_stress_op_set_coeff_scal (stress_op, derivative);
 
-      /* apply viscous stress operator to forward velocity */
-      ymir_stress_pc_apply_stress_op (forward_vel, op_out_vel, stress_op,
-                                      0 /* !linearized */, 1 /* dirty */);
+      /* compute derivative from forward and adjoint Stokes solutions */
+      ga = _param_derivative_from_adjoint (forward_vel, adjoint_vel, stress_op,
+                                           tmp_vel);
 
-      /* compute inner product with adjoint velocity */
-      g = ymir_vec_innerprod (op_out_vel, adjoint_vel);
-      grad[idx] = g;
+      /* compute gradient from callback */
+      if (NULL != derivative_fn) {
+        gc = derivative_fn (forward_vel_press, adjoint_vel_press,
+                            idx, (int) deriv_type, (int) weak_label,
+                            derivative, stress_op, derivative_fn_data);
+      }
+      else {
+        gc = 0.0;
+      }
+
+      /* set gradient entry */
+      grad[idx] = ga + gc;
       if (grad_adj != NULL) {
-        grad_adj[idx] = g;
+        grad_adj[idx] = ga;
+      }
+      if (grad_callback != NULL) {
+        grad_callback[idx] = gc;
       }
     }
   }
@@ -2363,6 +2399,8 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
     /* add prior term to gradient */
     for (idx = 0; idx < inv_param->n_parameters; idx++) {
       if (active[idx]) {
+        double              g;
+
         RHEA_ASSERT (isfinite (diff[idx]));
         g = prior_weight * icov[idx] * diff[idx];
         grad[idx] += g;
@@ -2386,7 +2424,9 @@ rhea_inversion_param_compute_gradient (ymir_vec_t *gradient_vec,
   rhea_viscosity_destroy (marker);
   rhea_velocity_destroy (forward_vel);
   rhea_velocity_destroy (adjoint_vel);
-  rhea_velocity_destroy (op_out_vel);
+  rhea_velocity_destroy (tmp_vel);
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 double
@@ -2571,7 +2611,8 @@ rhea_inversion_param_apply_hessian (ymir_vec_t *param_vec_out,
     /* "hijack" the gradient function using incr. adj. vel. */
     rhea_inversion_param_compute_gradient (
         param_vec_out, param_vec_in, forward_vel_press, incr_adjoint_vel_press,
-        NAN /* no prior term */, inv_param, NULL, NULL);
+        NAN /* no prior term */, inv_param, NULL, NULL, NULL,
+        NULL, NULL); //TODO add derivatives from callback function
   }
   else {
     ymir_vec_set_zero (param_vec_out);
