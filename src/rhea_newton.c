@@ -33,9 +33,9 @@ struct rhea_newton_problem
   rhea_newton_modify_hessian_system_fn_t  modify_hessian_system;
 
   /* data and related callback functions */
-  void                        *data;
-  rhea_newton_data_init_fn_t   data_init;
-  rhea_newton_data_clear_fn_t  data_clear;
+  void                             *data;
+  rhea_newton_data_initialize_fn_t  data_initialize;
+  rhea_newton_data_finalize_fn_t    data_finalize;
 
   /* setup post Newton step */
   rhea_newton_setup_poststep_fn_t setup_poststep;
@@ -411,13 +411,13 @@ rhea_newton_problem_set_vectors (
 void
 rhea_newton_problem_set_data_fn (
               void *data,
-              rhea_newton_data_init_fn_t data_init,
-              rhea_newton_data_clear_fn_t data_clear,
+              rhea_newton_data_initialize_fn_t data_initialize,
+              rhea_newton_data_finalize_fn_t data_finalize,
               rhea_newton_problem_t *nl_problem)
 {
   nl_problem->data = data;
-  nl_problem->data_init = data_init;
-  nl_problem->data_clear = data_clear;
+  nl_problem->data_initialize = data_initialize;
+  nl_problem->data_finalize = data_finalize;
 }
 
 void
@@ -586,31 +586,32 @@ rhea_newton_problem_get_data (rhea_newton_problem_t *nl_problem)
 }
 
 static int
-rhea_newton_problem_data_init_exists (rhea_newton_problem_t *nl_problem)
+rhea_newton_problem_data_initialize_exists (rhea_newton_problem_t *nl_problem)
 {
-  return (NULL != nl_problem->data_init);
+  return (NULL != nl_problem->data_initialize);
 }
 
 static void
-rhea_newton_problem_data_init (ymir_vec_t *solution,
-                               rhea_newton_problem_t *nl_problem)
+rhea_newton_problem_data_initialize (ymir_vec_t *solution,
+                                     rhea_newton_problem_t *nl_problem)
 {
-  if (rhea_newton_problem_data_init_exists (nl_problem)) {
-    nl_problem->data_init (solution, nl_problem->data);
+  if (rhea_newton_problem_data_initialize_exists (nl_problem)) {
+    nl_problem->data_initialize (solution, nl_problem->data);
   }
 }
 
 static int
-rhea_newton_problem_data_clear_exists (rhea_newton_problem_t *nl_problem)
+rhea_newton_problem_data_finalize_exists (rhea_newton_problem_t *nl_problem)
 {
-  return (NULL != nl_problem->data_clear);
+  return (NULL != nl_problem->data_finalize);
 }
 
 static void
-rhea_newton_problem_data_clear (rhea_newton_problem_t *nl_problem)
+rhea_newton_problem_data_finalize (ymir_vec_t *solution,
+                                   rhea_newton_problem_t *nl_problem)
 {
-  if (rhea_newton_problem_data_clear_exists (nl_problem)) {
-    nl_problem->data_clear (nl_problem->data);
+  if (rhea_newton_problem_data_finalize_exists (nl_problem)) {
+    nl_problem->data_finalize (solution, nl_problem->data);
   }
 }
 
@@ -2013,7 +2014,7 @@ rhea_newton_solve (ymir_vec_t **solution,
    */
   {
     /* initialize data */
-    rhea_newton_problem_data_init (
+    rhea_newton_problem_data_initialize (
         (opt->nonzero_initial_guess ? *solution : NULL), nl_problem);
 
     /* init step & status */
@@ -2237,7 +2238,7 @@ rhea_newton_solve (ymir_vec_t **solution,
     }
 
     /* clear data */
-    rhea_newton_problem_data_clear (nl_problem);
+    rhea_newton_problem_data_finalize (*solution, nl_problem);
   }
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);

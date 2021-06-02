@@ -20,15 +20,16 @@
  * \param [in] solution Solution vector (may be NULL)
  * \param [in] data     User data
  */
-typedef void      (*rhea_newton_data_init_fn_t) (ymir_vec_t *solution,
-                                                 void *data);
+typedef void      (*rhea_newton_data_initialize_fn_t) (ymir_vec_t *solution,
+                                                       void *data);
 
 /**
  * Clears user data of the nonlinear problem after the Newton solve.
  *
  * \param [in] data     User data
  */
-typedef void      (*rhea_newton_data_clear_fn_t) (void *data);
+typedef void      (*rhea_newton_data_finalize_fn_t) (ymir_vec_t *solution,
+                                                     void *data);
 
 /**
  * Evaluates the objective functional.
@@ -290,8 +291,8 @@ void                rhea_newton_problem_set_vectors (
  */
 void                rhea_newton_problem_set_data_fn (
               void *data,
-              rhea_newton_data_init_fn_t data_init,
-              rhea_newton_data_clear_fn_t data_clear,
+              rhea_newton_data_initialize_fn_t data_initialize,
+              rhea_newton_data_finalize_fn_t data_finalize,
               rhea_newton_problem_t *nl_problem);
 
 /**
