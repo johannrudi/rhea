@@ -215,6 +215,16 @@ rhea_stress_tangential_destroy (ymir_vec_t *stress_tang)
 }
 
 int
+rhea_stress_nonsymmetric_check_vec_type (ymir_vec_t *vec)
+{
+  return (
+      ymir_vec_is_dvec (vec) &&
+      vec->ndfields == 9 &&
+      vec->node_type == YMIR_GAUSS_NODE
+  );
+}
+
+int
 rhea_stress_normal_check_vec_type (ymir_vec_t *vec)
 {
   return (
@@ -225,12 +235,6 @@ rhea_stress_normal_check_vec_type (ymir_vec_t *vec)
 }
 
 int
-rhea_stress_normal_is_valid (ymir_vec_t *vec)
-{
-  return sc_dmatrix_is_valid (vec->dataown);
-}
-
-int
 rhea_stress_tangential_check_vec_type (ymir_vec_t *vec)
 {
   return (
@@ -238,12 +242,6 @@ rhea_stress_tangential_check_vec_type (ymir_vec_t *vec)
       vec->ndfields == 3 &&
       vec->node_type == YMIR_GAUSS_NODE
   );
-}
-
-int
-rhea_stress_tangential_is_valid (ymir_vec_t *vec)
-{
-  return sc_dmatrix_is_valid (vec->dataown);
 }
 
 void
@@ -283,7 +281,7 @@ rhea_stress_normal_compute_normal (ymir_vec_t *stress_normal_normal,
       nSn[0] = Sn[0]*N[0] + Sn[1]*N[1] + Sn[2]*N[2];
     }
   }
-  RHEA_ASSERT (rhea_stress_normal_is_valid (stress_normal_normal));
+  RHEA_ASSERT (rhea_stress_is_valid (stress_normal_normal));
 }
 
 void
@@ -329,7 +327,7 @@ rhea_stress_normal_compute_tangential (ymir_vec_t *stress_normal_tangential,
       tSn[2] = Sn[2] - nSn*N[2];
     }
   }
-  RHEA_ASSERT (rhea_stress_tangential_is_valid (stress_normal_tangential));
+  RHEA_ASSERT (rhea_stress_is_valid (stress_normal_tangential));
 }
 
 ymir_vec_t *

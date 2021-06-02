@@ -68,6 +68,8 @@ void                rhea_stress_convert_to_dimensional_Pa (
  */
 int                 rhea_stress_check_vec_type (ymir_vec_t *vec);
 
+int                 rhea_stress_nonsymmetric_check_vec_type (ymir_vec_t *vec);
+
 int                 rhea_stress_normal_check_vec_type (ymir_vec_t *vec);
 
 int                 rhea_stress_tangential_check_vec_type (ymir_vec_t *vec);
@@ -78,10 +80,6 @@ int                 rhea_stress_2inv_check_vec_type (ymir_vec_t *vec);
  * Checks entries of a vector.
  */
 int                 rhea_stress_is_valid (ymir_vec_t *vec);
-
-int                 rhea_stress_normal_is_valid (ymir_vec_t *vec);
-
-int                 rhea_stress_tangential_is_valid (ymir_vec_t *vec);
 
 int                 rhea_stress_2inv_is_valid (ymir_vec_t *vec);
 
