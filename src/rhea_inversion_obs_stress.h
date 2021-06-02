@@ -5,7 +5,6 @@
 #define RHEA_INVERSION_OBS_STRESS_H
 
 #include <rhea_stokes_problem.h>
-#include <rhea_weakzone_label.h>
 
 /* enumerator for stress observational data */
 typedef enum
@@ -13,13 +12,17 @@ typedef enum
   RHEA_INVERSION_OBS_STRESS_NONE = -1,
   RHEA_INVERSION_OBS_STRESS_VOLUME = 0,
   RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL,
-  RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL
+  RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_0,
+  RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_1,
+  RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_2
 }
 rhea_inversion_obs_stress_t;
 
 /**
  * Compute the difference of the stresses:
- *   ObsOp(stress(vel)) - stress_obs
+ *   weight * (ObsOp(stress(vel,press)) - stress_obs)
+ * where
+ *   ObsOp(stress(vel,press)) = 2 * visc * strainrate(vel) - press * I
  */
 void                rhea_inversion_obs_stress_diff (
                                   ymir_vec_t *misfit_stress,
@@ -33,12 +36,10 @@ void                rhea_inversion_obs_stress_diff (
  * the difference in stresses.
  */
 double              rhea_inversion_obs_stress_misfit (
-                                  double *misfit_comp,
                                   ymir_vec_t *forward_vel,
                                   ymir_vec_t *obs_stress,
                                   ymir_vec_t *weight,
                                   const rhea_inversion_obs_stress_t obs_type,
-                                  const rhea_weakzone_label_t weak_label,
                                   rhea_stokes_problem_t *stokes_problem);
 
 /**
