@@ -187,6 +187,12 @@ rhea_inversion_obs_velocity_generate (
   }
 }
 
+/**
+ * Compute the difference of the velocities at the surface:
+ *   weight * (ObsOp(vel) - vel_obs)
+ * where
+ *   ObsOp(vel) = ObsOp(vel_vol) = ProjectToSurface(vel_vol) = vel_surf
+ */
 void
 rhea_inversion_obs_velocity_diff (ymir_vec_t *misfit_surf,
                                   ymir_vec_t *vel_fwd_vol,
@@ -269,7 +275,7 @@ rhea_inversion_obs_velocity_diff (ymir_vec_t *misfit_surf,
 }
 
 static void
-rhea_inversion_obs_velocity_misfit_vec_adjoint (
+rhea_inversion_obs_velocity_diff_adjoint (
                                   ymir_vec_t *vel_vol,
                                   ymir_vec_t *vel_surf,
                                   ymir_vec_t *weight_surf,
@@ -308,6 +314,7 @@ rhea_inversion_obs_velocity_misfit_vec_adjoint (
   rhea_velocity_interpolate_from_surface (vel_vol, vel_surf,
                                           0 /* !mass_weighted */);
 }
+
 double
 rhea_inversion_obs_velocity_misfit (
                                   ymir_vec_t *vel_fwd_vol,
@@ -346,6 +353,24 @@ rhea_inversion_obs_velocity_misfit (
   return 0.5*misfit_norm_sq;
 }
 
+double
+rhea_inversion_obs_velocity_misfit_param_derivative (
+                                  const rhea_inversion_obs_velocity_t obs_type)
+{
+  switch (obs_type) {
+  case RHEA_INVERSION_OBS_VELOCITY_NONE:
+  case RHEA_INVERSION_OBS_VELOCITY_NORMAL:
+  case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL:
+  case RHEA_INVERSION_OBS_VELOCITY_TANGENTIAL_ROTFREE:
+  case RHEA_INVERSION_OBS_VELOCITY_ALL:
+  case RHEA_INVERSION_OBS_VELOCITY_ALL_ROTFREE:
+    return 0.0;
+  default: /* unknown observation type */
+    RHEA_ABORT_NOT_REACHED ();
+    return NAN;
+  }
+}
+
 void
 rhea_inversion_obs_velocity_add_adjoint_rhs (
                                   ymir_vec_t *rhs_vel_mass,
@@ -356,7 +381,7 @@ rhea_inversion_obs_velocity_add_adjoint_rhs (
                                   rhea_domain_options_t *domain_options)
 {
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (rhs_vel_mass);
-  ymir_vec_t         *misfit_surf, *misfit_surf_mass, *misfit_vol_mass;
+  ymir_vec_t         *misfit_surf, *misfit_surf_mass, *rhs_add;
 
   /* check input */
   RHEA_ASSERT (rhea_velocity_check_vec_type (rhs_vel_mass));
@@ -369,28 +394,31 @@ rhea_inversion_obs_velocity_add_adjoint_rhs (
   RHEA_ASSERT (weight_surf == NULL ||
                rhea_inversion_obs_velocity_weight_is_valid (weight_surf));
 
-  /* create work vectors */
-  misfit_surf      = rhea_velocity_surface_new (ymir_mesh);
-  misfit_surf_mass = rhea_velocity_surface_new (ymir_mesh);
-  misfit_vol_mass  = rhea_velocity_new (ymir_mesh);
+  /* return if nothing to do */
+  if (RHEA_INVERSION_OBS_VELOCITY_NONE == obs_type) {
+    return;
+  }
 
   /* compute misfit vector */
+  misfit_surf = rhea_velocity_surface_new (ymir_mesh);
   rhea_inversion_obs_velocity_diff (
       misfit_surf, vel_fwd_vol, vel_obs_surf, weight_surf, obs_type,
       domain_options);
 
   /* apply mass matrix */
+  misfit_surf_mass = rhea_velocity_surface_new (ymir_mesh);
   ymir_mass_apply (misfit_surf, misfit_surf_mass);
   rhea_velocity_surface_destroy (misfit_surf);
 
   /* apply adjoint of misfit vector operators */
-  rhea_inversion_obs_velocity_misfit_vec_adjoint (
-      misfit_vol_mass, misfit_surf_mass, weight_surf, obs_type, domain_options);
+  rhs_add = rhea_velocity_new (ymir_mesh);
+  rhea_inversion_obs_velocity_diff_adjoint (
+      rhs_add, misfit_surf_mass, weight_surf, obs_type, domain_options);
   rhea_velocity_surface_destroy (misfit_surf_mass);
 
   /* add output to right-hand side (change sign to obtain RHS) */
-  ymir_vec_add (-1.0, misfit_vol_mass, rhs_vel_mass);
-  rhea_velocity_destroy (misfit_vol_mass);
+  ymir_vec_add (-1.0, rhs_add, rhs_vel_mass);
+  rhea_velocity_destroy (rhs_add);
 }
 
 void
@@ -413,6 +441,11 @@ rhea_inversion_obs_velocity_incremental_adjoint_rhs (
   RHEA_ASSERT (weight_surf == NULL ||
                rhea_inversion_obs_velocity_weight_is_valid (weight_surf));
 
+  /* return if nothing to do */
+  if (RHEA_INVERSION_OBS_VELOCITY_NONE == obs_type) {
+    return;
+  }
+
   /* create work vectors */
   vel_incrfwd_surf      = rhea_velocity_surface_new (ymir_mesh);
   vel_incrfwd_surf_mass = rhea_velocity_surface_new (ymir_mesh);
@@ -427,7 +460,7 @@ rhea_inversion_obs_velocity_incremental_adjoint_rhs (
   rhea_velocity_surface_destroy (vel_incrfwd_surf);
 
   /* apply adjoint of misfit vector operators */
-  rhea_inversion_obs_velocity_misfit_vec_adjoint (
+  rhea_inversion_obs_velocity_diff_adjoint (
       rhs_vel_mass, vel_incrfwd_surf_mass, weight_surf, obs_type,
       domain_options);
   rhea_velocity_surface_destroy (vel_incrfwd_surf_mass);

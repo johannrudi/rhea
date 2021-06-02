@@ -43,7 +43,7 @@ void                rhea_inversion_obs_velocity_generate (
 
 /**
  * Compute the difference of the velocities at the surface:
- *   ObsOp(vel) - vel_obs
+ *   weight * (ObsOp(vel) - vel_obs)
  */
 void                rhea_inversion_obs_velocity_diff (
                                   ymir_vec_t *misfit_surf,
@@ -63,6 +63,12 @@ double              rhea_inversion_obs_velocity_misfit (
                                   ymir_vec_t *weight_surf,
                                   const rhea_inversion_obs_velocity_t obs_type,
                                   rhea_domain_options_t *domain_options);
+
+/**
+ * Computes derivative of the misfit term with respect to parameters.
+ */
+double              rhea_inversion_obs_velocity_misfit_param_derivative (
+                                  const rhea_inversion_obs_velocity_t obs_type);
 
 /**
  * Adds contribution to the right-hand side for adjoint equations.
