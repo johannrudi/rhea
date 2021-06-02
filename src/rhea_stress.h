@@ -31,6 +31,8 @@ double              rhea_stress_get_dim_Pa (
  */
 ymir_vec_t         *rhea_stress_new (ymir_mesh_t *ymir_mesh);
 
+ymir_vec_t         *rhea_stress_nonsymmetric_new (ymir_mesh_t *ymir_mesh);
+
 ymir_vec_t         *rhea_stress_normal_new (ymir_mesh_t *ymir_mesh);
 
 ymir_vec_t         *rhea_stress_tangential_new (ymir_mesh_t *ymir_mesh);
@@ -41,6 +43,8 @@ ymir_vec_t         *rhea_stress_2inv_new (ymir_mesh_t *ymir_mesh);
  * Destroys a stress tensor, stress components, and the second invariant.
  */
 void                rhea_stress_destroy (ymir_vec_t *stress);
+
+void                rhea_stress_nonsymmetric_destroy (ymir_vec_t *stress);
 
 void                rhea_stress_normal_destroy (ymir_vec_t *stress_norm);
 

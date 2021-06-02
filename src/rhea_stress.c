@@ -179,6 +179,18 @@ rhea_stress_separate_diag_offdiag (ymir_vec_t *stress_diag,
 }
 
 ymir_vec_t *
+rhea_stress_nonsymmetric_new (ymir_mesh_t *ymir_mesh)
+{
+  return ymir_dvec_new (ymir_mesh, 9, YMIR_GAUSS_NODE);
+}
+
+void
+rhea_stress_nonsymmetric_destroy (ymir_vec_t *stress)
+{
+  ymir_vec_destroy (stress);
+}
+
+ymir_vec_t *
 rhea_stress_normal_new (ymir_mesh_t *ymir_mesh)
 {
   return ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
