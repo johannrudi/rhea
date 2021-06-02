@@ -51,6 +51,12 @@ double              rhea_inversion_obs_viscosity_misfit (
                                 rhea_stokes_problem_t *stokes_problem);
 
 /**
+ * Computes derivative of the misfit term with respect to parameters.
+ */
+double              rhea_inversion_obs_viscosity_misfit_param_derivative (
+                                const rhea_inversion_obs_viscosity_t obs_type);
+
+/**
  * Adds contribution to the right-hand side for adjoint equations.
  */
 void                rhea_inversion_obs_viscosity_add_adjoint_rhs (

@@ -169,6 +169,8 @@ rhea_inversion_obs_viscosity_destroy (rhea_domain_subset_column_t **column,
   }
 }
 
+//TODO add functions that set mesh dependend variables (volume)
+
 static double
 _get_volume (rhea_domain_subset_column_t *column,
              ymir_mesh_t *ymir_mesh,
@@ -337,6 +339,26 @@ rhea_inversion_obs_viscosity_misfit (
 
   /* return misfit term of objective functional */
   return 0.5*misfit_norm_sq;
+}
+
+double
+rhea_inversion_obs_viscosity_misfit_param_derivative (
+                                const rhea_inversion_obs_viscosity_t obs_type)
+{
+  switch (obs_type) {
+  case RHEA_INVERSION_OBS_VISCOSITY_NONE:
+    return 0.0;
+  case RHEA_INVERSION_OBS_VISCOSITY_AVERAGE_REGION:
+    RHEA_ABORT_NOT_REACHED (); //TODO
+    return NAN;
+  case RHEA_INVERSION_OBS_VISCOSITY_AVERAGE_UNDER_PLATES:
+    RHEA_ABORT_NOT_REACHED (); //TODO
+    return NAN;
+    break;
+  default: /* unknown type */
+    RHEA_ABORT_NOT_REACHED ();
+    return NAN;
+  }
 }
 
 void
