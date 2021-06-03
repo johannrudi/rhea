@@ -155,8 +155,8 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   rhea_weakzone_options_t    *weak_options;
   ymir_mesh_t          *ymir_mesh;
   ymir_pressure_elem_t *press_elem;
-  ymir_vec_t         *velocity, *pressure, *viscosity, *marker, *weak_normal,
-                     *stress;
+  ymir_vec_t         *velocity, *pressure, *viscosity, *marker, *stress;
+  ymir_vec_t         *weak_normal;
   ymir_vec_t         *velocity_surf, *stress_norm_surf, *viscosity_surf,
                      *marker_surf;
   double              strainrate_dim_1_s;
@@ -184,7 +184,6 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   pressure = rhea_pressure_new (ymir_mesh, press_elem);
   viscosity = rhea_viscosity_new (ymir_mesh);
   marker = rhea_viscosity_new (ymir_mesh);
-  weak_normal = rhea_weakzone_normal_new (ymir_mesh);
   stress = rhea_stress_new (ymir_mesh);
 
   /* get volume fields */
@@ -192,9 +191,19 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
                                           press_elem);
   rhea_stokes_problem_copy_viscosity (viscosity, stokes_problem);
   rhea_stokes_problem_copy_marker (marker, stokes_problem);
-  rhea_weakzone_compute_normal (weak_normal, weak_options);
-  rhea_stokes_problem_stress_compute (stress, sol_vel_press, stokes_problem,
-                                      0 /* !linearized */);
+  rhea_stokes_problem_stress_compute (
+      stress, sol_vel_press, stokes_problem,
+      NULL /* !override_stress_op */, 0 /* !linearized */,
+      0 /* !skip_pressure */);
+
+  /* create normals to weak zones */
+  if (rhea_weakzone_exists (weak_options)) {
+    weak_normal = rhea_weakzone_normal_new (ymir_mesh);
+    rhea_weakzone_compute_normal (weak_normal, weak_options);
+  }
+  else {
+    weak_normal = NULL;
+  }
 
   /* create surface variables */
   velocity_surf = rhea_velocity_surface_new (ymir_mesh);
@@ -241,11 +250,13 @@ example_share_vtk_write_solution (const char *vtk_write_solution_path,
   rhea_viscosity_destroy (viscosity);
   rhea_viscosity_destroy (marker);
   rhea_stress_destroy (stress);
-  rhea_weakzone_normal_destroy (weak_normal);
   rhea_velocity_surface_destroy (velocity_surf);
   rhea_stress_surface_destroy (stress_norm_surf);
   rhea_viscosity_surface_destroy (viscosity_surf);
   rhea_viscosity_surface_destroy (marker_surf);
+  if (rhea_weakzone_exists (weak_options)) {
+    rhea_weakzone_normal_destroy (weak_normal);
+  }
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
