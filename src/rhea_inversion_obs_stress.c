@@ -32,7 +32,8 @@ rhea_inversion_obs_stress_diff_ext (ymir_vec_t *misfit_stress,
                                     ymir_vec_t *obs_stress,
                                     ymir_vec_t *weight,
                                     rhea_stokes_problem_t *stokes_problem,
-                                    ymir_stress_op_t *override_stress_op)
+                                    const int param_derivative,
+                                    ymir_stress_op_t *stress_op_param_derivative)
 {
   /* check input */
   RHEA_ASSERT (rhea_stress_check_vec_type (misfit_stress));
@@ -49,9 +50,17 @@ rhea_inversion_obs_stress_diff_ext (ymir_vec_t *misfit_stress,
 
   /* compute stress */
   if (forward_vel_press != NULL) {
-    rhea_stokes_problem_stress_compute (
-        misfit_stress, forward_vel_press, stokes_problem,
-        override_stress_op, 0 /* !linearized */);
+    if (!param_derivative) {
+      rhea_stokes_problem_stress_compute (
+          misfit_stress, forward_vel_press, stokes_problem,
+          NULL, 0 /* !linearized */, 0 /* !skip_pressure */);
+    }
+    else {
+      rhea_stokes_problem_stress_compute (
+          misfit_stress, forward_vel_press, stokes_problem,
+          stress_op_param_derivative, 0 /* !linearized */,
+          1 /* skip_pressure */);
+    }
   }
   else {
     ymir_vec_set_zero (misfit_stress);
@@ -83,7 +92,7 @@ rhea_inversion_obs_stress_diff (ymir_vec_t *misfit_stress,
 {
   rhea_inversion_obs_stress_diff_ext (
       misfit_stress, forward_vel_press, obs_stress, weight, stokes_problem,
-      NULL /* !override_stress_op */);
+      0 /* !param_derivative */, NULL);
 }
 
 /**
@@ -158,37 +167,8 @@ _extract_single_field (ymir_vec_t *field, ymir_vec_t *vec, const int fieldid)
   }
 }
 
-//TODO deprecated
-#if 0
-static void
-_compute_n_volumes_gauss (double *volume, ymir_vec_t *vec)
-{
-  ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (vec);
-  ymir_vec_t         *unit, *field;
-  const int           n_fields = vec->ndfields;
-  int                 fieldid;
-
-  /* check input */
-  RHEA_ASSERT (vec->node_type == YMIR_GAUSS_NODE);
-
-  /* setup mass weighted unit vector */
-  unit = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
-  ymir_vec_set_value (unit, 1.0);
-  ymir_mass_apply_gauss (unit);
-
-  /* compute inner product to integrate */
-  field = ymir_dvec_new (ymir_mesh, 1, YMIR_GAUSS_NODE);
-  for (fieldid = 0; fieldid < n_fields; fieldid++) {
-    _extract_single_field (field, vec, fieldid);
-    volume[fieldid] = ymir_vec_innerprod (field, unit);
-  }
-  ymir_vec_destroy (field);
-  ymir_vec_destroy (unit);
-}
-#endif
-
 static double
-_set_reference_volume (ymir_vec_t *weight,
+_get_reference_volume (ymir_vec_t *weight,
                        rhea_stokes_problem_t *stokes_problem)
 {
   double              volume;
@@ -207,254 +187,6 @@ _set_reference_volume (ymir_vec_t *weight,
   }
 
   return volume;
-}
-
-double
-rhea_inversion_obs_stress_misfit (ymir_vec_t *forward_vel_press,
-                                  ymir_vec_t *obs_stress,
-                                  ymir_vec_t *weight,
-                                  const rhea_inversion_obs_stress_t obs_type,
-                                  rhea_stokes_problem_t *stokes_problem)
-{
-  ymir_mesh_t        *ymir_mesh;
-  ymir_vec_t         *misfit_stress;
-  double              misfit;
-
-  /* return if nothing to do */
-  if (RHEA_INVERSION_OBS_STRESS_NONE == obs_type) {
-    return 0.0;
-  }
-
-  /* get ymir mesh */
-  if (forward_vel_press != NULL) {
-    ymir_mesh = ymir_vec_get_mesh (forward_vel_press);
-  }
-  else if (obs_stress != NULL) {
-    ymir_mesh = ymir_vec_get_mesh (obs_stress);
-  }
-  else {
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
-  /* create work vectors */
-  misfit_stress = rhea_stress_new (ymir_mesh);
-
-  /* compute misfit vector */
-  rhea_inversion_obs_stress_diff (
-      misfit_stress, forward_vel_press, obs_stress, weight, stokes_problem);
-
-  /* compute misfit value(s) */
-  switch (obs_type) {
-  case RHEA_INVERSION_OBS_STRESS_VOLUME:
-    {
-      ymir_vec_t         *misfit_mass = rhea_stress_new (ymir_mesh);
-
-      /* compute squared L2-norm */
-      ymir_vec_copy (misfit_stress, misfit_mass);
-      ymir_mass_apply_gauss (misfit_mass);
-      misfit = 0.5 * ymir_vec_innerprod (misfit_stress, misfit_mass);
-      rhea_stress_destroy (misfit_mass);
-    }
-    break;
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL:
-    /* note: assume weak zone indicator is implicitly given by `weight` */
-    {
-      rhea_weakzone_options_t *weak_options =
-        rhea_stokes_problem_get_weakzone_options (stokes_problem);
-      ymir_vec_t         *weak_normal, *stress_normal_normal;
-      const double        volume =
-                            _set_reference_volume (weight, stokes_problem);
-
-      /* compute normal direction at plate boundaries */
-      weak_normal = rhea_weakzone_normal_new (ymir_mesh);
-      rhea_weakzone_compute_normal (weak_normal, weak_options);
-
-      /* compute normal component of the normal stress */
-      stress_normal_normal = rhea_stress_normal_new (ymir_mesh);
-      rhea_stress_normal_compute_normal (stress_normal_normal,
-                                         misfit_stress, weak_normal);
-      rhea_weakzone_normal_destroy (weak_normal);
-
-      /* compute integral */
-      misfit = _compute_volume_gauss (stress_normal_normal) / volume;
-      rhea_stress_normal_destroy (stress_normal_normal);
-    }
-    break;
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y:
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z:
-    /* note: assume weak zone indicator is implicitly given by `weight` */
-    {
-      rhea_weakzone_options_t *weak_options =
-        rhea_stokes_problem_get_weakzone_options (stokes_problem);
-      ymir_vec_t         *weak_normal, *stress_normal_tangential, *stress_comp;
-      const double        volume =
-                            _set_reference_volume (weight, stokes_problem);
-
-      /* compute normal direction at plate boundaries */
-      weak_normal = rhea_weakzone_normal_new (ymir_mesh);
-      rhea_weakzone_compute_normal (weak_normal, weak_options);
-
-      /* compute tangential component of the normal stress */
-      stress_normal_tangential = rhea_stress_tangential_new (ymir_mesh);
-      rhea_stress_normal_compute_tangential (stress_normal_tangential,
-                                             misfit_stress, weak_normal);
-      rhea_weakzone_normal_destroy (weak_normal);
-
-      /* extract component */
-      stress_comp = rhea_stress_normal_new (ymir_mesh);
-      switch (obs_type) {
-      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
-        _extract_single_field (stress_comp, stress_normal_tangential, 0);
-        break;
-      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y:
-        _extract_single_field (stress_comp, stress_normal_tangential, 1);
-        break;
-      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z:
-        _extract_single_field (stress_comp, stress_normal_tangential, 2);
-        break;
-      default: /* unknown observation type */
-        RHEA_ABORT_NOT_REACHED ();
-      }
-      rhea_stress_tangential_destroy (stress_normal_tangential);
-
-      /* compute integral */
-      misfit = _compute_volume_gauss (stress_comp) / volume;
-      rhea_stress_normal_destroy (stress_comp);
-    }
-    break;
-  default: /* unknown observation type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
-  /* destroy */
-  rhea_stress_destroy (misfit_stress);
-
-  return misfit;
-}
-
-double
-rhea_inversion_obs_stress_misfit_param_derivative (
-                                  ymir_vec_t *forward_vel_press,
-                                  ymir_vec_t *obs_stress,
-                                  ymir_vec_t *weight,
-                                  const rhea_inversion_obs_stress_t obs_type,
-                                  rhea_stokes_problem_t *stokes_problem,
-                                  ymir_stress_op_t *stress_op_param_derivative)
-{
-  ymir_mesh_t        *ymir_mesh;
-  ymir_vec_t         *misfit_stress;
-  double              misfit_deriv;
-
-  /* return if nothing to do */
-  if (RHEA_INVERSION_OBS_STRESS_NONE == obs_type) {
-    return 0.0;
-  }
-
-  /* get ymir mesh */
-  if (forward_vel_press != NULL) {
-    ymir_mesh = ymir_vec_get_mesh (forward_vel_press);
-  }
-  else if (obs_stress != NULL) {
-    ymir_mesh = ymir_vec_get_mesh (obs_stress);
-  }
-  else {
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
-  /* create work vectors */
-  misfit_stress = rhea_stress_new (ymir_mesh);
-
-  switch (obs_type) {
-  case RHEA_INVERSION_OBS_STRESS_VOLUME:
-    RHEA_ABORT_NOT_REACHED (); //TODO
-    misfit_deriv = NAN;
-    break;
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL:
-    /* note: assume weak zone indicator is implicitly given by `weight` */
-    {
-      rhea_weakzone_options_t *weak_options =
-        rhea_stokes_problem_get_weakzone_options (stokes_problem);
-      ymir_vec_t         *weak_normal, *stress_normal_normal;
-      const double        volume =
-                            _set_reference_volume (weight, stokes_problem);
-
-      /* compute misfit vector */
-      rhea_inversion_obs_stress_diff_ext (
-          misfit_stress, forward_vel_press, NULL /* obs_stress */, weight,
-          stokes_problem, stress_op_param_derivative);
-
-      /* compute normal direction at plate boundaries */
-      weak_normal = rhea_weakzone_normal_new (ymir_mesh);
-      rhea_weakzone_compute_normal (weak_normal, weak_options);
-
-      /* compute normal component of the normal stress */
-      stress_normal_normal = rhea_stress_normal_new (ymir_mesh);
-      rhea_stress_normal_compute_normal (stress_normal_normal,
-                                         misfit_stress, weak_normal);
-      rhea_weakzone_normal_destroy (weak_normal);
-
-      /* compute integral */
-      misfit_deriv = _compute_volume_gauss (stress_normal_normal) / volume;
-      rhea_stress_normal_destroy (stress_normal_normal);
-    }
-    break;
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y:
-  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z:
-    /* note: assume weak zone indicator is implicitly given by `weight` */
-    {
-      rhea_weakzone_options_t *weak_options =
-        rhea_stokes_problem_get_weakzone_options (stokes_problem);
-      ymir_vec_t         *weak_normal, *stress_normal_tangential, *stress_comp;
-      const double        volume =
-                            _set_reference_volume (weight, stokes_problem);
-
-      /* compute misfit vector */
-      rhea_inversion_obs_stress_diff_ext (
-          misfit_stress, forward_vel_press, NULL /* obs_stress */, weight,
-          stokes_problem, stress_op_param_derivative);
-
-      /* compute normal direction at plate boundaries */
-      weak_normal = rhea_weakzone_normal_new (ymir_mesh);
-      rhea_weakzone_compute_normal (weak_normal, weak_options);
-
-      /* compute tangential component of the normal stress */
-      stress_normal_tangential = rhea_stress_tangential_new (ymir_mesh);
-      rhea_stress_normal_compute_tangential (stress_normal_tangential,
-                                             misfit_stress, weak_normal);
-      rhea_weakzone_normal_destroy (weak_normal);
-
-      /* extract component */
-      stress_comp = rhea_stress_normal_new (ymir_mesh);
-      switch (obs_type) {
-      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
-        _extract_single_field (stress_comp, stress_normal_tangential, 0);
-        break;
-      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y:
-        _extract_single_field (stress_comp, stress_normal_tangential, 1);
-        break;
-      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z:
-        _extract_single_field (stress_comp, stress_normal_tangential, 2);
-        break;
-      default: /* unknown observation type */
-        RHEA_ABORT_NOT_REACHED ();
-      }
-      rhea_stress_tangential_destroy (stress_normal_tangential);
-
-      /* compute integral */
-      misfit_deriv = _compute_volume_gauss (stress_comp) / volume;
-      rhea_stress_normal_destroy (stress_comp);
-    }
-    break;
-  default: /* unknown observation type */
-    RHEA_ABORT_NOT_REACHED ();
-  }
-
-  /* destroy */
-  rhea_stress_destroy (misfit_stress);
-
-  return misfit_deriv;
 }
 
 static void
@@ -522,6 +254,202 @@ _set_tangential_normal_tensor (ymir_vec_t *tensor, ymir_vec_t *normal,
   }
 }
 
+static double
+rhea_inversion_obs_stress_misfit_ext (
+                                  ymir_vec_t *forward_vel_press,
+                                  ymir_vec_t *obs_stress,
+                                  ymir_vec_t *weight,
+                                  const rhea_inversion_obs_stress_t obs_type,
+                                  rhea_stokes_problem_t *stokes_problem,
+                                  const int param_derivative,
+                                  ymir_stress_op_t *stress_op_param_derivative)
+{
+  ymir_mesh_t        *ymir_mesh;
+  ymir_vec_t         *misfit_stress;
+  double              misfit;
+
+  /* check input */
+  RHEA_ASSERT (!param_derivative || NULL != stress_op_param_derivative);
+
+  /* return if nothing to do */
+  if (RHEA_INVERSION_OBS_STRESS_NONE == obs_type) {
+    return 0.0;
+  }
+
+  /* get ymir mesh */
+  if (forward_vel_press != NULL) {
+    ymir_mesh = ymir_vec_get_mesh (forward_vel_press);
+  }
+  else if (obs_stress != NULL) {
+    ymir_mesh = ymir_vec_get_mesh (obs_stress);
+  }
+  else {
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* create work vectors */
+  misfit_stress = rhea_stress_new (ymir_mesh);
+
+  /* compute misfit */
+  switch (obs_type) {
+  case RHEA_INVERSION_OBS_STRESS_VOLUME:
+    {
+      ymir_vec_t         *innerprod_mass;
+
+      if (!param_derivative) {
+        /* compute misfit vector */
+        rhea_inversion_obs_stress_diff (
+            misfit_stress, forward_vel_press, obs_stress, weight,
+            stokes_problem);
+      }
+      else {
+        RHEA_ABORT_NOT_REACHED (); //TODO
+      }
+
+      /* apply mass matrix */
+      innerprod_mass = rhea_stress_new (ymir_mesh);
+      ymir_vec_copy (misfit_stress, innerprod_mass);
+      ymir_mass_apply_gauss (innerprod_mass);
+
+      /* compute squared L2-norm */
+      misfit = ymir_vec_innerprod (misfit_stress, innerprod_mass);
+      misfit *= 0.5;
+      rhea_stress_destroy (innerprod_mass);
+    }
+    break;
+  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL:
+    /* note: assume weak zone indicator is implicitly given by `weight` */
+    {
+      rhea_weakzone_options_t *weak_options =
+        rhea_stokes_problem_get_weakzone_options (stokes_problem);
+      ymir_vec_t         *weak_normal, *stress_normal_normal;
+
+      if (!param_derivative) {
+        /* compute misfit vector */
+        rhea_inversion_obs_stress_diff (
+            misfit_stress, forward_vel_press, obs_stress, weight,
+            stokes_problem);
+      }
+      else {
+        /* compute misfit vector with a viscous stress operator that has the
+         * coefficient's derivative in place of the coefficient */
+        rhea_inversion_obs_stress_diff_ext (
+            misfit_stress, forward_vel_press, NULL /* obs_stress */, weight,
+            stokes_problem, param_derivative, stress_op_param_derivative);
+      }
+
+      /* compute normal direction at plate boundaries */
+      weak_normal = rhea_weakzone_normal_new (ymir_mesh);
+      rhea_weakzone_compute_normal (weak_normal, weak_options);
+
+      /* compute normal component of the normal stress */
+      stress_normal_normal = rhea_stress_normal_new (ymir_mesh);
+      rhea_stress_normal_compute_normal (stress_normal_normal,
+                                         misfit_stress, weak_normal);
+      rhea_weakzone_normal_destroy (weak_normal);
+
+      /* compute integral */
+      misfit = _compute_volume_gauss (stress_normal_normal);
+      rhea_stress_normal_destroy (stress_normal_normal);
+
+      /* scale by volume */
+      misfit *= 1.0 / _get_reference_volume (weight, stokes_problem);
+    }
+    break;
+  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
+  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y:
+  case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z:
+    /* note: assume weak zone indicator is implicitly given by `weight` */
+    {
+      rhea_weakzone_options_t *weak_options =
+        rhea_stokes_problem_get_weakzone_options (stokes_problem);
+      ymir_vec_t         *weak_normal, *stress_normal_tangential, *stress_comp;
+
+      if (!param_derivative) {
+        /* compute misfit vector */
+        rhea_inversion_obs_stress_diff (
+            misfit_stress, forward_vel_press, obs_stress, weight,
+            stokes_problem);
+      }
+      else {
+        /* compute misfit vector with a viscous stress operator that has the
+         * coefficient's derivative in place of the coefficient */
+        rhea_inversion_obs_stress_diff_ext (
+            misfit_stress, forward_vel_press, NULL /* obs_stress */, weight,
+            stokes_problem, param_derivative, stress_op_param_derivative);
+      }
+
+      /* compute normal direction at plate boundaries */
+      weak_normal = rhea_weakzone_normal_new (ymir_mesh);
+      rhea_weakzone_compute_normal (weak_normal, weak_options);
+
+      /* compute tangential component of the normal stress */
+      stress_normal_tangential = rhea_stress_tangential_new (ymir_mesh);
+      rhea_stress_normal_compute_tangential (stress_normal_tangential,
+                                             misfit_stress, weak_normal);
+      rhea_weakzone_normal_destroy (weak_normal);
+
+      /* extract component */
+      stress_comp = rhea_stress_normal_new (ymir_mesh);
+      switch (obs_type) {
+      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
+        _extract_single_field (stress_comp, stress_normal_tangential, 0);
+        break;
+      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y:
+        _extract_single_field (stress_comp, stress_normal_tangential, 1);
+        break;
+      case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z:
+        _extract_single_field (stress_comp, stress_normal_tangential, 2);
+        break;
+      default: /* unknown observation type */
+        RHEA_ABORT_NOT_REACHED ();
+      }
+      rhea_stress_tangential_destroy (stress_normal_tangential);
+
+      /* compute integral */
+      misfit = _compute_volume_gauss (stress_comp);
+      rhea_stress_normal_destroy (stress_comp);
+
+      /* scale by volume */
+      misfit *= 1.0 / _get_reference_volume (weight, stokes_problem);
+    }
+    break;
+  default: /* unknown observation type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /* destroy */
+  rhea_stress_destroy (misfit_stress);
+
+  return misfit;
+}
+
+double
+rhea_inversion_obs_stress_misfit (ymir_vec_t *forward_vel_press,
+                                  ymir_vec_t *obs_stress,
+                                  ymir_vec_t *weight,
+                                  const rhea_inversion_obs_stress_t obs_type,
+                                  rhea_stokes_problem_t *stokes_problem)
+{
+  return rhea_inversion_obs_stress_misfit_ext (
+      forward_vel_press, obs_stress, weight, obs_type, stokes_problem,
+      0 /* !param_derivative */, NULL);
+}
+
+double
+rhea_inversion_obs_stress_misfit_param_derivative (
+                                  ymir_vec_t *forward_vel_press,
+                                  ymir_vec_t *obs_stress,
+                                  ymir_vec_t *weight,
+                                  const rhea_inversion_obs_stress_t obs_type,
+                                  rhea_stokes_problem_t *stokes_problem,
+                                  ymir_stress_op_t *stress_op_param_derivative)
+{
+  return rhea_inversion_obs_stress_misfit_ext (
+      forward_vel_press, obs_stress, weight, obs_type, stokes_problem,
+      1 /* param_derivative */, stress_op_param_derivative);
+}
+
 void
 rhea_inversion_obs_stress_add_adjoint_rhs (
                                   ymir_vec_t *rhs_vel_mass,
@@ -576,14 +504,11 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
     ymir_mass_apply_gauss (misfit_mass);
     break;
   case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL:
-    RHEA_ASSERT (weight == NULL || 1 == weight->ndfields);
     /* note: assume weak zone indicator is implicitly given by `weight` */
     {
       rhea_weakzone_options_t *weak_options =
         rhea_stokes_problem_get_weakzone_options (stokes_problem);
       ymir_vec_t         *weak_normal;
-      const double        volume =
-                            _set_reference_volume (weight, stokes_problem);
 
       /* compute normal direction at plate boundaries */
       weak_normal = rhea_weakzone_normal_new (ymir_mesh);
@@ -594,7 +519,8 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
       rhea_weakzone_normal_destroy (weak_normal);
 
       /* scale by volume */
-      ymir_vec_scale (1.0/volume, misfit_mass);
+      ymir_vec_scale (1.0 / _get_reference_volume (weight, stokes_problem),
+                      misfit_mass);
 
       /* apply mass matrix */
       ymir_mass_apply_gauss (misfit_mass);
@@ -603,14 +529,11 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
   case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
   case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y:
   case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z:
-    RHEA_ASSERT (weight == NULL || 1 == weight->ndfields);
     /* note: assume weak zone indicator is implicitly given by `weight` */
     {
       rhea_weakzone_options_t *weak_options =
         rhea_stokes_problem_get_weakzone_options (stokes_problem);
       ymir_vec_t         *weak_normal;
-      const double        volume =
-                            _set_reference_volume (weight, stokes_problem);
 
       /* compute normal direction at plate boundaries */
       weak_normal = rhea_weakzone_normal_new (ymir_mesh);
@@ -633,7 +556,8 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
       rhea_weakzone_normal_destroy (weak_normal);
 
       /* scale by volume */
-      ymir_vec_scale (1.0/volume, misfit_mass);
+      ymir_vec_scale (1.0 / _get_reference_volume (weight, stokes_problem),
+                      misfit_mass);
 
       /* apply mass matrix */
       ymir_mass_apply_gauss (misfit_mass);
