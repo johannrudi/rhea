@@ -1,6 +1,7 @@
 #include <rhea_inversion.h>
 #include <rhea_base.h>
 #include <rhea_inversion_param.h>
+#include <rhea_inversion_obs_stress.h>
 #include <rhea_inversion_obs_velocity.h>
 #include <rhea_inversion_obs_viscosity.h>
 #include <rhea_newton.h>
@@ -13,7 +14,11 @@
 #include <rhea_vtk.h>
 #include <ymir_perf_counter.h>
 
+//###DEV###
+#include <rhea_stress.h>
+
 /* Inverse solver */
+#define RHEA_INVERSION_OBJ_N_COMPONENTS 4
 #define RHEA_INVERSION_GRAD_NORM_N_COMPONENTS 2
 
 /* I/O labels that are attached at the end of file names */
@@ -51,6 +56,8 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_VISC_OBS_TYPE (RHEA_INVERSION_OBS_VISCOSITY_NONE)
 #define RHEA_INVERSION_DEFAULT_VISC_OBS_PAS NULL
 #define RHEA_INVERSION_DEFAULT_VISC_OBS_STDDEV_REL NULL
+#define RHEA_INVERSION_DEFAULT_STRESS_OBS_TYPE (RHEA_INVERSION_OBS_STRESS_NONE)
+#define RHEA_INVERSION_DEFAULT_STRESS_QOI_TYPE_LIST NULL
 #define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV (1.0)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE_WRITE_AFTER_SOLVE \
@@ -94,6 +101,10 @@ char               *rhea_inversion_visc_obs_Pas =
                       RHEA_INVERSION_DEFAULT_VISC_OBS_PAS;
 char               *rhea_inversion_visc_obs_stddev_rel =
                       RHEA_INVERSION_DEFAULT_VISC_OBS_STDDEV_REL;
+int                 rhea_inversion_stress_obs_type =
+                      RHEA_INVERSION_DEFAULT_STRESS_OBS_TYPE;
+char               *rhea_inversion_stress_qoi_type_list =
+                      RHEA_INVERSION_DEFAULT_STRESS_QOI_TYPE_LIST;
 double              rhea_inversion_parameter_prior_stddev =
                       RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV;
 int                 rhea_inversion_hessian_type =
@@ -189,6 +200,16 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
 //  &(rhea_inversion_visc_obs_polygon_vertices_n_total),
 //  RHEA_INVERSION_DEFAULT_VISC_OBS_POLYGON_VERTICES_N_TOTAL,
 //  "",
+
+  YMIR_OPTIONS_I, "stress-observations-type", '\0',
+    &(rhea_inversion_stress_obs_type), RHEA_INVERSION_DEFAULT_STRESS_OBS_TYPE,
+    "Type of stress observations",
+
+  /* QoI options */
+  YMIR_OPTIONS_S, "stress-qoi-type-list", '\0',
+    &(rhea_inversion_stress_qoi_type_list),
+    RHEA_INVERSION_DEFAULT_STRESS_QOI_TYPE_LIST,
+    "List of types of stress QoIs",
 
   /* parameter options */
   YMIR_OPTIONS_D, "parameter-prior-stddev", '\0',
@@ -416,6 +437,15 @@ struct rhea_inversion_problem
   double                         *visc_obs_value;
   double                         *visc_obs_weight;
 
+  /* observations: stress inside mantle */
+  rhea_inversion_obs_stress_t  stress_obs_type;
+  ymir_vec_t                  *stress_obs;
+  ymir_vec_t                  *stress_obs_weight;
+
+  /* QoI post-processing: stress inside mantle */
+  rhea_inversion_obs_stress_t *stress_qoi_type;
+  int                          stress_qoi_n;
+
   /* weights for observational data and prior terms */
   double              data_abs_weight;
   double              prior_abs_weight;
@@ -448,6 +478,7 @@ struct rhea_inversion_problem
   ymir_vec_t             *newton_step_vec;
   ymir_vec_t             *newton_gradient_adjoint_comp_vec;
   ymir_vec_t             *newton_gradient_prior_comp_vec;
+  ymir_vec_t             *newton_gradient_observation_comp_vec;
   ymir_vec_t             *newton_gradient_diff_vec;
   int                     newton_gradient_diff_vec_update_count;
   ymir_vec_t        **check_gradient_perturb_vec;
@@ -508,7 +539,8 @@ static void
 rhea_inversion_set_weight_data (rhea_inversion_problem_t *inv_problem)
 {
   if (RHEA_INVERSION_OBS_VELOCITY_NONE  != inv_problem->vel_obs_type ||
-      RHEA_INVERSION_OBS_VISCOSITY_NONE != inv_problem->visc_obs_type) {
+      RHEA_INVERSION_OBS_VISCOSITY_NONE != inv_problem->visc_obs_type ||
+      RHEA_INVERSION_OBS_STRESS_NONE    != inv_problem->stress_obs_type) {
     inv_problem->data_abs_weight = 1.0;
   }
   else {
@@ -930,7 +962,7 @@ rhea_inversion_inner_solve_incremental_adjoint (
 }
 
 /******************************************************************************
- * Callback Functions for Newton Solver
+ * Helper Functions, Pre- and Post-Processing
  *****************************************************************************/
 
 static void         rhea_inversion_assemble_hessian (
@@ -945,65 +977,16 @@ static void         rhea_inversion_apply_hessian (
                                         rhea_inversion_problem_t *inv_problem,
                                         const rhea_inversion_hessian_t type);
 
-/**
- * Updates inversion parameters in the Stokes model.
- */
-static void
-rhea_inversion_update_param (ymir_vec_t *solution,
-                             rhea_inversion_param_t *inv_param)
-{
-  const int           solution_exists = (solution != NULL);
-  ymir_vec_t         *parameter_vec;
-#ifdef RHEA_ENABLE_DEBUG
-  ymir_vec_t         *parameter_vec_prev =
-                        rhea_inversion_param_vec_new (inv_param);
+static double       rhea_inversion_newton_evaluate_objective_fn (
+                                            ymir_vec_t *solution, void *data,
+                                            double *obj_comp);
 
-  /* get parameters before update */
-  rhea_inversion_param_pull_from_model (parameter_vec_prev, inv_param);
-#endif
-
-  /* get parameter vector */
-  if (solution_exists) { /* if parameters are given */
-    parameter_vec = solution;
-  }
-  else { /* otherwise use zeros as parameters */
-    parameter_vec = rhea_inversion_param_vec_new (inv_param);
-    ymir_vec_set_zero (parameter_vec);
-  }
-
-  /* update parameters in Stokes model */
-  rhea_inversion_param_push_to_model (parameter_vec, inv_param);
-
-  /* print previous and new parameters */
-#ifdef RHEA_ENABLE_DEBUG
-  {
-    const int          *active = rhea_inversion_param_get_active (inv_param);
-    const double       *param = parameter_vec->meshfree->e[0];
-    const double       *param_prev = parameter_vec_prev->meshfree->e[0];
-    int                 i;
-
-    RHEA_GLOBAL_VERBOSE ("========================================\n");
-    RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
-    RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
-    for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
-      if (active[i]) {
-        RHEA_GLOBAL_VERBOSEF ("param# %3i: %.15e -> %.15e\n", i,
-                              param_prev[i], param[i]);
-      }
-    }
-    RHEA_GLOBAL_VERBOSE ("========================================\n");
-  }
-  rhea_inversion_param_vec_destroy (parameter_vec_prev);
-#endif
-
-  /* destroy */
-  if (!solution_exists) {
-    rhea_inversion_param_vec_destroy (parameter_vec);
-  }
-}
+static void         rhea_inversion_newton_compute_negative_gradient_fn (
+                                            ymir_vec_t *neg_gradient,
+                                            ymir_vec_t *solution, void *data);
 
 static int
-rhea_inversion_newton_read_prev (sc_dmatrix_t *hessian_mat,
+rhea_inversion_read_prev_newton (sc_dmatrix_t *hessian_mat,
                                  ymir_vec_t *neg_gradient_vec,
                                  ymir_vec_t *step_vec,
                                  const char *hessian_prev_file_path_txt,
@@ -1090,6 +1073,221 @@ rhea_inversion_newton_read_prev (sc_dmatrix_t *hessian_mat,
 }
 
 static void
+rhea_inversion_write_posterior_hessian (
+                            const char *hessian_path,
+                            const rhea_inversion_hessian_t write_hessian_type,
+                            rhea_inversion_problem_t *inv_problem)
+{
+  rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
+  ymir_mesh_t            *ymir_mesh;
+  sc_MPI_Comm         mpicomm;
+  int                 mpirank, mpiret;
+
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "write_hessian_type=%i",
+                              write_hessian_type);
+
+  /* exit if nothing to do */
+  if (write_hessian_type < 0) {
+    return;
+  }
+
+  /* check input */
+  RHEA_ASSERT (NULL != hessian_path);
+  RHEA_ASSERT (NULL != inv_problem->hessian_matrix);
+
+  switch (write_hessian_type) {
+  case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
+  case RHEA_INVERSION_HESSIAN_FULL:
+    /* assemble Hessian matrix */
+    rhea_inversion_assemble_hessian (
+        inv_problem->hessian_matrix, inv_problem, write_hessian_type,
+        rhea_inversion_assemble_hessian_enforce_symm);
+
+    /* get parallel environment */
+    ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+    mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+    mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+
+    /* write to file */
+    if (mpirank == 0) {
+      rhea_io_std_write_double_to_txt (
+          hessian_path, inv_problem->hessian_matrix->e[0],
+          inv_problem->hessian_matrix->m *
+          inv_problem->hessian_matrix->n,
+          inv_problem->hessian_matrix->n);
+    }
+    break;
+  default: /* unsupported Hessian type */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
+}
+
+static void
+rhea_inversion_propagate_solution_to_qoi (ymir_vec_t *parameter_vec,
+                                          rhea_inversion_problem_t *inv_problem)
+{
+  ymir_vec_t         *forward_vel_press = inv_problem->forward_vel_press;
+  ymir_mesh_t        *ymir_mesh;
+  ymir_vec_t         *indicator, *misfit_stress;
+  double              qoi_norm, qoi_tang[3];
+  int                 i;
+
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+
+  /* check input */
+  RHEA_ASSERT (NULL != inv_problem->hessian_matrix);
+
+  ymir_mesh = ymir_vec_get_mesh (forward_vel_press);
+
+  indicator = rhea_weakzone_new (ymir_mesh);
+  rhea_weakzone_compute_indicator (
+      indicator, RHEA_WEAKZONE_LABEL_CLASS_NONE,
+      rhea_stokes_problem_get_weakzone_options (inv_problem->stokes_problem));
+  misfit_stress = rhea_stress_new (ymir_mesh);
+
+  RHEA_GLOBAL_INFO ("###DEV### test 1\n");
+  rhea_inversion_obs_stress_diff (
+      misfit_stress, forward_vel_press, NULL, indicator,
+      inv_problem->stokes_problem);
+
+  RHEA_GLOBAL_INFO ("###DEV### test 2\n");
+  qoi_norm = rhea_inversion_obs_stress_misfit (
+      forward_vel_press, NULL, indicator,
+      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL,
+      inv_problem->stokes_problem);
+  qoi_tang[0] = rhea_inversion_obs_stress_misfit (
+      forward_vel_press, NULL, indicator,
+      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X,
+      inv_problem->stokes_problem);
+  qoi_tang[1] = rhea_inversion_obs_stress_misfit (
+      forward_vel_press, NULL, indicator,
+      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y,
+      inv_problem->stokes_problem);
+  qoi_tang[2] = rhea_inversion_obs_stress_misfit (
+      forward_vel_press, NULL, indicator,
+      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z,
+      inv_problem->stokes_problem);
+  RHEA_GLOBAL_INFOF ("###DEV### qoi norm %g, tang %g %g %g\n",
+                     qoi_norm, qoi_tang[0], qoi_tang[1], qoi_tang[2]);
+  //TODO does qoi need to be in the dimension of stress?
+
+  RHEA_GLOBAL_INFO ("###DEV### test 3\n");
+  RHEA_GLOBAL_INFOF ("###DEV### n_qoi %i\n", inv_problem->stress_qoi_n);
+  for (i = 0; i < inv_problem->stress_qoi_n; i++) {
+    double            qoi;
+
+    qoi = rhea_inversion_obs_stress_misfit (
+      forward_vel_press, NULL, indicator, inv_problem->stress_qoi_type[i],
+      inv_problem->stokes_problem);
+    RHEA_GLOBAL_INFOF ("###DEV### qoi[%i] %g\n", i, qoi);
+  }
+
+  RHEA_GLOBAL_INFO ("###DEV### test 4\n");
+  if (parameter_vec != NULL) {
+    const rhea_inversion_obs_velocity_t  vel_obs_type = inv_problem->vel_obs_type;
+    const rhea_inversion_obs_viscosity_t visc_obs_type = inv_problem->visc_obs_type;
+    const rhea_inversion_obs_stress_t    stress_obs_type = inv_problem->stress_obs_type;
+    ymir_vec_t         *stress_obs_weight = inv_problem->stress_obs_weight;
+    const double        prior_abs_weight = inv_problem->prior_abs_weight;
+    ymir_vec_t         *neg_gradient_vec =
+                          rhea_inversion_param_vec_new (inv_problem->inv_param);
+
+    inv_problem->vel_obs_type = RHEA_INVERSION_OBS_VELOCITY_NONE;
+    inv_problem->visc_obs_type = RHEA_INVERSION_OBS_VISCOSITY_NONE;
+    inv_problem->prior_abs_weight = 0.0;
+    for (i = 0; i < inv_problem->stress_qoi_n; i++) {
+      double            qoi;
+
+      inv_problem->stress_obs_type = inv_problem->stress_qoi_type[i];
+      inv_problem->stress_obs_weight = indicator;
+
+      qoi = rhea_inversion_newton_evaluate_objective_fn (
+          parameter_vec, inv_problem, NULL);
+      RHEA_GLOBAL_INFOF ("###DEV### qoi[%i] %g\n", i, qoi);
+
+      rhea_inversion_newton_compute_negative_gradient_fn (
+          neg_gradient_vec, parameter_vec, inv_problem);
+    }
+
+    inv_problem->vel_obs_type = vel_obs_type;
+    inv_problem->visc_obs_type = visc_obs_type;
+    inv_problem->stress_obs_type = stress_obs_type;
+    inv_problem->stress_obs_weight = stress_obs_weight;
+    inv_problem->prior_abs_weight = prior_abs_weight;
+
+    rhea_inversion_param_vec_destroy (neg_gradient_vec);
+  }
+
+  rhea_weakzone_destroy (indicator);
+  rhea_stress_destroy (misfit_stress);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
+}
+
+/**
+ * Updates inversion parameters in the Stokes model.
+ */
+static void
+rhea_inversion_update_param (ymir_vec_t *solution,
+                             rhea_inversion_param_t *inv_param)
+{
+  const int           solution_exists = (solution != NULL);
+  ymir_vec_t         *parameter_vec;
+#ifdef RHEA_ENABLE_DEBUG
+  ymir_vec_t         *parameter_vec_prev =
+                        rhea_inversion_param_vec_new (inv_param);
+
+  /* get parameters before update */
+  rhea_inversion_param_pull_from_model (parameter_vec_prev, inv_param);
+#endif
+
+  /* get parameter vector */
+  if (solution_exists) { /* if parameters are given */
+    parameter_vec = solution;
+  }
+  else { /* otherwise use zeros as parameters */
+    parameter_vec = rhea_inversion_param_vec_new (inv_param);
+    ymir_vec_set_zero (parameter_vec);
+  }
+
+  /* update parameters in Stokes model */
+  rhea_inversion_param_push_to_model (parameter_vec, inv_param);
+
+  /* print previous and new parameters */
+#ifdef RHEA_ENABLE_DEBUG
+  {
+    const int          *active = rhea_inversion_param_get_active (inv_param);
+    const double       *param = parameter_vec->meshfree->e[0];
+    const double       *param_prev = parameter_vec_prev->meshfree->e[0];
+    int                 i;
+
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+    RHEA_GLOBAL_VERBOSEF ("%s\n", __func__);
+    RHEA_GLOBAL_VERBOSE ("----------------------------------------\n");
+    for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
+      if (active[i]) {
+        RHEA_GLOBAL_VERBOSEF ("param# %3i: %.15e -> %.15e\n", i,
+                              param_prev[i], param[i]);
+      }
+    }
+    RHEA_GLOBAL_VERBOSE ("========================================\n");
+  }
+  rhea_inversion_param_vec_destroy (parameter_vec_prev);
+#endif
+
+  /* destroy */
+  if (!solution_exists) {
+    rhea_inversion_param_vec_destroy (parameter_vec);
+  }
+}
+
+/******************************************************************************
+ * Callback Functions for Newton Solver
+ *****************************************************************************/
+
+static void
 rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
@@ -1101,7 +1299,7 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
     return;
   }
 
-  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
   ymir_perf_counter_start (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_SETUP_INV_SOLVER]);
 
@@ -1129,7 +1327,7 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
       NULL != rhea_inversion_step_prev_file_path_txt) {
     int                 success;
 
-    success = rhea_inversion_newton_read_prev (
+    success = rhea_inversion_read_prev_newton (
         inv_problem->hessian_matrix,
         inv_problem->newton_neg_gradient_vec,
         inv_problem->newton_step_vec,
@@ -1149,14 +1347,13 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_SETUP_INV_SOLVER]);
-  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+  RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
 static void
-rhea_inversion_newton_clear_solver_data_fn (void *data)
+rhea_inversion_newton_clear_solver_data_fn (ymir_vec_t *solution, void *data)
 {
   rhea_inversion_problem_t *inv_problem = data;
-  const char               *txt_path = inv_problem->txt_path;
   const rhea_inversion_hessian_t  write_hessian_type =
     (rhea_inversion_hessian_t) rhea_inversion_hessian_type_write_after_solve;
 
@@ -1167,41 +1364,16 @@ rhea_inversion_newton_clear_solver_data_fn (void *data)
   RHEA_ASSERT (rhea_inversion_solver_data_exists (inv_problem));
 
   /* write Hessian matrix to file */
-  if (NULL != txt_path && NULL != inv_problem->hessian_matrix &&
-      0 <= write_hessian_type) {
-    rhea_stokes_problem_t  *stokes_problem = inv_problem->stokes_problem;
-    ymir_mesh_t            *ymir_mesh;
-    sc_MPI_Comm         mpicomm;
-    int                 mpirank, mpiret;
+  if (NULL != inv_problem->txt_path && NULL != inv_problem->hessian_matrix) {
     char                path[BUFSIZ];
 
-    switch (write_hessian_type) {
-    case RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX:
-    case RHEA_INVERSION_HESSIAN_FULL:
-      /* assemble Hessian matrix */
-      rhea_inversion_assemble_hessian (
-          inv_problem->hessian_matrix, inv_problem, write_hessian_type,
-          rhea_inversion_assemble_hessian_enforce_symm);
-
-      /* get parallel environment */
-      ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
-      mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
-      mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
-
-      /* write to file */
-      if (mpirank == 0) {
-        snprintf (path, BUFSIZ, "%s_posterior_hessian.txt", txt_path);
-        rhea_io_std_write_double_to_txt (
-            path, inv_problem->hessian_matrix->e[0],
-            inv_problem->hessian_matrix->m *
-            inv_problem->hessian_matrix->n,
-            inv_problem->hessian_matrix->n);
-      }
-      break;
-    default: /* unsupported Hessian type */
-      RHEA_ABORT_NOT_REACHED ();
-    }
+    snprintf (path, BUFSIZ, "%s_posterior_hessian.txt", inv_problem->txt_path);
+    rhea_inversion_write_posterior_hessian (path, write_hessian_type,
+                                            inv_problem);
   }
+
+  /* propagate results to QoIs */
+  rhea_inversion_propagate_solution_to_qoi (solution, inv_problem);
 
   /* destroy Hessian matrix */
   if (NULL != inv_problem->hessian_matrix) {
@@ -1711,7 +1883,7 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   double              data_abs_weight;
   double              prior_abs_weight;
   ymir_vec_t         *vel;
-  double              obj_data_misfit[2], obj_prior_misfit, obj_val;
+  double              obj_data_misfit[3], obj_prior_misfit, obj_val;
 
   /* set weights if they do not exist */
   if (!isfinite (inv_problem->data_abs_weight)) {
@@ -1756,12 +1928,18 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
         vel, inv_problem->visc_obs_type, inv_problem->visc_obs_n,
         inv_problem->visc_obs_column, inv_problem->visc_obs_value,
         inv_problem->visc_obs_weight, stokes_problem);
+    obj_data_misfit[2] = rhea_inversion_obs_stress_misfit (
+        inv_problem->forward_vel_press, inv_problem->stress_obs,
+        inv_problem->stress_obs_weight, inv_problem->stress_obs_type,
+        stokes_problem);
     obj_data_misfit[0] *= data_abs_weight;
     obj_data_misfit[1] *= data_abs_weight;
+    obj_data_misfit[2] *= data_abs_weight;
   }
   else {
     obj_data_misfit[0] = 0.0;
     obj_data_misfit[1] = 0.0;
+    obj_data_misfit[2] = 0.0;
   }
   rhea_velocity_destroy (vel);
 
@@ -1775,19 +1953,22 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   }
 
   /* add terms to get full objective value */
-  obj_val = obj_data_misfit[0] + obj_data_misfit[1] + obj_prior_misfit;
+  obj_val = obj_data_misfit[0] + obj_data_misfit[1] + obj_data_misfit[2] +
+            obj_prior_misfit;
 
   ymir_perf_counter_stop_add (
       &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_OBJ]);
   RHEA_GLOBAL_INFOF_FN_END (
-      __func__, "value=%.15e, components[%.15e, %.15e; %.15e]",
-      obj_val, obj_data_misfit[0], obj_data_misfit[1], obj_prior_misfit);
+      __func__, "value=%.15e, components[%.15e, %.15e, %.15e; %.15e]",
+      obj_val, obj_data_misfit[0], obj_data_misfit[1], obj_data_misfit[2],
+      obj_prior_misfit);
 
   /* return value of objective functional */
   if (NULL != obj_comp) {
     obj_comp[0] = obj_data_misfit[0];
     obj_comp[1] = obj_data_misfit[1];
-    obj_comp[2] = obj_prior_misfit;
+    obj_comp[2] = obj_data_misfit[2];
+    obj_comp[3] = obj_prior_misfit;
   }
   return obj_val;
 }
@@ -1804,6 +1985,33 @@ rhea_inversion_newton_evaluate_objective_err_fn (double *error_mean,
   return 1;
 }
 
+static double
+_param_derivative_from_observations (
+                                  ymir_vec_t *forward_vel_press,
+                                  ymir_vec_t *adjoint_vel_press,
+                                  const int parameter_idx,
+                                  const int derivative_type,
+                                  const rhea_weakzone_label_t weak_label,
+                                  ymir_vec_t *coeff_param_derivative,
+                                  ymir_stress_op_t *stress_op_param_derivative,
+                                  void *data)
+{
+  rhea_inversion_problem_t *inv_problem = data;
+  double              val = 0.0;
+
+  /* gather derivatives from observation operators */
+  val += rhea_inversion_obs_velocity_misfit_param_derivative (
+      inv_problem->vel_obs_type);
+  val += rhea_inversion_obs_viscosity_misfit_param_derivative (
+      inv_problem->visc_obs_type);
+  val += rhea_inversion_obs_stress_misfit_param_derivative (
+      forward_vel_press, inv_problem->stress_obs,
+      inv_problem->stress_obs_weight, inv_problem->stress_obs_type,
+      inv_problem->stokes_problem, stress_op_param_derivative);
+
+  return val;
+}
+
 static void
 rhea_inversion_newton_compute_negative_gradient_fn (
                                             ymir_vec_t *neg_gradient,
@@ -1818,10 +2026,12 @@ rhea_inversion_newton_compute_negative_gradient_fn (
                                             inv_problem->project_out_null;
   const double        data_abs_weight = inv_problem->data_abs_weight;
   const double        prior_abs_weight = inv_problem->prior_abs_weight;
-  ymir_vec_t         *gradient_adjoint_comp =
+  ymir_vec_t         *gradient_adj_comp =
                         inv_problem->newton_gradient_adjoint_comp_vec;
   ymir_vec_t         *gradient_prior_comp =
                         inv_problem->newton_gradient_prior_comp_vec;
+  ymir_vec_t         *gradient_obs_comp =
+                        inv_problem->newton_gradient_observation_comp_vec;
   ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
@@ -1879,6 +2089,10 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       rhs_vel_mass, vel, inv_problem->visc_obs_type, inv_problem->visc_obs_n,
       inv_problem->visc_obs_column, inv_problem->visc_obs_value,
       inv_problem->visc_obs_weight, stokes_problem);
+  rhea_inversion_obs_stress_add_adjoint_rhs (
+      rhs_vel_mass, inv_problem->forward_vel_press,
+      inv_problem->stress_obs, inv_problem->stress_obs_weight,
+      inv_problem->stress_obs_type, stokes_problem);
   ymir_vec_scale (data_abs_weight, rhs_vel_mass);
 
   /* project out null spaces and enforce Dirichlet BC's on right-hand side */
@@ -1921,14 +2135,16 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   rhea_inversion_param_compute_gradient (
       neg_gradient, solution, inv_problem->forward_vel_press,
       inv_problem->adjoint_vel_press, prior_abs_weight, inv_param,
-      gradient_adjoint_comp, gradient_prior_comp);
+      gradient_adj_comp, gradient_prior_comp, gradient_obs_comp,
+      _param_derivative_from_observations, inv_problem);
 
   /* print gradient */
   {
     const int          *active = rhea_inversion_param_get_active (inv_param);
     const double       *grad = neg_gradient->meshfree->e[0];
-    const double       *grad_adj = gradient_adjoint_comp->meshfree->e[0];
+    const double       *grad_adj = gradient_adj_comp->meshfree->e[0];
     const double       *grad_prior = gradient_prior_comp->meshfree->e[0];
+    const double       *grad_obs = gradient_obs_comp->meshfree->e[0];
     int                 i;
 
     RHEA_GLOBAL_INFO ("========================================\n");
@@ -1936,8 +2152,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
     RHEA_GLOBAL_INFO ("----------------------------------------\n");
     for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
       if (active[i]) {
-        RHEA_GLOBAL_INFOF ("param# %3i: %+.6e [%+.6e, %+.6e]\n", i,
-                           grad[i], grad_adj[i], grad_prior[i]);
+        RHEA_GLOBAL_INFOF ("param# %3i: %+.6e [%+.6e, %+.6e, %+.6e]\n", i,
+                           grad[i], grad_adj[i], grad_prior[i], grad_obs[i]);
       }
     }
     RHEA_GLOBAL_INFO ("========================================\n");
@@ -1984,7 +2200,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       if (active[i]) {
         RHEA_ASSERT (vidx < inv_problem->check_gradient_perturb_n_vecs);
         perturb_vec[vidx]->meshfree->e[0][i] =
-            0.5 * fabs (solution->meshfree->e[0][i]);
+            1.0e-2 * fabs (solution->meshfree->e[0][i]);
         vidx++;
       }
     }
@@ -2007,7 +2223,7 @@ rhea_inversion_newton_compute_gradient_norm_fn (ymir_vec_t *neg_gradient,
 {
   rhea_inversion_problem_t *inv_problem = data;
   rhea_inversion_param_t   *inv_param = inv_problem->inv_param;
-  double              grad_norm, grad_adj_norm, grad_prior_norm;
+  double              grad_norm, grad_adj_norm, grad_prior_norm, grad_obs_norm;
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (neg_gradient, inv_param));
@@ -2020,13 +2236,16 @@ rhea_inversion_newton_compute_gradient_norm_fn (ymir_vec_t *neg_gradient,
       inv_problem->newton_gradient_adjoint_comp_vec, inv_param);
   grad_prior_norm = rhea_inversion_param_compute_gradient_norm (
       inv_problem->newton_gradient_prior_comp_vec, inv_param);
+  grad_obs_norm = rhea_inversion_param_compute_gradient_norm (
+      inv_problem->newton_gradient_observation_comp_vec, inv_param);
   RHEA_GLOBAL_VERBOSEF_FN_TAG (
       __func__, "gradient_norm=%.6e, gradient_adjoint_comp=%.6e, "
-      "gradient_prior_comp=%.6e", grad_norm, grad_adj_norm, grad_prior_norm);
+      "gradient_prior_comp=%.6e, gradient_observation_comp=%.6e",
+      grad_norm, grad_adj_norm, grad_prior_norm, grad_obs_norm);
 
   /* return gradient norms */
   if (norm_comp != NULL) {
-    norm_comp[0] = grad_adj_norm;
+    norm_comp[0] = grad_adj_norm + grad_obs_norm;
     norm_comp[1] = grad_prior_norm;
   }
   return grad_norm;
@@ -2468,7 +2687,8 @@ rhea_inversion_write_txt (ymir_vec_t *solution,
   sc_MPI_Comm         mpicomm;
   int                 mpirank, mpiret;
   sc_dmatrix_t       *sol, *step;
-  sc_dmatrix_t       *grad_combined, *neg_grad, *grad_adj, *grad_prior;
+  sc_dmatrix_t       *grad_combined, *neg_grad;
+  sc_dmatrix_t       *grad_adj, *grad_prior, *grad_obs;
   int                 i;
   char                path[BUFSIZ];
 
@@ -2497,12 +2717,17 @@ rhea_inversion_write_txt (ymir_vec_t *solution,
       inv_problem->newton_gradient_adjoint_comp_vec, inv_param);
   grad_prior = rhea_inversion_param_vec_reduced_new (
       inv_problem->newton_gradient_prior_comp_vec, inv_param);
-  grad_combined = sc_dmatrix_new (neg_grad->m, 3);
-  RHEA_ASSERT (neg_grad->m == grad_adj->m && neg_grad->m == grad_prior->m);
+  grad_obs = rhea_inversion_param_vec_reduced_new (
+      inv_problem->newton_gradient_observation_comp_vec, inv_param);
+  grad_combined = sc_dmatrix_new (neg_grad->m, 4);
+  RHEA_ASSERT (neg_grad->m == grad_adj->m &&
+               neg_grad->m == grad_prior->m &&
+               neg_grad->m == grad_obs->m);
   for (i = 0; i < grad_combined->m; i++) {
     grad_combined->e[i][0] = -neg_grad->e[i][0];
     grad_combined->e[i][1] = grad_adj->e[i][0];
     grad_combined->e[i][2] = grad_prior->e[i][0];
+    grad_combined->e[i][3] = grad_obs->e[i][0];
   }
   snprintf (path, BUFSIZ, "%s%s%02i_gradient.txt", txt_path,
             RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
@@ -2512,6 +2737,7 @@ rhea_inversion_write_txt (ymir_vec_t *solution,
   rhea_inversion_param_vec_reduced_destroy (neg_grad);
   rhea_inversion_param_vec_reduced_destroy (grad_adj);
   rhea_inversion_param_vec_reduced_destroy (grad_prior);
+  rhea_inversion_param_vec_reduced_destroy (grad_obs);
   sc_dmatrix_destroy (grad_combined);
 
   /* write step */
@@ -2585,6 +2811,7 @@ rhea_inversion_write_vis (const int iter,
   rhea_domain_options_t      *domain_options;
   rhea_temperature_options_t *temp_options;
   rhea_viscosity_options_t   *visc_options;
+  rhea_weakzone_options_t    *weak_options;
   const char         *vtk_path_vol = inv_problem->vtk_path_vol;
   const char         *vtk_path_surf = inv_problem->vtk_path_surf;
   ymir_vec_t         *vel_fwd_vol, *press_fwd_vol;
@@ -2606,6 +2833,7 @@ rhea_inversion_write_vis (const int iter,
   domain_options = rhea_stokes_problem_get_domain_options (stokes_problem);
   temp_options = rhea_stokes_problem_get_temperature_options (stokes_problem);
   visc_options = rhea_stokes_problem_get_viscosity_options (stokes_problem);
+  weak_options = rhea_stokes_problem_get_weakzone_options (stokes_problem);
 
   /* get volume fields */
   vel_fwd_vol   = rhea_velocity_new (ymir_mesh);
@@ -2667,27 +2895,47 @@ rhea_inversion_write_vis (const int iter,
     rhea_velocity_surface_destroy (misfit_surf);
   }
 
-  /* convert to physical dimensions */
-  rhea_velocity_convert_to_dimensional_mm_yr (
-      vel_fwd_vol, domain_options, temp_options);
-  rhea_velocity_convert_to_dimensional_mm_yr (
-      vel_adj_vol, domain_options, temp_options);
-  rhea_pressure_convert_to_dimensional_Pa (
-      press_fwd_vol, domain_options, temp_options, visc_options);
-  rhea_pressure_convert_to_dimensional_Pa (
-      press_adj_vol, domain_options, temp_options, visc_options);
-  rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
-  strainrate_dim_1_s =
-    rhea_strainrate_get_dim_1_s (domain_options, temp_options) /
-    rhea_velocity_get_dim_mm_yr (domain_options, temp_options);
-
-  /* write VTK of volume fields */
+  /* process volume fields */
   if (vtk_path_vol != NULL) {
+    ymir_vec_t         *weak_normal, *stress;
+
+    /* compute normal direction at plate boundaries */
+    weak_normal = rhea_weakzone_normal_new (ymir_mesh);
+    rhea_weakzone_compute_normal (weak_normal, weak_options);
+
+    /* compute stress tensor */
+    stress = rhea_stress_new (ymir_mesh);
+    rhea_stokes_problem_stress_compute (
+        stress, inv_problem->forward_vel_press, stokes_problem,
+        NULL /* !override_stress_op */, 0 /* !linearized */,
+        0 /* !skip_pressure */);
+
+    /* convert to physical dimensions */
+    rhea_velocity_convert_to_dimensional_mm_yr (
+        vel_fwd_vol, domain_options, temp_options);
+    rhea_velocity_convert_to_dimensional_mm_yr (
+        vel_adj_vol, domain_options, temp_options);
+    rhea_pressure_convert_to_dimensional_Pa (
+        press_fwd_vol, domain_options, temp_options, visc_options);
+    rhea_pressure_convert_to_dimensional_Pa (
+        press_adj_vol, domain_options, temp_options, visc_options);
+    rhea_viscosity_convert_to_dimensional_Pas (viscosity, visc_options);
+    rhea_stress_convert_to_dimensional_Pa (
+        stress, domain_options, temp_options, visc_options);
+    strainrate_dim_1_s =
+      rhea_strainrate_get_dim_1_s (domain_options, temp_options) /
+      rhea_velocity_get_dim_mm_yr (domain_options, temp_options);
+
+    /* write VTK of volume fields*/
     snprintf (path, BUFSIZ, "%s%s%02i", vtk_path_vol,
               RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
     rhea_vtk_write_inversion_iteration (
         path, vel_fwd_vol, press_fwd_vol, vel_adj_vol, press_adj_vol,
-        viscosity, marker, strainrate_dim_1_s);
+        viscosity, marker, stress, weak_normal, strainrate_dim_1_s);
+
+    /* destroy */
+    rhea_stress_destroy (stress);
+    rhea_weakzone_normal_destroy (weak_normal);
   }
 
   /* destroy */
@@ -2727,7 +2975,7 @@ rhea_inversion_newton_output_prestep_fn (ymir_vec_t *solution,
   rhea_inversion_write_vis (iter, inv_problem);
 
   /* activate/deactivate AMR for next nonlinear iteration */
-  RHEA_GLOBAL_INFOF_FN_TAG (__func__, "nonlinear_amr=%i\n", amr_active);
+  RHEA_GLOBAL_INFOF_FN_TAG (__func__, "nonlinear_amr=%i", amr_active);
   if (amr_active) {
     rhea_stokes_problem_amr_process_options ();
   }
@@ -2760,6 +3008,8 @@ rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
   inv_problem->newton_gradient_adjoint_comp_vec =
     rhea_inversion_param_vec_new (inv_param);
   inv_problem->newton_gradient_prior_comp_vec =
+    rhea_inversion_param_vec_new (inv_param);
+  inv_problem->newton_gradient_observation_comp_vec =
     rhea_inversion_param_vec_new (inv_param);
   inv_problem->newton_step_vec =
     rhea_inversion_param_vec_new (inv_param);
@@ -2799,7 +3049,8 @@ rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
       rhea_inversion_newton_create_solver_data_fn,
       rhea_inversion_newton_clear_solver_data_fn, newton_problem);
   rhea_newton_problem_set_evaluate_objective_fn (
-      rhea_inversion_newton_evaluate_objective_fn, 3 /* #components */,
+      rhea_inversion_newton_evaluate_objective_fn,
+      RHEA_INVERSION_OBJ_N_COMPONENTS,
       rhea_inversion_newton_evaluate_objective_err_fn, newton_problem);
   rhea_newton_problem_set_apply_hessian_fn (
       rhea_inversion_newton_apply_hessian_fn, newton_problem);
@@ -2868,6 +3119,8 @@ rhea_inversion_newton_problem_clear (rhea_inversion_problem_t *inv_problem)
       inv_problem->newton_gradient_adjoint_comp_vec);
   rhea_inversion_param_vec_destroy (
       inv_problem->newton_gradient_prior_comp_vec);
+  rhea_inversion_param_vec_destroy (
+      inv_problem->newton_gradient_observation_comp_vec);
   if (NULL != inv_problem->newton_gradient_diff_vec) {
     rhea_inversion_param_vec_destroy (inv_problem->newton_gradient_diff_vec);
   }
@@ -3135,6 +3388,31 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
       rhea_stokes_problem_get_plate_options (stokes_problem),
       rhea_stokes_problem_get_viscosity_options (stokes_problem));
 
+  /* initialize stress data */
+  inv_problem->stress_obs_type =
+    (rhea_inversion_obs_stress_t) rhea_inversion_stress_obs_type;
+  inv_problem->stress_obs = NULL;               //TODO
+  inv_problem->stress_obs_weight = NULL;        //TODO
+  inv_problem->stress_qoi_type = NULL;
+  inv_problem->stress_qoi_n = 0;
+  if (NULL != rhea_inversion_stress_qoi_type_list) {
+    double             *list = NULL;
+    int                 n_entries, i;
+
+    n_entries = ymir_options_convert_string_to_double (
+        rhea_inversion_stress_qoi_type_list, &list);
+    if (0 < n_entries) {
+      inv_problem->stress_qoi_n = n_entries;
+      inv_problem->stress_qoi_type = RHEA_ALLOC (rhea_inversion_obs_stress_t,
+                                                 n_entries);
+      for (i = 0; i < n_entries; i++) {
+        inv_problem->stress_qoi_type[i] =
+          (rhea_inversion_obs_stress_t) ((int) list[i]);
+      }
+    }
+    YMIR_FREE (list); /* was allocated in ymir */
+  }
+
   /* create parameters */
   inv_problem->inv_param_options = &rhea_inversion_param_options;
   inv_problem->inv_param = rhea_inversion_param_new (
@@ -3189,7 +3467,7 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
 
   /* destroy solver data */
   if (rhea_inversion_solver_data_exists (inv_problem)) {
-    rhea_inversion_newton_clear_solver_data_fn (inv_problem);
+    rhea_inversion_newton_clear_solver_data_fn (NULL, inv_problem);
   }
 
   /* destroy Newton problem */
@@ -3197,6 +3475,11 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
 
   /* destroy parameters */
   rhea_inversion_param_destroy (inv_problem->inv_param);
+
+  /* destroy stress data */
+  if (NULL != inv_problem->stress_qoi_type) {
+    RHEA_FREE (inv_problem->stress_qoi_type);
+  }
 
   /* destroy viscosity data */
   rhea_inversion_obs_viscosity_destroy (
