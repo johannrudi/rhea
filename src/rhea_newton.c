@@ -2118,6 +2118,7 @@ rhea_newton_solve (ymir_vec_t **solution,
       if (!neg_gradient_updated) { /* if (neg.) gradient not yet updated */
         rhea_newton_problem_compute_neg_gradient (nl_problem->neg_gradient_vec,
                                                   *solution, nl_problem);
+        neg_gradient_updated = 1;
         rhea_newton_check_gradient (*solution, nl_problem->neg_gradient_vec,
                                     nl_problem->check_gradient,
                                     nl_problem->check_gradient_perturb_vec,
