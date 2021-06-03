@@ -4299,7 +4299,8 @@ rhea_stokes_problem_stress_compute (ymir_vec_t *stress,
                                     ymir_vec_t *vel_press,
                                     rhea_stokes_problem_t *stokes_problem,
                                     ymir_stress_op_t *override_stress_op,
-                                    int linearized_visc_coeff)
+                                    int linearized_visc_coeff,
+                                    const int skip_pressure)
 {
   ymir_pressure_elem_t *press_elem = rhea_stokes_problem_get_press_elem (
                             stokes_problem);
@@ -4344,8 +4345,10 @@ rhea_stokes_problem_stress_compute (ymir_vec_t *stress,
       &velocity, &pressure, vel_press, press_elem);
   ymir_stress_op_optimized_compute_visc_stress (
       stress, velocity, stress_op, linearized_visc_coeff, 0 /* zero Dir */);
-  rhea_stress_combine_stresses (
-      stress, pressure, press_elem);
+  if (!skip_pressure) {
+    rhea_stress_combine_stresses (
+        stress, pressure, press_elem);
+  }
 
   /* destroy */
   ymir_vec_destroy (velocity);

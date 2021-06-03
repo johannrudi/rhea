@@ -383,7 +383,8 @@ int                 rhea_stokes_problem_stress_compute (
                                     ymir_vec_t *vel_press,
                                     rhea_stokes_problem_t *stokes_problem,
                                     ymir_stress_op_t *override_stress_op,
-                                    int linearized_visc_coeff);
+                                    int linearized_visc_coeff,
+                                    const int skip_pressure);
 
 /**
  * Computes normal stress at the surface of the domain.
