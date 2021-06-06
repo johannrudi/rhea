@@ -12,9 +12,9 @@
 ########################################
 
 declare -r URL_PREFIX='https://'
+declare -r URL_BASE_FET='bitbucket.org/ccgo/fet.git'
 declare -r URL_BASE_MANGLL='bitbucket.org/ccgo/mangll.git'
 declare -r URL_BASE_YMIR='bitbucket.org/ccgo/ymir.git'
-declare -r URL_BASE_FET='bitbucket.org/ccgo/fet.git'
 
 ########################################
 # Functions
@@ -56,14 +56,16 @@ git submodule init
 
 # set user name in bitbucket URLs
 if [ -n "${bitbucket_user:+SetNotNull}" ]; then # if variable is set and !null
+  fet_url="${URL_PREFIX}${bitbucket_user}@${URL_BASE_FET}"
   mangll_url="${URL_PREFIX}${bitbucket_user}@${URL_BASE_MANGLL}"
   ymir_url="${URL_PREFIX}${bitbucket_user}@${URL_BASE_YMIR}"
-  fet_url="${URL_PREFIX}${bitbucket_user}@${URL_BASE_FET}"
 
   echo "Add bitbucket user name \"$bitbucket_user\" to submodule URLs:"
+  echo "  fet:     $fet_url"
   echo "  mangll:  $mangll_url"
   echo "  ymir:    $ymir_url"
 
+  git config --file .git/config submodule.fet.url $fet_url
   git config --file .git/config submodule.mangll.url $mangll_url
   git config --file .git/config submodule.ymir.url $ymir_url
 fi
