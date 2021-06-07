@@ -31,6 +31,7 @@ char                _amr_solution_type_name[BUFSIZ];
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TYPE_NAME "NONE"
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX (NAN)
+#define RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_UNIFORM_N_CYCLES (0)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TYPE_NAME "NONE"
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MIN (NAN)
 #define RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TOL_MAX (NAN)
@@ -54,6 +55,8 @@ double              rhea_stokes_problem_amr_init_tol_min =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MIN;
 double              rhea_stokes_problem_amr_init_tol_max =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX;
+int                 rhea_stokes_problem_amr_init_uniform_n_cycles =
+  RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_UNIFORM_N_CYCLES;
 char               *rhea_stokes_problem_amr_nonlinear_type_name =
   RHEA_STOKES_PROBLEM_AMR_DEFAULT_NONLINEAR_TYPE_NAME;
 double              rhea_stokes_problem_amr_nonlinear_tol_min =
@@ -108,6 +111,10 @@ rhea_stokes_problem_amr_add_options (ymir_options_t * opt_sup)
     &(rhea_stokes_problem_amr_init_tol_max),
     RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_TOL_MAX,
     "AMR for initial mesh: tolerance above which the mesh is refined",
+  YMIR_OPTIONS_I, "init-amr-uniform-num-cylces", '\0',
+    &(rhea_stokes_problem_amr_init_uniform_n_cycles),
+    RHEA_STOKES_PROBLEM_AMR_DEFAULT_INIT_UNIFORM_N_CYCLES,
+    "AMR for initial mesh: #cycles of nuniform refinement after AMR",
 
   YMIR_OPTIONS_S, "nonlinear-amr-name", '\0',
     &(rhea_stokes_problem_amr_nonlinear_type_name),
@@ -1560,6 +1567,8 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   const double        tol_min = rhea_stokes_problem_amr_init_tol_min;
   const double        tol_max = rhea_stokes_problem_amr_init_tol_max;
   const int           n_cycles = rhea_stokes_problem_amr_n_cycles;
+  const int           n_cycles_uniform =
+                        rhea_stokes_problem_amr_init_uniform_n_cycles;
   const double        flagged_elements_thresh_begin =
     rhea_stokes_problem_amr_flagged_elements_thresh_begin;
   const double        flagged_elements_thresh_cycle =
@@ -1608,7 +1617,8 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data->tol_max = tol_max;
 
   /* perform AMR */
-  amr_iter = rhea_amr (p4est, n_cycles, flagged_elements_thresh_begin,
+  amr_iter = rhea_amr (p4est, n_cycles, n_cycles_uniform,
+                       flagged_elements_thresh_begin,
                        flagged_elements_thresh_cycle, flag_fn, flag_fn_data,
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
@@ -1686,7 +1696,8 @@ rhea_stokes_problem_nonlinear_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data->tol_max = tol_max;
 
   /* perform AMR */
-  amr_iter = rhea_amr (p4est, n_cycles, flagged_elements_thresh_begin,
+  amr_iter = rhea_amr (p4est, n_cycles, 0 /* n_cycles_uniform */,
+                       flagged_elements_thresh_begin,
                        flagged_elements_thresh_cycle, flag_fn, flag_fn_data,
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
@@ -1766,7 +1777,8 @@ rhea_stokes_problem_solution_amr (rhea_stokes_problem_t *stokes_problem,
   }
 
   /* perform AMR */
-  amr_iter = rhea_amr (p4est, n_cycles, flagged_elements_thresh_begin,
+  amr_iter = rhea_amr (p4est, n_cycles, 0 /* n_cycles_uniform */,
+                       flagged_elements_thresh_begin,
                        flagged_elements_thresh_cycle, flag_fn, flag_fn_data,
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,
@@ -1819,7 +1831,8 @@ rhea_stokes_problem_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data->tol_max = tol_max;
 
   /* perform AMR */
-  amr_iter = rhea_amr (p4est, n_cycles, flagged_elements_thresh_begin,
+  amr_iter = rhea_amr (p4est, n_cycles, 0 /* n_cycles_uniform */,
+                       flagged_elements_thresh_begin,
                        flagged_elements_thresh_cycle, flag_fn, flag_fn_data,
                        rhea_stokes_problem_amr_data_initialize_fn,
                        rhea_stokes_problem_amr_data_finalize_fn,

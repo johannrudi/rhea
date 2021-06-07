@@ -494,6 +494,7 @@ rhea_amr_get_level_histogram (p4est_t *p4est,
 int
 rhea_amr (p4est_t *p4est,
           const int n_cycles,
+          const int n_cycles_uniform,
           const double flagged_elements_thresh_begin,
           const double flagged_elements_thresh_cycle,
           rhea_amr_flag_elements_fn_t flag_elements_fn,
@@ -511,7 +512,8 @@ rhea_amr (p4est_t *p4est,
   p4est_gloidx_t      n_elements_curr = n_elements_begin;
   p4est_gloidx_t      n_elements_prev, n_elements_coar, n_elements_refn;
   const int           iter_max = SC_MAX (1, n_cycles);
-  int                 iter;
+  const int           iter_uniform_max = SC_MAX (0, n_cycles_uniform);
+  int                 iter, iter_uniform;
   p4est_gloidx_t      n_flagged_coar, n_flagged_refn;
   double              flagged_thresh, flagged_rel;
 //double              coarsened_rel;
@@ -706,6 +708,66 @@ rhea_amr (p4est_t *p4est,
         __func__, iter - 1);
   }
 
+  /* perform uniform refinement in addition to AMR */
+  if (data_altered && 0 < iter_uniform_max) {
+    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "#cycles_uniform=%i",
+                              iter_uniform_max);
+
+    for (iter_uniform = 0; iter_uniform < iter_uniform_max; iter_uniform++) {
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          __func__, "cycle_uniform=%i, #elements=%lli",
+          iter_uniform, (long long int) n_elements_curr);
+
+      /* check if max #elements is estimated to be reached */
+      n_elements_estd = (double) (P4EST_CHILDREN * n_elements_curr);
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          __func__, "cycle_uniform=%i, #elements_estimate=%g, #elements_max=%g",
+          iter_uniform, n_elements_estd, n_elements_maxd);
+      if (n_elements_maxd < n_elements_estd) {
+        RHEA_GLOBAL_INFOF_FN_TAG (
+            __func__,
+            "cycle=%i, stop_reason=\"#elements est. %g > #elements max %g\"",
+            iter_uniform, n_elements_estd, n_elements_maxd);
+        break;
+      }
+
+      /* refine p4est */
+      ymir_perf_counter_start (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_REFINE]);
+      p4est_refine (p4est, refine_recursively, rhea_amr_refine_all_fn, init_fn);
+      ymir_perf_counter_stop_add (
+          &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_REFINE]);
+
+      /* skip balancing of p4est mesh */
+
+      /* project data onto adapted mesh */
+      if (data_project_fn != NULL) {
+        ymir_perf_counter_start (
+            &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PROJECT]);
+        data_project_fn (p4est, data);
+        ymir_perf_counter_stop_add (
+            &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PROJECT]);
+      }
+
+      /* skip partitioning of p4est mesh */
+
+      /* partition data */
+      if (data_partition_fn != NULL) {
+        ymir_perf_counter_start (
+            &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PARTITION]);
+        data_partition_fn (p4est, data);
+        ymir_perf_counter_stop_add (
+            &rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_DATA_PARTITION]);
+      }
+
+      /* udpate element counts */
+      n_elements_prev = n_elements_curr;
+      n_elements_curr = rhea_amr_get_global_n_elems (p4est);
+    }
+  }
+  else {
+    iter_uniform = 0;
+  }
+
   /* finalize data if AMR was performed */
   if (data_altered && data_finalize_fn != NULL) {
     ymir_perf_counter_start (
@@ -717,12 +779,13 @@ rhea_amr (p4est_t *p4est,
 
   /* print statistics */
   RHEA_GLOBAL_INFOF (
-      "<%s #cycles=%i, #elements_beginning=%lli, #elements_end=%lli, "
-      "change=%+.1f%% />\n", __func__, iter,
+      "<%s #cycles=%i, #cycles_uniform=%i, "
+      "#elements_beginning=%lli, #elements_end=%lli, "
+      "change=%+.1f%% />\n", __func__, iter, iter_uniform,
       (long long int) n_elements_begin, (long long int) n_elements_curr,
       (double) (n_elements_curr - n_elements_begin) /
       (double) n_elements_begin * 100.0);
-  if (0 < iter) {
+  if (0 < iter || 0 < iter_uniform) {
     int                 level_max = -1;
 
     if (rhea_amr_log_level) {

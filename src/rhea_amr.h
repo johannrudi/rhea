@@ -113,6 +113,7 @@ typedef void      (*rhea_amr_data_partition_fn_t) (p4est_t *p4est, void *data);
  */
 int                 rhea_amr (p4est_t *p4est,
                               const int n_cycles,
+                              const int n_cycles_uniform,
                               const double flagged_elements_thresh_begin,
                               const double flagged_elements_thresh_cycle,
                               rhea_amr_flag_elements_fn_t flag_elements_fn,
