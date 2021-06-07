@@ -154,7 +154,7 @@ main (int argc, char **argv)
   double              solver_rel_tol;
   char               *velocity_file_path_bin;
   char               *pressure_file_path_bin;
-  int                *write_solution_amr;
+  int                 write_solution_amr;
   char               *bin_solver_path;
   char               *vtk_input_path;
   char               *vtk_solution_path;
