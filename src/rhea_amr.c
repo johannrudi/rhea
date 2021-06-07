@@ -545,8 +545,8 @@ rhea_amr (p4est_t *p4est,
   RHEA_ASSERT (flag_elements_fn != NULL);
 
   for (iter = 0; iter < iter_max; iter++) { /* BEGIN: AMR iterations */
-    RHEA_GLOBAL_INFOF ("<%s cycle=%i, #elements=%lli />\n",
-                       __func__, iter, (long long int) n_elements_curr);
+    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "cycle=%i, #elements=%lli",
+                              iter, (long long int) n_elements_curr);
 
     /*
      * Flag Elements
@@ -557,11 +557,11 @@ rhea_amr (p4est_t *p4est,
     flagged_rel = flag_elements_fn (p4est, flag_elements_data,
                                     &n_flagged_coar, &n_flagged_refn);
     ymir_perf_counter_stop_add (&rhea_amr_perfmon[RHEA_AMR_PERFMON_AMR_FLAG]);
-    RHEA_GLOBAL_INFOF ("<%s cycle=%i, #elements_flagged_rel=%g, "
-                       "n_flagged_coarsen=%lli, n_flagged_refine=%lli />\n",
-                       __func__, iter, flagged_rel,
-                       (long long int) n_flagged_coar,
-                       (long long int) n_flagged_refn);
+    RHEA_GLOBAL_INFOF_FN_TAG (__func__, "cycle=%i, #elements_flagged_rel=%g, "
+                              "n_flagged_coarsen=%lli, n_flagged_refine=%lli",
+                              iter, flagged_rel,
+                              (long long int) n_flagged_coar,
+                              (long long int) n_flagged_refn);
 
     /* set threshold for #elements flagged for coarsening/refinement */
     if (isfinite (flagged_elements_thresh_begin) &&
@@ -578,10 +578,10 @@ rhea_amr (p4est_t *p4est,
 
     /* stop AMR if not enough elements were flagged */
     if (flagged_rel <= flagged_thresh) {
-      RHEA_GLOBAL_INFOF (
-          "<%s_stop cycle=%i, "
-          "reason=\"#elements_flagged_rel %g <= threshold %g\" />\n",
-          __func__, iter, flagged_rel, flagged_thresh);
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          __func__,
+          "cycle=%i, stop_reason=\"#elements_flagged_rel %g <= threshold %g\"",
+          iter, flagged_rel, flagged_thresh);
       break;
     }
 
@@ -615,9 +615,9 @@ rhea_amr (p4est_t *p4est,
     /* check if max #elements is estimated to be reached */
     n_elements_estd =
       (double) (n_elements_coar + (P4EST_CHILDREN - 1) * n_flagged_refn);
-    RHEA_GLOBAL_INFOF (
-        "<%s cycle=%i, #elements_estimate=%g, #elements_max=%g />\n",
-        __func__, iter, n_elements_estd, n_elements_maxd);
+    RHEA_GLOBAL_INFOF_FN_TAG (
+        __func__, "cycle=%i, #elements_estimate=%g, #elements_max=%g",
+        iter, n_elements_estd, n_elements_maxd);
     if (n_elements_maxd < n_elements_estd) {
       reached_n_elements_max = 1;
     }
@@ -676,10 +676,10 @@ rhea_amr (p4est_t *p4est,
 
     /* stop AMR if max #elements was estimated to be reached */
     if (reached_n_elements_max) {
-      RHEA_GLOBAL_INFOF (
-          "<%s_stop cycle=%i, "
-          "reason=\"#elements est. %g > #elements max %g\" />\n",
-          __func__, iter, n_elements_estd, n_elements_maxd);
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          __func__,
+          "cycle=%i, stop_reason=\"#elements est. %g > #elements max %g\"",
+          iter, n_elements_estd, n_elements_maxd);
       iter++; /* adjust #cycles */
       break;
     }
@@ -691,11 +691,10 @@ rhea_amr (p4est_t *p4est,
     changed_rel = fabs ((double) (n_elements_curr - n_elements_prev)) /
                   (double) n_elements_prev;
     if (changed_rel <= flagged_thresh && 2.0*refined_rel <= flagged_thresh) {
-      RHEA_GLOBAL_INFOF (
-          "<%s_stop cycle=%i, "
-          "reason=\"rel. #elements changed %g and "
-          "2x rel. #elements refined %g <= flagged threshold %g\" />\n",
-          __func__, iter, changed_rel, refined_rel, flagged_thresh);
+      RHEA_GLOBAL_INFOF_FN_TAG (
+          __func__, "cycle=%i, stop_reason=\"rel. #elements changed %g and "
+          "2x rel. #elements refined %g <= flagged threshold %g\"",
+          iter, changed_rel, refined_rel, flagged_thresh);
       iter++; /* adjust #cycles */
       break;
     }
@@ -703,9 +702,9 @@ rhea_amr (p4est_t *p4est,
 
   /* print message if stopped due to reaching max #cycles */
   if (iter_max == iter) {
-    RHEA_GLOBAL_INFOF (
-        "<%s_stop cycle=%i, reason=\"max #cycles reached\" />\n",
-        __func__, iter - 1);
+    RHEA_GLOBAL_INFOF_FN_TAG (
+        __func__, "cycle=%i, stop_reason=\"max #cycles reached\"",
+        iter - 1);
   }
 
   /* perform uniform refinement in addition to AMR */
@@ -778,10 +777,10 @@ rhea_amr (p4est_t *p4est,
   }
 
   /* print statistics */
-  RHEA_GLOBAL_INFOF (
-      "<%s #cycles=%i, #cycles_uniform=%i, "
+  RHEA_GLOBAL_INFOF_FN_TAG (
+      __func__, "#cycles=%i, #cycles_uniform=%i, "
       "#elements_beginning=%lli, #elements_end=%lli, "
-      "change=%+.1f%% />\n", __func__, iter, iter_uniform,
+      "change=%+.1f%%", iter, iter_uniform,
       (long long int) n_elements_begin, (long long int) n_elements_curr,
       (double) (n_elements_curr - n_elements_begin) /
       (double) n_elements_begin * 100.0);
@@ -805,7 +804,7 @@ rhea_amr (p4est_t *p4est,
     }
 
     if (0 <= level_max) {
-      RHEA_GLOBAL_INFOF ("<%s mesh_level_max=%i />\n", __func__, level_max);
+      RHEA_GLOBAL_INFOF_FN_TAG (__func__, "mesh_level_max=%i", level_max);
     }
   }
 
