@@ -38,6 +38,7 @@ librhea_installed_headers = \
         src/rhea_inversion_obs_velocity.h \
         src/rhea_inversion_obs_viscosity.h \
         src/rhea_inversion_param.h \
+        src/rhea_inversion_qoi.h \
         src/rhea_io_std.h \
         src/rhea_io_mpi.h \
         src/rhea_vtk.h \
@@ -78,6 +79,7 @@ librhea_compiled_sources = \
         src/rhea_inversion_obs_velocity.c \
         src/rhea_inversion_obs_viscosity.c \
         src/rhea_inversion_param.c \
+        src/rhea_inversion_qoi.c \
         src/rhea_io_std.c \
         src/rhea_io_mpi.c \
         src/rhea_vtk.c \
