@@ -863,6 +863,8 @@ static void
 rhea_stokes_problem_linear_clear_solver_data (
                                     rhea_stokes_problem_t *stokes_problem_lin)
 {
+  const char          vtk_path_empty[BUFSIZ] = "";
+
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
   /* check input */
@@ -881,7 +883,7 @@ rhea_stokes_problem_linear_clear_solver_data (
   }
 
   /* clear VTK path for debugging */
-  ymir_vtk_set_debug_path ("");
+  ymir_vtk_set_debug_path (vtk_path_empty);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
@@ -2013,7 +2015,8 @@ rhea_stokes_problem_nonlinear_create_solver_data_fn (ymir_vec_t *solution,
 static void
 rhea_stokes_problem_nonlinear_clear_solver_data_fn (void *data)
 {
-  rhea_stokes_problem_t *stokes_problem_nl = data;
+  rhea_stokes_problem_t  *stokes_problem_nl = data;
+  const char              vtk_path_empty[BUFSIZ] = "";
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
 
@@ -2049,7 +2052,7 @@ rhea_stokes_problem_nonlinear_clear_solver_data_fn (void *data)
   }
 
   /* clear VTK path for debugging */
-  ymir_vtk_set_debug_path ("");
+  ymir_vtk_set_debug_path (vtk_path_empty);
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
