@@ -53,6 +53,12 @@ rhea_inversion_qoi_t *rhea_inversion_qoi_new (
 void                rhea_inversion_qoi_destroy (
                             rhea_inversion_qoi_t *inv_qoi);
 
+/**
+ * Checks if any QOI are set.
+ */
+int                 rhea_inversion_qoi_exists (
+                            rhea_inversion_qoi_t *inv_qoi);
+
 /******************************************************************************
  * Mapping QOI to Observation Operators
  *****************************************************************************/

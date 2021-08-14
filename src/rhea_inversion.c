@@ -1,9 +1,10 @@
 #include <rhea_inversion.h>
 #include <rhea_base.h>
-#include <rhea_inversion_param.h>
 #include <rhea_inversion_obs_stress.h>
 #include <rhea_inversion_obs_velocity.h>
 #include <rhea_inversion_obs_viscosity.h>
+#include <rhea_inversion_param.h>
+#include <rhea_inversion_qoi.h>
 #include <rhea_newton.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
@@ -57,7 +58,6 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_VISC_OBS_PAS NULL
 #define RHEA_INVERSION_DEFAULT_VISC_OBS_STDDEV_REL NULL
 #define RHEA_INVERSION_DEFAULT_STRESS_OBS_TYPE (RHEA_INVERSION_OBS_STRESS_NONE)
-#define RHEA_INVERSION_DEFAULT_STRESS_QOI_TYPE_LIST NULL
 #define RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV (1.0)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE (RHEA_INVERSION_HESSIAN_BFGS)
 #define RHEA_INVERSION_DEFAULT_HESSIAN_TYPE_WRITE_AFTER_SOLVE \
@@ -103,8 +103,6 @@ char               *rhea_inversion_visc_obs_stddev_rel =
                       RHEA_INVERSION_DEFAULT_VISC_OBS_STDDEV_REL;
 int                 rhea_inversion_stress_obs_type =
                       RHEA_INVERSION_DEFAULT_STRESS_OBS_TYPE;
-char               *rhea_inversion_stress_qoi_type_list =
-                      RHEA_INVERSION_DEFAULT_STRESS_QOI_TYPE_LIST;
 double              rhea_inversion_parameter_prior_stddev =
                       RHEA_INVERSION_DEFAULT_PARAMETER_PRIOR_STDDEV;
 int                 rhea_inversion_hessian_type =
@@ -157,6 +155,7 @@ int                 rhea_inversion_monitor_performance =
                       RHEA_INVERSION_DEFAULT_MONITOR_PERFORMANCE;
 
 rhea_inversion_param_options_t  rhea_inversion_param_options;
+rhea_inversion_qoi_options_t    rhea_inversion_qoi_options;
 rhea_newton_options_t           rhea_inversion_newton_options;
 
 void
@@ -204,12 +203,6 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "stress-observations-type", '\0',
     &(rhea_inversion_stress_obs_type), RHEA_INVERSION_DEFAULT_STRESS_OBS_TYPE,
     "Type of stress observations",
-
-  /* QoI options */
-  YMIR_OPTIONS_S, "stress-qoi-type-list", '\0',
-    &(rhea_inversion_stress_qoi_type_list),
-    RHEA_INVERSION_DEFAULT_STRESS_QOI_TYPE_LIST,
-    "List of types of stress QoIs",
 
   /* parameter options */
   YMIR_OPTIONS_D, "parameter-prior-stddev", '\0',
@@ -323,6 +316,7 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
 
   /* add sub-options */
   rhea_inversion_param_add_options (&rhea_inversion_param_options, opt);
+  rhea_inversion_qoi_add_options (&rhea_inversion_qoi_options, opt);
   rhea_newton_add_options (&rhea_inversion_newton_options, opt);
 
   /* add these options as sub-options */
@@ -442,13 +436,13 @@ struct rhea_inversion_problem
   ymir_vec_t                  *stress_obs;
   ymir_vec_t                  *stress_obs_weight;
 
-  /* QoI post-processing: stress inside mantle */
-  rhea_inversion_obs_stress_t *stress_qoi_type;
-  int                          stress_qoi_n;
-
   /* weights for observational data and prior terms */
   double              data_abs_weight;
   double              prior_abs_weight;
+
+  /* quantities of interest for post-processing */
+  rhea_inversion_qoi_options_t *inv_qoi_options;
+  rhea_inversion_qoi_t         *inv_qoi;
 
   /* forward and adjoint states */
   ymir_vec_t         *forward_vel_press;
@@ -1125,103 +1119,164 @@ rhea_inversion_write_posterior_hessian (
 }
 
 static void
-rhea_inversion_propagate_solution_to_qoi (ymir_vec_t *parameter_vec,
+rhea_inversion_propagate_solution_to_qoi (const char *qoi_path,
+                                          ymir_vec_t *parameter_vec,
                                           rhea_inversion_problem_t *inv_problem)
 {
-  ymir_vec_t         *forward_vel_press = inv_problem->forward_vel_press;
-  ymir_mesh_t        *ymir_mesh;
-  ymir_vec_t         *indicator, *misfit_stress;
-  double              qoi_norm, qoi_tang[3];
-  int                 i;
+  /* backup of settings */
+  const rhea_inversion_obs_velocity_t  vel_obs_type    = inv_problem->vel_obs_type;
+  const rhea_inversion_obs_viscosity_t visc_obs_type   = inv_problem->visc_obs_type;
+  const rhea_inversion_obs_stress_t    stress_obs_type = inv_problem->stress_obs_type;
+  ymir_vec_t const   *stress_obs_weight = inv_problem->stress_obs_weight;
+  const double        prior_abs_weight  = inv_problem->prior_abs_weight;
+  /* QOI variables */
+  rhea_inversion_qoi_t *inv_qoi = inv_problem->inv_qoi;
+  const int           n_parameters = rhea_inversion_param_get_n_active (
+                          inv_problem->inv_param);
+  sc_dmatrix_t       *stress_qoi_vec, *stress_qoi_jac;
+  size_t              idx_stress_qoi, idx_param;
 
-  RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "#qoi=%i, #parameters=%i, path=%s",
+                              rhea_inversion_qoi_get_count_all (inv_qoi),
+                              n_parameters, qoi_path);
 
   /* check input */
-  RHEA_ASSERT (NULL != inv_problem->hessian_matrix);
+  //RHEA_ASSERT (NULL != inv_problem->hessian_matrix);
 
-  ymir_mesh = ymir_vec_get_mesh (forward_vel_press);
-
-  indicator = rhea_weakzone_new (ymir_mesh);
-  rhea_weakzone_compute_indicator (
-      indicator, RHEA_WEAKZONE_LABEL_CLASS_NONE,
-      rhea_stokes_problem_get_weakzone_options (inv_problem->stokes_problem));
-  misfit_stress = rhea_stress_new (ymir_mesh);
-
-  RHEA_GLOBAL_INFO ("###DEV### test 1\n");
-  rhea_inversion_obs_stress_diff (
-      misfit_stress, forward_vel_press, NULL, indicator,
-      inv_problem->stokes_problem);
-
-  RHEA_GLOBAL_INFO ("###DEV### test 2\n");
-  qoi_norm = rhea_inversion_obs_stress_misfit (
-      forward_vel_press, NULL, indicator,
-      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL,
-      inv_problem->stokes_problem);
-  qoi_tang[0] = rhea_inversion_obs_stress_misfit (
-      forward_vel_press, NULL, indicator,
-      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X,
-      inv_problem->stokes_problem);
-  qoi_tang[1] = rhea_inversion_obs_stress_misfit (
-      forward_vel_press, NULL, indicator,
-      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Y,
-      inv_problem->stokes_problem);
-  qoi_tang[2] = rhea_inversion_obs_stress_misfit (
-      forward_vel_press, NULL, indicator,
-      RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_Z,
-      inv_problem->stokes_problem);
-  RHEA_GLOBAL_INFOF ("###DEV### qoi norm %g, tang %g %g %g\n",
-                     qoi_norm, qoi_tang[0], qoi_tang[1], qoi_tang[2]);
-  //TODO does qoi need to be in the dimension of stress?
-
-  RHEA_GLOBAL_INFO ("###DEV### test 3\n");
-  RHEA_GLOBAL_INFOF ("###DEV### n_qoi %i\n", inv_problem->stress_qoi_n);
-  for (i = 0; i < inv_problem->stress_qoi_n; i++) {
-    double            qoi;
-
-    qoi = rhea_inversion_obs_stress_misfit (
-      forward_vel_press, NULL, indicator, inv_problem->stress_qoi_type[i],
-      inv_problem->stokes_problem);
-    RHEA_GLOBAL_INFOF ("###DEV### qoi[%i] %g\n", i, qoi);
+  /* nothing to do if
+   * - no QOI,
+   * - no parameter vector,
+   * - Hessian matrix does not exist */
+  if (!rhea_inversion_qoi_exists (inv_qoi) ||
+      NULL == parameter_vec ||
+      NULL == inv_problem->hessian_matrix) {
+    return;
   }
 
-  RHEA_GLOBAL_INFO ("###DEV### test 4\n");
-  if (parameter_vec != NULL) {
-    const rhea_inversion_obs_velocity_t  vel_obs_type = inv_problem->vel_obs_type;
-    const rhea_inversion_obs_viscosity_t visc_obs_type = inv_problem->visc_obs_type;
-    const rhea_inversion_obs_stress_t    stress_obs_type = inv_problem->stress_obs_type;
-    ymir_vec_t         *stress_obs_weight = inv_problem->stress_obs_weight;
-    const double        prior_abs_weight = inv_problem->prior_abs_weight;
-    ymir_vec_t         *neg_gradient_vec =
-                          rhea_inversion_param_vec_new (inv_problem->inv_param);
+  /* create stress QOI */
+  stress_qoi_vec = rhea_inversion_qoi_stress_vec_reduced_new (inv_qoi);
+  stress_qoi_jac = rhea_inversion_qoi_stress_to_param_matrix_new (
+      n_parameters, inv_qoi);
+  RHEA_ASSERT (NULL != stress_qoi_vec);
+  RHEA_ASSERT (NULL != stress_qoi_jac);
+  RHEA_ASSERT (stress_qoi_jac->m == stress_qoi_vec->m);
+  RHEA_ASSERT (stress_qoi_jac->n == n_parameters);
 
-    inv_problem->vel_obs_type = RHEA_INVERSION_OBS_VELOCITY_NONE;
-    inv_problem->visc_obs_type = RHEA_INVERSION_OBS_VISCOSITY_NONE;
-    inv_problem->prior_abs_weight = 0.0;
-    for (i = 0; i < inv_problem->stress_qoi_n; i++) {
-      double            qoi;
+  /* deactivate all non-stress observations and prior */
+  inv_problem->vel_obs_type     = RHEA_INVERSION_OBS_VELOCITY_NONE;
+  inv_problem->visc_obs_type    = RHEA_INVERSION_OBS_VISCOSITY_NONE;
+  inv_problem->prior_abs_weight = 0.0;
 
-      inv_problem->stress_obs_type = inv_problem->stress_qoi_type[i];
-      inv_problem->stress_obs_weight = indicator;
+  /* compute stress QOI and their gradients */
+  {
+    ymir_vec_t         *neg_gradient_vec = rhea_inversion_param_vec_new (
+                            inv_problem->inv_param);
 
-      qoi = rhea_inversion_newton_evaluate_objective_fn (
-          parameter_vec, inv_problem, NULL);
-      RHEA_GLOBAL_INFOF ("###DEV### qoi[%i] %g\n", i, qoi);
+    for (idx_stress_qoi = 0; idx_stress_qoi < stress_qoi_vec->m; idx_stress_qoi++) {
+      sc_dmatrix_t       *neg_gradient_reduced;
 
+      RHEA_GLOBAL_INFOF_FN_TAG (__func__, "stress_qoi_id=%i, #stress_qoi=%i",
+                                idx_stress_qoi, stress_qoi_vec->m);
+
+      /* set observation types for QOI */
+      rhea_inversion_qoi_stress_create_obs (&inv_problem->stress_obs_type,
+                                            &inv_problem->stress_obs_weight,
+                                            inv_qoi, idx_stress_qoi);
+
+      /* compute QOI */
+      stress_qoi_vec->e[idx_stress_qoi][0] =
+        rhea_inversion_newton_evaluate_objective_fn (parameter_vec,
+                                                     inv_problem, NULL);
+
+      /* compute gradient */
       rhea_inversion_newton_compute_negative_gradient_fn (
           neg_gradient_vec, parameter_vec, inv_problem);
-    }
+      neg_gradient_reduced = rhea_inversion_param_vec_reduced_new (
+          neg_gradient_vec, inv_problem->inv_param);
+      RHEA_ASSERT (stress_qoi_jac->n == neg_gradient_reduced->m);
+      for (idx_param = 0; idx_param < n_parameters; idx_param++) {
+        stress_qoi_jac->e[idx_stress_qoi][idx_param] =
+          neg_gradient_reduced->e[idx_param][0];
+      }
 
-    inv_problem->vel_obs_type = vel_obs_type;
-    inv_problem->visc_obs_type = visc_obs_type;
-    inv_problem->stress_obs_type = stress_obs_type;
-    inv_problem->stress_obs_weight = stress_obs_weight;
-    inv_problem->prior_abs_weight = prior_abs_weight;
+      /* destroy */
+      rhea_inversion_param_vec_reduced_destroy (neg_gradient_reduced);
+      rhea_inversion_qoi_stress_clear_obs (inv_problem->stress_obs_weight,
+                                           inv_qoi);
+    }
 
     rhea_inversion_param_vec_destroy (neg_gradient_vec);
   }
 
-  rhea_weakzone_destroy (indicator);
-  rhea_stress_destroy (misfit_stress);
+  /* restore settings from backup */
+  inv_problem->vel_obs_type      = vel_obs_type;
+  inv_problem->visc_obs_type     = visc_obs_type;
+  inv_problem->stress_obs_type   = stress_obs_type;
+  inv_problem->stress_obs_weight = (ymir_vec_t *) stress_obs_weight;
+  inv_problem->prior_abs_weight  = prior_abs_weight;
+
+  /* write to file */
+  {
+    ymir_mesh_t        *ymir_mesh;
+    sc_MPI_Comm         mpicomm;
+    int                 mpirank, mpiret;
+    char                path[BUFSIZ];
+    /* matrices */
+    const int           n_qoi       = stress_qoi_jac->m;
+    sc_dmatrix_t       *Cov_qoi_mat = sc_dmatrix_new (n_qoi, n_qoi);
+    sc_dmatrix_t       *Id_mat  = sc_dmatrix_new (n_parameters, n_parameters);
+    sc_dmatrix_t       *Cov_mat = sc_dmatrix_new (n_parameters, n_parameters);
+    sc_dmatrix_t       *CJ_mat  = sc_dmatrix_new (n_parameters, n_qoi);
+
+    /* get parallel environment */
+    ymir_mesh = rhea_stokes_problem_get_ymir_mesh (
+        inv_problem->stokes_problem);
+    mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+    mpiret = sc_MPI_Comm_rank (mpicomm, &mpirank); SC_CHECK_MPI (mpiret);
+
+    /* set identity matrix */
+    sc_dmatrix_set_value (Id_mat, 0.0);
+    for (idx_param = 0; idx_param < n_parameters; idx_param++) {
+      Id_mat->e[idx_param][idx_param] = 1.0;
+    }
+
+    /* invert Hessian to compute covariance matrix */
+    RHEA_ASSERT (inv_problem->hessian_matrix->m == n_parameters);
+    RHEA_ASSERT (inv_problem->hessian_matrix->n == n_parameters);
+    sc_dmatrix_rdivide (SC_NO_TRANS, Id_mat, inv_problem->hessian_matrix,
+                        Cov_mat);
+    sc_dmatrix_destroy (Id_mat);
+
+    /* multipy covariance by Jacobian^T (from right) and
+     * Jacobian (from left) */
+    sc_dmatrix_multiply (SC_NO_TRANS /* Cov */, SC_TRANS /* Jac^T */, 1.0,
+                         Cov_mat, stress_qoi_jac, 0.0, CJ_mat);
+    sc_dmatrix_multiply (SC_NO_TRANS /* Jac */, SC_NO_TRANS /* CJ */, 1.0,
+                         stress_qoi_jac, CJ_mat, 0.0, Cov_qoi_mat);
+    sc_dmatrix_destroy (Cov_mat);
+    sc_dmatrix_destroy (CJ_mat);
+
+    /* write QOI covariance matrix to file */
+    snprintf (path, BUFSIZ, "%s_cov.txt", qoi_path);
+    if (mpirank == 0) {
+      rhea_io_std_write_double_to_txt (path, Cov_qoi_mat->e[0],
+                                       Cov_qoi_mat->m * Cov_qoi_mat->n,
+                                       Cov_qoi_mat->n);
+    }
+    sc_dmatrix_destroy (Cov_qoi_mat);
+
+    /* write QOI mean vector to file */
+    snprintf (path, BUFSIZ, "%s_mean.txt", qoi_path);
+    if (mpirank == 0) {
+      rhea_io_std_write_double_to_txt (
+          path, stress_qoi_vec->e[0], stress_qoi_vec->m * stress_qoi_vec->n,
+          stress_qoi_vec->n);
+    }
+  }
+
+  /* destroy */
+  rhea_inversion_qoi_stress_vec_reduced_destroy (stress_qoi_vec);
+  rhea_inversion_qoi_stress_to_param_matrix_destroy (stress_qoi_jac);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
@@ -1372,8 +1427,13 @@ rhea_inversion_newton_clear_solver_data_fn (ymir_vec_t *solution, void *data)
                                             inv_problem);
   }
 
-  /* propagate results to QoIs */
-  rhea_inversion_propagate_solution_to_qoi (solution, inv_problem);
+  /* propagate results to QOIs */
+  if (NULL != inv_problem->txt_path) {
+    char                path[BUFSIZ];
+
+    snprintf (path, BUFSIZ, "%s_posterior_qoi", inv_problem->txt_path);
+    rhea_inversion_propagate_solution_to_qoi (path, solution, inv_problem);
+  }
 
   /* destroy Hessian matrix */
   if (NULL != inv_problem->hessian_matrix) {
@@ -2707,7 +2767,7 @@ rhea_inversion_write_txt (ymir_vec_t *solution,
   snprintf (path, BUFSIZ, "%s%s%02i_parameters.txt", txt_path,
             RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
   rhea_io_std_write_double_to_txt (
-      path, sol->e[0], (size_t) sol->m * sol->n, sol->n);
+      path, sol->e[0], sol->m * sol->n, sol->n);
   rhea_inversion_param_vec_reduced_destroy (sol);
 
   /* write gradient */
@@ -2732,7 +2792,7 @@ rhea_inversion_write_txt (ymir_vec_t *solution,
   snprintf (path, BUFSIZ, "%s%s%02i_gradient.txt", txt_path,
             RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
   rhea_io_std_write_double_to_txt (
-      path, grad_combined->e[0], (size_t) grad_combined->m * grad_combined->n,
+      path, grad_combined->e[0], grad_combined->m * grad_combined->n,
       grad_combined->n);
   rhea_inversion_param_vec_reduced_destroy (neg_grad);
   rhea_inversion_param_vec_reduced_destroy (grad_adj);
@@ -2747,7 +2807,7 @@ rhea_inversion_write_txt (ymir_vec_t *solution,
     snprintf (path, BUFSIZ, "%s%s%02i_step.txt", txt_path,
               RHEA_INVERSION_IO_LABEL_NL_ITER, iter);
     rhea_io_std_write_double_to_txt (
-        path, step->e[0], (size_t) step->m * step->n, step->n);
+        path, step->e[0], step->m * step->n, step->n);
     rhea_inversion_param_vec_reduced_destroy (step);
   }
 
@@ -3393,25 +3453,6 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
     (rhea_inversion_obs_stress_t) rhea_inversion_stress_obs_type;
   inv_problem->stress_obs = NULL;               //TODO
   inv_problem->stress_obs_weight = NULL;        //TODO
-  inv_problem->stress_qoi_type = NULL;
-  inv_problem->stress_qoi_n = 0;
-  if (NULL != rhea_inversion_stress_qoi_type_list) {
-    double             *list = NULL;
-    int                 n_entries, i;
-
-    n_entries = ymir_options_convert_string_to_double (
-        rhea_inversion_stress_qoi_type_list, &list);
-    if (0 < n_entries) {
-      inv_problem->stress_qoi_n = n_entries;
-      inv_problem->stress_qoi_type = RHEA_ALLOC (rhea_inversion_obs_stress_t,
-                                                 n_entries);
-      for (i = 0; i < n_entries; i++) {
-        inv_problem->stress_qoi_type[i] =
-          (rhea_inversion_obs_stress_t) ((int) list[i]);
-      }
-    }
-    YMIR_FREE (list); /* was allocated in ymir */
-  }
 
   /* create parameters */
   inv_problem->inv_param_options = &rhea_inversion_param_options;
@@ -3421,6 +3462,11 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   /* initialize weights */
   inv_problem->data_abs_weight  = NAN;
   inv_problem->prior_abs_weight = NAN;
+
+  /* create quantities of interest */
+  inv_problem->inv_qoi_options = &rhea_inversion_qoi_options;
+  inv_problem->inv_qoi = rhea_inversion_qoi_new (
+      stokes_problem, inv_problem->inv_qoi_options);
 
   /* create Newton problem */
   rhea_inversion_newton_problem_create (inv_problem);
@@ -3473,13 +3519,11 @@ rhea_inversion_destroy (rhea_inversion_problem_t *inv_problem)
   /* destroy Newton problem */
   rhea_inversion_newton_problem_clear (inv_problem);
 
+  /* destroy quantities of interest */
+  rhea_inversion_qoi_destroy (inv_problem->inv_qoi);
+
   /* destroy parameters */
   rhea_inversion_param_destroy (inv_problem->inv_param);
-
-  /* destroy stress data */
-  if (NULL != inv_problem->stress_qoi_type) {
-    RHEA_FREE (inv_problem->stress_qoi_type);
-  }
 
   /* destroy viscosity data */
   rhea_inversion_obs_viscosity_destroy (

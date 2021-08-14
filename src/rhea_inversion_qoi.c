@@ -137,15 +137,13 @@ rhea_inversion_qoi_stress_exists (rhea_inversion_qoi_t *inv_qoi)
   );
 }
 
-#if 0 //TODO unused
-static int
+int
 rhea_inversion_qoi_exists (rhea_inversion_qoi_t *inv_qoi)
 {
   return (
       rhea_inversion_qoi_stress_exists (inv_qoi)
   );
 }
-#endif
 
 /******************************************************************************
  * Mapping QOI to Observation Operators
@@ -453,7 +451,7 @@ rhea_inversion_qoi_stress_to_param_matrix_new (
   }
 
   /* create matrix mapping QOI to parameters */
-  return sc_dmatrix_new (n_parameters, n_qoi);
+  return sc_dmatrix_new (n_qoi, n_parameters);
 }
 
 void
@@ -483,7 +481,7 @@ rhea_inversion_qoi_stress_to_param_matrix_set_column (
 
   /* fill one column */
   for (idx_param = 0; idx_param < mat->m; idx_param++) {
-    mat->e[idx_param][idx_reduced] = col->e[idx_param][0];
+    mat->e[idx_reduced][idx_param] = col->e[idx_param][0];
   }
 
   /* return index */
