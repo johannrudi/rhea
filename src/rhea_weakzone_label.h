@@ -22,6 +22,9 @@ typedef enum
   RHEA_WEAKZONE_LABEL_CLASS_RIDGE    = 2,
   RHEA_WEAKZONE_LABEL_CLASS_FRACTURE = 3,
 
+  /* number of labels for classes */
+  RHEA_WEAKZONE_LABEL_CLASS_N        = 4,
+
   /* slabs of earth */
   RHEA_WEAKZONE_LABEL_EARTH_SL_ALU = 1001,
   RHEA_WEAKZONE_LABEL_EARTH_SL_CAL = 1002,
@@ -150,11 +153,8 @@ typedef enum
 }
 rhea_weakzone_label_t;
 
-/* number of label classes */
-#define RHEA_WEAKZONE_LABEL_CLASS_N 4
-
 /* max label counts */
-#define RHEA_WEAKZONE_LABEL_MAX_N_NONE     128
+#define RHEA_WEAKZONE_LABEL_MAX_N_NONE       1
 #define RHEA_WEAKZONE_LABEL_MAX_N_SLAB     128
 #define RHEA_WEAKZONE_LABEL_MAX_N_RIDGE    128
 #define RHEA_WEAKZONE_LABEL_MAX_N_FRACTURE 128
@@ -165,6 +165,9 @@ rhea_weakzone_label_t;
 #define RHEA_WEAKZONE_LABEL_EARTH_N_RIDGE    58
 #define RHEA_WEAKZONE_LABEL_EARTH_N_FRACTURE 35
 
+/**
+ * Returns true/false if input label is a label for a class.
+ */
 static inline int
 rhea_weakzone_label_is_class (const rhea_weakzone_label_t label)
 {
@@ -172,6 +175,10 @@ rhea_weakzone_label_is_class (const rhea_weakzone_label_t label)
           label < RHEA_WEAKZONE_LABEL_CLASS_N);
 }
 
+/**
+ * Returns the label to the class corresponding to the input label.
+ * Returns unknown label if cannot determine.
+ */
 static inline rhea_weakzone_label_t
 rhea_weakzone_label_get_class (const rhea_weakzone_label_t label)
 {
@@ -194,6 +201,9 @@ rhea_weakzone_label_get_class (const rhea_weakzone_label_t label)
   return RHEA_WEAKZONE_LABEL_UNKNOWN;
 }
 
+/**
+ * Returns true/false if the input label is valid.
+ */
 static inline int
 rhea_weakzone_label_is_valid (const rhea_weakzone_label_t label)
 {
@@ -208,6 +218,9 @@ rhea_weakzone_label_is_valid_int (const int label)
           rhea_weakzone_label_get_class ((rhea_weakzone_label_t) label));
 }
 
+/**
+ * Returns true/false if the input label is of class "slab".
+ */
 static inline int
 rhea_weakzone_label_is_slab (const rhea_weakzone_label_t label)
 {
@@ -215,6 +228,9 @@ rhea_weakzone_label_is_slab (const rhea_weakzone_label_t label)
           rhea_weakzone_label_get_class (label));
 }
 
+/**
+ * Returns true/false if the input label is of class "ridge".
+ */
 static inline int
 rhea_weakzone_label_is_ridge (const rhea_weakzone_label_t label)
 {
@@ -222,6 +238,9 @@ rhea_weakzone_label_is_ridge (const rhea_weakzone_label_t label)
           rhea_weakzone_label_get_class (label));
 }
 
+/**
+ * Returns true/false if the input label is of class "fracture".
+ */
 static inline int
 rhea_weakzone_label_is_fracture (const rhea_weakzone_label_t label)
 {

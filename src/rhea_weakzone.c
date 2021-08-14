@@ -278,14 +278,34 @@ rhea_weakzone_process_options (rhea_weakzone_options_t *opt,
     YMIR_FREE (n_labels); /* was allocated in ymir */
   }
   else { /* set default label counts */
-    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE] =
-      RHEA_WEAKZONE_LABEL_EARTH_N_NONE;
-    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB] =
-      RHEA_WEAKZONE_LABEL_EARTH_N_SLAB;
-    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE] =
-      RHEA_WEAKZONE_LABEL_EARTH_N_RIDGE;
-    opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE] =
-      RHEA_WEAKZONE_LABEL_EARTH_N_FRACTURE;
+    switch (opt->type) {
+    case RHEA_WEAKZONE_NONE:
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE]     = 0;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB]     = 0;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE]    = 0;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE] = 0;
+      break;
+    case RHEA_WEAKZONE_DEPTH:
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE]     = 1;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB]     = 0;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE]    = 0;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE] = 0;
+      break;
+    case RHEA_WEAKZONE_DATA_POINTS:
+    case RHEA_WEAKZONE_DATA_POINTS_LABELS:
+    case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE] =
+        RHEA_WEAKZONE_LABEL_EARTH_N_NONE;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB] =
+        RHEA_WEAKZONE_LABEL_EARTH_N_SLAB;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE] =
+        RHEA_WEAKZONE_LABEL_EARTH_N_RIDGE;
+      opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE] =
+        RHEA_WEAKZONE_LABEL_EARTH_N_FRACTURE;
+      break;
+    default: /* unknown weak zone type */
+      RHEA_ABORT_NOT_REACHED ();
+    }
   }
 
   /* set output paths */
@@ -1011,9 +1031,11 @@ rhea_weakzone_lookup_label_from_index (const int idx,
   /* check input */
   RHEA_ASSERT (0 <= idx && idx < rhea_weakzone_get_total_n_labels (opt));
 
-  /* if none */
-  RHEA_ASSERT (!( offset <= idx &&
-                  idx < opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE] ));
+  /* if none (then assume idx == 0) */
+  if (offset <= idx && idx < opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE]) {
+    RHEA_ASSERT (1 == opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE]);
+    return RHEA_WEAKZONE_LABEL_CLASS_NONE;
+  }
   offset += opt->n_labels[RHEA_WEAKZONE_LABEL_CLASS_NONE];
 
   /* if slab */
