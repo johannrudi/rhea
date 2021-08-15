@@ -201,7 +201,7 @@ _set_normal_normal_tensor (ymir_vec_t *tensor, ymir_vec_t *normal)
   RHEA_ASSERT (6 == tensor->ndfields);
   RHEA_ASSERT (3 == normal->ndfields);
 
-  /* extract a single field */
+  /* run elementwise calculation */
   for (elid = 0; elid < n_elements; elid++) {
     for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
       const double *N = ymir_dvec_index (normal, elid, nodeid, 0);
@@ -236,14 +236,16 @@ _set_tangential_normal_tensor (ymir_vec_t *tensor, ymir_vec_t *normal,
   E[2] = 0.0;
   E[fieldid] = 1.0;
 
-  /* extract a single field */
+  /* run elementwise calculation */
   for (elid = 0; elid < n_elements; elid++) {
     for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
       const double *N = ymir_dvec_index (normal, elid, nodeid, 0);
       double       *T = ymir_dvec_index (tensor, elid, nodeid, 0);
 
-      /* compute T = (I - N * N^T) * (E * N^T) = E * N^T - N_i * N * N^T */
-      /*                                       = (E - N_i * N) * N^T */
+      /* compute T = (I - N * N^T) * (E * N^T)
+       *           = E * N^T - N_i * N * N^T
+       *           = (E - N_i * N) * N^T
+       */
       V[0] = E[0] - N[fieldid] * N[0];
       V[1] = E[1] - N[fieldid] * N[1];
       V[2] = E[2] - N[fieldid] * N[2];
@@ -514,7 +516,7 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
       weak_normal = rhea_weakzone_normal_new (ymir_mesh);
       rhea_weakzone_compute_normal (weak_normal, weak_options);
 
-      /* set (normal,normal) tensor (like rank-1 outer product) */
+      /* set (normal*normal^T) tensor (like rank-1 outer product) */
       _set_normal_normal_tensor (misfit_mass, weak_normal);
       rhea_weakzone_normal_destroy (weak_normal);
 
@@ -539,7 +541,7 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
       weak_normal = rhea_weakzone_normal_new (ymir_mesh);
       rhea_weakzone_compute_normal (weak_normal, weak_options);
 
-      /* set (tangential,normal) tensor */
+      /* set (tangential*e_fieldid*normal^T) tensor */
       switch (obs_type) {
       case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
         _set_tangential_normal_tensor (misfit_mass, weak_normal, 0);
