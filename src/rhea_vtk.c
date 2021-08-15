@@ -518,7 +518,6 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
                                     ymir_vec_t *stress_direction,
                                     const double strainrate_dim_1_s)
 {
-  ymir_mesh_t        *ymir_mesh;
   char                path[BUFSIZ];
   int                 success = 0;
 
@@ -528,9 +527,6 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
   RHEA_ASSERT (NULL != velocity_fwd);
   RHEA_ASSERT (NULL != pressure_fwd);
   RHEA_ASSERT (NULL != viscosity);
-
-  /* create work variables */
-  ymir_mesh = ymir_vec_get_mesh (velocity_fwd);
 
   /* write forward state */
   snprintf (path, BUFSIZ, "%s_fwd", filepath);
