@@ -1,5 +1,6 @@
 #include <rhea_inversion_qoi.h>
 #include <rhea_base.h>
+#include <rhea_io_mpi.h>
 
 /******************************************************************************
  * Options
@@ -7,6 +8,7 @@
 
 /* default options */
 #define RHEA_INVERSION_QOI_DEFAULT_STRESS_TYPE_LIST NULL
+#define RHEA_INVERSION_QOI_DEFAULT_STRESS_ACTIVATE_WEAKZONE_LABEL_FILE_PATH_TXT NULL
 
 /* global options */
 rhea_inversion_qoi_options_t rhea_inversion_qoi_options_global;
@@ -35,7 +37,13 @@ rhea_inversion_qoi_add_options (rhea_inversion_qoi_options_t *inv_qoi_options,
   YMIR_OPTIONS_S, "stress-type-list", '\0',
     &(inv_qoi_opt->stress_type_list),
     RHEA_INVERSION_QOI_DEFAULT_STRESS_TYPE_LIST,
-    "List of types of stress QOIs",
+    "List of stress observation types for stress QOI",
+
+  YMIR_OPTIONS_S, "stress-activate-weakzone-label-file-path-txt", '\0',
+    &(inv_qoi_opt->stress_activate_weakzone_label_file_path_txt),
+    RHEA_INVERSION_QOI_DEFAULT_STRESS_ACTIVATE_WEAKZONE_LABEL_FILE_PATH_TXT,
+    "Path to a text file with weakzone activation flags for stress QOI "
+    "(one entry for each label)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -55,6 +63,7 @@ struct rhea_inversion_qoi
   /* stress inside mantle */
   rhea_inversion_obs_stress_t *stress_qoi_type;
   int                          stress_qoi_n;
+  int                         *stress_qoi_weak_index;
   int                          stress_qoi_weak_n;
 
   /* Stokes problem (not owned) */
@@ -87,7 +96,13 @@ rhea_inversion_qoi_new (rhea_stokes_problem_t *stokes_problem,
   inv_qoi->weak_options =
     rhea_stokes_problem_get_weakzone_options (stokes_problem);
 
-  /* set stress QOI from options */
+  /* init stress QOI */
+  inv_qoi->stress_qoi_type       = NULL;
+  inv_qoi->stress_qoi_n          = 0;
+  inv_qoi->stress_qoi_weak_index = NULL;
+  inv_qoi->stress_qoi_weak_n     = 0;
+
+  /* set stress QOI types from options */
   if (NULL != inv_qoi_opt->stress_type_list &&
       rhea_weakzone_exists (inv_qoi->weak_options)) {
     double             *list = NULL;
@@ -96,8 +111,6 @@ rhea_inversion_qoi_new (rhea_stokes_problem_t *stokes_problem,
     n_entries = ymir_options_convert_string_to_double (
         inv_qoi_opt->stress_type_list, &list);
     if (0 < n_entries) {
-      inv_qoi->stress_qoi_weak_n = rhea_weakzone_get_total_n_labels (
-          inv_qoi->weak_options);
       inv_qoi->stress_qoi_n      = n_entries;
       inv_qoi->stress_qoi_type   = RHEA_ALLOC (rhea_inversion_obs_stress_t,
                                                n_entries);
@@ -108,10 +121,51 @@ rhea_inversion_qoi_new (rhea_stokes_problem_t *stokes_problem,
     }
     YMIR_FREE (list); /* was allocated in ymir */
   }
-  else {
-    inv_qoi->stress_qoi_type   = NULL;
-    inv_qoi->stress_qoi_n      = 0;
+
+  /* set stress QOI weakzones from options */
+  if (NULL != inv_qoi->stress_qoi_type && 0 < inv_qoi->stress_qoi_n &&
+      NULL != inv_qoi_opt->stress_activate_weakzone_label_file_path_txt) {
+    ymir_mesh_t        *ymir_mesh =
+      rhea_stokes_problem_get_ymir_mesh (inv_qoi->stokes_problem);
+    const char         *file_path_txt =
+      inv_qoi_opt->stress_activate_weakzone_label_file_path_txt;
+    const int           n_entries =
+      rhea_weakzone_get_total_n_labels (inv_qoi->weak_options);
+    int                 n_read, idx_total, idx_active;
+    int                *activate_weakzone;
+
+    /* read file */
+    activate_weakzone = RHEA_ALLOC (int, n_entries);
+    n_read = rhea_io_mpi_read_broadcast_int (
+        activate_weakzone, n_entries, NULL /* path bin */, file_path_txt,
+        ymir_mesh_get_MPI_Comm (ymir_mesh));
+    RHEA_ASSERT (n_read == n_entries);
+
+    /* count active weakzones */
     inv_qoi->stress_qoi_weak_n = 0;
+    for (idx_total = 0; idx_total < n_read; idx_total++) {
+      if (activate_weakzone[idx_total]) {
+        inv_qoi->stress_qoi_weak_n++;
+      }
+    }
+
+    /* retrieve indices of active weakzones */
+    inv_qoi->stress_qoi_weak_index =
+      RHEA_ALLOC (int, inv_qoi->stress_qoi_weak_n);
+    idx_active = 0;
+    for (idx_total = 0; idx_total < n_read; idx_total++) {
+      if (activate_weakzone[idx_total]) {
+        RHEA_ASSERT (idx_active < inv_qoi->stress_qoi_weak_n);
+        inv_qoi->stress_qoi_weak_index[idx_active] = idx_total;
+        idx_active++;
+      }
+    }
+
+    RHEA_FREE (activate_weakzone);
+  }
+  else {
+    inv_qoi->stress_qoi_weak_n = rhea_weakzone_get_total_n_labels (
+        inv_qoi->weak_options);
   }
 
   /* return QOI */
@@ -124,6 +178,9 @@ rhea_inversion_qoi_destroy (rhea_inversion_qoi_t *inv_qoi)
   if (NULL != inv_qoi->stress_qoi_type) {
     RHEA_FREE (inv_qoi->stress_qoi_type);
   }
+  if (NULL != inv_qoi->stress_qoi_weak_index) {
+    RHEA_FREE (inv_qoi->stress_qoi_weak_index);
+  }
   RHEA_FREE (inv_qoi);
 }
 
@@ -131,9 +188,9 @@ static int
 rhea_inversion_qoi_stress_exists (rhea_inversion_qoi_t *inv_qoi)
 {
   return (
+      inv_qoi->stress_qoi_type != NULL &&
       0 < inv_qoi->stress_qoi_n &&
-      0 < inv_qoi->stress_qoi_weak_n &&
-      inv_qoi->stress_qoi_type != NULL
+      0 < inv_qoi->stress_qoi_weak_n
   );
 }
 
@@ -171,8 +228,11 @@ _stress_split_reduced_index (int *stress_qoi_index,
 
   *stress_qoi_index = reduced_index / inv_qoi->stress_qoi_weak_n;
   weakzone_index    = reduced_index % inv_qoi->stress_qoi_weak_n;
-  *weakzone_label   = (int) rhea_weakzone_lookup_label_from_index (
-      weakzone_index, inv_qoi->weak_options);
+  if (NULL != inv_qoi->stress_qoi_weak_index) { /* if active indices are stored */
+    weakzone_index = inv_qoi->stress_qoi_weak_index[weakzone_index];
+  }
+  *weakzone_label = (int) rhea_weakzone_lookup_label_from_index (
+        weakzone_index, inv_qoi->weak_options);
 }
 
 static void
@@ -215,6 +275,8 @@ rhea_inversion_qoi_stress_create_obs (
                                reduced_index, inv_qoi);
   _stress_create_obs (stress_obs_type, stress_obs_weight, inv_qoi,
                       stress_qoi_index, weakzone_label);
+  RHEA_GLOBAL_INFOF_FN_TAG (__func__, "stress_obs_type=%i, weakzone_label=%i",
+                            (int) *stress_obs_type, weakzone_label);
 }
 
 void

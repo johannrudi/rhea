@@ -23,6 +23,7 @@ rhea_inversion_qoi_class_t;
 typedef struct rhea_inversion_qoi_options
 {
   char               *stress_type_list;
+  char               *stress_activate_weakzone_label_file_path_txt;
 }
 rhea_inversion_qoi_options_t;
 

@@ -1175,8 +1175,9 @@ rhea_inversion_propagate_solution_to_qoi (const char *qoi_path,
     for (idx_stress_qoi = 0; idx_stress_qoi < stress_qoi_vec->m; idx_stress_qoi++) {
       sc_dmatrix_t       *neg_gradient_reduced;
 
-      RHEA_GLOBAL_INFOF_FN_TAG (__func__, "stress_qoi_id=%i, #stress_qoi=%i",
-                                idx_stress_qoi, stress_qoi_vec->m);
+      RHEA_GLOBAL_INFOF_FN_TAG (__func__, "stress_qoi_id=%u, #stress_qoi=%u",
+                                (unsigned int) idx_stress_qoi,
+                                (unsigned int) stress_qoi_vec->m);
 
       /* set observation types for QOI */
       rhea_inversion_qoi_stress_create_obs (&inv_problem->stress_obs_type,
@@ -1427,7 +1428,7 @@ rhea_inversion_newton_clear_solver_data_fn (ymir_vec_t *solution, void *data)
                                             inv_problem);
   }
 
-  /* propagate results to QOIs */
+  /* propagate results to QOI */
   if (NULL != inv_problem->txt_path) {
     char                path[BUFSIZ];
 
