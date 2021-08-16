@@ -1194,7 +1194,8 @@ rhea_inversion_propagate_solution_to_qoi (const char *qoi_path,
           neg_gradient_vec, parameter_vec, inv_problem);
       neg_gradient_reduced = rhea_inversion_param_vec_reduced_new (
           neg_gradient_vec, inv_problem->inv_param);
-      RHEA_ASSERT (stress_qoi_jac->n == neg_gradient_reduced->m);
+      RHEA_ASSERT (neg_gradient_reduced->m == stress_qoi_jac->n);
+      RHEA_ASSERT (neg_gradient_reduced->m == n_parameters);
       for (idx_param = 0; idx_param < n_parameters; idx_param++) {
         stress_qoi_jac->e[idx_stress_qoi][idx_param] =
           neg_gradient_reduced->e[idx_param][0];
@@ -1266,18 +1267,26 @@ rhea_inversion_propagate_solution_to_qoi (const char *qoi_path,
     }
     sc_dmatrix_destroy (Cov_qoi_mat);
 
+    /* write QOI Jacobian matrix to file */
+    snprintf (path, BUFSIZ, "%s_jac.txt", qoi_path);
+    if (mpirank == 0) {
+      rhea_io_std_write_double_to_txt (path, stress_qoi_jac->e[0],
+                                       stress_qoi_jac->m * stress_qoi_jac->n,
+                                       stress_qoi_jac->n);
+    }
+
     /* write QOI mean vector to file */
     snprintf (path, BUFSIZ, "%s_mean.txt", qoi_path);
     if (mpirank == 0) {
-      rhea_io_std_write_double_to_txt (
-          path, stress_qoi_vec->e[0], stress_qoi_vec->m * stress_qoi_vec->n,
-          stress_qoi_vec->n);
+      rhea_io_std_write_double_to_txt (path, stress_qoi_vec->e[0],
+                                       stress_qoi_vec->m * stress_qoi_vec->n,
+                                       stress_qoi_vec->n);
     }
   }
 
   /* destroy */
-  rhea_inversion_qoi_stress_vec_reduced_destroy (stress_qoi_vec);
   rhea_inversion_qoi_stress_to_param_matrix_destroy (stress_qoi_jac);
+  rhea_inversion_qoi_stress_vec_reduced_destroy (stress_qoi_vec);
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
