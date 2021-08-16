@@ -214,7 +214,7 @@ _stress_get_reduced_index (const int stress_qoi_index,
   int                 weakzone_index;
 
   weakzone_index = rhea_weakzone_lookup_index_from_label (
-      weakzone_label, inv_qoi->weak_options);
+      (rhea_weakzone_label_t) weakzone_label, inv_qoi->weak_options);
   return stress_qoi_index * inv_qoi->stress_qoi_weak_n + weakzone_index;
 }
 
