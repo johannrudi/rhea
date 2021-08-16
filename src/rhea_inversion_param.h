@@ -42,6 +42,7 @@ typedef struct rhea_inversion_param_options
   int                 weak_factor_interior_label_slab_a;
   int                 weak_factor_interior_label_ridge_a;
   int                 weak_factor_interior_label_fracture_a;
+  char               *weak_factor_interior_label_file_path_txt_a;
 
   /* mean of Gaussian prior */
   double              prior_mean_perturb_stddev;

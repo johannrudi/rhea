@@ -14,6 +14,7 @@
 /* default options */
 #define RHEA_INVERSION_PARAM_DEFAULT_ACTIVATE 1
 #define RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE 0
+#define RHEA_INVERSION_PARAM_DEFAULT_ACTIVATE_WEAK_LABEL_FILE_PATH_TXT NULL
 #define RHEA_INVERSION_PARAM_DEFAULT_PRMN_PERTURB_STDDEV (NAN)
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MIN (1.0e-1)
 #define RHEA_INVERSION_PARAM_DEFAULT_PRSD_MAX (1.0e+1)
@@ -156,6 +157,12 @@ rhea_inversion_param_add_options (
     &(inv_param_opt->weak_factor_interior_label_fracture_a),
     RHEA_INVERSION_PARAM_DEFAULT_DEACTIVATE,
     "Activate weak zone factors of fractures",
+
+  YMIR_OPTIONS_S, "activate-weak-factor-interior-label-file-path-txt", '\0',
+    &(inv_param_opt->weak_factor_interior_label_file_path_txt_a),
+    RHEA_INVERSION_PARAM_DEFAULT_ACTIVATE_WEAK_LABEL_FILE_PATH_TXT,
+    "Path to a text file with weakzone activation flags "
+    "(one entry for each label)",
 
   /****** Prior ******/
 
@@ -398,7 +405,8 @@ static int *
 rhea_inversion_param_activation_mask_new (
                                         rhea_inversion_param_options_t *opt,
                                         rhea_weakzone_options_t *weak_options,
-                                        rhea_viscosity_options_t *visc_options)
+                                        rhea_viscosity_options_t *visc_options,
+                                        sc_MPI_Comm mpicomm)
 {
   int                *active = RHEA_ALLOC_ZERO (int, RHEA_INVERSION_PARAM_N);
   int                 offset, count, idx;
@@ -458,47 +466,99 @@ rhea_inversion_param_activation_mask_new (
     idx = RHEA_INVERSION_PARAM_WEAK_THICKNESS_CONST_CLASS_FRACTURE;
     active[idx] = opt->thickness_const_class_fracture_a;
 
-    /* process weak zone factors (set in "least to most local" order) */
-    if (!opt->weak_factor_interior_class_slab_a &&
-        !opt->weak_factor_interior_class_ridge_a &&
-        !opt->weak_factor_interior_class_fracture_a &&
-        !opt->weak_factor_interior_label_slab_a &&
-        !opt->weak_factor_interior_label_ridge_a &&
-        !opt->weak_factor_interior_label_fracture_a) {
-      idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE;
-      active[idx] = opt->weak_factor_interior_a;
-    }
-    if (!opt->weak_factor_interior_label_slab_a) {
-      idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB;
-      active[idx] = opt->weak_factor_interior_class_slab_a;
-    }
-    else {
+    /* process weak zone factors */
+    if (NULL != opt->weak_factor_interior_label_file_path_txt_a) {
+      const char         *file_path_txt =
+        opt->weak_factor_interior_label_file_path_txt_a;
+      const int           n_entries =
+        rhea_weakzone_get_total_n_labels (weak_options);
+      int                 n_read, idx_weak;
+      int                *activate_weakzone;
+
+      /* read file */
+      activate_weakzone = RHEA_ALLOC (int, n_entries);
+      n_read = rhea_io_mpi_read_broadcast_int (
+          activate_weakzone, n_entries, NULL /* path bin */, file_path_txt,
+          mpicomm);
+      RHEA_ASSERT (n_read == n_entries);
+
+      /* set activation for each weakzone label individually */
+      idx_weak = 0;
+
       offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_LABEL_SLAB;
-      count = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB];
+      count  = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB];
       for (idx = offset; idx < offset + count; idx++) {
-        active[idx] = 1;
+        RHEA_ASSERT (idx_weak < n_read);
+        if (activate_weakzone[idx_weak]) {
+          active[idx] = 1;
+        }
+        idx_weak++;
       }
-    }
-    if (!opt->weak_factor_interior_label_ridge_a) {
-      idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE;
-      active[idx] = opt->weak_factor_interior_class_ridge_a;
-    }
-    else {
+
       offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_LABEL_RIDGE;
-      count = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE];
+      count  = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE];
       for (idx = offset; idx < offset + count; idx++) {
-        active[idx] = 1;
+        RHEA_ASSERT (idx_weak < n_read);
+        if (activate_weakzone[idx_weak]) {
+          active[idx] = 1;
+        }
+        idx_weak++;
+      }
+
+      offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_LABEL_FRACTURE;
+      count  = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE];
+      for (idx = offset; idx < offset + count; idx++) {
+        RHEA_ASSERT (idx_weak < n_read);
+        if (activate_weakzone[idx_weak]) {
+          active[idx] = 1;
+        }
+        idx_weak++;
       }
     }
-    if (!opt->weak_factor_interior_label_fracture_a) {
-      idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE;
-      active[idx] = opt->weak_factor_interior_class_fracture_a;
-    }
     else {
-      offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_LABEL_FRACTURE;
-      count = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE];
-      for (idx = offset; idx < offset + count; idx++) {
-        active[idx] = 1;
+      /* process weak zone factors as classes
+       * (options for specific classes override general options) */
+      if (!opt->weak_factor_interior_class_slab_a &&
+          !opt->weak_factor_interior_class_ridge_a &&
+          !opt->weak_factor_interior_class_fracture_a &&
+          !opt->weak_factor_interior_label_slab_a &&
+          !opt->weak_factor_interior_label_ridge_a &&
+          !opt->weak_factor_interior_label_fracture_a) {
+        idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_NONE;
+        active[idx] = opt->weak_factor_interior_a;
+      }
+      if (!opt->weak_factor_interior_label_slab_a) {
+        idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_SLAB;
+        active[idx] = opt->weak_factor_interior_class_slab_a;
+      }
+      else {
+        offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_LABEL_SLAB;
+        count  = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_SLAB];
+        for (idx = offset; idx < offset + count; idx++) {
+          active[idx] = 1;
+        }
+      }
+      if (!opt->weak_factor_interior_label_ridge_a) {
+        idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_RIDGE;
+        active[idx] = opt->weak_factor_interior_class_ridge_a;
+      }
+      else {
+        offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_LABEL_RIDGE;
+        count  = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_RIDGE];
+        for (idx = offset; idx < offset + count; idx++) {
+          active[idx] = 1;
+        }
+      }
+      if (!opt->weak_factor_interior_label_fracture_a) {
+        idx = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_CLASS_FRACTURE;
+        active[idx] = opt->weak_factor_interior_class_fracture_a;
+      }
+      else {
+        offset = RHEA_INVERSION_PARAM_WEAK_FACTOR_INTERIOR_LABEL_FRACTURE;
+        count  = weak_options->n_labels[RHEA_WEAKZONE_LABEL_CLASS_FRACTURE];
+        for (idx = offset; idx < offset + count; idx++) {
+          active[idx] = 1;
+        }
       }
     }
   }
@@ -571,10 +631,12 @@ rhea_inversion_param_t *
 rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
                           rhea_inversion_param_options_t *inv_param_options)
 {
+  ymir_mesh_t        *ymir_mesh =
+    rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  const int           use_dim =
+    RHEA_INVERSION_PARAM_DEFAULT_DIMENSIONAL_SCALING;
   rhea_inversion_param_options_t *inv_param_opt;
   rhea_inversion_param_t         *inv_param;
-  const int           use_dim =
-                        RHEA_INVERSION_PARAM_DEFAULT_DIMENSIONAL_SCALING;
 
   /* set options storage */
   if (inv_param_options != NULL) {
@@ -597,7 +659,8 @@ rhea_inversion_param_new (rhea_stokes_problem_t *stokes_problem,
 
   /* determine active parameters */
   inv_param->active = rhea_inversion_param_activation_mask_new (
-      inv_param_opt, inv_param->weak_options, inv_param->visc_options);
+      inv_param_opt, inv_param->weak_options, inv_param->visc_options,
+      ymir_mesh_get_MPI_Comm (ymir_mesh));
   inv_param->n_active = rhea_inversion_param_activation_mask_count (
       inv_param->active);
   RHEA_ASSERT (0 < inv_param->n_active);
