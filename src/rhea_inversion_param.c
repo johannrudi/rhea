@@ -514,6 +514,8 @@ rhea_inversion_param_activation_mask_new (
         }
         idx_weak++;
       }
+
+      RHEA_FREE (activate_weakzone);
     }
     else {
       /* process weak zone factors as classes
