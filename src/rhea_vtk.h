@@ -69,4 +69,11 @@ int                 rhea_vtk_write_inversion_iteration_surf (
                                           ymir_vec_t *velocity_obs_weight_surf,
                                           ymir_vec_t *misfit_surf);
 
+int                 rhea_vtk_write_inversion_adjoint (
+                                          const char *filepath,
+                                          ymir_vec_t *velocity_adj,
+                                          ymir_vec_t *pressure_adj,
+                                          ymir_vec_t *rhs_velocity_adj,
+                                          ymir_vec_t *rhs_pressure_adj);
+
 #endif /* RHEA_VTK_H */

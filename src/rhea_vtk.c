@@ -37,6 +37,8 @@
 #define RHEA_VTK_NAME_PRESSURE_FWD "pressure_fwd"
 #define RHEA_VTK_NAME_VELOCITY_ADJ "velocity_adj"
 #define RHEA_VTK_NAME_PRESSURE_ADJ "pressure_adj"
+#define RHEA_VTK_NAME_RHS_VELOCITY_ADJ "rhs_velocity_adj"
+#define RHEA_VTK_NAME_RHS_PRESSURE_ADJ "rhs_pressure_adj"
 #define RHEA_VTK_NAME_VELOCITY_OBS "velocity_obs"
 #define RHEA_VTK_NAME_VELOCITY_OBS_WEIGHT "obs_weight"
 #define RHEA_VTK_NAME_VELOCITY_MISFIT "velocity_misfit"
@@ -507,6 +509,47 @@ rhea_vtk_write_nonlinear_stokes_iteration_surf (const char *filepath,
 }
 
 int
+rhea_vtk_write_inversion_adjoint (const char *filepath,
+                                  ymir_vec_t *velocity_adj,
+                                  ymir_vec_t *pressure_adj,
+                                  ymir_vec_t *rhs_velocity_adj,
+                                  ymir_vec_t *rhs_pressure_adj)
+{
+  int                 success = 0;
+
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "path=\"%s\"", filepath);
+
+  /* write adjoint state */
+  if (NULL != velocity_adj && NULL != pressure_adj &&
+      NULL != rhs_velocity_adj && NULL != rhs_pressure_adj) {
+    ymir_vtk_write (ymir_vec_get_mesh (velocity_adj), filepath,
+                    velocity_adj, RHEA_VTK_NAME_VELOCITY_ADJ,
+                    pressure_adj, RHEA_VTK_NAME_PRESSURE_ADJ,
+                    rhs_velocity_adj, RHEA_VTK_NAME_RHS_VELOCITY_ADJ,
+                    rhs_pressure_adj, RHEA_VTK_NAME_RHS_PRESSURE_ADJ, NULL);
+    success++;
+  }
+  else if (NULL != velocity_adj && NULL != pressure_adj &&
+          NULL != rhs_velocity_adj) {
+    ymir_vtk_write (ymir_vec_get_mesh (velocity_adj), filepath,
+                    velocity_adj, RHEA_VTK_NAME_VELOCITY_ADJ,
+                    pressure_adj, RHEA_VTK_NAME_PRESSURE_ADJ,
+                    rhs_velocity_adj, RHEA_VTK_NAME_RHS_VELOCITY_ADJ, NULL);
+    success++;
+  }
+  else if (NULL != velocity_adj && NULL != pressure_adj) {
+    ymir_vtk_write (ymir_vec_get_mesh (velocity_adj), filepath,
+                    velocity_adj, RHEA_VTK_NAME_VELOCITY_ADJ,
+                    pressure_adj, RHEA_VTK_NAME_PRESSURE_ADJ, NULL);
+    success++;
+  }
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
+
+  return success;
+}
+
+int
 rhea_vtk_write_inversion_iteration (const char *filepath,
                                     ymir_vec_t *velocity_fwd,
                                     ymir_vec_t *pressure_fwd,
@@ -538,10 +581,8 @@ rhea_vtk_write_inversion_iteration (const char *filepath,
   /* write adjoint state */
   if (NULL != velocity_adj && NULL != pressure_adj) {
     snprintf (path, BUFSIZ, "%s_adj", filepath);
-    ymir_vtk_write (ymir_vec_get_mesh (velocity_adj), path,
-                    velocity_adj, RHEA_VTK_NAME_VELOCITY_ADJ,
-                    pressure_adj, RHEA_VTK_NAME_PRESSURE_ADJ, NULL);
-    success++;
+    success += rhea_vtk_write_inversion_adjoint (path, velocity_adj,
+                                                 pressure_adj, NULL, NULL);
   }
 
   RHEA_GLOBAL_INFO_FN_END (__func__);
