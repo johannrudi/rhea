@@ -6,17 +6,17 @@
 #include <rhea_inversion_param.h>
 #include <rhea_inversion_qoi.h>
 #include <rhea_newton.h>
+#include <rhea_newton_check.h>
 #include <rhea_velocity.h>
 #include <rhea_velocity_pressure.h>
 #include <rhea_strainrate.h>
+#include <rhea_stress.h>
 #include <rhea_stokes_problem_amr.h>
 #include <rhea_io_std.h>
 #include <rhea_io_mpi.h>
 #include <rhea_vtk.h>
+#include <ymir_comm.h>
 #include <ymir_perf_counter.h>
-
-//###DEV###
-#include <rhea_stress.h>
 
 /* Inverse solver */
 #define RHEA_INVERSION_OBJ_N_COMPONENTS 4
@@ -84,6 +84,7 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_HESSIAN (0)
+#define RHEA_INVERSION_DEFAULT_DEBUG (0)
 #define RHEA_INVERSION_DEFAULT_MONITOR_PERFORMANCE (0)
 
 #define RHEA_INVERSION_DEFAULT_PRIOR_PRECONDITIONER (0)
@@ -151,6 +152,8 @@ int                 rhea_inversion_check_gradient_elementwise =
                       RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE;
 int                 rhea_inversion_check_hessian =
                       RHEA_INVERSION_DEFAULT_CHECK_HESSIAN;
+int                 rhea_inversion_debug =
+                      RHEA_INVERSION_DEFAULT_DEBUG;
 int                 rhea_inversion_monitor_performance =
                       RHEA_INVERSION_DEFAULT_MONITOR_PERFORMANCE;
 
@@ -305,6 +308,11 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
     &(rhea_inversion_check_hessian), RHEA_INVERSION_DEFAULT_CHECK_HESSIAN,
     "Check the Hessian during Newton iterations",
 
+  /* debugging */
+  YMIR_OPTIONS_B, "debug", '\0',
+    &(rhea_inversion_debug), RHEA_INVERSION_DEFAULT_DEBUG,
+    "Activate output (text and vtk) for debugging",
+
   /* monitors */
   YMIR_OPTIONS_B, "monitor-performance", '\0',
     &(rhea_inversion_monitor_performance),
@@ -458,8 +466,10 @@ struct rhea_inversion_problem
   int                 incremental_forward_is_outdated;
   int                 incremental_adjoint_is_outdated;
 
-  /* options for inner solves */
-  double              inner_solver_adaptive_rtol_comp;
+  /* variables for inner solves */
+  ymir_vec_t                       *rhs_vel_buffer;
+  ymir_vec_t                       *rhs_vel_press_buffer;
+  double                            inner_solver_adaptive_rtol_comp;
   rhea_inversion_project_out_null_t project_out_null;
 
   /* assembled Hessian matrix */
@@ -475,8 +485,8 @@ struct rhea_inversion_problem
   ymir_vec_t             *newton_gradient_observation_comp_vec;
   ymir_vec_t             *newton_gradient_diff_vec;
   int                     newton_gradient_diff_vec_update_count;
-  ymir_vec_t        **check_gradient_perturb_vec;
-  int                 check_gradient_perturb_n_vecs;
+  ymir_vec_t            **check_gradient_perturb_vec;
+  int                     check_gradient_perturb_n_vecs;
 
   /* statistics */
   char              **fwd_adj_solve_stats;
@@ -501,6 +511,7 @@ struct rhea_inversion_problem
   char               *txt_path;
   char               *vtk_path_vol;
   char               *vtk_path_surf;
+  char               *vtk_path_debug_gradient;
 };
 
 static int
@@ -510,10 +521,12 @@ rhea_inversion_mesh_data_exists (rhea_inversion_problem_t *inv_problem)
   int                 vel_obs_exist;
 
   fwd_adj_states_exist = (
-      inv_problem->forward_vel_press != NULL &&
-      inv_problem->adjoint_vel_press != NULL &&
-      inv_problem->incremental_forward_vel_press != NULL &&
-      inv_problem->incremental_adjoint_vel_press != NULL
+      NULL != inv_problem->forward_vel_press &&
+      NULL != inv_problem->adjoint_vel_press &&
+      NULL != inv_problem->incremental_forward_vel_press &&
+      NULL != inv_problem->incremental_adjoint_vel_press &&
+      NULL != inv_problem->rhs_vel_buffer &&
+      NULL != inv_problem->rhs_vel_press_buffer
   );
   vel_obs_exist = (
       inv_problem->vel_obs_type == RHEA_INVERSION_OBS_VELOCITY_NONE ||
@@ -598,6 +611,13 @@ rhea_inversion_newton_create_mesh_data (rhea_inversion_problem_t *inv_problem)
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
 
+  /* create variables for inner solves */
+  RHEA_ASSERT (inv_problem->rhs_vel_buffer == NULL);
+  RHEA_ASSERT (inv_problem->rhs_vel_press_buffer == NULL);
+  inv_problem->rhs_vel_buffer       = rhea_velocity_new (ymir_mesh);
+  inv_problem->rhs_vel_press_buffer = rhea_velocity_pressure_new (ymir_mesh,
+                                                                  press_elem);
+
   /* create velocity observational data */
   RHEA_ASSERT (inv_problem->vel_obs_surf == NULL);
   RHEA_ASSERT (inv_problem->vel_obs_weight_surf == NULL);
@@ -665,15 +685,21 @@ rhea_inversion_newton_clear_mesh_data (rhea_inversion_problem_t *inv_problem,
   rhea_velocity_pressure_destroy (inv_problem->adjoint_vel_press);
   rhea_velocity_pressure_destroy (inv_problem->incremental_forward_vel_press);
   rhea_velocity_pressure_destroy (inv_problem->incremental_adjoint_vel_press);
-  inv_problem->adjoint_vel_press = NULL;
+  inv_problem->adjoint_vel_press             = NULL;
   inv_problem->incremental_forward_vel_press = NULL;
   inv_problem->incremental_adjoint_vel_press = NULL;
+
+  /* destroy variables for inner solves */
+  rhea_velocity_destroy (inv_problem->rhs_vel_buffer);
+  rhea_velocity_pressure_destroy (inv_problem->rhs_vel_press_buffer);
+  inv_problem->rhs_vel_buffer       = NULL;
+  inv_problem->rhs_vel_press_buffer = NULL;
 
   /* destroy observational data */
   if (RHEA_INVERSION_OBS_VELOCITY_NONE != inv_problem->vel_obs_type) {
     rhea_velocity_surface_destroy (inv_problem->vel_obs_surf);
     ymir_vec_destroy (inv_problem->vel_obs_weight_surf);
-    inv_problem->vel_obs_surf = NULL;
+    inv_problem->vel_obs_surf        = NULL;
     inv_problem->vel_obs_weight_surf = NULL;
   }
   else {
@@ -1135,13 +1161,11 @@ rhea_inversion_propagate_solution_to_qoi (const char *qoi_path,
                           inv_problem->inv_param);
   sc_dmatrix_t       *stress_qoi_vec, *stress_qoi_jac;
   size_t              idx_stress_qoi, idx_param;
+  char                path[BUFSIZ];
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "#qoi=%i, #parameters=%i, path=%s",
                               rhea_inversion_qoi_get_count_all (inv_qoi),
                               n_parameters, qoi_path);
-
-  /* check input */
-  //RHEA_ASSERT (NULL != inv_problem->hessian_matrix);
 
   /* nothing to do if
    * - no QOI,
@@ -1190,15 +1214,31 @@ rhea_inversion_propagate_solution_to_qoi (const char *qoi_path,
                                                      inv_problem, NULL);
 
       /* compute gradient */
+      if (rhea_inversion_debug) { /* if set vtk debug path */
+        snprintf (path, BUFSIZ, "%s_debug_stress_qoi%02u",
+                  inv_problem->vtk_path_vol, (unsigned int) idx_stress_qoi);
+        inv_problem->vtk_path_debug_gradient = path;
+      }
       rhea_inversion_newton_compute_negative_gradient_fn (
           neg_gradient_vec, parameter_vec, inv_problem);
+      if (rhea_inversion_debug) { /* if remove vtk debug path */
+        inv_problem->vtk_path_debug_gradient = NULL;
+      }
+      rhea_newton_check_gradient (parameter_vec, neg_gradient_vec,
+                                  rhea_inversion_check_gradient,
+                                  inv_problem->check_gradient_perturb_vec,
+                                  inv_problem->check_gradient_perturb_n_vecs,
+                                  1000 + (int) idx_stress_qoi,
+                                  inv_problem->newton_problem);
+
+      /* fill gradient into QOI Jacobian */
       neg_gradient_reduced = rhea_inversion_param_vec_reduced_new (
           neg_gradient_vec, inv_problem->inv_param);
       RHEA_ASSERT (neg_gradient_reduced->m == stress_qoi_jac->n);
       RHEA_ASSERT (neg_gradient_reduced->m == n_parameters);
       for (idx_param = 0; idx_param < n_parameters; idx_param++) {
         stress_qoi_jac->e[idx_stress_qoi][idx_param] =
-          neg_gradient_reduced->e[idx_param][0];
+          - neg_gradient_reduced->e[idx_param][0];
       }
 
       /* destroy */
@@ -2102,7 +2142,9 @@ rhea_inversion_newton_compute_negative_gradient_fn (
                         inv_problem->newton_gradient_prior_comp_vec;
   ymir_vec_t         *gradient_obs_comp =
                         inv_problem->newton_gradient_observation_comp_vec;
-  ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
+  ymir_vec_t         *rhs_vel_mass  = inv_problem->rhs_vel_buffer;
+  ymir_vec_t         *rhs_vel_press = inv_problem->rhs_vel_press_buffer;
+  ymir_vec_t         *vel;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
   ymir_perf_counter_start (
@@ -2137,12 +2179,8 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_mesh  = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
   press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
 
-  /* create work variables */
-  vel           = rhea_velocity_new (ymir_mesh);
-  rhs_vel_mass  = rhea_velocity_new (ymir_mesh);
-  rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
-
   /* retrieve velocity of the forward state */
+  vel = rhea_velocity_new (ymir_mesh);
   rhea_velocity_pressure_copy_components (
       vel, NULL, inv_problem->forward_vel_press, press_elem);
   rhea_stokes_problem_velocity_enforce_boundary_conditions (
@@ -2164,6 +2202,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       inv_problem->stress_obs, inv_problem->stress_obs_weight,
       inv_problem->stress_obs_type, stokes_problem);
   ymir_vec_scale (data_abs_weight, rhs_vel_mass);
+  rhea_velocity_destroy (vel);
 
   /* project out null spaces and enforce Dirichlet BC's on right-hand side */
   if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_RESIDUAL ||
@@ -2188,17 +2227,32 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       inv_problem->forward_vel_press /* velocity-pressure for coeff update */,
       1 /* override_rhs */, rhs_vel_press, NULL, NULL, NULL);
 
-  /* destroy */
-  rhea_velocity_destroy (vel);
-  rhea_velocity_destroy (rhs_vel_mass);
-  rhea_velocity_pressure_destroy (rhs_vel_press);
-
   /* solve for adjoint state */
   rhea_inversion_inner_solve_adjoint (inv_problem);
   if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_PRIMAL ||
       project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_BOTH) {
     rhea_stokes_problem_project_out_nullspace (
         inv_problem->adjoint_vel_press, stokes_problem);
+  }
+
+  /* write vtk output pertaining to adjoint */
+  if (inv_problem->vtk_path_debug_gradient != NULL) {
+    ymir_vec_t         *adj_vel, *adj_press;
+
+    adj_vel   = rhea_velocity_new (ymir_mesh);
+    adj_press = rhea_pressure_new (ymir_mesh, press_elem);
+    rhea_velocity_pressure_copy_components (
+        adj_vel, adj_press, inv_problem->adjoint_vel_press, press_elem);
+
+    rhea_velocity_remove_mass (rhs_vel_mass);
+    ymir_vec_share_owned (rhs_vel_mass);
+
+    rhea_vtk_write_inversion_adjoint (
+        inv_problem->vtk_path_debug_gradient,
+        adj_vel, adj_press, rhs_vel_mass, NULL /* rhs_pressure_adj */);
+
+    rhea_velocity_destroy (adj_vel);
+    rhea_pressure_destroy (adj_press);
   }
 
   /* compute the (positive) gradient */
@@ -2211,10 +2265,10 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   /* print gradient */
   {
     const int          *active = rhea_inversion_param_get_active (inv_param);
-    const double       *grad = neg_gradient->meshfree->e[0];
-    const double       *grad_adj = gradient_adj_comp->meshfree->e[0];
+    const double       *grad       = neg_gradient->meshfree->e[0];
+    const double       *grad_adj   = gradient_adj_comp->meshfree->e[0];
     const double       *grad_prior = gradient_prior_comp->meshfree->e[0];
-    const double       *grad_obs = gradient_obs_comp->meshfree->e[0];
+    const double       *grad_obs   = gradient_obs_comp->meshfree->e[0];
     int                 i;
 
     RHEA_GLOBAL_INFO ("========================================\n");
@@ -2333,10 +2387,11 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
   ymir_pressure_elem_t     *press_elem;
   const rhea_inversion_project_out_null_t project_out_null =
                                             inv_problem->project_out_null;
-  const double        data_abs_weight = inv_problem->data_abs_weight;
+  const double        data_abs_weight  = inv_problem->data_abs_weight;
   const double        prior_abs_weight = inv_problem->prior_abs_weight;
   int                 compute_incr_fwd, compute_incr_adj;
-  ymir_vec_t         *vel, *rhs_vel_mass, *rhs_vel_press;
+  ymir_vec_t         *rhs_vel_mass  = inv_problem->rhs_vel_buffer;
+  ymir_vec_t         *rhs_vel_press = inv_problem->rhs_vel_press_buffer;
 
   /* set which computations to perform */
   switch (type) {
@@ -2364,11 +2419,6 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
     /* get mesh data */
     ymir_mesh = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
     press_elem = rhea_stokes_problem_get_press_elem (stokes_problem);
-
-    /* create work variables */
-    vel = rhea_velocity_new (ymir_mesh);
-    rhs_vel_mass = rhea_velocity_new (ymir_mesh);
-    rhs_vel_press = rhea_velocity_pressure_new (ymir_mesh, press_elem);
   }
 
   if (compute_incr_fwd) { /* BEGIN: incremental forward */
@@ -2406,7 +2456,10 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
   } /* END: incremental forward */
 
   if (compute_incr_adj) { /* BEGIN: incremental adjoint */
+    ymir_vec_t         *vel;
+
     /* retrieve velocity of the incremental forward state */
+    vel = rhea_velocity_new (ymir_mesh);
     rhea_velocity_pressure_copy_components (
         vel, NULL, inv_problem->incremental_forward_vel_press, press_elem);
     rhea_stokes_problem_velocity_set_boundary_zero (vel, stokes_problem);
@@ -2437,6 +2490,7 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
     default: /* unknown Hessian type */
       RHEA_ABORT_NOT_REACHED ();
     }
+    rhea_velocity_destroy (vel);
 
     /* project out null spaces and enforce Dirichlet BC's on right-hand side */
     if (project_out_null == RHEA_INVERSION_PROJECT_OUT_NULL_RESIDUAL ||
@@ -2465,13 +2519,6 @@ rhea_inversion_apply_hessian (ymir_vec_t *param_vec_out,
           inv_problem->incremental_adjoint_vel_press, stokes_problem);
     }
   } /* END: incremental adjoint */
-
-  /* destroy after incremental solves */
-  if (compute_incr_fwd || compute_incr_adj) {
-    rhea_velocity_destroy (vel);
-    rhea_velocity_destroy (rhs_vel_mass);
-    rhea_velocity_pressure_destroy (rhs_vel_press);
-  }
 
   /* compute the Hessian application */
   switch (type) {
@@ -3377,16 +3424,18 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   /* initialize inverse problem */
   inv_problem = RHEA_ALLOC (rhea_inversion_problem_t, 1);
   inv_problem->stokes_problem = stokes_problem;
-  inv_problem->forward_vel_press = NULL;
-  inv_problem->adjoint_vel_press = NULL;
-  inv_problem->incremental_forward_vel_press = NULL;
-  inv_problem->incremental_adjoint_vel_press = NULL;
-  inv_problem->forward_is_outdated = 1;
-  inv_problem->adjoint_is_outdated = 1;
-  inv_problem->forward_nonzero_init = 0;
-  inv_problem->adjoint_nonzero_init = 0;
+  inv_problem->forward_vel_press               = NULL;
+  inv_problem->adjoint_vel_press               = NULL;
+  inv_problem->incremental_forward_vel_press   = NULL;
+  inv_problem->incremental_adjoint_vel_press   = NULL;
+  inv_problem->forward_is_outdated             = 1;
+  inv_problem->adjoint_is_outdated             = 1;
+  inv_problem->forward_nonzero_init            = 0;
+  inv_problem->adjoint_nonzero_init            = 0;
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
+  inv_problem->rhs_vel_buffer                  = NULL;
+  inv_problem->rhs_vel_press_buffer            = NULL;
   inv_problem->project_out_null =
     (rhea_inversion_project_out_null_t) rhea_inversion_project_out_null;
   inv_problem->hessian_matrix = NULL;
@@ -3504,9 +3553,10 @@ rhea_inversion_new (rhea_stokes_problem_t *stokes_problem)
   inv_problem->error_stats_hessian   = NAN;
 
   /* initialize output paths */
-  inv_problem->txt_path      = NULL;
-  inv_problem->vtk_path_vol  = NULL;
-  inv_problem->vtk_path_surf = NULL;
+  inv_problem->txt_path                = NULL;
+  inv_problem->vtk_path_vol            = NULL;
+  inv_problem->vtk_path_surf           = NULL;
+  inv_problem->vtk_path_debug_gradient = NULL;
 
   RHEA_GLOBAL_PRODUCTION_FN_END (__func__);
 
