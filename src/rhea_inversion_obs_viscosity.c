@@ -387,8 +387,11 @@ rhea_inversion_obs_viscosity_add_adjoint_rhs (
   double              diff, volume;
   int                 cid;
 
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "obs_type=%i", (int) obs_type);
+
   /* return if nothing to do */
   if (RHEA_INVERSION_OBS_VISCOSITY_NONE == obs_type) {
+    RHEA_GLOBAL_VERBOSE_FN_END (__func__);
     return;
   }
 
@@ -456,6 +459,8 @@ rhea_inversion_obs_viscosity_add_adjoint_rhs (
   rhea_viscosity_destroy (coeff);
   rhea_strainrate_2inv_destroy (strainrate_2inv);
   rhea_velocity_destroy (op_out_vel);
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 void

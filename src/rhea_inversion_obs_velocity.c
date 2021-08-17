@@ -383,6 +383,8 @@ rhea_inversion_obs_velocity_add_adjoint_rhs (
   ymir_mesh_t        *ymir_mesh = ymir_vec_get_mesh (rhs_vel_mass);
   ymir_vec_t         *misfit_surf, *misfit_surf_mass, *rhs_add;
 
+  RHEA_GLOBAL_VERBOSEF_FN_BEGIN (__func__, "obs_type=%i", (int) obs_type);
+
   /* check input */
   RHEA_ASSERT (rhea_velocity_check_vec_type (rhs_vel_mass));
   RHEA_ASSERT (rhea_velocity_check_vec_type (vel_fwd_vol));
@@ -396,6 +398,7 @@ rhea_inversion_obs_velocity_add_adjoint_rhs (
 
   /* return if nothing to do */
   if (RHEA_INVERSION_OBS_VELOCITY_NONE == obs_type) {
+    RHEA_GLOBAL_VERBOSE_FN_END (__func__);
     return;
   }
 
@@ -419,6 +422,8 @@ rhea_inversion_obs_velocity_add_adjoint_rhs (
   /* add output to right-hand side (change sign to obtain RHS) */
   ymir_vec_add (-1.0, rhs_add, rhs_vel_mass);
   rhea_velocity_destroy (rhs_add);
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
 void
