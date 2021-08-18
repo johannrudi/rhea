@@ -64,6 +64,35 @@ rhea_stress_is_valid (ymir_vec_t *vec)
 }
 
 void
+rhea_stress_nonsymmetric_to_symmetric (ymir_vec_t *stress_symm,
+                                       ymir_vec_t *stress_nonsymm)
+{
+  const ymir_locidx_t n_elements = stress_symm->K;
+  const int           n_nodes_per_el = stress_symm->Np;
+  ymir_locidx_t       elid;
+  int                 nodeid;
+
+  /* check input */
+  RHEA_ASSERT (rhea_stress_check_vec_type (stress_symm));
+  RHEA_ASSERT (rhea_stress_nonsymmetric_check_vec_type (stress_nonsymm));
+  RHEA_ASSERT (rhea_stress_is_valid (stress_nonsymm));
+
+  for (elid = 0; elid < n_elements; elid++) {
+    for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+      const double       *N = ymir_dvec_index (stress_nonsymm, elid, nodeid, 0);
+      double             *S = ymir_dvec_index (stress_symm, elid, nodeid, 0);
+
+      S[0] = N[0];  S[1] = 0.5*(N[1] + N[3]);  S[2] = 0.5*(N[2] + N[6]);
+                    S[3] = N[4];               S[4] = 0.5*(N[5] + N[7]);
+                                               S[5] = N[8];
+    }
+  }
+
+  /* check output */
+  RHEA_ASSERT (rhea_stress_is_valid (stress_symm));
+}
+
+void
 rhea_stress_compute_viscstress (ymir_vec_t *viscstress,
                                 ymir_vec_t *strainrate,
                                 ymir_vec_t *viscosity)

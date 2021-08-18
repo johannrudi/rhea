@@ -84,6 +84,13 @@ int                 rhea_stress_is_valid (ymir_vec_t *vec);
 int                 rhea_stress_2inv_is_valid (ymir_vec_t *vec);
 
 /**
+ * Converts nonsymmetric stress tensor to a symmetric stress tensor.
+ */
+void                rhea_stress_nonsymmetric_to_symmetric (
+                                                  ymir_vec_t *stress_symm,
+                                                  ymir_vec_t *stress_nonsymm);
+
+/**
  * Computes the viscous stress tensor.
  */
 void                rhea_stress_compute_viscstress (ymir_vec_t *viscstress,
