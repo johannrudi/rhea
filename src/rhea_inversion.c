@@ -82,6 +82,7 @@ rhea_inversion_project_out_null_t;
 #define RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL \
   (RHEA_INVERSION_PROJECT_OUT_NULL_NONE)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT (0)
+#define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_OF_QOI (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE (0)
 #define RHEA_INVERSION_DEFAULT_CHECK_HESSIAN (0)
 #define RHEA_INVERSION_DEFAULT_DEBUG (0)
@@ -148,6 +149,8 @@ int                 rhea_inversion_project_out_null =
                       RHEA_INVERSION_DEFAULT_PROJECT_OUT_NULL;
 int                 rhea_inversion_check_gradient =
                       RHEA_INVERSION_DEFAULT_CHECK_GRADIENT;
+int                 rhea_inversion_check_gradient_of_qoi =
+                      RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_OF_QOI;
 int                 rhea_inversion_check_gradient_elementwise =
                       RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE;
 int                 rhea_inversion_check_hessian =
@@ -300,6 +303,10 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
   YMIR_OPTIONS_I, "check-gradient", '\0',
     &(rhea_inversion_check_gradient), RHEA_INVERSION_DEFAULT_CHECK_GRADIENT,
     "Check the gradient during Newton iterations",
+  YMIR_OPTIONS_I, "check-gradient-of-qoi", '\0',
+    &(rhea_inversion_check_gradient_of_qoi),
+    RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_OF_QOI,
+    "Check the gradient during QOI computations",
   YMIR_OPTIONS_B, "check-gradient-elementwise", '\0',
     &(rhea_inversion_check_gradient_elementwise),
     RHEA_INVERSION_DEFAULT_CHECK_GRADIENT_ELEMENTWISE,
@@ -1225,7 +1232,7 @@ rhea_inversion_propagate_solution_to_qoi (const char *qoi_path,
         inv_problem->vtk_path_debug_gradient = NULL;
       }
       rhea_newton_check_gradient (parameter_vec, neg_gradient_vec,
-                                  rhea_inversion_check_gradient,
+                                  rhea_inversion_check_gradient_of_qoi,
                                   inv_problem->check_gradient_perturb_vec,
                                   inv_problem->check_gradient_perturb_n_vecs,
                                   1000 + (int) idx_stress_qoi,
@@ -2305,7 +2312,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (neg_gradient, inv_param));
 
   /* set up perturbations for the (elementwise) gradient check */
-  if (rhea_inversion_check_gradient &&
+  if ((rhea_inversion_check_gradient || rhea_inversion_check_gradient_of_qoi) &&
       rhea_inversion_check_gradient_elementwise) {
     const double        restrict_to_prior_stddev =
                           rhea_inversion_restrict_step_to_prior_stddev;
@@ -2324,7 +2331,7 @@ rhea_inversion_newton_compute_negative_gradient_fn (
       if (active[i]) {
         RHEA_ASSERT (vidx < inv_problem->check_gradient_perturb_n_vecs);
         perturb_vec[vidx]->meshfree->e[0][i] =
-            1.0e-2 * fabs (solution->meshfree->e[0][i]);
+            0.1 * fabs (solution->meshfree->e[0][i]);
         vidx++;
       }
     }
@@ -3188,7 +3195,7 @@ rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
   rhea_newton_problem_set_checks (
       rhea_inversion_check_gradient, rhea_inversion_check_hessian,
       newton_problem);
-  if (rhea_inversion_check_gradient &&
+  if ((rhea_inversion_check_gradient || rhea_inversion_check_gradient_of_qoi) &&
       rhea_inversion_check_gradient_elementwise) {
     const int          *active = rhea_inversion_param_get_active (inv_param);
     const int           n_active =
