@@ -5,6 +5,21 @@
 #include <ymir_mass_vec.h>
 #include <ymir_stokes_op.h>
 #include <ymir_stress_op_optimized.h>
+#include <ymir_comm.h>
+
+#if defined(RHEA_ENABLE_DEBUG)
+#define RHEA_INVERSION_OBS_STRESS_ENABLE_UNITTEST
+#endif
+
+#if defined(RHEA_INVERSION_OBS_STRESS_ENABLE_UNITTEST)
+#include <ymir_mass_vec.h>
+
+static void         rhea_inversion_obs_stress_unittest_diff_adjoint (
+                                  ymir_vec_t *forward_vel_press,
+                                  ymir_vec_t *misfit_stress,
+                                  ymir_vec_t *weight,
+                                  rhea_stokes_problem_t *stokes_problem);
+#endif
 
 static int
 rhea_inversion_obs_stress_weight_check_vec_type (ymir_vec_t *vec)
@@ -32,6 +47,7 @@ rhea_inversion_obs_stress_diff_ext (ymir_vec_t *misfit_stress,
                                     ymir_vec_t *obs_stress,
                                     ymir_vec_t *weight,
                                     rhea_stokes_problem_t *stokes_problem,
+                                    const int vel_derivative,
                                     const int param_derivative,
                                     ymir_stress_op_t *stress_op_param_derivative)
 {
@@ -53,13 +69,14 @@ rhea_inversion_obs_stress_diff_ext (ymir_vec_t *misfit_stress,
     if (!param_derivative) {
       rhea_stokes_problem_stress_compute (
           misfit_stress, forward_vel_press, stokes_problem,
-          NULL, 0 /* !linearized */, 0 /* !skip_pressure */);
+          NULL /* override_stress_op */,
+          vel_derivative, 0 /* !skip_pressure */);
     }
     else {
       rhea_stokes_problem_stress_compute (
           misfit_stress, forward_vel_press, stokes_problem,
-          stress_op_param_derivative, 0 /* !linearized */,
-          1 /* skip_pressure */);
+          stress_op_param_derivative,
+          vel_derivative, 1 /* skip_pressure */);
     }
   }
   else {
@@ -92,7 +109,7 @@ rhea_inversion_obs_stress_diff (ymir_vec_t *misfit_stress,
 {
   rhea_inversion_obs_stress_diff_ext (
       misfit_stress, forward_vel_press, obs_stress, weight, stokes_problem,
-      0 /* !param_derivative */, NULL);
+      0 /* !vel_derivative */, 0 /* !param_derivative */, NULL);
 }
 
 /**
@@ -120,7 +137,10 @@ rhea_inversion_obs_stress_diff_adjoint (
   /* compute divergence of viscous coefficient multiplied by strain rate */
   rhea_stokes_problem_stress_div_compute (
       velocity, strain_rate, stokes_problem,
-      NULL /* !override_stress_op */, 1 /* !linearized */);
+      NULL /* !override_stress_op */, 1 /* vel_derivative */);
+
+  /* communicate shared node values */
+  ymir_vec_share_owned (velocity);
 }
 
 static double
@@ -337,7 +357,8 @@ rhea_inversion_obs_stress_misfit_ext (
          * coefficient's derivative in place of the coefficient */
         rhea_inversion_obs_stress_diff_ext (
             misfit_stress, forward_vel_press, NULL /* obs_stress */, weight,
-            stokes_problem, param_derivative, stress_op_param_derivative);
+            stokes_problem, 0 /* !vel_derivative */, param_derivative,
+            stress_op_param_derivative);
       }
 
       /* compute normal direction at plate boundaries */
@@ -378,7 +399,8 @@ rhea_inversion_obs_stress_misfit_ext (
          * coefficient's derivative in place of the coefficient */
         rhea_inversion_obs_stress_diff_ext (
             misfit_stress, forward_vel_press, NULL /* obs_stress */, weight,
-            stokes_problem, param_derivative, stress_op_param_derivative);
+            stokes_problem, 0 /* !vel_derivative */, param_derivative,
+            stress_op_param_derivative);
       }
 
       /* compute normal direction at plate boundaries */
@@ -504,9 +526,6 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
     /* compute misfit vector */
     rhea_inversion_obs_stress_diff (
         misfit_mass, forward_vel_press, obs_stress, weight, stokes_problem);
-
-    /* apply mass matrix */
-    ymir_mass_apply_gauss (misfit_mass);
     break;
   case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_NORMAL:
     /* note: assume weak zone indicator is implicitly given by `weight` */
@@ -526,9 +545,6 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
       /* scale by volume */
       ymir_vec_scale (1.0 / _get_reference_volume (weight, stokes_problem),
                       misfit_mass);
-
-      /* apply mass matrix */
-      ymir_mass_apply_gauss (misfit_mass);
     }
     break;
   case RHEA_INVERSION_OBS_STRESS_QOI_PLATE_BOUNDARY_TANGENTIAL_X:
@@ -563,14 +579,19 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
       /* scale by volume */
       ymir_vec_scale (1.0 / _get_reference_volume (weight, stokes_problem),
                       misfit_mass);
-
-      /* apply mass matrix */
-      ymir_mass_apply_gauss (misfit_mass);
     }
     break;
   default: /* unknown observation type */
     RHEA_ABORT_NOT_REACHED ();
   }
+
+#if defined(RHEA_INVERSION_OBS_STRESS_ENABLE_UNITTEST)
+  rhea_inversion_obs_stress_unittest_diff_adjoint (
+      forward_vel_press, misfit_mass, weight, stokes_problem);
+#endif
+
+  /* apply mass matrix */
+  ymir_mass_apply_gauss (misfit_mass);
 
   /* apply adjoint of difference operator */
   rhs_add = rhea_velocity_new (ymir_mesh);
@@ -598,3 +619,110 @@ rhea_inversion_obs_stress_add_adjoint_rhs (
 
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
+
+#if defined(RHEA_INVERSION_OBS_STRESS_ENABLE_UNITTEST)
+
+static void
+rhea_inversion_obs_stress_unittest_diff_adjoint (
+                                  ymir_vec_t *forward_vel_press,
+                                  ymir_vec_t *misfit_stress,
+                                  ymir_vec_t *weight,
+                                  rhea_stokes_problem_t *stokes_problem)
+{
+  ymir_mesh_t          *ymir_mesh;
+  ymir_pressure_elem_t *press_elem;
+  double                ip_ref, ip_chk;
+
+  RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
+
+  /* check input */
+  RHEA_ASSERT (rhea_velocity_pressure_check_vec_type (forward_vel_press));
+  RHEA_ASSERT (rhea_stress_check_vec_type (misfit_stress) ||
+               rhea_stress_nonsymmetric_check_vec_type (misfit_stress));
+
+  /* create work variables */
+  ymir_mesh   = rhea_stokes_problem_get_ymir_mesh (stokes_problem);
+  press_elem  = rhea_stokes_problem_get_press_elem (stokes_problem);
+
+  {
+    ymir_vec_t         *stress_mass = rhea_stress_new (ymir_mesh);
+
+    /* apply linearized observation operator and
+     * skip pressure by setting param_derivative=1 */
+    rhea_inversion_obs_stress_diff_ext (
+        stress_mass, forward_vel_press, NULL /* !obs_stress */, weight,
+        stokes_problem, 1 /* vel_derivative */, 1 /* param_derivative */, NULL);
+
+    /* compute L2-inner product */
+    ymir_mass_apply_gauss (stress_mass);
+    if (rhea_stress_check_vec_type (misfit_stress)) {
+      ip_ref = ymir_vec_innerprod (stress_mass, misfit_stress);
+    }
+    else {
+      ymir_vec_t         *stress_symm = rhea_stress_new (ymir_mesh);
+
+      rhea_stress_nonsymmetric_to_symmetric (stress_symm, misfit_stress);
+      ip_ref = ymir_vec_innerprod (stress_mass, stress_symm);
+      rhea_stress_destroy (stress_symm);
+    }
+    rhea_stress_destroy (stress_mass);
+  }
+
+#if 1
+  {
+    ymir_vec_t         *fwd_vel  = rhea_velocity_new (ymir_mesh);
+    ymir_vec_t         *vel      = rhea_velocity_new (ymir_mesh);
+    ymir_vec_t         *stress_mass = ymir_vec_clone (misfit_stress);
+
+    /* apply mass matrix */
+    ymir_mass_apply_gauss (stress_mass);
+
+    /* get velocity from forward state */
+    rhea_velocity_pressure_copy_components (
+        fwd_vel, NULL, forward_vel_press, press_elem);
+
+    /* apply adjoint of linearized observation operator */
+    rhea_inversion_obs_stress_diff_adjoint (
+        vel, stress_mass, weight, stokes_problem);
+
+    /* compute L2-inner product */
+    ip_chk = ymir_vec_innerprod (vel, fwd_vel);
+
+    rhea_velocity_destroy (fwd_vel);
+    rhea_velocity_destroy (vel);
+    ymir_vec_destroy (stress_mass);
+  }
+#else
+  {
+    ymir_vec_t         *fwd_vel  = rhea_velocity_new (ymir_mesh);
+    ymir_vec_t         *vel      = rhea_velocity_new (ymir_mesh);
+    ymir_vec_t         *vel_mass = rhea_velocity_new (ymir_mesh);
+
+    /* get velocity from forward state */
+    rhea_velocity_pressure_copy_components (
+        fwd_vel, NULL, forward_vel_press, press_elem);
+
+    /* apply adjoint of linearized observation operator */
+    rhea_inversion_obs_stress_diff_adjoint (
+        vel, misfit_stress, weight, stokes_problem);
+
+    /* compute L2-inner product */
+    ymir_mass_apply (vel, vel_mass);
+    ip_chk = ymir_vec_innerprod (vel_mass, fwd_vel);
+
+    rhea_velocity_destroy (fwd_vel);
+    rhea_velocity_destroy (vel);
+    rhea_velocity_destroy (vel_mass);
+  }
+#endif
+
+  /* print results */
+  RHEA_GLOBAL_VERBOSEF_FN_TAG (
+      __func__, "ref=%.6e, chk=%.6e; error abs=%.3e, rel=%.3e",
+      ip_ref, ip_chk, fabs (ip_chk - ip_ref),
+      fabs (ip_chk - ip_ref) / fabs (ip_ref));
+
+  RHEA_GLOBAL_VERBOSE_FN_END (__func__);
+}
+
+#endif /* RHEA_INVERSION_OBS_STRESS_ENABLE_UNITTEST */
