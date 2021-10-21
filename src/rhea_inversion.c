@@ -28,7 +28,8 @@
 /* types of Hessians */
 typedef enum
 {
-  RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND,
+  RHEA_INVERSION_HESSIAN_NONE             = -1,
+  RHEA_INVERSION_HESSIAN_GRADIENT_DESCEND = 0,
   RHEA_INVERSION_HESSIAN_BFGS,
   RHEA_INVERSION_HESSIAN_FIRST_ORDER_APPROX,
   RHEA_INVERSION_HESSIAN_FULL
@@ -1114,7 +1115,8 @@ rhea_inversion_write_posterior_hessian (
                               write_hessian_type);
 
   /* exit if nothing to do */
-  if (write_hessian_type < 0) {
+  if (RHEA_INVERSION_HESSIAN_NONE == write_hessian_type) {
+    RHEA_GLOBAL_INFO_FN_END (__func__);
     return;
   }
 
@@ -2330,8 +2332,9 @@ rhea_inversion_newton_compute_negative_gradient_fn (
     for (i = 0; i < rhea_inversion_param_get_n_parameters (inv_param); i++) {
       if (active[i]) {
         RHEA_ASSERT (vidx < inv_problem->check_gradient_perturb_n_vecs);
-        perturb_vec[vidx]->meshfree->e[0][i] =
-            0.1 * fabs (solution->meshfree->e[0][i]);
+        /* set perturbation for an entry in the solution vector;
+         * assume: `solution->meshfree->e[0][i]` is of order 1 for all i */
+        perturb_vec[vidx]->meshfree->e[0][i] = 0.1;
         vidx++;
       }
     }
