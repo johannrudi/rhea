@@ -8,11 +8,11 @@
 	ignore = untracked
 [submodule "mangll"]
 	path = mangll
-	url = https://bitbucket.org/ccgo/mangll.git
+	url = git@bitbucket.org:ccgo/mangll.git
 	ignore = untracked
 [submodule "ymir"]
 	path = ymir
-	url = https://bitbucket.org/ccgo/ymir.git
+	url = git@bitbucket.org:ccgo/ymir.git
 	ignore = untracked
 [submodule "nanoflann"]
 	path = nanoflann
@@ -20,5 +20,5 @@
 	ignore = untracked
 [submodule "fet"]
 	path = fet
-	url = https://bitbucket.org/ccgo/fet.git
+	url = git@bitbucket.org:ccgo/fet.git
 	ignore = untracked
