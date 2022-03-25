@@ -1,6 +1,6 @@
 #! /bin/sh
 
-function print_usage()
+print_usage()
 {
   echo "Usage: ./bootstrap [<SC_CONFIG_DIRECTORY> <P4EST_CONFIG_DIRECTORY> 
                             <MANGLL_CONFIG_DIRECTORY> <YMIR_CONFIG_DIRECTORY>]"

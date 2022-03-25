@@ -20,7 +20,7 @@ declare -r URL_BASE_YMIR='bitbucket.org/ccgo/ymir.git'
 # Functions
 ########################################
 
-function print_usage()
+print_usage()
 {
   echo "Usage: ./submodule_init [-b <BITBUCKET_USERNAME>]"
 }

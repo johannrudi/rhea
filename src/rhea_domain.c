@@ -293,9 +293,9 @@ rhea_domain_compute_volume (rhea_domain_options_t *opt)
   case RHEA_DOMAIN_BOX_SPHERICAL: /* (volume shell / 24 * (dx*dy)/dz^2 */
     RHEA_ASSERT (isfinite (opt->radius_min));
     RHEA_ASSERT (isfinite (opt->radius_max));
-    RHEA_ASSERT (isfinite (opt->box_subdivision_x));
-    RHEA_ASSERT (isfinite (opt->box_subdivision_y));
-    RHEA_ASSERT (isfinite (opt->box_subdivision_z));
+    RHEA_ASSERT (0 < opt->box_subdivision_x);
+    RHEA_ASSERT (0 < opt->box_subdivision_y);
+    RHEA_ASSERT (0 < opt->box_subdivision_z);
     {
       const double        rmin = opt->radius_min;
       const double        rmax = opt->radius_max;
