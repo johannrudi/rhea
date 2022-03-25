@@ -1,0 +1,60 @@
+BootStrap: docker
+From: ubuntu:18.04
+
+%post
+    apt-get -y update
+    apt-get -y install git python
+    apt-get -y install build-essential manpages-dev
+    apt-get -y install automake gfortran zlib1g zlib1g-dev
+    apt-get -y install openmpi-bin openmpi-doc libopenmpi-dev
+    mkdir /usr/code
+    echo "Install Petsc"
+    cd /usr/code
+    git clone https://johannrudi@bitbucket.org/ccgo/petsc.git
+    cd /usr/code/petsc
+    ./configure \
+      --prefix=/usr/build/dev/petsc \
+      --with-64-bit-indices=1 \
+      --with-debugging=1 \
+      --COPTFLAGS="-g -O0" \
+      --with-mpi=1 \
+      --with-blaslapack=1 --download-fblaslapack \
+      --with-valgrind=0 \
+      --with-x=0 \
+      --with-c2html=0
+    make PETSC_DIR=/usr/code/petsc PETSC_ARCH=arch-linux2-c-debug all
+    make PETSC_DIR=/usr/code/petsc PETSC_ARCH=arch-linux2-c-debug install
+    echo "Install Rhea"
+    cd /usr/code
+    git clone https://johannrudi@bitbucket.org/ccgo/rhea.git
+    cd /usr/code/rhea
+    git checkout develop
+    ./submodule_init -b johannrudi
+    /usr/code/rhea/bootstrap
+    cd /usr/build/dev
+    mkdir rhea && cd rhea
+    /usr/code/rhea/configure \
+      F77=mpif77 \
+       FC=mpif90 \
+       CC=mpicc \
+      CXX=mpicxx \
+        CFLAGS="-g -O0 -Wall -DYMIR_PETSC_CUSTOM" \
+      CXXFLAGS="-g -O0 -Wall" \
+      --enable-debug \
+      --enable-mpi \
+      --enable-openmp=-fopenmp \
+      --with-fet=/usr/code/rhea/fet \
+      --with-petsc=/usr/build/dev/petsc \
+      BLAS_LIBS=/usr/build/dev/petsc/lib/libfblas.a \
+      LAPACK_LIBS=/usr/build/dev/petsc/lib/libflapack.a
+    make -j 8
+
+%environment
+    export LC_ALL=C
+    export OMP_NUM_THREADS=1
+
+%runscript
+    echo "$@"
+
+%labels
+    Johann Rudi
