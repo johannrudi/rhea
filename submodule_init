@@ -11,10 +11,10 @@
 # Parameters
 ########################################
 
-declare -r URL_PREFIX='https://'
-declare -r URL_BASE_FET='bitbucket.org/ccgo/fet.git'
-declare -r URL_BASE_MANGLL='bitbucket.org/ccgo/mangll.git'
-declare -r URL_BASE_YMIR='bitbucket.org/ccgo/ymir.git'
+URL_PREFIX='https://'
+URL_BASE_FET='bitbucket.org/ccgo/fet.git'
+URL_BASE_MANGLL='bitbucket.org/ccgo/mangll.git'
+URL_BASE_YMIR='bitbucket.org/ccgo/ymir.git'
 
 ########################################
 # Functions
