@@ -1606,10 +1606,16 @@ _approximate_plane_from_points (double plane_norm[3], const double *points,
   scale = sqrt (plane_norm[0]*plane_norm[0] +
                 plane_norm[1]*plane_norm[1] +
                 plane_norm[2]*plane_norm[2]);
-  RHEA_ASSERT (0.0 < scale);
-  plane_norm[0] *= 1.0/scale;
-  plane_norm[1] *= 1.0/scale;
-  plane_norm[2] *= 1.0/scale;
+  if (0.0 < scale) {
+    plane_norm[0] *= 1.0/scale;
+    plane_norm[1] *= 1.0/scale;
+    plane_norm[2] *= 1.0/scale;
+  }
+  else {
+    plane_norm[0] = NAN;
+    plane_norm[1] = NAN;
+    plane_norm[2] = NAN;
+  }
 }
 
 #define _N_NEAREST 12  /* number (>=3) of nearest points to compute normal */
