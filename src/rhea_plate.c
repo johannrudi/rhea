@@ -515,7 +515,7 @@ rhea_plate_modify_vertices_shell_insert (float **vertices_x,
   float              *vertices_new_x;
   float              *vertices_new_y;
   float               x, y, prev_x, prev_y;
-  const size_t        n_inserted_max = 4*8;
+  const size_t        n_inserted_max = 3*8;
   size_t              vid_old, vid_new, n_inserted;
 
   /* create larger arrays */
@@ -557,7 +557,8 @@ rhea_plate_modify_vertices_shell_insert (float **vertices_x,
         vertices_new_x[vid_new+3] = 360.0;
         vertices_new_y[vid_new+3] = prev_y;
       }
-      n_inserted += 4;
+      /* increment counter, because we inserted 3 addional vertices */
+      n_inserted += 3;
       RHEA_ASSERT (n_inserted <= n_inserted_max);
     }
     prev_x = x;
@@ -565,7 +566,7 @@ rhea_plate_modify_vertices_shell_insert (float **vertices_x,
   }
 
   /* create output arrays */
-  RHEA_ASSERT (4 == n_inserted); /* otherwise polygon errors possible */
+  RHEA_ASSERT (3 == n_inserted); /* otherwise polygon errors possible */
   *vertices_x = RHEA_ALLOC (float, n_vertices + n_inserted);
   *vertices_y = RHEA_ALLOC (float, n_vertices + n_inserted);
   memcpy (*vertices_x, vertices_new_x, (n_vertices + n_inserted)*sizeof(float));
