@@ -1695,13 +1695,11 @@ rhea_weakzone_compute_normal (ymir_vec_t *weakzone_normal,
     break;
   case RHEA_WEAKZONE_DEPTH:
     ymir_dvec_set_function (weakzone_normal, _depth_norm_node_fn, NULL);
-    RHEA_ASSERT (sc_dmatrix_is_valid (weakzone_normal->dataown));
     break;
   case RHEA_WEAKZONE_DATA_POINTS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS:
   case RHEA_WEAKZONE_DATA_POINTS_LABELS_FACTORS:
     ymir_dvec_set_function (weakzone_normal, _points_norm_node_fn, opt);
-    RHEA_ASSERT (sc_dmatrix_is_valid (weakzone_normal->dataown));
     break;
   default: /* unknown weak zone type */
     RHEA_ABORT_NOT_REACHED ();
