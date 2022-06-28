@@ -619,6 +619,129 @@ rhea_stokes_problem_amr_print_indicator_statistics (
 #endif
 
 /**
+ * Flags elements for coarsening/refinement based on the temperature crossing
+ * the neutral value inside an element (i.e., level set at neutral).
+ * (Callback function of type `rhea_amr_flag_elements_fn_t`)
+ */
+static double
+rhea_stokes_problem_amr_flag_temperature_neutral_fn (
+                                              p4est_t *p4est, void *data,
+                                              p4est_gloidx_t *n_flagged_coar,
+                                              p4est_gloidx_t *n_flagged_refn)
+{
+  rhea_stokes_problem_amr_data_t *d = data;
+  rhea_stokes_problem_t  *stokes_problem = d->stokes_problem;
+  mangll_t           *mangll = d->mangll_original;
+  int                 n_nodes_per_el, nodeid;
+
+  rhea_amr_flag_t     amr_flag;
+  p4est_locidx_t      n_flagged_coar_loc, n_flagged_refn_loc;
+  double              flagged_rel;
+  p4est_topidx_t      ti;
+  size_t              tqi;
+
+  const int           level_max = d->discr_options->level_max;
+
+  rhea_temperature_options_t *temp_options =
+    rhea_stokes_problem_get_temperature_options (stokes_problem);
+  ymir_vec_t         *temperature =
+    rhea_stokes_problem_get_temperature (d->stokes_problem);
+  const int           has_temp = (temperature != NULL ||
+                                  d->temperature_original != NULL);
+  const double        temp_neutral = temp_options->neutral;
+
+  sc_dmatrix_t       *temp_el_mat;
+  double             *temp_el_data = NULL;
+  double              temp_min, temp_max;
+
+  /* exit if nothing to do */
+  if (!has_temp) {
+    return 0.0;
+  }
+
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+  RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "temperature_neutral=%g",
+                              temp_neutral);
+#endif
+
+  /* check input */
+  RHEA_ASSERT (d->mangll_original != NULL);
+
+  /* create work variables */
+  n_nodes_per_el = mangll->Np;
+  temp_el_mat = sc_dmatrix_new (n_nodes_per_el, 1);
+
+  /* flag quadrants */
+  n_flagged_coar_loc = 0;
+  n_flagged_refn_loc = 0;
+  for (ti = p4est->first_local_tree; ti <= p4est->last_local_tree; ++ti) {
+    p4est_tree_t       *t = p4est_tree_array_index (p4est->trees, ti);
+    sc_array_t         *tquadrants = &(t->quadrants);
+    const size_t        tqoffset = t->quadrants_offset;
+
+    for (tqi = 0; tqi < tquadrants->elem_count; ++tqi) {
+      p4est_quadrant_t   *q = p4est_quadrant_array_index (tquadrants, tqi);
+      rhea_p4est_quadrant_data_t *qd = q->p.user_data;
+      const mangll_locidx_t elid = (mangll_locidx_t) (tqoffset + tqi);
+
+      /* check if quadrant was flagged previously */
+      if (!d->first_amr && rhea_stokes_problem_amr_check_flag (qd)) {
+        continue;
+      }
+
+      /* get temperature at Gauss nodes */
+      if (temperature != NULL) {
+        temp_el_data = rhea_temperature_get_elem_gauss (
+            temp_el_mat, temperature, elid);
+      }
+      else if (d->temperature_original != NULL) {
+        temp_el_data = d->temperature_original->e[elid];
+      }
+      else {
+        RHEA_ABORT_NOT_REACHED ();
+      }
+
+      /* determine if temperature crosses the neutral value */
+      temp_min = +DBL_MAX;
+      temp_max = -DBL_MAX;
+      for (nodeid = 0; nodeid < n_nodes_per_el; nodeid++) {
+        temp_min = SC_MIN (temp_min, temp_el_data[nodeid]);
+        temp_max = SC_MAX (temp_max, temp_el_data[nodeid]);
+      }
+      if (temp_min <= temp_neutral && temp_neutral < temp_max &&
+          q->level < level_max) {
+        amr_flag = RHEA_AMR_FLAG_REFINE;
+      }
+      else {
+        amr_flag = RHEA_AMR_FLAG_NO_CHANGE;
+      }
+
+      /* set flag for coarsening/refinement */
+      rhea_stokes_problem_amr_assign_flag (qd, amr_flag, d->merge_mode,
+                                           &n_flagged_coar_loc,
+                                           &n_flagged_refn_loc);
+    }
+  }
+
+  /* destroy work variables */
+  sc_dmatrix_destroy (temp_el_mat);
+
+  /* get absolute & relative numbers of flagged quadrants */
+  flagged_rel = rhea_amr_get_global_num_flagged (
+      n_flagged_coar_loc, n_flagged_refn_loc, p4est,
+      n_flagged_coar, n_flagged_refn);
+
+#if (1 <= RHEA_STOKES_PROBLEM_AMR_VERBOSE)
+  rhea_stokes_problem_amr_print_indicator_statistics (
+      0.0, 0.0, 0.0, n_flagged_coar_loc, n_flagged_refn_loc, __func__, p4est);
+
+  RHEA_GLOBAL_INFO_FN_END (__func__);
+#endif
+
+  return flagged_rel;
+}
+
+/**
  * Flags elements for coarsening/refinement based on gradient of weak zone.
  * (Callback function of type `rhea_amr_flag_elements_fn_t`)
  */
@@ -1594,7 +1717,11 @@ rhea_stokes_problem_init_amr (rhea_stokes_problem_t *stokes_problem,
   amr_data = rhea_stokes_problem_amr_data_new (stokes_problem, discr_options);
 
   /* set up flagging of elements for coarsening/refinement */
-  if (strcmp (type_name, "weakzone_peclet") == 0) {
+  if (strcmp (type_name, "temperature_neutral") == 0) {
+    flag_fn = rhea_stokes_problem_amr_flag_temperature_neutral_fn;
+    flag_fn_data = amr_data;
+  }
+  else if (strcmp (type_name, "weakzone_peclet") == 0) {
     flag_fn = rhea_stokes_problem_amr_flag_weakzone_peclet_fn;
     flag_fn_data = amr_data;
     rhea_stokes_problem_weakzone_compute (
