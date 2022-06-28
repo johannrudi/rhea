@@ -39,6 +39,8 @@
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_X (0.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Y (0.0)
 #define RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Z (0.0)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_RADIUS_SCALE (1.0)
+#define RHEA_TEMPERATURE_SINKER_DEFAULT_RADIUS_SHIFT (0.0)
 
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE (0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_RANDOM_COUNT (0)
@@ -52,6 +54,8 @@
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_X (0.0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Y (0.0)
 #define RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Z (0.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_RADIUS_SCALE (1.0)
+#define RHEA_TEMPERATURE_PLUME_DEFAULT_RADIUS_SHIFT (0.0)
 
 /* initialize options */
 char               *rhea_temperature_type_name =
@@ -104,6 +108,10 @@ double              rhea_temperature_sinker_translation_y =
   RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Y;
 double              rhea_temperature_sinker_translation_z =
   RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Z;
+double              rhea_temperature_sinker_radius_scale =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_RADIUS_SCALE;
+double              rhea_temperature_sinker_radius_shift =
+  RHEA_TEMPERATURE_SINKER_DEFAULT_RADIUS_SHIFT;
 
 int                 rhea_temperature_plume_active =
   RHEA_TEMPERATURE_PLUME_DEFAULT_ACTIVE;
@@ -129,6 +137,10 @@ double              rhea_temperature_plume_translation_y =
   RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Y;
 double              rhea_temperature_plume_translation_z =
   RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Z;
+double              rhea_temperature_plume_radius_scale =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_RADIUS_SCALE;
+double              rhea_temperature_plume_radius_shift =
+  RHEA_TEMPERATURE_PLUME_DEFAULT_RADIUS_SHIFT;
 
 void
 rhea_temperature_add_options (ymir_options_t * opt_sup)
@@ -260,6 +272,14 @@ rhea_temperature_add_options_sinker (ymir_options_t * opt_sup)
     &(rhea_temperature_sinker_translation_z),
     RHEA_TEMPERATURE_SINKER_DEFAULT_TRANSLATION_Z,
     "Move random center points in z-direction",
+  YMIR_OPTIONS_D, "radius-scale", '\0',
+    &(rhea_temperature_sinker_radius_scale),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_RADIUS_SCALE,
+    "Move random center points in radial direction by this factor",
+  YMIR_OPTIONS_D, "radius-shift", '\0',
+    &(rhea_temperature_sinker_radius_shift),
+    RHEA_TEMPERATURE_SINKER_DEFAULT_RADIUS_SHIFT,
+    "Move random center points in radial direction by this shift",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -325,6 +345,14 @@ rhea_temperature_add_options_plume (ymir_options_t * opt_sup)
     &(rhea_temperature_plume_translation_z),
     RHEA_TEMPERATURE_PLUME_DEFAULT_TRANSLATION_Z,
     "Move random center points in z-direction",
+  YMIR_OPTIONS_D, "radius-scale", '\0',
+    &(rhea_temperature_plume_radius_scale),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_RADIUS_SCALE,
+    "Move random center points in radial direction by this factor",
+  YMIR_OPTIONS_D, "radius-shift", '\0',
+    &(rhea_temperature_plume_radius_shift),
+    RHEA_TEMPERATURE_PLUME_DEFAULT_RADIUS_SHIFT,
+    "Move random center points in radial direction by this shift",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -432,6 +460,8 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   opt->sinker_translation_x = rhea_temperature_sinker_translation_x;
   opt->sinker_translation_y = rhea_temperature_sinker_translation_y;
   opt->sinker_translation_z = rhea_temperature_sinker_translation_z;
+  opt->sinker_radius_scale  = rhea_temperature_sinker_radius_scale;
+  opt->sinker_radius_shift  = rhea_temperature_sinker_radius_shift;
 
   /* set plume options */
   opt->plume_active         = rhea_temperature_plume_active;
@@ -445,10 +475,12 @@ rhea_temperature_process_options (rhea_temperature_options_t *opt,
   rhea_temperature_set_default_anomaly_position (
       &opt->plume_center_x, &opt->plume_center_y, &opt->plume_center_z,
       domain_options);
-  opt->plume_dilatation = rhea_temperature_plume_dilatation;
+  opt->plume_dilatation     = rhea_temperature_plume_dilatation;
   opt->plume_translation_x  = rhea_temperature_plume_translation_x;
   opt->plume_translation_y  = rhea_temperature_plume_translation_y;
   opt->plume_translation_z  = rhea_temperature_plume_translation_z;
+  opt->plume_radius_scale   = rhea_temperature_plume_radius_scale;
+  opt->plume_radius_shift   = rhea_temperature_plume_radius_shift;
 
   /* set right-hand side options */
   opt->rhs_scaling = rhea_temperature_rhs_scaling;
@@ -908,7 +940,9 @@ rhea_temperature_indicator_random (const int n_spheres,
                                    const double dilatation,
                                    const double translation_x,
                                    const double translation_y,
-                                   const double translation_z)
+                                   const double translation_z,
+                                   const double radius_scale,
+                                   const double radius_shift)
 {
   double              center_x, center_y, center_z, val;
   int                 i;
@@ -926,9 +960,14 @@ rhea_temperature_indicator_random (const int n_spheres,
     center_z = rhea_temperature_random_point_z[i];
 
     /* dilate and translate center point (assumes cube domain) */
-    center_x = dilatation * (center_x - 0.5) + 0.5 + translation_x;
-    center_y = dilatation * (center_y - 0.5) + 0.5 + translation_y;
-    center_z = dilatation * (center_z - 0.5) + 0.5 + translation_z;
+    center_x = dilatation*(center_x - 0.5) + 0.5 + translation_x;
+    center_y = dilatation*(center_y - 0.5) + 0.5 + translation_y;
+    center_z = dilatation*(center_z - 0.5) + 0.5 + translation_z;
+
+    /* apply radius scale & shift to center point */
+    center_x = (radius_scale - radius_shift)*center_x + radius_shift*center_x;
+    center_y = (radius_scale - radius_shift)*center_y + radius_shift*center_y;
+    center_z = (radius_scale - radius_shift)*center_z + radius_shift*center_z;
 
     /* add indicator value */
     val += rhea_temperature_indicator (x, y, z, center_x, center_y, center_z,
@@ -990,14 +1029,17 @@ rhea_temperature_sinker_random (const int n_sinkers,
                                 const double dilatation,
                                 const double translation_x,
                                 const double translation_y,
-                                const double translation_z)
+                                const double translation_z,
+                                const double radius_scale,
+                                const double radius_shift)
 {
   double              val;
 
   /* get indicator value */
   val = rhea_temperature_indicator_random (n_sinkers, x, y, z, decay, width,
                                            dilatation, translation_x,
-                                           translation_y, translation_z);
+                                           translation_y, translation_z,
+                                           radius_scale, radius_shift);
 
   /* transform indicator to sinker anomaly */
   val = scaling * (1.0 - val);
@@ -1058,14 +1100,17 @@ rhea_temperature_plume_random (const int n_plumes,
                                const double dilatation,
                                const double translation_x,
                                const double translation_y,
-                               const double translation_z)
+                               const double translation_z,
+                               const double radius_scale,
+                               const double radius_shift)
 {
   double              val;
 
   /* get indicator value */
   val = rhea_temperature_indicator_random (n_plumes, x, y, z, decay, width,
                                            dilatation, translation_x,
-                                           translation_y, translation_z);
+                                           translation_y, translation_z,
+                                           radius_scale, radius_shift);
 
   /* transform indicator to plume anomaly */
   val = 1.0 + scaling * val;
@@ -1099,10 +1144,13 @@ rhea_temperature_anomaly_multiplier (const double x, const double y,
       const double        transl_x = opt->sinker_translation_x;
       const double        transl_y = opt->sinker_translation_y;
       const double        transl_z = opt->sinker_translation_z;
+      const double        radius_scale = opt->sinker_radius_scale;
+      const double        radius_shift = opt->sinker_radius_shift;
 
       mult *= rhea_temperature_sinker_random (
           opt->sinker_random_count, x, y, z,
-          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
+          decay, width, scaling, dilat, transl_x, transl_y, transl_z,
+          radius_scale, radius_shift);
     }
     else { /* if single sinker */
       const double        center_x = opt->sinker_center_x;
@@ -1125,10 +1173,13 @@ rhea_temperature_anomaly_multiplier (const double x, const double y,
       const double        transl_x = opt->plume_translation_x;
       const double        transl_y = opt->plume_translation_y;
       const double        transl_z = opt->plume_translation_z;
+      const double        radius_scale = opt->plume_radius_scale;
+      const double        radius_shift = opt->plume_radius_shift;
 
       mult *= rhea_temperature_plume_random (
           opt->plume_random_count, x, y, z,
-          decay, width, scaling, dilat, transl_x, transl_y, transl_z);
+          decay, width, scaling, dilat, transl_x, transl_y, transl_z,
+          radius_scale, radius_shift);
     }
     else { /* if single plume */
       const double        center_x = opt->plume_center_x;

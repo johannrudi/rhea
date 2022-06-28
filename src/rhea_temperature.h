@@ -62,6 +62,8 @@ typedef struct rhea_temperature_options
   double              sinker_translation_x;
   double              sinker_translation_y;
   double              sinker_translation_z;
+  double              sinker_radius_scale;
+  double              sinker_radius_shift;
 
   /* plume */
   int                 plume_active;
@@ -76,6 +78,8 @@ typedef struct rhea_temperature_options
   double              plume_translation_x;
   double              plume_translation_y;
   double              plume_translation_z;
+  double              plume_radius_scale;
+  double              plume_radius_shift;
 
   /* buoyancy right-hand side derived from temperature */
   double              rhs_scaling;
