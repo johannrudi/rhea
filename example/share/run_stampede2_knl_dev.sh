@@ -86,14 +86,13 @@ function print_job_environment()
 
 function print_program_environment()
 {
-  # output of code version/commit
+  echo "Code version/commit \`git log -3\`:"
+  echo ""
   cd $CODE_DIR; echo "$(git log -3)"; cd - &> /dev/null;
   echo "========================================"
-
-  # print list of modules
-  modules=$(module list 2>&1)
-  modules=${modules##+++ }
-  echo "${modules%%++*}"
+  echo "Modules \`module -t list 2>&1 | sort\`:"
+  echo ""
+  echo "$(module -t list 2>&1 | sort)"
 }
 
 ###############################################################################
