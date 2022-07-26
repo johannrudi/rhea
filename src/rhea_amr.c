@@ -288,16 +288,16 @@ rhea_amr_init_refine (p4est_t *p4est,
 
       /* set z-coordinate of the domain's top */
       switch (domain_options->shape) {
-      case RHEA_DOMAIN_BOX:
-      case RHEA_DOMAIN_BOX_SPHERICAL:
-        p4est_zmax = 2.0;
-        refine_fn = rhea_amr_refine_depth_box_fn;
-        break;
       case RHEA_DOMAIN_CUBE:
+      case RHEA_DOMAIN_BOX:
       case RHEA_DOMAIN_SHELL:
       case RHEA_DOMAIN_CUBE_SPHERICAL:
         p4est_zmax = NAN;
         refine_fn = rhea_amr_refine_depth_fn;
+        break;
+      case RHEA_DOMAIN_BOX_SPHERICAL:
+        p4est_zmax = 2.0;
+        refine_fn = rhea_amr_refine_depth_box_fn;
         break;
       default: /* unknown domain shape */
         RHEA_ABORT_NOT_REACHED ();
