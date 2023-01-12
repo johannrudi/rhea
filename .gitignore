@@ -22,3 +22,6 @@ config/lt~obsolete.m4
 configure
 src/pre_config.h.in
 src/pre_config.h.in~
+
+# Mac
+.DS_Store
