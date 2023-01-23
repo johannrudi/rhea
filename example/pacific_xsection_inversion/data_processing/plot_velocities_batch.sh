@@ -20,7 +20,7 @@ in_args=$@
 for in_file in $in_args; do
   if [ -f $in_file ] && [ $in_file != $rhea_out_path ]; then
     # set output file path
-    out_file="${in_file%.*}.png"
+    out_file="${in_file%.*}"
 
     # create plot
     echo "Plot $in_file > $out_file"

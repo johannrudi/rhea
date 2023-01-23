@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.ticker
 
 def adjust_mean_of_lognormal(mean, variance, param_dim):
     # shift by mode:
@@ -126,7 +127,9 @@ def compute_correlation(cov):
 
 def plot_pdfs_1d(ax, x,
                  pdf0, x0_max, pdf0_max, pdf0_color,
-                 pdf1, x1_max, pdf1_max, pdf1_color):
+                 pdf1, x1_max, pdf1_max, pdf1_color,
+                 pdf0_linestyle='dashed',
+                 pdf1_linestyle='solid'):
     assert ax is not None
     assert x is not None
     # plot pdf 0 (prior)
@@ -136,7 +139,7 @@ def plot_pdfs_1d(ax, x,
         yy = [0.0, pdf0_max]
         ax.plot(xx, yy, color=pdf0_color, linewidth=1, linestyle='--')
         # plot density
-        ax.plot(x, pdf0, label='prior', color=pdf0_color, linewidth=2)
+        ax.plot(x, pdf0, label='prior', color=pdf0_color, linewidth=2, linestyle=pdf0_linestyle)
     # plot pdf 1 (posterior)
     if not (pdf1 is None or x1_max is None or pdf1_max is None or pdf1_color is None):
         # plot max point
@@ -144,7 +147,7 @@ def plot_pdfs_1d(ax, x,
         yy = [0.0, pdf1_max]
         ax.plot(xx, yy, color=pdf1_color, linewidth=1, linestyle='--')
         # plot density
-        ax.plot(x, pdf1, label='posterior', color=pdf1_color, linewidth=2)
+        ax.plot(x, pdf1, label='posterior', color=pdf1_color, linewidth=2, linestyle=pdf1_linestyle)
 
 ########################################
 # 2D Plots
@@ -199,7 +202,9 @@ def cov_marginal_2d(indices, cov):
 def plot_marginal_2d(ax, indices, m,
                      prior_max, prior_cov, prior_color,
                      post_max, post_cov, post_color,
-                     param_dim, phys_dim, idx_lognormal, idx_inverted):
+                     param_dim, phys_dim, idx_lognormal, idx_inverted,
+                     prior_linestyle='dashed',
+                     post_linestyle='solid'):
     assert ax is not None
     assert indices is not None
     assert m is not None
@@ -217,7 +222,7 @@ def plot_marginal_2d(ax, indices, m,
         for n_stddev in [1.0, 2.0, 3.0]:
             plot_add_confidence_ellipse(ax, shift, cov, n_stddev,
                                         param_dim, phys_dim, lognormal, inverted,
-                                        edgecolor=prior_color, linewidth=2)
+                                        edgecolor=prior_color, linewidth=2, linestyle=prior_linestyle)
         # plot prior max
         p_prior_max = np.array([
             transfer_param_to_physical(prior_max[i], param_dim[0],
@@ -235,7 +240,7 @@ def plot_marginal_2d(ax, indices, m,
         for n_stddev in [1.0, 2.0, 3.0]:
             plot_add_confidence_ellipse(ax, shift, cov, n_stddev,
                                         param_dim, phys_dim, lognormal, inverted,
-                                        edgecolor=post_color, linewidth=2)
+                                        edgecolor=post_color, linewidth=2, linestyle=post_linestyle)
         # plot posterior max
         p_post_max = np.array([
             transfer_param_to_physical(post_max[i], param_dim[0],
@@ -340,4 +345,16 @@ def plot_conditional_2d(ax, indices, m,
 #    levels = np.array([0.3, 0.6, 0.9]) * np.max(Pdf_post)
 #    CS = ax.contour(Pi, Pj, Pdf_post, levels, colors=COLOR_POST, linewidths=2)
 #    ax.plot(p_post_max[i], p_post_max[j], color=COLOR_POST, marker='o')
+
+class OOMFormatter(matplotlib.ticker.ScalarFormatter):
+    def __init__(self, order=0, fformat="%1.1f", offset=True, mathText=True):
+        self.oom = order
+        self.fformat = fformat
+        matplotlib.ticker.ScalarFormatter.__init__(self,useOffset=offset,useMathText=mathText)
+    def _set_order_of_magnitude(self):
+        self.orderOfMagnitude = self.oom
+    def _set_format(self, vmin=None, vmax=None):
+        self.format = self.fformat
+        if self._useMathText:
+            self.format = r'$\mathdefault{%s}$' % self.format
 

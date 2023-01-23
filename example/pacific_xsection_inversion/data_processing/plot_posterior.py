@@ -7,10 +7,12 @@ from posterior_util import (adjust_mean_of_lognormal,
                             transfer_physical_to_param_deriv_multi,
                             gaussian_1d, pdf_1d, plot_pdfs_1d,
                             plot_marginal_2d, plot_conditional_2d,
-                            compute_correlation)
+                            compute_correlation,
+                            OOMFormatter)
 import os
 import sys
 import numpy as np
+import scipy.linalg
 import matplotlib.pyplot as plt
 
 ###############################################################################
@@ -52,15 +54,21 @@ else:
 PLOT_N_NODES = 256+1
 PLOT_TITLES_GLO = [
     "Scaling in upper mantle",
-    "Activation energy in upper mantle",
+    "Activation energy [J/mol]", #in upper mantle [J/mol]",
     "Scaling in lower mantle",
-   #"Activation energy in lower mantle",
+   #"Activation energy in lower mantle [J/mol]",
     "Stress exponent",
-    "Yield stress"
+    "Yield stress [MPa]"
 ]
 PLOT_TITLE_WEAK = "Weak zone factor"
 PLOT_MARGINALS_ALL    = False
 PLOT_CONDITIONALS_ALL = False
+PLOT_SUFFIX = ['png', 'eps']
+
+# set colors
+COLOR_PRIOR=np.array([150,150,150])/255.0 #'dimgray'
+COLOR_POST=np.array([152,78,163])/255.0 #'darkviolet'
+COLOR_POST_COND=np.array([27,158,119])/255.0 #'darkcyan'
 
 # set physical parameters for nondimensialization
 phys_glo_dim = np.array([
@@ -69,7 +77,7 @@ phys_glo_dim = np.array([
     1.0,        # scaling in lower mantle
    #8.314*1400, # activation energy in lower mantle
     1.0,        # stress exponent
-    1.0e20*1.0e-6/6371.0e3**2  # yield stress
+    1.0e20*1.0e-6/6371.0e3**2 / 1.0e6  # yield stress in MPa
 ])
 
 # set axis limits in physical dimensions
@@ -79,8 +87,18 @@ phys_glo_lim = np.array([
     [1.0e0, 1.0e4],  # scaling in lower mantle
    #[2.0e5, 8.0e5],  # activation energy in lower mantle
     [1.0  , 6.0],    # stress exponent
-    [1.0e7, 2.0e8]   # yield stress
+    [1.0e1, 2.0e2]   # yield stress in MPa
 ])
+
+# set axis formatter
+axis_formatter = [
+    None,                    # scaling in upper mantle
+    OOMFormatter(5, "%.0f"), # activation energy in upper mantle
+    None,                    # scaling in lower mantle
+   #None,                    # activation energy in lower mantle
+    None,                    # stress exponent
+    None,                    # yield stress
+]
 
 # set indices
 idx_scaling_um    = 0
@@ -95,11 +113,6 @@ idx_lognormal_glo = [idx_scaling_um, idx_scaling_lm]
 
 # set indices of densities that are inverted: (.)^-1
 idx_inverted = [idx_stress_exp]
-
-# set colors
-COLOR_PRIOR='dimgray'
-COLOR_POST='darkviolet'
-COLOR_POST_COND='darkcyan'
 
 ###############################################################################
 # Main
@@ -120,6 +133,19 @@ prior_max = np.loadtxt(prior_max_txt)
 prior_cov = np.loadtxt(prior_cov_txt)
 post_max  = np.loadtxt(post_max_txt)
 post_cov  = np.loadtxt(post_cov_txt)
+
+# compute posterior covariance without prior
+if invert_prior_cov:
+    prior_cov_sqrt = scipy.linalg.sqrtm(np.linalg.inv(prior_cov))
+else:
+    prior_cov_sqrt = scipy.linalg.sqrtm(prior_cov)
+if invert_post_cov:
+    post_cov_withPriorPC = np.dot(np.dot(prior_cov_sqrt, np.copy(post_cov)), prior_cov_sqrt)
+else:
+    post_cov_withPriorPC = np.dot(np.dot(prior_cov_sqrt, np.linalg.inv(post_cov)), prior_cov_sqrt)
+post_cov_withPriorPC = np.linalg.inv(0.5*(post_cov_withPriorPC + post_cov_withPriorPC.T))
+post_cov_withPriorPC_diag = np.diag(post_cov_withPriorPC)
+print(post_cov_withPriorPC_diag)
 
 # invert matrices
 if invert_prior_cov:
@@ -172,6 +198,8 @@ print_info("Compare prior mean vs. posterior mean")
 print(np.array([prior_mean, post_mean]))
 print_info("Compare prior stddev vs. posterior stddev")
 print(np.array([np.sqrt(prior_cov_diag), np.sqrt(post_cov_diag)]))
+print_info("Posterior stddev with prior preconditioning")
+print(post_cov_withPriorPC_diag)
 
 # create range of parameters for plotting
 m_glo  = np.linspace(0.01, 4.0, num=PLOT_N_NODES)
@@ -261,7 +289,7 @@ for i in range(n_weak):
 
 # create figure
 plot_n_rows = np.max([n_glo, n_weak])
-fig, ax = plt.subplots(plot_n_rows, 2, figsize=(10, 10))
+fig, ax = plt.subplots(plot_n_rows, 2, figsize=(10, 8))
 
 # create plots
 for i in range(n_glo):
@@ -284,6 +312,8 @@ for i in range(n_glo):
     ax[i,0].ticklabel_format(axis='x', style='sci', scilimits=(1,3))
     ax[i,0].set_xlim(phys_glo_lim[i,0], phys_glo_lim[i,1])
     ax[i,0].set_ylim(0.0, 1.1)
+    if axis_formatter[i] is not None:
+        ax[i,0].xaxis.set_major_formatter(axis_formatter[i])
 for ii in range(n_weak):
     i = n_glo + ii
     this_title = PLOT_TITLE_WEAK+(" %i" % ii)
@@ -325,7 +355,8 @@ for i in range(n_weak, plot_n_rows):
 fig.set_tight_layout({'pad': 0.5})
 
 # save plots
-fig.savefig(plot_base+"_pdf_1d.png", dpi=360)
+for suffix in PLOT_SUFFIX:
+    fig.savefig('{}_marginal_1d.{}'.format(plot_base, suffix), dpi=360)
 
 ########################################
 # 2D Plots
@@ -334,8 +365,8 @@ fig.savefig(plot_base+"_pdf_1d.png", dpi=360)
 from matplotlib.lines import Line2D
 
 # create custom lines for legend
-custom_lines = [Line2D([0], [0], color=COLOR_PRIOR, linewidth=2),
-                Line2D([0], [0], color=COLOR_POST, linewidth=2)]
+custom_lines = [Line2D([0], [0], color=COLOR_PRIOR, linewidth=2, linestyle='dashed'),
+                Line2D([0], [0], color=COLOR_POST, linewidth=2, linestyle='solid')]
 
 # create figure
 fig, ax = plt.subplots(2, 2, figsize=(8, 8))
@@ -354,6 +385,8 @@ if idx_stress_exp is not None and idx_yield_stress is not None:
                      phys_glo_lim[idx_stress_exp,1])
     ax[0,0].set_ylim(phys_glo_lim[idx_yield_stress,0],
                      phys_glo_lim[idx_yield_stress,1])
+    if axis_formatter[idx_yield_stress] is not None:
+        ax[0,0].yaxis.set_major_formatter(axis_formatter[idx_yield_stress])
 
 # plot (stress exponent vs. activation energy)
 if idx_stress_exp is not None and idx_activation_um is not None:
@@ -369,6 +402,8 @@ if idx_stress_exp is not None and idx_activation_um is not None:
                      phys_glo_lim[idx_stress_exp,1])
     ax[0,1].set_ylim(phys_glo_lim[idx_activation_um,0],
                      phys_glo_lim[idx_activation_um,1])
+    if axis_formatter[idx_activation_um] is not None:
+        ax[0,1].yaxis.set_major_formatter(axis_formatter[idx_activation_um])
 
 # plot (stress exponent vs. scaling in upper mantle)
 if idx_stress_exp is not None and idx_scaling_um is not None:
@@ -405,9 +440,10 @@ for i in [0,1]:
     for j in [0,1]:
         ax[i,j].grid(True)
 # set spacing between subplots
-fig.set_tight_layout({'pad': 0.5})
+fig.set_tight_layout({'pad': 2.0})
 # save & show plots
-fig.savefig(plot_base+"_marginal_2d.png", dpi=360)
+for suffix in PLOT_SUFFIX:
+    fig.savefig('{}_marginal_2d.{}'.format(plot_base, suffix), dpi=360)
 #plt.show()
 
 # create figure with all 2D maginals of the posterior
@@ -439,7 +475,8 @@ if PLOT_MARGINALS_ALL:
     # set spacing between subplots
     fig.set_tight_layout({'pad': 0.5})
     # save & show plots
-    fig.savefig(plot_base+"_marginal_2d_all.png", dpi=360)
+    for suffix in PLOT_SUFFIX:
+        fig.savefig('{}_marginal_2d_all.{}'.format(plot_base, suffix), dpi=360)
     #plt.show()
 
 # create figure with all 2D conditionals of the posterior
@@ -471,7 +508,8 @@ if PLOT_CONDITIONALS_ALL:
     # set spacing between subplots
     fig.set_tight_layout({'pad': 0.5})
     # save & show plots
-    fig.savefig(plot_base+"_conditional_2d_all.png", dpi=360)
+    for suffix in PLOT_SUFFIX:
+        fig.savefig('{}_conditional_2d_all.{}'.format(plot_base, suffix), dpi=360)
     #plt.show()
 
 ########################################

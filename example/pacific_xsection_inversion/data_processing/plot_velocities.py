@@ -28,13 +28,16 @@ rhea_out_path = pathlib.Path(sys.argv[2])
 if 3 <= argn:
     plot_out = pathlib.Path(sys.argv[3])
 else:
-    plot_out = data_dir / (script_base+".png")
+    plot_out = data_dir / script_base
 
 # define strings for rhea output
 VEL_NOISE_HEADER='[rhea] rhea_inversion: obs_velocity_weight'
 VEL_NOISE_FOOTER='[rhea] ========================================'
 VEL_NOISE_PREFIX='[rhea] plate_idx'
 VEL_NOISE_DELIMITERS=[',', ';', ':', '(', ')', '[', ']']
+
+# set plot file suffix
+PLOT_SUFFIX = ['png', 'eps']
 
 ###############################################################################
 # Functions
@@ -195,8 +198,25 @@ ax[2].set_xlabel("Longitude [degree]")
 ax[2].set_ylabel("Weighted data misfit [mm/yr]")
 
 # set spacing between subplots
-fig.set_tight_layout({'pad': 0.5})
+fig.tight_layout()
 
 # save & show plots
-fig.savefig(plot_out, dpi=360)
+for suffix in PLOT_SUFFIX:
+    fig.savefig('{}.{}'.format(plot_out, suffix), dpi=360)
+
+# plot only forward and observatioanl velocities
+fig, ax = plt.subplots(1, 1, figsize=(6, 2.5))
+ax.plot([XLIM[0], XLIM[1]], [0, 0], color='0.5', linestyle=':', linewidth=0.5)
+ax.fill_between(longitude, noise_95ci_l, noise_95ci_h, label='noise, 95% confidence', color='limegreen', alpha=0.3)
+ax.plot(longitude, fwd, label='velocity, model', color='cornflowerblue', linestyle='solid', linewidth=2)
+ax.plot(longitude, obs, label='velocity, data', color='darkgreen', linestyle='dashed', linewidth=2, alpha=0.9)
+ax.set_xlim(XLIM[1], XLIM[0]) # decreasing
+ax.set_xticks(np.arange(XLIM[0], XLIM[1]+1, XTICKS_INCREMENT))
+ax.set_xlabel("Longitude [degree]")
+ax.set_ylabel("Model vs. data [mm/yr]")
+ax.legend(loc='upper right', fontsize='small')
+fig.tight_layout()
+for suffix in PLOT_SUFFIX:
+    fig.savefig('{}_model_vs_data.{}'.format(plot_out, suffix), dpi=360)
+
 #plt.show()

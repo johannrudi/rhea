@@ -6,7 +6,8 @@ from posterior_util import (transfer_param_to_physical,
                             transfer_physical_to_param_deriv_multi,
                             gaussian_1d, pdf_1d, plot_pdfs_1d,
                             plot_marginal_2d, plot_conditional_2d,
-                            compute_correlation)
+                            compute_correlation,
+                            OOMFormatter)
 import os
 import sys
 import numpy as np
@@ -46,9 +47,25 @@ else:
 
 # set plotting parameters
 PLOT_N_NODES = 1024+1
-PLOT_TITLE_QOI = "QOI"
+PLOT_ORDER_MARGINAL_1D = 6
+PLOT_TITLE_QOI = 'QOI'
+PLOT_TITLE_MARGINAL_1D = [
+    'Average normal component of stress along weak zone',
+    'Average tangential component of stress along weak zone',
+]
+PLOT_XLABEL = 'Component of stress [MPa]'
+PLOT_XLABEL_MARGINAL_1D = [
+    'Normal stress [MPa]',
+    'Tangential stress [MPa]',
+]
+PLOT_LEGEND_MARGINAL_1D = [
+    'Chile',
+    'Mariana',
+    'Ryuku',
+]
 PLOT_MARGINALS_ALL    = True
 PLOT_CONDITIONALS_ALL = True
+PLOT_SUFFIX = ['png', 'eps']
 
 # reduce stress tangential components to norm
 REDUCE_TANG_TO_NORM = True
@@ -66,9 +83,6 @@ stress_lim = np.array([
     [0.0, 0.4e8],
     [0.0, 0.4e8],
     [0.0, 0.4e8],
-    [0.0, 0.4e8],
-    [0.0, 0.4e8],
-    [0.0, 0.4e8]
 ])
 
 # set counts
@@ -82,8 +96,20 @@ idx_stressTangZ = 6  # until 8
 
 # set colors
 COLOR_PRIOR='dimgray'
-COLOR_POST='darkviolet'
-COLOR_POST_COND='darkcyan'
+COLOR_POST=np.array([117,112,179])/255.0 #'darkviolet'
+COLOR_POST_MARGINAL_1D = [
+    np.array([ 27,158,119])/255.0,
+    np.array([217, 95,  2])/255.0,
+    np.array([117,112,179])/255.0,
+]
+COLOR_POST_COND=np.array([217, 95,  2])/255.0 #'orange'
+
+# set line styles
+LINESTYLE_POST_MARGINAL_1D = [
+    (0, (1,1)), # densly dotted
+    'dashed',
+    'dashdot',
+]
 
 ###############################################################################
 # Functions
@@ -227,45 +253,49 @@ with open(plot_base+'_data.txt', 'w') as f:
 # 1D Plots
 ########################################
 
-# create title strings
-title = np.empty(n_qoi, dtype=object)
-for i in range(n_qoi):
-    title[i] = "%s %i" % (PLOT_TITLE_QOI, i)
-
 # create figure
-plot_n_rows = n_qoi
-fig, ax = plt.subplots(plot_n_rows, 1, figsize=(8, 8))
+plot_n_combine = 3
+plot_n_rows = n_qoi//plot_n_combine
+fig, ax = plt.subplots(plot_n_rows, 1, figsize=(8, 4))
 
 # create plots
 for i in range(n_qoi):
-    this_title = title[i]
-    ax[i].set_title(this_title)
-    x = p[i,:]
-    x1_max = p_max[i]
-    pdf1 = pdf_1d[i,:]/pdf_1d_max[i]
-    pdf1_max = 1.0
-    plot_pdfs_1d(ax[i], x,
+    plot_row   = i // plot_n_combine
+    plot_layer = i %  plot_n_combine
+    #ax[plot_row].set_title(PLOT_TITLE_MARGINAL_1D[plot_row])
+    x        = p[i,:]/10.0**PLOT_ORDER_MARGINAL_1D
+    x1_max   = p_max[i]/10.0**PLOT_ORDER_MARGINAL_1D
+    pdf1     = pdf_1d[i,:] # /pdf_1d_max[i]
+    pdf1_max = np.amax(pdf_1d[i,:]) # 1.0
+    plot_pdfs_1d(ax[plot_row], x,
                  None, None, None, None, # no prior
-                 pdf1, x1_max, pdf1_max, COLOR_POST)
-    handles, labels = ax[i].get_legend_handles_labels()
-    labels = ["m=%.2e s=%.2e" % (x1_max, qoi_std_diag_dim[i])]
-    ax[i].legend(handles, labels, loc='upper right', fontsize='xx-small')
-    ax[i].ticklabel_format(axis='x', style='sci', scilimits=(1,3))
-    ax[i].set_xlim(phys_lim[i,0], phys_lim[i,1])
+                 pdf1, x1_max, pdf1_max, COLOR_POST_MARGINAL_1D[plot_layer],
+                 pdf1_linestyle=LINESTYLE_POST_MARGINAL_1D[plot_layer])
+    ax[plot_row].set_xlabel(PLOT_XLABEL_MARGINAL_1D[plot_row])
+    ax[plot_row].set_xlim(phys_lim[i,0]/10.0**PLOT_ORDER_MARGINAL_1D,
+                          phys_lim[i,1]/10.0**PLOT_ORDER_MARGINAL_1D)
+    #ax[plot_row].xaxis.set_major_formatter(OOMFormatter(PLOT_ORDER_MARGINAL_1D, '%1.1f'))
+    ax[plot_row].get_yaxis().set_visible(False)
     if False:  #qoi_samples_dim is not None:
-        ax[i].hist(qoi_samples_dim[:,i], bins=32, density=True, stacked=True)
+        ax[plot_row].hist(qoi_samples_dim[:,i], bins=32, density=True, stacked=True)
     else:
-        ax[i].set_ylim(0.0, 1.1)
+        ylim = ax[plot_row].get_ylim()
+        if ylim[1] < 1.1*pdf1_max:
+            ax[plot_row].set_ylim(0.0, 1.1*pdf1_max)
 
 # set grid lines
-for i in range(plot_n_rows):
-    ax[i].grid(True)
+for plot_row in range(plot_n_rows):
+    handles, labels = ax[plot_row].get_legend_handles_labels()
+    labels = PLOT_LEGEND_MARGINAL_1D
+    ax[plot_row].legend(handles, labels, loc='upper right', fontsize='small')
+    ax[plot_row].grid(True)
 
 # set spacing between subplots
-fig.set_tight_layout({'pad': 0.5})
+fig.set_tight_layout({'pad': 2.0})
 
 # save plots
-fig.savefig(plot_base+"_marginal_1d.png", dpi=360)
+for suffix in PLOT_SUFFIX:
+    fig.savefig('{}_marginal_1d.{}'.format(plot_base, suffix), dpi=360)
 #plt.show()
 
 ########################################
@@ -293,9 +323,10 @@ if PLOT_MARGINALS_ALL:
             axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
             axcurr.grid(True)
     # set spacing between subplots
-    fig.set_tight_layout({'pad': 0.5})
+    fig.tight_layout()
     # save & show plots
-    fig.savefig(plot_base+"_marginal_2d_all.png", dpi=360)
+    for suffix in PLOT_SUFFIX:
+        fig.savefig('{}_marginal_2d_all.{}'.format(plot_base, suffix), dpi=360)
     #plt.show()
 
 # create figure with all 2D conditionals of the posterior
@@ -319,9 +350,10 @@ if PLOT_CONDITIONALS_ALL:
             axcurr.set_ylim(phys_lim[axrow,0], phys_lim[axrow,1])
             axcurr.grid(True)
     # set spacing between subplots
-    fig.set_tight_layout({'pad': 0.5})
+    fig.tight_layout()
     # save & show plots
-    fig.savefig(plot_base+"_conditional_2d_all.png", dpi=360)
+    for suffix in PLOT_SUFFIX:
+        fig.savefig('{}_conditional_2d_all.{}'.format(plot_base, suffix), dpi=360)
     #plt.show()
 
 ########################################
