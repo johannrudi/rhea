@@ -4,21 +4,14 @@
 #
 # Configures the rhea code in the directory from which this script is called.
 #
-# Software environment (via `spack find --loaded`):
-# -- darwin-mojave-skylake / gcc@11.1.0 ---------------------------
-# hwloc@2.4.1           libevent@2.1.12  libxml2@2.9.10  openblas@0.3.15  openssh@8.5p1   xz@5.2.5
-# libedit@3.1-20210216  libiconv@1.16    ncurses@6.2     openmpi@4.0.5    openssl@1.1.1k  zlib@1.2.11
-#
-# To load call: `spack load openmpi%gcc openblas%gcc`
-#
 ###############################################################################
 
-declare -r THIS_ARCHITECTURE="Apple Mac with macOS 10.14 (GCC 11)"
-declare -r THIS_BLAS_LIBS="$HOME/apps/clang-1100.0.33.17/fblaslapack/3.4.2/lib/libfblas.a"
-declare -r THIS_LAPACK_LIBS="$HOME/apps/clang-1100.0.33.17/fblaslapack/3.4.2/lib/libflapack.a"
-declare -r THIS_PETSC_DIR="$HOME/build/dev/rhea_petsc"
-#declare -r THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
-declare -r OPENMP_FLAG="-fopenmp"
+THIS_ARCHITECTURE="TACC Frontera, Intel compiler"
+THIS_BLAS_LIBS="-L${MKLROOT}/lib/intel64 -liomp5 -lpthread -lm -ldl"
+THIS_PETSC_DIR_DBG="/home1/01501/johann/build/dev/rhea_petsc"
+THIS_PETSC_DIR_OPT="/home1/01501/johann/build/perf/rhea_petsc"
+THIS_VALGRIND_INC="$TACC_VALGRIND_INC"
+OPENMP_FLAG="-qopenmp"
 
 ########################################
 # Functions
@@ -26,7 +19,7 @@ declare -r OPENMP_FLAG="-fopenmp"
 
 function print_usage()
 {
-  echo "Usage: ./configure_arch_mac [-o]"
+  echo "Usage: ./$(basename "$0") [-o]"
 }
 
 ########################################
@@ -35,7 +28,8 @@ function print_usage()
 
 # initialize parameters
 is_opt=0
-code_dir="$(dirname ${BASH_SOURCE[0]})"
+script_dir="$(dirname ${BASH_SOURCE[0]})"
+code_dir="$script_dir/.."
 build_dir="$(pwd)"
 
 # check option flags
@@ -57,6 +51,16 @@ while getopts ":ho" opt; do
 done
 
 ########################################
+# Setup environment
+########################################
+
+source $script_dir/setup_anvil.sh || exit
+
+echo "========================================"
+echo "Modules:"
+module -t list 2>&1 | sort
+
+########################################
 # Run configure
 ########################################
 
@@ -70,34 +74,28 @@ echo "========================================"
 if [ 1 -le "$is_opt" ]; then
   # configure optimized build
   $code_dir/configure \
-  F77=mpif77 \
-   FC=mpif90 \
-   CC=mpicc \
-  CXX=mpicxx \
-    CFLAGS="-g -O2 -Wall -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
-  CXXFLAGS="-g -O2 -Wall" \
+    FFLAGS="-g -O3 $OPENMP_FLAG" \
+    CFLAGS="-g -O3 $OPENMP_FLAG -mkl=parallel -Wall -w2 -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
+  CXXFLAGS="-g -O3 $OPENMP_FLAG -mkl=parallel -Wall -w2" \
+  CPPFLAGS="-I${THIS_VALGRIND_INC}" \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
   --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR" \
-  BLAS_LIBS="$THIS_BLAS_LIBS" \
-  LAPACK_LIBS="$THIS_LAPACK_LIBS"
+  --with-petsc="$THIS_PETSC_DIR_OPT" \
+  BLAS_LIBS="$THIS_BLAS_LIBS"
 else
   # configure development build
   $code_dir/configure \
-  F77=mpif77 \
-   FC=mpif90 \
-   CC=mpicc \
-  CXX=mpicxx \
-    CFLAGS="-g -O0 -Wall -DYMIR_PETSC_CUSTOM" \
-  CXXFLAGS="-g -O0 -Wall" \
+    FFLAGS="-g -O0 $OPENMP_FLAG" \
+    CFLAGS="-g -O0 $OPENMP_FLAG -mkl=parallel -Wall -w2 -DYMIR_PETSC_CUSTOM" \
+  CXXFLAGS="-g -O0 $OPENMP_FLAG -mkl=parallel -Wall -w2" \
+  CPPFLAGS="-I${THIS_VALGRIND_INC}" \
   --enable-debug \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
   --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR" \
-  BLAS_LIBS="$THIS_BLAS_LIBS" \
-  LAPACK_LIBS="$THIS_LAPACK_LIBS"
+  --with-petsc="$THIS_PETSC_DIR_DBG" \
+  BLAS_LIBS="$THIS_BLAS_LIBS"
 fi
 
-# CPPFLAGS="-I${THIS_VALGRIND_INC}" \
+echo "========================================"

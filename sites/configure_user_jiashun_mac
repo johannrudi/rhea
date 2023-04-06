@@ -6,12 +6,12 @@
 #
 ###############################################################################
 
-declare -r THIS_ARCHITECTURE="Apple Mac with macOS 10.13 (Clang compiler)"
-declare -r THIS_BLAS_LIBS="$HOME/build/blaslapack/lib/libfblas.a"
-declare -r THIS_LAPACK_LIBS="$HOME/build/blaslapack/lib/libflapack.a"
-declare -r THIS_PETSC_DIR="$HOME/build/petsc"
-declare -r THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
-#declare -r OPENMP_FLAG="-Xpreprocessor -fopenmp -lomp \
+THIS_ARCHITECTURE="Apple Mac with macOS 10.13 (Clang compiler)"
+THIS_BLAS_LIBS="$HOME/build/blaslapack/lib/libfblas.a"
+THIS_LAPACK_LIBS="$HOME/build/blaslapack/lib/libflapack.a"
+THIS_PETSC_DIR="$HOME/build/petsc"
+THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
+#OPENMP_FLAG="-Xpreprocessor -fopenmp -lomp \
 #-I$(brew --prefix libomp)/include \
 #-L$(brew --prefix libomp)/lib"
 
@@ -21,7 +21,7 @@ declare -r THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
 
 function print_usage()
 {
-  echo "Usage: ./configure_arch_mac [-o]"
+  echo "Usage: ./$(basename "$0") [-o]"
 }
 
 ########################################
@@ -30,7 +30,7 @@ function print_usage()
 
 # initialize parameters
 is_opt=0
-code_dir="$(dirname ${BASH_SOURCE[0]})"
+code_dir="$(dirname ${BASH_SOURCE[0]})/.."
 build_dir="$(pwd)"
 
 # check option flags
