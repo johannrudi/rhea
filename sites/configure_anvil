@@ -4,26 +4,14 @@
 #
 # Configures the rhea code in the directory from which this script is called.
 #
-# Modules:
-#   autotools/1.2
-#   cmake/3.16.1
-#   git/2.24.1
-#   hwloc/1.11.12
-#   intel/19.1.1
-#   impi/19.0.9
-#   pmix/3.1.4
-#   python3/3.7.0
-#   TACC
-#   xalt/2.10.2
-#   valgrind/3.15.0
-#
 ###############################################################################
 
-declare -r THIS_ARCHITECTURE="TACC Frontera, Intel compiler"
-declare -r THIS_BLAS_LIBS="-L${MKLROOT}/lib/intel64 -liomp5 -lpthread -lm -ldl"
-declare -r THIS_PETSC_DIR_DBG="/home1/01501/johann/build/dev/rhea_petsc"
-declare -r THIS_PETSC_DIR_OPT="/home1/01501/johann/build/perf/rhea_petsc"
-declare -r THIS_VALGRIND_INC="$TACC_VALGRIND_INC"
+THIS_ARCHITECTURE="Anvil, GNU compiler"
+THIS_PETSC_DIR_DBG="/home/x-mheldman/build/dev/petsc-rhea"
+THIS_PETSC_DIR_OPT="/home/x-mheldman/build/perf/petsc-rhea"
+THIS_BLAS_LIBS="$OPENBLAS_HOME/lib/libopenblas.a"
+THIS_VALGRIND_INC="$VALGRIND_INCLUDE"
+OPENMP_FLAG="-fopenmp"
 
 ########################################
 # Functions
@@ -31,7 +19,7 @@ declare -r THIS_VALGRIND_INC="$TACC_VALGRIND_INC"
 
 function print_usage()
 {
-  echo "Usage: ./configure_arch_frontera [-o]"
+  echo "Usage: ./$(basename "$0") [-o]"
 }
 
 ########################################
@@ -40,7 +28,8 @@ function print_usage()
 
 # initialize parameters
 is_opt=0
-code_dir="$(dirname ${BASH_SOURCE[0]})"
+script_dir="$(dirname ${BASH_SOURCE[0]})"
+code_dir="$script_dir/.."
 build_dir="$(pwd)"
 
 # check option flags
@@ -62,6 +51,16 @@ while getopts ":ho" opt; do
 done
 
 ########################################
+# Setup environment
+########################################
+
+source $script_dir/setup_anvil.sh || exit
+
+echo "========================================"
+echo "Modules:"
+module -t list 2>&1 | sort
+
+########################################
 # Run configure
 ########################################
 
@@ -75,26 +74,28 @@ echo "========================================"
 if [ 1 -le "$is_opt" ]; then
   # configure optimized build
   $code_dir/configure \
-    FFLAGS="-g -O3 -qopenmp" \
-    CFLAGS="-g -O3 -qopenmp -mkl=parallel -Wall -w2 -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
-  CXXFLAGS="-g -O3 -qopenmp -mkl=parallel -Wall -w2" \
+    FFLAGS="-g -O3 $OPENMP_FLAG" \
+    CFLAGS="-g -O3 $OPENMP_FLAG -Wall -w -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
+  CXXFLAGS="-g -O3 $OPENMP_FLAG -Wall -w" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
   --enable-mpi \
-  --enable-openmp="-qopenmp" \
+  --enable-openmp="$OPENMP_FLAG" \
   --with-fet="$code_dir/fet" \
   --with-petsc="$THIS_PETSC_DIR_OPT" \
   BLAS_LIBS="$THIS_BLAS_LIBS"
 else
   # configure development build
   $code_dir/configure \
-    FFLAGS="-g -O0 -qopenmp" \
-    CFLAGS="-g -O0 -qopenmp -mkl=parallel -Wall -w2 -DYMIR_PETSC_CUSTOM" \
-  CXXFLAGS="-g -O0 -qopenmp -mkl=parallel -Wall -w2" \
+    FFLAGS="-g -O0 $OPENMP_FLAG" \
+    CFLAGS="-g -O0 $OPENMP_FLAG -Wall -w -DYMIR_PETSC_CUSTOM" \
+  CXXFLAGS="-g -O0 $OPENMP_FLAG -Wall -w" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
   --enable-debug \
   --enable-mpi \
-  --enable-openmp="-qopenmp" \
+  --enable-openmp="$OPENMP_FLAG" \
   --with-fet="$code_dir/fet" \
   --with-petsc="$THIS_PETSC_DIR_DBG" \
   BLAS_LIBS="$THIS_BLAS_LIBS"
 fi
+
+echo "========================================"

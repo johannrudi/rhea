@@ -4,16 +4,19 @@
 #
 # Configures the rhea code in the directory from which this script is called.
 #
+# Modules:
+#   1) intel/17.0.4-74uvhji          4) StdEnv
+#   2) intel-mpi/2017.3-dfphq6k      5) valgrind/3.13.0
+#   3) intel-mkl/2017.3.196-v7uuj6z   
+#
 ###############################################################################
 
-declare -r THIS_ARCHITECTURE="Apple Mac with macOS 10.13 (Clang compiler)"
-declare -r THIS_BLAS_LIBS="$HOME/build/blaslapack/lib/libfblas.a"
-declare -r THIS_LAPACK_LIBS="$HOME/build/blaslapack/lib/libflapack.a"
-declare -r THIS_PETSC_DIR="$HOME/build/petsc"
-declare -r THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
-#declare -r OPENMP_FLAG="-Xpreprocessor -fopenmp -lomp \
-#-I$(brew --prefix libomp)/include \
-#-L$(brew --prefix libomp)/lib"
+THIS_ARCHITECTURE="Argonne LCRC, Intel compiler"
+THIS_PETSC_DIR_DBG="/home/jrudi/build/perf/rhea_petsc" #TODO compile debug
+THIS_PETSC_DIR_OPT="/home/jrudi/build/perf/rhea_petsc"
+THIS_BLAS_LIBS="$THIS_PETSC_DIR_OPT/lib/libfblas.a"
+THIS_LAPACK_LIBS="$THIS_PETSC_DIR_OPT/lib/libflapack.a"
+THIS_VALGRIND_INC="/soft/bebop/valgrind/3.13.0/include/valgrind"
 
 ########################################
 # Functions
@@ -21,7 +24,7 @@ declare -r THIS_VALGRIND_INC="$(brew --prefix valgrind)/include/valgrind"
 
 function print_usage()
 {
-  echo "Usage: ./configure_arch_mac [-o]"
+  echo "Usage: ./$(basename "$0") [-o]"
 }
 
 ########################################
@@ -30,7 +33,7 @@ function print_usage()
 
 # initialize parameters
 is_opt=0
-code_dir="$(dirname ${BASH_SOURCE[0]})"
+code_dir="$(dirname ${BASH_SOURCE[0]})/.."
 build_dir="$(pwd)"
 
 # check option flags
@@ -65,36 +68,28 @@ echo "========================================"
 if [ 1 -le "$is_opt" ]; then
   # configure optimized build
   $code_dir/configure \
-  F77=mpif77 \
-   FC=mpif90 \
-   CC=mpicc \
-  CXX=mpicxx \
-    CFLAGS="-g -O2 -Wall -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
-  CXXFLAGS="-g -O2 -Wall" \
+    FFLAGS="-g -O2 -fopenmp" \
+    CFLAGS="-g -O2 -fopenmp -Wall -DYMIR_PETSC_CUSTOM -DFET_DISABLE_RESTRICT -DFET_DISABLE_DEBUG" \
+  CXXFLAGS="-g -O2 -fopenmp -Wall" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
   --enable-mpi \
+  --enable-openmp="-fopenmp" \
   --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR" \
+  --with-petsc="$THIS_PETSC_DIR_OPT" \
   BLAS_LIBS="$THIS_BLAS_LIBS" \
   LAPACK_LIBS="$THIS_LAPACK_LIBS"
 else
   # configure development build
   $code_dir/configure \
-  F77=mpif77 \
-   FC=mpif90 \
-   CC=mpicc \
-  CXX=mpicxx \
-    CFLAGS="-g -O0 -Wall" \
-  CXXFLAGS="-g -O0 -Wall" \
+    FFLAGS="-g -O0 -fopenmp" \
+    CFLAGS="-g -O0 -fopenmp -Wall -DYMIR_PETSC_CUSTOM -DFET_DISABLE_RESTRICT" \
+  CXXFLAGS="-g -O0 -fopenmp -Wall" \
+  CPPFLAGS="-I${THIS_VALGRIND_INC}" \
   --enable-debug \
   --enable-mpi \
+  --enable-openmp="-fopenmp" \
   --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR" \
+  --with-petsc="$THIS_PETSC_DIR_DBG" \
   BLAS_LIBS="$THIS_BLAS_LIBS" \
   LAPACK_LIBS="$THIS_LAPACK_LIBS"
 fi
-
-#  CPPFLAGS="-I${THIS_VALGRIND_INC}" \
-#   CFLAGS="-g -O0 $OPENMP_FLAG -Wall" \
-# CXXFLAGS="-g -O0 $OPENMP_FLAG -Wall" \
-# --enable-openmp="$OPENMP_FLAG" \
