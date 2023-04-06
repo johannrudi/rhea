@@ -1,0 +1,36 @@
+# EditorConfig of home directory
+# [https://editorconfig.org]
+
+# declare top-most EditorConfig file
+root = true
+
+# set unix-style newlines and default indentation; set a newline ending every file
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+
+# set default charset; trim whitespace
+[*.{c,cpp,cxx,h,hpp,ini,md,petsc,py,sh,tex}]
+trim_trailing_whitespace = true
+
+# C/C++
+[*.{c,cpp,cxx,h,hpp}]
+max_line_length = 80
+
+# Makefiles
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+# Markdown
+[*.{md}]
+max_line_length = 120
+
+# Python
+[*.{py}]
+indent_size = 4
+max_line_length = 120
+
