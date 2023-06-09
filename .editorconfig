@@ -6,18 +6,18 @@ root = true
 
 # set unix-style newlines and default indentation; set a newline ending every file
 [*]
-charset = utf-8
 end_of_line = lf
 insert_final_newline = true
-indent_style = space
-indent_size = 2
 
 # set default charset; trim whitespace
-[*.{c,cpp,cxx,h,hpp,ini,md,petsc,py,sh,tex}]
+[*.{bib,c,cc,cpp,cxx,cu,h,hh,hpp,ini,petsc,py,sh,tex}]
+charset = utf-8
 trim_trailing_whitespace = true
 
-# C/C++
-[*.{c,cpp,cxx,h,hpp}]
+# C/C++, Bash, Tex
+[*.{bib,c,cc,cpp,cu,h,hh,hpp,sh,tex}]
+indent_style = space
+indent_size = 2
 max_line_length = 80
 
 # Makefiles
@@ -25,12 +25,14 @@ max_line_length = 80
 indent_style = tab
 indent_size = 4
 
-# Markdown
-[*.{md}]
-max_line_length = 120
-
 # Python
 [*.{py}]
+indent_style = space
 indent_size = 4
-max_line_length = 120
+max_line_length = 160
+
+# Option files
+[*.{ini,petsc}]
+indent_style = space
+indent_size = 2
 
