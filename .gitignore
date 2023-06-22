@@ -25,3 +25,30 @@ src/pre_config.h.in~
 
 # Mac
 .DS_Store
+
+# ParaView
+*.vtu
+*.pvtu
+*.pvd
+
+# Emacs
+*~
+\#*\#
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+tags # auto-generated tag files
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/*.code-snippets
+.history/ # local history
+*.vsix    # built extensions
