@@ -48,6 +48,7 @@ dnl
 AC_DEFUN([RHEA_CHECK_LIBRARIES],
 [
 dnl SC_REQUIRE_LIB([m], [fabs])
+RHEA_CHECK_RHEAKIT([$1])
 ])
 
 dnl RHEA_AS_SUBPACKAGE(PREFIX, prefix)
