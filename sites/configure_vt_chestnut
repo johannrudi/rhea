@@ -22,6 +22,35 @@ function print_usage()
   echo "Usage: ./$(basename "$0") [-o]"
 }
 
+function filter()
+{
+  local pattern=$1
+  local input_string=$2
+  local output_string=()
+
+  for s in $input_string; do
+    if [[ "$s" == $pattern ]] ; then
+      output_string+=("$s")
+    fi
+  done
+  echo "${output_string[@]}"
+}
+
+function filter_out()
+{
+  local pattern=$1
+  local input_string=$2
+  local output_string=()
+
+  for s in $input_string; do
+    if [[ "$s" == $pattern ]] ; then
+      continue
+    fi
+    output_string+=("$s")
+  done
+  echo "${output_string[@]}"
+}
+
 ########################################
 # Process options
 ########################################
@@ -61,7 +90,8 @@ echo "Modules:"
 module -t list 2>&1 | sort
 
 THIS_BLAS_LIBS="-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_ilp64 -lmkl_tbb_thread -lmkl_core -lpthread -lm -ldl"
-THIS_PYTHON_LDFLAGS=$(python3-config --ldflags --embed)
+THIS_PYTHON_LDFLAGS=$(filter -L* "$(python3-config --ldflags --embed)")
+THIS_PYTHON_LIBS=$(filter_out -L* "$(python3-config --ldflags --embed)")
 OPENMP_FLAG="-fopenmp"
 
 ########################################
@@ -83,6 +113,7 @@ if [ 1 -le "$is_opt" ]; then
   CXXFLAGS="-g -O3 $OPENMP_FLAG -Wall" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
    LDFLAGS="${THIS_PYTHON_LDFLAGS}" \
+      LIBS="${THIS_PYTHON_LIBS}" \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
   --with-fet="$code_dir/fet" \
@@ -97,6 +128,7 @@ else
   CXXFLAGS="-g -O0 $OPENMP_FLAG -Wall" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
    LDFLAGS="${THIS_PYTHON_LDFLAGS}" \
+      LIBS="${THIS_PYTHON_LIBS}" \
   --enable-debug \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
