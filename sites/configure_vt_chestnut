@@ -6,15 +6,42 @@
 #
 ###############################################################################
 
-THIS_ARCHITECTURE="VT Chestnut, GNU compiler"
-THIS_PETSC_DIR_DBG="/home/jrudi/build/dev/petsc-rhea"
-THIS_PETSC_DIR_OPT="/home/jrudi/build/perf/petsc-rhea"
-THIS_RHEAKIT_DIR_DBG="/home/jrudi/build/dev/rhea-kit"
-THIS_RHEAKIT_DIR_OPT="/home/jrudi/build/perf/rhea-kit"
-THIS_VALGRIND_INC="/usr/include/valgrind"
+########################################
+# Setup environment
+########################################
+
+# get directories
+script_dir="$(dirname ${BASH_SOURCE[0]})"
+code_dir="$(dirname $script_dir)"
+build_dir="$(pwd)"
+
+# get utility functions
+source $script_dir/utils.sh || exit
+
+# call platform-specific setup script
+source $script_dir/setup_vt_chestnut.sh || exit
+print_modules
 
 ########################################
-# Functions
+# Platform-specific
+########################################
+
+THIS_SITE="VT Chestnut, GNU compiler"
+OPENMP_FLAG="-fopenmp"
+
+# set pairs of directories (develop, performance)
+THIS_PETSC_DIR=("/home/jrudi/build/dev/petsc-rhea"
+                "/home/jrudi/build/perf/petsc-rhea")
+THIS_RHEAKIT_DIR=("/home/jrudi/build/dev/rhea-kit"
+                  "/home/jrudi/build/perf/rhea-kit")
+
+THIS_VALGRIND_INC="/usr/include/valgrind"
+THIS_PYTHON_LDFLAGS=$(get_python_ldflags)
+THIS_PYTHON_LIBS=$(get_python_libs)
+THIS_BLAS_LIBS="-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_ilp64 -lmkl_tbb_thread -lmkl_core -lpthread -lm -ldl"
+
+########################################
+# Process options
 ########################################
 
 function print_usage()
@@ -22,44 +49,8 @@ function print_usage()
   echo "Usage: ./$(basename "$0") [-o]"
 }
 
-function filter()
-{
-  local pattern=$1
-  local input_string=$2
-  local output_string=()
-
-  for s in $input_string; do
-    if [[ "$s" == $pattern ]] ; then
-      output_string+=("$s")
-    fi
-  done
-  echo "${output_string[@]}"
-}
-
-function filter_out()
-{
-  local pattern=$1
-  local input_string=$2
-  local output_string=()
-
-  for s in $input_string; do
-    if [[ "$s" == $pattern ]] ; then
-      continue
-    fi
-    output_string+=("$s")
-  done
-  echo "${output_string[@]}"
-}
-
-########################################
-# Process options
-########################################
-
-# initialize parameters
+# initialize
 is_opt=0
-script_dir="$(dirname ${BASH_SOURCE[0]})"
-code_dir="$script_dir/.."
-build_dir="$(pwd)"
 
 # check option flags
 while getopts ":ho" opt; do
@@ -80,30 +71,17 @@ while getopts ":ho" opt; do
 done
 
 ########################################
-# Setup environment
-########################################
-
-source $script_dir/setup_vt_chestnut.sh || exit
-
-echo "========================================"
-echo "Modules:"
-module -t list 2>&1 | sort
-
-THIS_BLAS_LIBS="-L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_intel_ilp64 -lmkl_tbb_thread -lmkl_core -lpthread -lm -ldl"
-THIS_PYTHON_LDFLAGS=$(filter -L* "$(python3-config --ldflags --embed)")
-THIS_PYTHON_LIBS=$(filter_out -L* "$(python3-config --ldflags --embed)")
-OPENMP_FLAG="-fopenmp"
-
-########################################
 # Run configure
 ########################################
 
-echo "========================================"
-echo "Build rhea for $THIS_ARCHITECTURE"
-echo "Code directory:  $code_dir"
-echo "Build directory: $build_dir"
-echo "Optimized build: $is_opt"
-echo "========================================"
+fet_dir="$code_dir/fet"
+petsc_dir="${THIS_PETSC_DIR[$is_opt]}"
+rheakit_dir="${THIS_RHEAKIT_DIR[$is_opt]}"
+
+print_setup "$THIS_SITE" $is_opt $OPENMP_FLAG "$code_dir" "$build_dir" \
+            "$fet_dir" "$petsc_dir" "$rheakit_dir" \
+            "$THIS_VALGRIND_INC" "$THIS_PYTHON_LDFLAGS" "$THIS_PYTHON_LIBS" "$THIS_BLAS_LIBS"
+print_sep_line
 
 if [ 1 -le "$is_opt" ]; then
   # configure optimized build
@@ -116,9 +94,9 @@ if [ 1 -le "$is_opt" ]; then
       LIBS="${THIS_PYTHON_LIBS}" \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
-  --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR_OPT" \
-  --with-rheakit="$THIS_RHEAKIT_DIR_OPT" \
+  --with-fet="$fet_dir" \
+  --with-petsc="$petsc_dir" \
+  --with-rheakit="$rheakit_dir" \
   BLAS_LIBS="$THIS_BLAS_LIBS"
 else
   # configure development build
@@ -132,10 +110,10 @@ else
   --enable-debug \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
-  --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR_DBG" \
-  --with-rheakit="$THIS_RHEAKIT_DIR_DBG" \
+  --with-fet="$fet_dir" \
+  --with-petsc="$petsc_dir" \
+  --with-rheakit="$rheakit_dir" \
   BLAS_LIBS="$THIS_BLAS_LIBS"
 fi
 
-echo "========================================"
+print_sep_line

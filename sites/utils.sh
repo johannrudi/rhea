@@ -1,0 +1,72 @@
+#!/bin/bash
+
+function filter()
+{
+  local pattern=$1
+  local input_string=$2
+  local output_string=()
+
+  for s in $input_string; do
+    if [[ "$s" == $pattern ]] ; then
+      output_string+=("$s")
+    fi
+  done
+  echo "${output_string[@]}"
+}
+
+function filter_out()
+{
+  local pattern=$1
+  local input_string=$2
+  local output_string=()
+
+  for s in $input_string; do
+    if [[ "$s" == $pattern ]] ; then
+      continue
+    fi
+    output_string+=("$s")
+  done
+  echo "${output_string[@]}"
+}
+
+function get_python_ldflags()
+{
+  echo $(filter -L* "$(python3-config --ldflags --embed)")
+}
+
+function get_python_libs()
+{
+  echo $(filter_out -L* "$(python3-config --ldflags --embed)")
+}
+
+function print_sep_line()
+{
+  echo "========================================"
+}
+
+function print_modules()
+{
+  print_sep_line
+  echo "Modules:"
+  module -t list 2>&1 | sort
+}
+
+function print_setup()
+{
+  print_sep_line
+  echo "Configure setup for Rhea"
+  echo "- Site:             $1"
+  echo "- Optimized build:  $2"
+  echo "- OpenMP flag:      $3"
+  echo "- Code directory:   $4"
+  echo "- Build directory:  $5"
+
+  echo "- FET dir:          $6"
+  echo "- PETSc dir:        $7"
+  echo "- Rhea-kit dir:     $8"
+
+  echo "- Valgrind include: $9"
+  echo "- Python ldflags:   ${10}"
+  echo "- Python libs:      ${11}"
+  echo "- BLAS libs:        ${12}"
+}
