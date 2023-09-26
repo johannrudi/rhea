@@ -1,4 +1,4 @@
-## Environment
+# Environment
 
 Command: `module -t list 2>&1 | sort`
 
@@ -14,5 +14,9 @@ mpfr/4.0.2
 numactl/2.0.14
 openblas/0.3.17
 openmpi/4.0.6
+python/3.9.5
+valgrind/3.15.0
+xalt/2.10.45
 zlib/1.2.11
 ```
+
