@@ -37,7 +37,7 @@ THIS_RHEAKIT_DIR=("/home/x-johann/build/dev/rhea-kit"
 
 THIS_VALGRIND_INC="$VALGRIND_INCLUDE"
 THIS_PYTHON_LDFLAGS=$(get_python_ldflags)
-THIS_PYTHON_LIBS=$(get_python_libs)
+THIS_PYTHON_LIBS=$(filter -lpython3* "$(get_python_libs)")
 THIS_BLAS_LIBS="$OPENBLAS_HOME/lib/libopenblas.a"
 #TODO ^ maybe this needs an "-L" in front?
 

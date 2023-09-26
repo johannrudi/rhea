@@ -1,5 +1,10 @@
 #!/bin/bash
 
+function first_word()
+{
+  echo $1 | awk '{print $1;}'
+}
+
 function filter()
 {
   local pattern=$1
