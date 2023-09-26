@@ -6,15 +6,43 @@
 #
 ###############################################################################
 
-THIS_ARCHITECTURE="Anvil, GNU compiler"
-THIS_PETSC_DIR_DBG="/home/x-mheldman/build/dev/petsc-rhea"
-THIS_PETSC_DIR_OPT="/home/x-mheldman/build/perf/petsc-rhea"
-THIS_BLAS_LIBS="$OPENBLAS_HOME/lib/libopenblas.a"
-THIS_VALGRIND_INC="$VALGRIND_INCLUDE"
-OPENMP_FLAG="-fopenmp"
+########################################
+# Setup environment
+########################################
+
+# get directories
+script_dir="$(dirname ${BASH_SOURCE[0]})"
+code_dir="$(dirname $script_dir)"
+build_dir="$(pwd)"
+
+# get utility functions
+source $script_dir/utils.sh || exit
+
+# call platform-specific setup script
+source $script_dir/setup_anvil.sh || exit
+print_modules
 
 ########################################
-# Functions
+# Platform-specific
+########################################
+
+THIS_SITE="Anvil, GNU compiler"
+OPENMP_FLAG="-fopenmp"
+
+# set pairs of directories (develop, performance)
+THIS_PETSC_DIR=("/home/x-mheldman/build/dev/petsc-rhea"
+                "/home/x-mheldman/build/perf/petsc-rhea")
+THIS_RHEAKIT_DIR=("/home/x-johann/build/dev/rhea-kit"
+                  "/home/x-johann/build/perf/rhea-kit")
+
+THIS_VALGRIND_INC="$VALGRIND_INCLUDE"
+THIS_PYTHON_LDFLAGS=$(get_python_ldflags)
+THIS_PYTHON_LIBS=$(get_python_libs)
+THIS_BLAS_LIBS="$OPENBLAS_HOME/lib/libopenblas.a"
+#TODO ^ maybe this needs an "-L" in front?
+
+########################################
+# Process options
 ########################################
 
 function print_usage()
@@ -22,15 +50,8 @@ function print_usage()
   echo "Usage: ./$(basename "$0") [-o]"
 }
 
-########################################
-# Process options
-########################################
-
-# initialize parameters
+# initialize
 is_opt=0
-script_dir="$(dirname ${BASH_SOURCE[0]})"
-code_dir="$script_dir/.."
-build_dir="$(pwd)"
 
 # check option flags
 while getopts ":ho" opt; do
@@ -51,25 +72,17 @@ while getopts ":ho" opt; do
 done
 
 ########################################
-# Setup environment
-########################################
-
-source $script_dir/setup_anvil.sh || exit
-
-echo "========================================"
-echo "Modules:"
-module -t list 2>&1 | sort
-
-########################################
 # Run configure
 ########################################
 
-echo "========================================"
-echo "Build rhea for $THIS_ARCHITECTURE"
-echo "Code directory:  $code_dir"
-echo "Build directory: $build_dir"
-echo "Optimized build: $is_opt"
-echo "========================================"
+fet_dir="$code_dir/fet"
+petsc_dir="${THIS_PETSC_DIR[$is_opt]}"
+rheakit_dir="${THIS_RHEAKIT_DIR[$is_opt]}"
+
+print_setup "$THIS_SITE" $is_opt $OPENMP_FLAG "$code_dir" "$build_dir" \
+            "$fet_dir" "$petsc_dir" "$rheakit_dir" \
+            "$THIS_VALGRIND_INC" "$THIS_PYTHON_LDFLAGS" "$THIS_PYTHON_LIBS" "$THIS_BLAS_LIBS"
+print_sep_line
 
 if [ 1 -le "$is_opt" ]; then
   # configure optimized build
@@ -78,10 +91,13 @@ if [ 1 -le "$is_opt" ]; then
     CFLAGS="-g -O3 $OPENMP_FLAG -Wall -w -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
   CXXFLAGS="-g -O3 $OPENMP_FLAG -Wall -w" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
+   LDFLAGS="${THIS_PYTHON_LDFLAGS}" \
+      LIBS="${THIS_PYTHON_LIBS}" \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
-  --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR_OPT" \
+  --with-fet="$fet_dir" \
+  --with-petsc="$petsc_dir" \
+  --with-rheakit="$rheakit_dir" \
   BLAS_LIBS="$THIS_BLAS_LIBS"
 else
   # configure development build
@@ -90,12 +106,15 @@ else
     CFLAGS="-g -O0 $OPENMP_FLAG -Wall -w -DYMIR_PETSC_CUSTOM" \
   CXXFLAGS="-g -O0 $OPENMP_FLAG -Wall -w" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
+   LDFLAGS="${THIS_PYTHON_LDFLAGS}" \
+      LIBS="${THIS_PYTHON_LIBS}" \
   --enable-debug \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
-  --with-fet="$code_dir/fet" \
-  --with-petsc="$THIS_PETSC_DIR_DBG" \
+  --with-fet="$fet_dir" \
+  --with-petsc="$petsc_dir" \
+  --with-rheakit="$rheakit_dir" \
   BLAS_LIBS="$THIS_BLAS_LIBS"
 fi
 
-echo "========================================"
+print_sep_line
