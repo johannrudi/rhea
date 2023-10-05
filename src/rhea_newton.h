@@ -235,6 +235,7 @@ typedef struct rhea_newton_options
   int                 status_verbosity;
   int                 print_summary;
   char               *print_summary_name;
+  int                 monitor_performance;
 }
 rhea_newton_options_t;
 
@@ -248,7 +249,7 @@ void                rhea_newton_add_options (
 /**
  * Gets global options values.
  */
-void                rhea_newton_get_options (rhea_newton_options_t *opt);
+void                rhea_newton_get_global_options (rhea_newton_options_t *opt);
 
 /**
  * Sets options to default values.

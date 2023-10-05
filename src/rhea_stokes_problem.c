@@ -3269,7 +3269,6 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
                                      int *num_iterations,
                                      double *residual_reduction)
 {
-  const int           status_verbosity = 1;
   rhea_newton_options_t *newton_options = stokes_problem_nl->newton_options;
   rhea_newton_problem_t *newton_problem = stokes_problem_nl->newton_problem;
   int                 stop_reason;
@@ -3288,7 +3287,6 @@ rhea_stokes_problem_nonlinear_solve (ymir_vec_t **sol_vel_press,
   newton_options->resume = (nonzero_initial_guess && resume);
   newton_options->iter_max = newton_options->iter_start + iter_max;
   newton_options->rtol = rtol;
-  newton_options->status_verbosity = status_verbosity;
   stop_reason = rhea_newton_solve (sol_vel_press, newton_problem,
                                    newton_options);
 

@@ -92,30 +92,34 @@ rhea_newton_calculate_reduction (const double start_value,
  *****************************************************************************/
 
 /* default options */
+#define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
+#define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
+
 #define RHEA_NEWTON_DEFAULT_ITER_START (0)
 #define RHEA_NEWTON_DEFAULT_ITER_MIN (0)
 #define RHEA_NEWTON_DEFAULT_ITER_MAX (10)
 #define RHEA_NEWTON_DEFAULT_RTOL (1.0e-6)
-#define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
+
 #define RHEA_NEWTON_DEFAULT_LIN_ITER_MAX (100)
+
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER (1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT (1.0e-2)
+
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_EXPONENT (1.618)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MAX (1.0e-3)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_ACTIVE (1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_THRESHOLD (0.1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER (0)
+
 #define RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION (0)
+
 #define RHEA_NEWTON_DEFAULT_INIT_STEP_SEARCH_ITER_MAX (-1)
 #define RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX (12)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN (1.0e-5)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX (1.0)
 #define RHEA_NEWTON_DEFAULT_STEP_REDUCTION (0.5)
 #define RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION (1.0e-4)
-#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY (0)
-#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME (NULL)
 
-#define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
 #define RHEA_NEWTON_DEFAULT_RESUME (0)
 #define RHEA_NEWTON_DEFAULT_RESUME_OBJ_INIT (NAN)
 #define RHEA_NEWTON_DEFAULT_RESUME_OBJ_PREV (NAN)
@@ -123,7 +127,11 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_INIT (NAN)
 #define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_PREV (NAN)
 #define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_REDUCTION_PREV (NAN)
-#define RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY (0)
+
+#define RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY (1)
+#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY (0)
+#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME (NULL)
+#define RHEA_NEWTON_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* global options */
 rhea_newton_options_t rhea_newton_options;
@@ -152,6 +160,11 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
 
+  YMIR_OPTIONS_B, "abort-if-step-search-failed", '\0',
+    &(newton_opt->abort_failed_step_search),
+    RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH,
+    "Stop Newton loop if the step search failed",
+
   YMIR_OPTIONS_I, "iter-start", '\0',
     &(newton_opt->iter_start), RHEA_NEWTON_DEFAULT_ITER_START,
     "Start at this iteration number",
@@ -165,14 +178,10 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     &(newton_opt->rtol), RHEA_NEWTON_DEFAULT_RTOL,
     "Relative tolerance",
 
-  YMIR_OPTIONS_B, "abort-if-step-search-failed", '\0',
-    &(newton_opt->abort_failed_step_search),
-    RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH,
-    "Stop Newton loop if the step search failed",
-
   YMIR_OPTIONS_I, "lin-iter-max", '\0',
     &(newton_opt->lin_iter_max), RHEA_NEWTON_DEFAULT_LIN_ITER_MAX,
     "Linear sub-solver: Maximum number of iterations",
+
   YMIR_OPTIONS_I, "lin-rtol-init-n-iter", '\0',
     &(newton_opt->lin_rtol_init_n_iter),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER,
@@ -180,6 +189,7 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
   YMIR_OPTIONS_D, "lin-rtol-init", '\0',
     &(newton_opt->lin_rtol_init), RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT,
     "Linear sub-solver: Initial relative tolerance",
+
   YMIR_OPTIONS_D, "lin-rtol-adaptive-exponent", '\0',
     &(newton_opt->lin_rtol_adaptive_exponent),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_EXPONENT,
@@ -200,6 +210,7 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     &(newton_opt->lin_rtol_adaptive_progressive_n_iter),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER,
     "Linear sub-solver: #iter (~ variance) for progressive tightening of rtol",
+
   YMIR_OPTIONS_B, "lin-monitor-reduction", '\0',
     &(newton_opt->lin_monitor_reduction),
     RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION,
@@ -227,12 +238,18 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION,
     "Line search: Relaxation factor for the descend condition",
 
+  YMIR_OPTIONS_B, "status-verbosity", '\0',
+    &(newton_opt->status_verbosity), RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY,
+    "Set verbosity of Newton status output",
   YMIR_OPTIONS_B, "print-summary", '\0',
     &(newton_opt->print_summary), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY,
     "Print summary of Newton iterations",
   YMIR_OPTIONS_S, "print-summary-name", '\0',
     &(newton_opt->print_summary_name), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME,
     "Name for summary of Newton iterations",
+  YMIR_OPTIONS_B, "monitor-performance", '\0',
+    &(newton_opt->monitor_performance), RHEA_NEWTON_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -243,30 +260,32 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
 }
 
 void
-rhea_newton_get_options (rhea_newton_options_t *opt)
+rhea_newton_get_global_options (rhea_newton_options_t *opt)
 {
   rhea_newton_options_set_defaults (opt);
+
+  opt->nonzero_initial_guess    = rhea_newton_options.nonzero_initial_guess;
+  opt->abort_failed_step_search = rhea_newton_options.abort_failed_step_search;
 
   opt->iter_start = rhea_newton_options.iter_start;
   opt->iter_min   = rhea_newton_options.iter_min;
   opt->iter_max   = rhea_newton_options.iter_max;
   opt->rtol       = rhea_newton_options.rtol;
 
-  opt->abort_failed_step_search = rhea_newton_options.abort_failed_step_search;
-
   opt->lin_iter_max         = rhea_newton_options.lin_iter_max;
   opt->lin_rtol_init_n_iter = rhea_newton_options.lin_rtol_init_n_iter;
   opt->lin_rtol_init        = rhea_newton_options.lin_rtol_init;
-  opt->lin_rtol_adaptive_exponent =
+  opt->lin_rtol_adaptive_exponent           =
     rhea_newton_options.lin_rtol_adaptive_exponent;
-  opt->lin_rtol_adaptive_max =
+  opt->lin_rtol_adaptive_max                =
     rhea_newton_options.lin_rtol_adaptive_max;
-  opt->lin_rtol_adaptive_min_active =
+  opt->lin_rtol_adaptive_min_active         =
     rhea_newton_options.lin_rtol_adaptive_min_active;
-  opt->lin_rtol_adaptive_min_threshold =
+  opt->lin_rtol_adaptive_min_threshold      =
     rhea_newton_options.lin_rtol_adaptive_min_threshold;
   opt->lin_rtol_adaptive_progressive_n_iter =
     rhea_newton_options.lin_rtol_adaptive_progressive_n_iter;
+  opt->lin_monitor_reduction = rhea_newton_options.lin_monitor_reduction;
 
   if (0 < rhea_newton_options.init_step_search_iter_max) {
     opt->init_step_search_iter_max =
@@ -282,8 +301,20 @@ rhea_newton_get_options (rhea_newton_options_t *opt)
   opt->step_descend_condition_relaxation =
     rhea_newton_options.step_descend_condition_relaxation;
 
-  opt->print_summary      = rhea_newton_options.print_summary;
-  opt->print_summary_name = rhea_newton_options.print_summary_name;
+  opt->resume          = rhea_newton_options.resume;
+  opt->resume_obj_init = rhea_newton_options.resume_obj_init;
+  opt->resume_obj_prev = rhea_newton_options.resume_obj_prev;
+  opt->resume_obj_reduction_prev =
+    rhea_newton_options.resume_obj_reduction_prev;
+  opt->resume_grad_norm_init = rhea_newton_options.resume_grad_norm_init;
+  opt->resume_grad_norm_prev = rhea_newton_options.resume_grad_norm_prev;
+  opt->resume_grad_norm_reduction_prev =
+    rhea_newton_options.resume_grad_norm_reduction_prev;
+
+  opt->status_verbosity    = rhea_newton_options.status_verbosity;
+  opt->print_summary       = rhea_newton_options.print_summary;
+  opt->print_summary_name  = rhea_newton_options.print_summary_name;
+  opt->monitor_performance = rhea_newton_options.monitor_performance;
 }
 
 void
@@ -331,10 +362,16 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->resume_grad_norm_reduction_prev =
     RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_REDUCTION_PREV;
 
-  opt->status_verbosity   = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
-  opt->print_summary      = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
-  opt->print_summary_name = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME;
+  opt->status_verbosity    = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
+  opt->print_summary       = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
+  opt->print_summary_name  = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME;
+  opt->monitor_performance = RHEA_NEWTON_DEFAULT_MONITOR_PERFORMANCE;
 }
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
 
 /******************************************************************************
  * Nonlinear Problem
@@ -1326,7 +1363,7 @@ rhea_newton_status_vals_to_str (char string[BUFSIZ],
   RHEA_ASSERT (value != NULL);
 
   /* initialize empty string */
-  snprintf (string, BUFSIZ, "");
+  string[0] = 0;
 
   /* write array of values to string */
   pos += snprintf (pos, end - pos, "%.6e", value[0]);
@@ -1460,7 +1497,7 @@ rhea_newton_status_summary_new (const int max_num_iterations)
   /* create storage for iterations */
   summary->iteration_stats = RHEA_ALLOC (char *, max_num_iterations);
   for (k = 0; k < max_num_iterations; k++) {
-    summary->iteration_stats[k] = RHEA_ALLOC (char, BUFSIZ);
+    summary->iteration_stats[k] = RHEA_ALLOC (char, 3*BUFSIZ);
   }
   summary->iteration_length = max_num_iterations;
   summary->iteration_current_idx = 0;
@@ -1534,7 +1571,7 @@ rhea_newton_status_summary_add (rhea_newton_status_summary_t *summary,
   }
 
   /* write status to string */
-  snprintf (summary->iteration_stats[summary->iteration_current_idx], BUFSIZ,
+  snprintf (summary->iteration_stats[summary->iteration_current_idx], 3*BUFSIZ,
             "%3d ; %.15e [%s], %.15e [%s] ; %i, %2i, %.15f ; %4d, %.3e (%.3e)",
             step->iter, obj, obj_comp, grad_norm, grad_norm_comp,
             step->search_success, step->search_iter_count,

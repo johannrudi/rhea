@@ -196,7 +196,7 @@ rhea_process_options_newton (rhea_domain_options_t *domain_options,
 {
   rhea_domain_process_options (domain_options);
   rhea_discretization_process_options (discr_options, domain_options, NULL);
-  rhea_newton_get_options (newton_options);
+  rhea_newton_get_global_options (newton_options);
 
   /* print */
   rhea_domain_print_const_options (domain_options);
