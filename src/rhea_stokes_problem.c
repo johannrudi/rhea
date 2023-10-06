@@ -39,6 +39,7 @@
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_CHECK_JACOBIAN (0)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LIN_ANISO_CHECK (0)
 #define RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LIN_ANISO_PC (0)
+#define RHEA_STOKES_PROBLEM_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* initialize options */
 int                 rhea_stokes_problem_nonlinear_linearization_type =
@@ -53,6 +54,8 @@ int                 rhea_stokes_problem_nonlinear_lin_aniso_check =
                       RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LIN_ANISO_CHECK;
 int                 rhea_stokes_problem_nonlinear_lin_aniso_pc =
                       RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LIN_ANISO_PC;
+int                 rhea_stokes_problem_monitor_performance =
+                      RHEA_STOKES_PROBLEM_DEFAULT_MONITOR_PERFORMANCE;
 
 rhea_newton_options_t rhea_stokes_problem_newton_options;
 
@@ -90,6 +93,12 @@ rhea_stokes_problem_add_options (ymir_options_t * opt_sup)
     RHEA_STOKES_PROBLEM_NONLINEAR_DEFAULT_LIN_ANISO_PC,
     "Precondition linearization-induced anisotropy",
 
+  /* monitors */
+  YMIR_OPTIONS_B, "monitor-performance", '\0',
+    &(rhea_stokes_problem_monitor_performance),
+    RHEA_STOKES_PROBLEM_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
+
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
 
@@ -106,6 +115,89 @@ void
 rhea_stokes_problem_process_options ()
 {
   rhea_stokes_problem_amr_process_options ();
+}
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_STOKES_PROBLEM_PERFMON_N
+}
+rhea_stokes_problem_perfmon_idx_t;
+
+static const char
+*rhea_stokes_problem_perfmon_name[RHEA_STOKES_PROBLEM_PERFMON_N] =
+{
+};
+
+ymir_perf_counter_t rhea_stokes_problem_perfmon[RHEA_STOKES_PROBLEM_PERFMON_N];
+ymir_perf_counter_t rhea_stokes_problem_newton_perfmon[RHEA_NEWTON_PERFMON_N];
+
+void
+rhea_stokes_problem_perfmon_init (const int activate, const int skip_if_active)
+{
+  int       active = activate && rhea_stokes_problem_monitor_performance;
+
+  ymir_perf_counter_init_all_ext (rhea_stokes_problem_perfmon,
+                                  rhea_stokes_problem_perfmon_name,
+                                  RHEA_STOKES_PROBLEM_PERFMON_N,
+                                  active, skip_if_active);
+
+  /* init sub-monitors */
+  active = active && rhea_stokes_problem_newton_options.monitor_performance;
+  ymir_perf_counter_init_all_ext (rhea_stokes_problem_newton_perfmon,
+                                  rhea_newton_perfmon_name,
+                                  RHEA_NEWTON_PERFMON_N,
+                                  active, skip_if_active);
+}
+
+void
+rhea_stokes_problem_perfmon_print (sc_MPI_Comm mpicomm,
+                                   const int print_wtime,
+                                   const int print_n_calls,
+                                   const int print_flops)
+{
+  int                 active = rhea_stokes_problem_monitor_performance;
+  const int           print = (print_wtime || print_n_calls || print_flops);
+  int                 n;
+
+  /* main monitors */
+  if (!active || !print) { return; } // exit, if nothing to do
+  {
+    const int           n_stats = RHEA_STOKES_PROBLEM_PERFMON_N *
+                                  YMIR_PERF_COUNTER_N_STATS;
+    sc_statinfo_t       stats[n_stats];
+    char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+
+    /* gather performance statistics */
+    n = ymir_perf_counter_gather_stats (
+        rhea_stokes_problem_perfmon, RHEA_STOKES_PROBLEM_PERFMON_N,
+        stats, stats_name, mpicomm, print_wtime, print_n_calls, print_flops);
+
+    /* print performance statistics */
+    ymir_perf_counter_print_stats (stats, n, "Stokes Problem");
+  }
+
+  /* sub-monitors */
+  active = active && rhea_stokes_problem_newton_options.monitor_performance;
+  if (!active || !print) { return; } // exit, if nothing to do
+  {
+    const int           n_stats = RHEA_NEWTON_PERFMON_N *
+                                  YMIR_PERF_COUNTER_N_STATS;
+    sc_statinfo_t       stats[n_stats];
+    char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+
+    /* gather performance statistics */
+    n = ymir_perf_counter_gather_stats (
+        rhea_stokes_problem_newton_perfmon, RHEA_NEWTON_PERFMON_N,
+        stats, stats_name, mpicomm, print_wtime, print_n_calls, print_flops);
+
+    /* print performance statistics */
+    ymir_perf_counter_print_stats (stats, n, "Stokes Problem: Newton");
+  }
 }
 
 /******************************************************************************
@@ -3045,7 +3137,8 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
                                    rhea_weakzone_options_t *weak_options,
                                    rhea_viscosity_options_t *visc_options)
 {
-  rhea_stokes_problem_t *stokes_problem_nl;
+  sc_MPI_Comm             mpicomm = ymir_mesh_get_MPI_Comm (ymir_mesh);
+  rhea_stokes_problem_t  *stokes_problem_nl;
 
   RHEA_GLOBAL_PRODUCTIONF_FN_BEGIN (
       __func__, "linearization=%i",
@@ -3113,6 +3206,10 @@ rhea_stokes_problem_nonlinear_new (ymir_mesh_t *ymir_mesh,
         rhea_stokes_problem_nonlinear_amr_fn, newton_problem);
     rhea_newton_problem_set_output_fn (
         rhea_stokes_problem_nonlinear_output_prestep_fn, newton_problem);
+    rhea_newton_problem_set_perfmon (
+        rhea_stokes_problem_newton_perfmon, newton_problem);
+    rhea_newton_problem_set_mpicomm (
+        mpicomm, newton_problem);
 
     if (rhea_stokes_problem_nonlinear_check_jacobian) {
       rhea_newton_problem_set_checks (

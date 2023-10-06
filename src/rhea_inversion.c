@@ -357,13 +357,6 @@ rhea_inversion_add_options (ymir_options_t * opt_sup)
 /* perfomance monitor tags and names */
 typedef enum
 {
-  RHEA_INVERSION_PERFMON_NEWTON_SETUP_INV_SOLVER,
-  RHEA_INVERSION_PERFMON_NEWTON_UPDATE_OPERATOR,
-  RHEA_INVERSION_PERFMON_NEWTON_UPDATE_HESSIAN,
-  RHEA_INVERSION_PERFMON_NEWTON_OBJ,
-  RHEA_INVERSION_PERFMON_NEWTON_GRAD,
-  RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_APPLY,
-  RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_SOLVE,
   RHEA_INVERSION_PERFMON_SOLVE_FWD,
   RHEA_INVERSION_PERFMON_SOLVE_ADJ,
   RHEA_INVERSION_PERFMON_SOLVE_INCR_FWD,
@@ -374,28 +367,30 @@ rhea_inversion_perfmon_idx_t;
 
 static const char  *rhea_inversion_perfmon_name[RHEA_INVERSION_PERFMON_N] =
 {
-  "Newton: setup solver",
-  "Newton: update operator",
-  "Newton: update Hessian",
-  "Newton: evaluate objective",
-  "Newton: compute gradient",
-  "Newton: apply Hessian matrix",
-  "Newton: solve Hessian system",
   "Solve forward problem",
   "Solve adjoint problem",
   "Solve incremental forward problem",
   "Solve incremental adjoint problem"
 };
+
 ymir_perf_counter_t rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_N];
+ymir_perf_counter_t rhea_inversion_newton_perfmon[RHEA_NEWTON_PERFMON_N];
 
 void
 rhea_inversion_perfmon_init (const int activate, const int skip_if_active)
 {
-  const int           active = activate && rhea_inversion_monitor_performance;
+  int                 active = activate && rhea_inversion_monitor_performance;
 
   ymir_perf_counter_init_all_ext (rhea_inversion_perfmon,
                                   rhea_inversion_perfmon_name,
                                   RHEA_INVERSION_PERFMON_N,
+                                  active, skip_if_active);
+
+  /* init sub-monitors */
+  active = active && rhea_inversion_newton_options.monitor_performance;
+  ymir_perf_counter_init_all_ext (rhea_inversion_newton_perfmon,
+                                  rhea_newton_perfmon_name,
+                                  RHEA_NEWTON_PERFMON_N,
                                   active, skip_if_active);
 }
 
@@ -407,23 +402,44 @@ rhea_inversion_perfmon_print (sc_MPI_Comm mpicomm,
 {
   const int           active = rhea_inversion_monitor_performance;
   const int           print = (print_wtime || print_n_calls || print_flops);
-  int                 n_stats = RHEA_INVERSION_PERFMON_N *
-                                YMIR_PERF_COUNTER_N_STATS;
-  sc_statinfo_t       stats[n_stats];
-  char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+  int                 n;
 
   /* exit if nothing to do */
   if (!active || !print) {
     return;
   }
 
-  /* gather performance statistics */
-  n_stats = ymir_perf_counter_gather_stats (
-      rhea_inversion_perfmon, RHEA_INVERSION_PERFMON_N, stats, stats_name,
-      mpicomm, print_wtime, print_n_calls, print_flops);
+  /* main monitors */
+  {
+    const int           n_stats = RHEA_INVERSION_PERFMON_N *
+                                  YMIR_PERF_COUNTER_N_STATS;
+    sc_statinfo_t       stats[n_stats];
+    char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
 
-  /* print performance statistics */
-  ymir_perf_counter_print_stats (stats, n_stats, "Inversion");
+    /* gather performance statistics */
+    n = ymir_perf_counter_gather_stats (
+        rhea_inversion_perfmon, RHEA_INVERSION_PERFMON_N, stats, stats_name,
+        mpicomm, print_wtime, print_n_calls, print_flops);
+
+    /* print performance statistics */
+    ymir_perf_counter_print_stats (stats, n, "Inversion");
+  }
+
+  /* sub-monitors */
+  {
+    const int           n_stats = RHEA_NEWTON_PERFMON_N *
+                                  YMIR_PERF_COUNTER_N_STATS;
+    sc_statinfo_t       stats[n_stats];
+    char                stats_name[n_stats][YMIR_PERF_COUNTER_NAME_SIZE];
+
+    /* gather performance statistics */
+    n = ymir_perf_counter_gather_stats (
+        rhea_inversion_newton_perfmon, RHEA_NEWTON_PERFMON_N, stats, stats_name,
+        mpicomm, print_wtime, print_n_calls, print_flops);
+
+    /* print performance statistics */
+    ymir_perf_counter_print_stats (stats, n, "Inversion: Newton");
+  }
 }
 
 /******************************************************************************
@@ -1421,8 +1437,6 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   }
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
-  ymir_perf_counter_start (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_SETUP_INV_SOLVER]);
 
   /* check input */
   RHEA_ASSERT (solution == NULL ||
@@ -1466,8 +1480,6 @@ rhea_inversion_newton_create_solver_data_fn (ymir_vec_t *solution, void *data)
   /* set up Stokes solver for forward problem */
   rhea_stokes_problem_setup_solver (stokes_problem);
 
-  ymir_perf_counter_stop_add (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_SETUP_INV_SOLVER]);
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
@@ -1521,8 +1533,6 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   rhea_stokes_problem_t    *stokes_problem = inv_problem->stokes_problem;
 
   RHEA_GLOBAL_VERBOSE_FN_BEGIN (__func__);
-  ymir_perf_counter_start (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_UPDATE_OPERATOR]);
 
   /* check input */
   RHEA_ASSERT (solution == NULL ||
@@ -1560,8 +1570,6 @@ rhea_inversion_newton_update_operator_fn (ymir_vec_t *solution, void *data)
   inv_problem->incremental_forward_is_outdated = 1;
   inv_problem->incremental_adjoint_is_outdated = 1;
 
-  ymir_perf_counter_stop_add (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_UPDATE_OPERATOR]);
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
@@ -1917,8 +1925,6 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "type=%i, assemble_matrix=%i", type,
       rhea_inversion_assemble_hessian_matrix);
-  ymir_perf_counter_start (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_UPDATE_HESSIAN]);
 
   /* check input */
   RHEA_ASSERT (!rhea_inversion_assemble_hessian_matrix ||
@@ -2005,8 +2011,6 @@ rhea_inversion_newton_update_hessian_fn (ymir_vec_t *solution,
   }
 #endif
 
-  ymir_perf_counter_stop_add (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_UPDATE_HESSIAN]);
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
@@ -2034,8 +2038,6 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
 
   RHEA_GLOBAL_INFOF_FN_BEGIN (__func__, "weights=[%.6e,%.6e]",
                               data_abs_weight, prior_abs_weight);
-  ymir_perf_counter_start (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_OBJ]);
 
   /* solve for forward state */
   rhea_inversion_inner_solve_forward (inv_problem);
@@ -2093,8 +2095,6 @@ rhea_inversion_newton_evaluate_objective_fn (ymir_vec_t *solution, void *data,
   obj_val = obj_data_misfit[0] + obj_data_misfit[1] + obj_data_misfit[2] +
             obj_prior_misfit;
 
-  ymir_perf_counter_stop_add (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_OBJ]);
   RHEA_GLOBAL_INFOF_FN_END (
       __func__, "value=%.15e, components[%.15e, %.15e, %.15e; %.15e]",
       obj_val, obj_data_misfit[0], obj_data_misfit[1], obj_data_misfit[2],
@@ -2174,8 +2174,6 @@ rhea_inversion_newton_compute_negative_gradient_fn (
   ymir_vec_t         *vel;
 
   RHEA_GLOBAL_INFO_FN_BEGIN (__func__);
-  ymir_perf_counter_start (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_GRAD]);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (neg_gradient, inv_param));
@@ -2364,8 +2362,6 @@ rhea_inversion_newton_compute_negative_gradient_fn (
     }
   }
 
-  ymir_perf_counter_stop_add (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_GRAD]);
   RHEA_GLOBAL_INFO_FN_END (__func__);
 }
 
@@ -2591,8 +2587,6 @@ rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
   RHEA_GLOBAL_VERBOSEF_FN_BEGIN (
       __func__, "type=%i, assemble_matrix=%i", type,
       rhea_inversion_assemble_hessian_matrix);
-  ymir_perf_counter_start (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_APPLY]);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (out, inv_param));
@@ -2629,8 +2623,6 @@ rhea_inversion_newton_apply_hessian_fn (ymir_vec_t *out, ymir_vec_t *in,
   }
   RHEA_ASSERT (rhea_inversion_param_vec_is_valid (out, inv_param));
 
-  ymir_perf_counter_stop_add (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_APPLY]);
   RHEA_GLOBAL_VERBOSE_FN_END (__func__);
 }
 
@@ -2683,8 +2675,6 @@ rhea_inversion_newton_solve_hessian_system_fn (
       __func__, "lin_iter_max=%i, lin_rtol=%.1e, nonzero_init_guess=%i, "
       "type=%i, assemble_matrix=%i", lin_iter_max, lin_res_norm_rtol,
       nonzero_initial_guess, type, rhea_inversion_assemble_hessian_matrix);
-  ymir_perf_counter_start (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_SOLVE]);
 
   /* check input */
   RHEA_ASSERT (rhea_inversion_param_vec_check_type (step, inv_param));
@@ -2751,8 +2741,6 @@ rhea_inversion_newton_solve_hessian_system_fn (
   inv_problem->fwd_adj_solve_stats_current_idx++;
   inv_problem->ifwd_iadj_solve_stats_current_idx++;
 
-  ymir_perf_counter_stop_add (
-      &rhea_inversion_perfmon[RHEA_INVERSION_PERFMON_NEWTON_HESSIAN_SOLVE]);
   RHEA_GLOBAL_INFO_FN_END (__func__);
 
   /* return iteraton count and "stopping" reason */
@@ -3209,6 +3197,8 @@ rhea_inversion_newton_problem_create (rhea_inversion_problem_t *inv_problem)
 //    rhea_inversion_newton_setup_poststep_fn, newton_problem);
   rhea_newton_problem_set_output_fn (
       rhea_inversion_newton_output_prestep_fn, newton_problem);
+  rhea_newton_problem_set_perfmon (
+      rhea_inversion_newton_perfmon, newton_problem);
   rhea_newton_problem_set_mpicomm (
       mpicomm, newton_problem);
 
