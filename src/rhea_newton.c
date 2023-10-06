@@ -1,6 +1,7 @@
 #include <rhea_newton.h>
 #include <rhea_newton_check.h>
 #include <rhea_base.h>
+#include <ymir_perf_counter.h>
 
 /* Newton status */
 typedef struct rhea_newton_status rhea_newton_status_t;
@@ -45,8 +46,9 @@ struct rhea_newton_problem
 
   /* status (not owned) */
   rhea_newton_status_t *status;
-  int                 num_iterations;
-  double              residual_reduction;
+  int                   num_iterations;
+  double                residual_reduction;
+  ymir_perf_counter_t  *perfmon;
 
   /* derivative checks */
   int                 check_gradient;
@@ -92,30 +94,34 @@ rhea_newton_calculate_reduction (const double start_value,
  *****************************************************************************/
 
 /* default options */
+#define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
+#define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
+
 #define RHEA_NEWTON_DEFAULT_ITER_START (0)
 #define RHEA_NEWTON_DEFAULT_ITER_MIN (0)
 #define RHEA_NEWTON_DEFAULT_ITER_MAX (10)
 #define RHEA_NEWTON_DEFAULT_RTOL (1.0e-6)
-#define RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH (0)
+
 #define RHEA_NEWTON_DEFAULT_LIN_ITER_MAX (100)
+
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER (1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT (1.0e-2)
+
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_EXPONENT (1.618)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MAX (1.0e-3)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_ACTIVE (1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_MIN_THRESHOLD (0.1)
 #define RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER (0)
+
 #define RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION (0)
+
 #define RHEA_NEWTON_DEFAULT_INIT_STEP_SEARCH_ITER_MAX (-1)
 #define RHEA_NEWTON_DEFAULT_STEP_SEARCH_ITER_MAX (12)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MIN (1.0e-5)
 #define RHEA_NEWTON_DEFAULT_STEP_LENGTH_MAX (1.0)
 #define RHEA_NEWTON_DEFAULT_STEP_REDUCTION (0.5)
 #define RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION (1.0e-4)
-#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY (0)
-#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME (NULL)
 
-#define RHEA_NEWTON_DEFAULT_NONZERO_INITIAL_GUESS (0)
 #define RHEA_NEWTON_DEFAULT_RESUME (0)
 #define RHEA_NEWTON_DEFAULT_RESUME_OBJ_INIT (NAN)
 #define RHEA_NEWTON_DEFAULT_RESUME_OBJ_PREV (NAN)
@@ -123,7 +129,11 @@ rhea_newton_calculate_reduction (const double start_value,
 #define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_INIT (NAN)
 #define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_PREV (NAN)
 #define RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_REDUCTION_PREV (NAN)
-#define RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY (0)
+
+#define RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY (1)
+#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY (0)
+#define RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME (NULL)
+#define RHEA_NEWTON_DEFAULT_MONITOR_PERFORMANCE (0)
 
 /* global options */
 rhea_newton_options_t rhea_newton_options;
@@ -134,23 +144,19 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
 {
   const char         *opt_prefix = "Newton";
   ymir_options_t     *opt = ymir_options_new ();
-  rhea_newton_options_t  *newton_opt;
-
-  /* set options storage */
-  if (newton_options != NULL) {
-    /* choose provided options */
-    newton_opt = newton_options;
-  }
-  else {
-    /* choose global options */
-    newton_opt = &rhea_newton_options;
-  }
+  rhea_newton_options_t  *newton_opt =
+    (newton_options != NULL ? newton_options : &rhea_newton_options);
 
   /* initialize options */
   rhea_newton_options_set_defaults (newton_opt);
 
   /* *INDENT-OFF* */
   ymir_options_addv (opt,
+
+  YMIR_OPTIONS_B, "abort-if-step-search-failed", '\0',
+    &(newton_opt->abort_failed_step_search),
+    RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH,
+    "Stop Newton loop if the step search failed",
 
   YMIR_OPTIONS_I, "iter-start", '\0',
     &(newton_opt->iter_start), RHEA_NEWTON_DEFAULT_ITER_START,
@@ -165,14 +171,10 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     &(newton_opt->rtol), RHEA_NEWTON_DEFAULT_RTOL,
     "Relative tolerance",
 
-  YMIR_OPTIONS_B, "abort-if-step-search-failed", '\0',
-    &(newton_opt->abort_failed_step_search),
-    RHEA_NEWTON_DEFAULT_ABORT_FAILED_STEP_SEARCH,
-    "Stop Newton loop if the step search failed",
-
   YMIR_OPTIONS_I, "lin-iter-max", '\0',
     &(newton_opt->lin_iter_max), RHEA_NEWTON_DEFAULT_LIN_ITER_MAX,
     "Linear sub-solver: Maximum number of iterations",
+
   YMIR_OPTIONS_I, "lin-rtol-init-n-iter", '\0',
     &(newton_opt->lin_rtol_init_n_iter),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT_N_ITER,
@@ -180,6 +182,7 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
   YMIR_OPTIONS_D, "lin-rtol-init", '\0',
     &(newton_opt->lin_rtol_init), RHEA_NEWTON_DEFAULT_LIN_RTOL_INIT,
     "Linear sub-solver: Initial relative tolerance",
+
   YMIR_OPTIONS_D, "lin-rtol-adaptive-exponent", '\0',
     &(newton_opt->lin_rtol_adaptive_exponent),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_EXPONENT,
@@ -200,6 +203,7 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     &(newton_opt->lin_rtol_adaptive_progressive_n_iter),
     RHEA_NEWTON_DEFAULT_LIN_RTOL_ADAPTIVE_PROGRESSIVE_N_ITER,
     "Linear sub-solver: #iter (~ variance) for progressive tightening of rtol",
+
   YMIR_OPTIONS_B, "lin-monitor-reduction", '\0',
     &(newton_opt->lin_monitor_reduction),
     RHEA_NEWTON_DEFAULT_LIN_MONITOR_REDUCTION,
@@ -227,12 +231,18 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
     RHEA_NEWTON_DEFAULT_STEP_DESCEND_CONDITION_RELAXATION,
     "Line search: Relaxation factor for the descend condition",
 
+  YMIR_OPTIONS_B, "status-verbosity", '\0',
+    &(newton_opt->status_verbosity), RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY,
+    "Set verbosity of Newton status output",
   YMIR_OPTIONS_B, "print-summary", '\0',
     &(newton_opt->print_summary), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY,
     "Print summary of Newton iterations",
   YMIR_OPTIONS_S, "print-summary-name", '\0',
     &(newton_opt->print_summary_name), RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME,
     "Name for summary of Newton iterations",
+  YMIR_OPTIONS_B, "monitor-performance", '\0',
+    &(newton_opt->monitor_performance), RHEA_NEWTON_DEFAULT_MONITOR_PERFORMANCE,
+    "Measure and print performance statistics (e.g., runtime or flops)",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -243,30 +253,32 @@ rhea_newton_add_options (rhea_newton_options_t *newton_options,
 }
 
 void
-rhea_newton_get_options (rhea_newton_options_t *opt)
+rhea_newton_get_global_options (rhea_newton_options_t *opt)
 {
   rhea_newton_options_set_defaults (opt);
+
+  opt->nonzero_initial_guess    = rhea_newton_options.nonzero_initial_guess;
+  opt->abort_failed_step_search = rhea_newton_options.abort_failed_step_search;
 
   opt->iter_start = rhea_newton_options.iter_start;
   opt->iter_min   = rhea_newton_options.iter_min;
   opt->iter_max   = rhea_newton_options.iter_max;
   opt->rtol       = rhea_newton_options.rtol;
 
-  opt->abort_failed_step_search = rhea_newton_options.abort_failed_step_search;
-
   opt->lin_iter_max         = rhea_newton_options.lin_iter_max;
   opt->lin_rtol_init_n_iter = rhea_newton_options.lin_rtol_init_n_iter;
   opt->lin_rtol_init        = rhea_newton_options.lin_rtol_init;
-  opt->lin_rtol_adaptive_exponent =
+  opt->lin_rtol_adaptive_exponent           =
     rhea_newton_options.lin_rtol_adaptive_exponent;
-  opt->lin_rtol_adaptive_max =
+  opt->lin_rtol_adaptive_max                =
     rhea_newton_options.lin_rtol_adaptive_max;
-  opt->lin_rtol_adaptive_min_active =
+  opt->lin_rtol_adaptive_min_active         =
     rhea_newton_options.lin_rtol_adaptive_min_active;
-  opt->lin_rtol_adaptive_min_threshold =
+  opt->lin_rtol_adaptive_min_threshold      =
     rhea_newton_options.lin_rtol_adaptive_min_threshold;
   opt->lin_rtol_adaptive_progressive_n_iter =
     rhea_newton_options.lin_rtol_adaptive_progressive_n_iter;
+  opt->lin_monitor_reduction = rhea_newton_options.lin_monitor_reduction;
 
   if (0 < rhea_newton_options.init_step_search_iter_max) {
     opt->init_step_search_iter_max =
@@ -282,8 +294,20 @@ rhea_newton_get_options (rhea_newton_options_t *opt)
   opt->step_descend_condition_relaxation =
     rhea_newton_options.step_descend_condition_relaxation;
 
-  opt->print_summary      = rhea_newton_options.print_summary;
-  opt->print_summary_name = rhea_newton_options.print_summary_name;
+  opt->resume          = rhea_newton_options.resume;
+  opt->resume_obj_init = rhea_newton_options.resume_obj_init;
+  opt->resume_obj_prev = rhea_newton_options.resume_obj_prev;
+  opt->resume_obj_reduction_prev =
+    rhea_newton_options.resume_obj_reduction_prev;
+  opt->resume_grad_norm_init = rhea_newton_options.resume_grad_norm_init;
+  opt->resume_grad_norm_prev = rhea_newton_options.resume_grad_norm_prev;
+  opt->resume_grad_norm_reduction_prev =
+    rhea_newton_options.resume_grad_norm_reduction_prev;
+
+  opt->status_verbosity    = rhea_newton_options.status_verbosity;
+  opt->print_summary       = rhea_newton_options.print_summary;
+  opt->print_summary_name  = rhea_newton_options.print_summary_name;
+  opt->monitor_performance = rhea_newton_options.monitor_performance;
 }
 
 void
@@ -331,9 +355,49 @@ rhea_newton_options_set_defaults (rhea_newton_options_t *opt)
   opt->resume_grad_norm_reduction_prev =
     RHEA_NEWTON_DEFAULT_RESUME_GRAD_NORM_REDUCTION_PREV;
 
-  opt->status_verbosity   = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
-  opt->print_summary      = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
-  opt->print_summary_name = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME;
+  opt->status_verbosity    = RHEA_NEWTON_DEFAULT_STATUS_VERBOSITY;
+  opt->print_summary       = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY;
+  opt->print_summary_name  = RHEA_NEWTON_DEFAULT_PRINT_SUMMARY_NAME;
+  opt->monitor_performance = RHEA_NEWTON_DEFAULT_MONITOR_PERFORMANCE;
+}
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor names */
+const char  *rhea_newton_perfmon_name[RHEA_NEWTON_PERFMON_N] =
+{
+  "Data initialize",
+  "Data finalize",
+  "Evaluate objective",
+  "Compute gradient",
+  "Compute gradient norm",
+  "Update Hessian",
+  "Modify Hessian",
+  "Compute step",
+  "Compute step: Solve Hessian system",
+  "Compute step: Apply Hessian matrix",
+  "Search step length",
+  "Search step length: Update operator",
+  "Pre-step (output)",
+  "Post-step (setup)"
+};
+
+static void rhea_newton_perfmon_start (rhea_newton_problem_t *nl_problem,
+                                       rhea_newton_perfmon_idx_t perfmon_idx)
+{
+  if (nl_problem->perfmon != NULL) {
+    ymir_perf_counter_start (&(nl_problem->perfmon[perfmon_idx]));
+  }
+}
+
+static void rhea_newton_perfmon_stop (rhea_newton_problem_t *nl_problem,
+                                      rhea_newton_perfmon_idx_t perfmon_idx)
+{
+  if (nl_problem->perfmon != NULL) {
+    ymir_perf_counter_stop_add (&(nl_problem->perfmon[perfmon_idx]));
+  }
 }
 
 /******************************************************************************
@@ -372,6 +436,7 @@ rhea_newton_problem_new (
   rhea_newton_problem_set_checks (0, 0, nl_problem);
   rhea_newton_problem_check_gradient_set_perturbations (NULL, 0, nl_problem);
   rhea_newton_problem_check_gradient_set_innerprod (NULL, NULL, nl_problem);
+  rhea_newton_problem_set_perfmon (NULL, nl_problem);
   rhea_newton_problem_set_mpicomm (MPI_COMM_NULL, nl_problem);
 
   nl_problem->status = NULL;
@@ -550,6 +615,13 @@ rhea_newton_problem_check_gradient_set_innerprod (
   nl_problem->gradient_innerprod_data = data;
 }
 
+void
+rhea_newton_problem_set_perfmon (void *perfmon,
+                                 rhea_newton_problem_t *nl_problem)
+{
+  nl_problem->perfmon = (ymir_perf_counter_t *) perfmon;
+}
+
 sc_MPI_Comm
 rhea_newton_problem_get_mpicomm (rhea_newton_problem_t *nl_problem)
 {
@@ -596,7 +668,9 @@ rhea_newton_problem_data_initialize (ymir_vec_t *solution,
                                      rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_data_initialize_exists (nl_problem)) {
+    rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_DATA_INITIALIZE);
     nl_problem->data_initialize (solution, nl_problem->data);
+    rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_DATA_INITIALIZE);
   }
 }
 
@@ -611,7 +685,9 @@ rhea_newton_problem_data_finalize (ymir_vec_t *solution,
                                    rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_data_finalize_exists (nl_problem)) {
+    rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_DATA_FINALIZE);
     nl_problem->data_finalize (solution, nl_problem->data);
+    rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_DATA_FINALIZE);
   }
 }
 
@@ -627,8 +703,13 @@ rhea_newton_problem_evaluate_objective (ymir_vec_t *solution,
                                         rhea_newton_problem_t *nl_problem,
                                         double *obj_comp)
 {
+  double              obj;
+
   RHEA_ASSERT (rhea_newton_problem_evaluate_objective_exists (nl_problem));
-  return nl_problem->evaluate_objective (solution, nl_problem->data, obj_comp);
+  rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_OBJ);
+  obj = nl_problem->evaluate_objective (solution, nl_problem->data, obj_comp);
+  rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_OBJ);
+  return obj;
 }
 
 int
@@ -657,9 +738,14 @@ rhea_newton_problem_compute_gradient_norm (ymir_vec_t *neg_gradient,
                                            rhea_newton_problem_t *nl_problem,
                                            double *grad_norm_comp)
 {
+  double grad_norm;
+
   RHEA_ASSERT (rhea_newton_problem_compute_gradient_norm_exists (nl_problem));
-  return nl_problem->compute_gradient_norm (neg_gradient, nl_problem->data,
-                                            grad_norm_comp);
+  rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_GRAD_NORM);
+  grad_norm = nl_problem->compute_gradient_norm (neg_gradient, nl_problem->data,
+                                                 grad_norm_comp);
+  rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_GRAD_NORM);
+  return grad_norm;
 }
 
 int
@@ -675,7 +761,9 @@ rhea_newton_problem_compute_neg_gradient (ymir_vec_t *neg_gradient,
                                           rhea_newton_problem_t *nl_problem)
 {
   RHEA_ASSERT (rhea_newton_problem_compute_neg_gradient_exists (nl_problem));
+  rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_GRAD);
   nl_problem->compute_neg_gradient (neg_gradient, solution, nl_problem->data);
+  rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_GRAD);
 }
 
 int
@@ -689,7 +777,29 @@ rhea_newton_problem_apply_hessian (ymir_vec_t *out, ymir_vec_t *in,
                                    rhea_newton_problem_t *nl_problem)
 {
   RHEA_ASSERT (rhea_newton_problem_apply_hessian_exists (nl_problem));
+  rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_HESSIAN_APPLY);
   nl_problem->apply_hessian (out, in, nl_problem->data);
+  rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_HESSIAN_APPLY);
+}
+
+static int
+rhea_newton_problem_solve_hessian_system (ymir_vec_t *step_vec,
+                                          ymir_vec_t *neg_gradient,
+                                          const int lin_iter_max,
+                                          const double lin_res_norm_rtol,
+                                          const int nonzero_initial_guess,
+                                          rhea_newton_problem_t *nl_problem,
+                                          int *lin_iter_count)
+{
+  int                 stop_reason;
+
+  RHEA_ASSERT (NULL != nl_problem->solve_hessian_sys);
+  rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_HESSIAN_SOLVE);
+  stop_reason = nl_problem->solve_hessian_sys (
+      step_vec, neg_gradient, lin_iter_max, lin_res_norm_rtol,
+      nonzero_initial_guess, nl_problem->data, lin_iter_count);
+  rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_HESSIAN_SOLVE);
+  return stop_reason;
 }
 
 int
@@ -703,7 +813,9 @@ rhea_newton_problem_update_operator (ymir_vec_t *solution,
                                      rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_update_operator_exists (nl_problem)) {
+    rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_UPDATE_OPERATOR);
     nl_problem->update_operator (solution, nl_problem->data);
+    rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_UPDATE_OPERATOR);
   }
 }
 
@@ -720,8 +832,10 @@ rhea_newton_problem_update_hessian (ymir_vec_t *solution,
                                     rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_update_hessian_exists (nl_problem)) {
+    rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_UPDATE_HESSIAN);
     nl_problem->update_hessian (solution, step_vec, step_length,
                                 nl_problem->data);
+    rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_UPDATE_HESSIAN);
   }
 }
 
@@ -738,8 +852,10 @@ rhea_newton_problem_modify_hessian_system (ymir_vec_t *neg_gradient,
                                            rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_modify_hessian_system_exists (nl_problem)) {
+    rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_MODIFY_HESSIAN);
     nl_problem->modify_hessian_system (neg_gradient, solution,
                                        nl_problem->data);
+    rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_MODIFY_HESSIAN);
   }
 }
 
@@ -775,13 +891,16 @@ rhea_newton_problem_setup_poststep (ymir_vec_t **solution,
                                     const int iter,
                                     rhea_newton_problem_t *nl_problem)
 {
+  int                 recompute_status = 0;
+
   if (rhea_newton_problem_setup_poststep_exists (nl_problem)) {
     RHEA_ASSERT (solution != NULL);
-    return nl_problem->setup_poststep (solution, iter, nl_problem->data);
+    rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_POSTSTEP);
+    recompute_status = nl_problem->setup_poststep (solution, iter,
+                                                   nl_problem->data);
+    rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_POSTSTEP);
   }
-  else {
-    return 0;
-  }
+  return recompute_status;
 }
 
 int
@@ -797,7 +916,9 @@ rhea_newton_problem_output_prestep (ymir_vec_t *solution,
                                     rhea_newton_problem_t *nl_problem)
 {
   if (rhea_newton_problem_output_prestep_exists (nl_problem)) {
+    rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_PRESTEP);
     nl_problem->output_prestep (solution, neg_gradient, iter, nl_problem->data);
+    rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_PRESTEP);
   }
 }
 
@@ -1326,7 +1447,7 @@ rhea_newton_status_vals_to_str (char string[BUFSIZ],
   RHEA_ASSERT (value != NULL);
 
   /* initialize empty string */
-  snprintf (string, BUFSIZ, "");
+  string[0] = 0;
 
   /* write array of values to string */
   pos += snprintf (pos, end - pos, "%.6e", value[0]);
@@ -1460,7 +1581,7 @@ rhea_newton_status_summary_new (const int max_num_iterations)
   /* create storage for iterations */
   summary->iteration_stats = RHEA_ALLOC (char *, max_num_iterations);
   for (k = 0; k < max_num_iterations; k++) {
-    summary->iteration_stats[k] = RHEA_ALLOC (char, BUFSIZ);
+    summary->iteration_stats[k] = RHEA_ALLOC (char, 3*BUFSIZ);
   }
   summary->iteration_length = max_num_iterations;
   summary->iteration_current_idx = 0;
@@ -1534,7 +1655,7 @@ rhea_newton_status_summary_add (rhea_newton_status_summary_t *summary,
   }
 
   /* write status to string */
-  snprintf (summary->iteration_stats[summary->iteration_current_idx], BUFSIZ,
+  snprintf (summary->iteration_stats[summary->iteration_current_idx], 3*BUFSIZ,
             "%3d ; %.15e [%s], %.15e [%s] ; %i, %2i, %.15f ; %4d, %.3e (%.3e)",
             step->iter, obj, obj_comp, grad_norm, grad_norm_comp,
             step->search_success, step->search_iter_count,
@@ -1760,6 +1881,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   RHEA_GLOBAL_INFOF_FN_BEGIN (
       __func__, "newton_iter=%i, lin_iter_max=%i, lin_rtol=%.1e",
       iter, lin_iter_max, lin_res_norm_rtol);
+  rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_COMPUTE_STEP);
 
   /* check input */
   RHEA_ASSERT (nl_problem->neg_gradient_vec != NULL);
@@ -1768,9 +1890,9 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   RHEA_ASSERT (0.0 < step->lin_res_norm_rtol && step->lin_res_norm_rtol < 1.0);
 
   /* run solver for the linearized system */
-  stop_reason = nl_problem->solve_hessian_sys (
+  stop_reason = rhea_newton_problem_solve_hessian_system (
       step_vec, rhs, lin_iter_max, lin_res_norm_rtol,
-      nonzero_initial_guess, nl_problem->data, &lin_iter_count);
+      nonzero_initial_guess, nl_problem, &lin_iter_count);
   RHEA_ASSERT (0 <= lin_iter_count);
 
   /* calculate the residual reduction of the linearized solve */
@@ -1807,6 +1929,7 @@ rhea_newton_compute_step (rhea_newton_step_t *step,
   step->lin_res_norm_reduction = lin_res_norm_reduction;
   step->lin_convergence = lin_conv;
 
+  rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_COMPUTE_STEP);
   snprintf (func_tag_stop, BUFSIZ, "%s_stop", __func__);
   RHEA_GLOBAL_INFOF_FN_TAG (
       func_tag_stop, "reason=%i, iterations=%i, "
@@ -1891,6 +2014,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
       "step_length_max=%g, step_length_min=%g, step_reduction=%g",
       iter, search_iter_start, search_iter_max,
       step_length_max, step_length_min, step_reduction);
+  rhea_newton_perfmon_start (nl_problem, RHEA_NEWTON_PERFMON_SEARCH_STEP_LENGTH);
 
   /* check input */
   RHEA_ASSERT (nl_problem->step_vec != NULL);
@@ -1971,6 +2095,7 @@ rhea_newton_search_step_length (ymir_vec_t *solution,
   /* destroy */
   ymir_vec_destroy (solution_prev);
 
+  rhea_newton_perfmon_stop (nl_problem, RHEA_NEWTON_PERFMON_SEARCH_STEP_LENGTH);
   RHEA_GLOBAL_INFOF_FN_END (__func__, "newton_iter=%i, success=%i",
                             iter, search_success);
 

@@ -112,6 +112,14 @@ main (int argc, char **argv)
   rhea_viscosity_options_t      visc_options;
   rhea_composition_options_t    comp_options;
   rhea_discretization_options_t discr_options;
+  rhea_all_options_t            all_options = {&domain_options,
+                                               &temp_options,
+                                               &comp_options,
+                                               &plate_options,
+                                               &weak_options,
+                                               &topo_options,
+                                               &visc_options,
+                                               &discr_options};
   /* options local to this program */
   yielding_nonzero_dir_bc_t       nonzero_dir_bc_type;
   yielding_nonzero_dir_bc_data_t  nonzero_dir_bc_data;
@@ -226,9 +234,7 @@ main (int argc, char **argv)
 
   /* print & process options */
   ymir_options_print_summary (SC_LP_INFO, opt);
-  rhea_process_options_all (&domain_options, &temp_options, &comp_options,
-                            &plate_options, &weak_options, &topo_options,
-                            &visc_options, &discr_options);
+  rhea_process_options_all (&all_options);
 
   /*
    * Setup Mesh

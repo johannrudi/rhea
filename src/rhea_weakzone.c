@@ -463,9 +463,9 @@ rhea_weakzone_perfmon_init (const int activate, const int skip_if_active)
 
 void
 rhea_weakzone_perfmon_print (sc_MPI_Comm mpicomm,
-                        const int print_wtime,
-                        const int print_n_calls,
-                        const int print_flops)
+                             const int print_wtime,
+                             const int print_n_calls,
+                             const int print_flops)
 {
   const int           active = rhea_weakzone_monitor_performance;
   const int           print = (print_wtime || print_n_calls || print_flops);

@@ -57,7 +57,7 @@ rhea_init_begin (int *mpisize, int *mpirank, int *ompsize,
 }
 
 void
-rhea_init_end (ymir_options_t *opt)
+rhea_init_end (ymir_options_t *options)
 {
   const int           err_priority = SC_LP_INFO;
   int                 optret;
@@ -68,9 +68,9 @@ rhea_init_end (ymir_options_t *opt)
   RHEA_ASSERT (rhea_mpicomm != sc_MPI_COMM_NULL);
 
   /* parse options */
-  optret = ymir_options_parse (err_priority, opt, rhea_argc, rhea_argv);
+  optret = ymir_options_parse (err_priority, options, rhea_argc, rhea_argv);
   if (optret < 0) { /* if parsing was not successful */
-    ymir_options_print_usage (err_priority, opt, NULL /* args usage */);
+    ymir_options_print_usage (err_priority, options, NULL /* args usage */);
     RHEA_GLOBAL_PRODUCTION ("Option parsing failed\n");
     exit (0);
   }
@@ -103,10 +103,10 @@ rhea_production_run_set (const int is_production_run)
  *****************************************************************************/
 
 void
-rhea_add_options_base (ymir_options_t *opt)
+rhea_add_options_base (ymir_options_t *options)
 {
   /* *INDENT-OFF* */
-  ymir_options_addv (opt,
+  ymir_options_addv (options,
 
   /* help message */
   YMIR_OPTIONS_CALLBACK, "help", 'h', 0 /* no callback fn args */,
@@ -162,31 +162,40 @@ rhea_add_options_newton (ymir_options_t *options)
 }
 
 void
-rhea_process_options_all (rhea_domain_options_t *domain_options,
-                          rhea_temperature_options_t *temperature_options,
-                          rhea_composition_options_t *composition_options,
-                          rhea_plate_options_t *plate_options,
-                          rhea_weakzone_options_t *weakzone_options,
-                          rhea_topography_options_t *topography_options,
-                          rhea_viscosity_options_t *viscosity_options,
-                          rhea_discretization_options_t *discr_options)
+rhea_process_options_all (rhea_all_options_t *all_options)
 {
-  rhea_domain_process_options (domain_options);
-  rhea_temperature_process_options (temperature_options, domain_options);
-  rhea_composition_process_options (composition_options, domain_options);
+  rhea_domain_process_options (all_options->domain_options);
+  rhea_temperature_process_options (
+      all_options->temperature_options,
+      all_options->domain_options);
+  rhea_composition_process_options (
+      all_options->composition_options,
+      all_options->domain_options);
   rhea_plate_process_options (
-      plate_options, domain_options, temperature_options);
-  rhea_weakzone_process_options (weakzone_options, domain_options);
-  rhea_topography_process_options (topography_options, domain_options);
+      all_options->plate_options,
+      all_options->domain_options,
+      all_options->temperature_options);
+  rhea_weakzone_process_options (
+      all_options->weakzone_options,
+      all_options->domain_options);
+  rhea_topography_process_options (
+      all_options->topography_options,
+      all_options->domain_options);
   rhea_viscosity_process_options (
-      viscosity_options, domain_options, temperature_options);
+      all_options->viscosity_options,
+      all_options->domain_options,
+      all_options->temperature_options);
   rhea_discretization_process_options (
-      discr_options, domain_options, topography_options);
+      all_options->discr_options,
+      all_options->domain_options,
+      all_options->topography_options);
   rhea_stokes_problem_process_options ();
 
   /* print */
   rhea_print_physics_const_options (
-      domain_options, temperature_options, viscosity_options);
+      all_options->domain_options,
+      all_options->temperature_options,
+      all_options->viscosity_options);
 }
 
 void
@@ -196,7 +205,7 @@ rhea_process_options_newton (rhea_domain_options_t *domain_options,
 {
   rhea_domain_process_options (domain_options);
   rhea_discretization_process_options (discr_options, domain_options, NULL);
-  rhea_newton_get_options (newton_options);
+  rhea_newton_get_global_options (newton_options);
 
   /* print */
   rhea_domain_print_const_options (domain_options);
@@ -356,12 +365,13 @@ rhea_performance_monitor_init (const char **monitor_name,
                               rhea_perfmon_main_n, active);
 
   /* initialize rhea's internal performance monitors */
-  rhea_perfmon_matvec_init (active, 0);
   rhea_io_mpi_perfmon_init (active, 0);
   rhea_amr_perfmon_init (active, 0);
   rhea_plate_perfmon_init (active, 0);
   rhea_weakzone_perfmon_init (active, 0);
+  rhea_stokes_problem_perfmon_init (active, 0);
   rhea_inversion_perfmon_init (active, 0);
+  rhea_perfmon_matvec_init (active, 0);
 }
 
 void
@@ -415,6 +425,11 @@ rhea_performance_monitor_print (
       RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
       RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
   rhea_weakzone_perfmon_print (
+      rhea_mpicomm,
+      RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
+      RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,
+      RHEA_PERFMON_PRINT_FLOPS_ALL <= print_flops);
+  rhea_stokes_problem_perfmon_print (
       rhea_mpicomm,
       RHEA_PERFMON_PRINT_WTIME_ESSENTIAL <= print_wtime,
       RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL <= print_n_calls,

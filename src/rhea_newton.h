@@ -235,6 +235,7 @@ typedef struct rhea_newton_options
   int                 status_verbosity;
   int                 print_summary;
   char               *print_summary_name;
+  int                 monitor_performance;
 }
 rhea_newton_options_t;
 
@@ -248,13 +249,40 @@ void                rhea_newton_add_options (
 /**
  * Gets global options values.
  */
-void                rhea_newton_get_options (rhea_newton_options_t *opt);
+void                rhea_newton_get_global_options (rhea_newton_options_t *opt);
 
 /**
  * Sets options to default values.
  */
 void                rhea_newton_options_set_defaults (
                                                   rhea_newton_options_t *opt);
+
+/******************************************************************************
+ * Monitoring
+ *****************************************************************************/
+
+/* perfomance monitor tags and names */
+typedef enum
+{
+  RHEA_NEWTON_PERFMON_DATA_INITIALIZE,
+  RHEA_NEWTON_PERFMON_DATA_FINALIZE,
+  RHEA_NEWTON_PERFMON_OBJ,
+  RHEA_NEWTON_PERFMON_GRAD,
+  RHEA_NEWTON_PERFMON_GRAD_NORM,
+  RHEA_NEWTON_PERFMON_UPDATE_HESSIAN,
+  RHEA_NEWTON_PERFMON_MODIFY_HESSIAN,
+  RHEA_NEWTON_PERFMON_COMPUTE_STEP,
+  RHEA_NEWTON_PERFMON_HESSIAN_SOLVE,
+  RHEA_NEWTON_PERFMON_HESSIAN_APPLY,
+  RHEA_NEWTON_PERFMON_SEARCH_STEP_LENGTH,
+  RHEA_NEWTON_PERFMON_UPDATE_OPERATOR,
+  RHEA_NEWTON_PERFMON_PRESTEP,
+  RHEA_NEWTON_PERFMON_POSTSTEP,
+  RHEA_NEWTON_PERFMON_N
+}
+rhea_newton_perfmon_idx_t;
+
+extern const char  *rhea_newton_perfmon_name[RHEA_NEWTON_PERFMON_N];
 
 /******************************************************************************
  * Newton Problem
@@ -385,6 +413,13 @@ void                rhea_newton_problem_check_gradient_set_innerprod (
                                 rhea_newton_check_gradient_innerprod_fn_t fn,
                                 void *data,
                                 rhea_newton_problem_t *nl_problem);
+
+/**
+ * Get/set performance monitor.
+ */
+void                rhea_newton_problem_set_perfmon (
+                                            void *perfmon,
+                                            rhea_newton_problem_t *nl_problem);
 
 /**
  * Get/set MPI communicator.
