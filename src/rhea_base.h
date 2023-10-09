@@ -28,9 +28,11 @@ SC_EXTERN_C_BEGIN;
 #define RHEA_NOOP() SC_NOOP ()
 #define RHEA_ABORT(s) SC_ABORT (s)
 #define RHEA_ABORT_NOT_REACHED() SC_ABORT_NOT_REACHED ()
+#define RHEA_ABORTF(fmt,...) SC_ABORTF(fmt,__VA_ARGS__)
 
 /* checks & assertions */
 #define RHEA_CHECK_ABORT(q,s) SC_CHECK_ABORT (q,s)
+#define RHEA_CHECK_ABORTF(q,fmt,...) SC_CHECK_ABORTF(q,fmt,__VA_ARGS__)
 #ifdef RHEA_ENABLE_DEBUG
 #define RHEA_ASSERT(c) SC_CHECK_ABORT ((c), "Assertion '" #c "'")
 #else
