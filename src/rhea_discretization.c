@@ -621,6 +621,8 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   const p4est_init_t  init_fn = rhea_p4est_init_fn;
   void               *user_pointer = NULL;
   int                 subdivision_x, subdivision_y, subdivision_z;
+  int                 period_x, period_y, period_z;
+
   /* p4est objects */
   p4est_connectivity_t *conn;
   p4est_t            *p4est;
@@ -651,6 +653,42 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   }
 
   /*
+   * Set Periodicity
+   */
+
+  period_x = 0;
+  period_y = 0;
+  period_z = 0;
+  switch (domain_options->shape) {
+  case RHEA_DOMAIN_CUBE:
+  case RHEA_DOMAIN_SHELL:
+  case RHEA_DOMAIN_CUBE_SPHERICAL:
+    RHEA_ASSERT (!rhea_domain_boundary_has_periodic (domain_options));
+    break;
+  case RHEA_DOMAIN_BOX:
+  case RHEA_DOMAIN_BOX_SPHERICAL:
+    if (RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL ==
+        domain_options->velocity_bc_type ||
+        RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL ==
+        domain_options->velocity_bc_type ||
+        RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL ==
+        domain_options->velocity_bc_type) {
+      period_x = 1;
+    }
+    if (RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL ==
+        domain_options->velocity_bc_type) {
+      period_y = 1;
+    }
+    if (RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL ==
+        domain_options->velocity_bc_type) {
+      period_z = 1;
+    }
+    break;
+  default: /* unknown domain shape */
+    RHEA_ABORT_NOT_REACHED ();
+  }
+
+  /*
    * Create Connectivity
    */
 
@@ -677,7 +715,8 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
     subdivision_y = domain_options->box_subdivision_y;
     subdivision_z = domain_options->box_subdivision_z;
     conn = p8est_connectivity_new_brick (subdivision_x, subdivision_y,
-                                         subdivision_z, 0, 0, 0);
+                                         subdivision_z, period_x, period_y,
+                                         period_z);
     /* scale & shift reference coordinates of vertices such that
      *   x component: [0, subdivision_x] -> [x_min, x_max]
      *   y component: [0, subdivision_y] -> [y_min, y_max]
@@ -736,7 +775,8 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
     subdivision_y = domain_options->box_subdivision_x; /* flip x and y */
     subdivision_z = domain_options->box_subdivision_z;
     conn = p8est_connectivity_new_brick (subdivision_x, subdivision_y,
-                                         subdivision_z, 0, 0, 0);
+                                         subdivision_z, period_x, period_y,
+                                         period_z);
     /* shift coordinates of vertices, so (modified) shell_X fnc can be used:
      *   x component: [0, subdiv_x] -> subdiv_x/subdiv_z * [-0.5, 0.5]
      *   y component: [0, subdiv_y] -> subdiv_y/subdiv_z * [-0.5, 0.5]

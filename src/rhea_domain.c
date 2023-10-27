@@ -131,7 +131,12 @@ rhea_domain_add_options (ymir_options_t * opt_sup)
     "3: Dirichlet all on inner sphere & Dirichlet norm on outer sphere; "
     "4: Dirichlet all on side faces & Neumann on top, bottom faces; "
     "5: Dirichlet norm on side faces & Dirichlet all on top, bottom faces; "
-    "6: Neumann all",
+    "6: Neumann all; "
+    "1001: Periodic in x direction, Dirichlet all otherwise; "
+    "1010: Periodic in y direction, Dirichlet all otherwise; "
+    "1100: Periodic in z direction, Dirichlet all otherwise; "
+    "1011: Periodic in x,y direction, Dirichlet all otherwise; "
+    "1101: Periodic in x,z direction, Dirichlet all otherwise",
 
   YMIR_OPTIONS_END_OF_LIST);
   /* *INDENT-ON* */
@@ -1067,6 +1072,29 @@ rhea_domain_boundary_get_num (rhea_domain_options_t *opt)
   }
 }
 
+int
+rhea_domain_boundary_has_periodic (rhea_domain_options_t *opt)
+{
+  switch (opt->velocity_bc_type) {
+  case RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_NORM:
+  case RHEA_DOMAIN_VELOCITY_BC_DIR_SIDES_NEU_TB:
+  case RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_DIR_ALL_TB:
+  case RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_B_NEU_T:
+  case RHEA_DOMAIN_VELOCITY_BC_NEUMANN_ALL:
+    return 0;
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL:
+    return 1;
+  default: /* unknown boundary condition */
+    RHEA_ABORT_NOT_REACHED ();
+    return -1;
+  }
+}
+
 /**
  * Assigns boundary faces of to p4est-tree faces.
  */
@@ -1182,6 +1210,11 @@ rhea_domain_vel_dir_fn_box (double X, double Y, double Z,
 
   switch (vel_bc_type) {
   case RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL:
     /* set Dirichlet in all directions for all points */
     return YMIR_VEL_DIRICHLET_ALL;
   case RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_NORM:
