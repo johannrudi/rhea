@@ -612,9 +612,10 @@ rhea_stokes_problem_amr_print_indicator_statistics (
   mpiret = sc_MPI_Allreduce (n_loc, n_glo, 2, MPI_INT64_T, sc_MPI_SUM,
                              mpicomm); SC_CHECK_MPI (mpiret);
   //TODO `sc_MPI_INT64_T` does not exist
-  RHEA_GLOBAL_INFOF ("<%s n_flagged_coarsen=%lli, n_flagged_refine=%lli, "
-                     "n_flagged_total=%lli />\n",
-                     func_name, n_glo[0], n_glo[1], n_glo[0] + n_glo[1]);
+  RHEA_GLOBAL_INFOF ("<%s n_flagged_coarsen=%li, n_flagged_refine=%li, "
+                     "n_flagged_total=%li />\n",
+                     func_name, (long int) n_glo[0], (long int) n_glo[1],
+                     (long int) (n_glo[0] + n_glo[1]));
 }
 #endif
 
