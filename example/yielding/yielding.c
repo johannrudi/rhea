@@ -363,7 +363,7 @@ main (int argc, char **argv)
                                   RHEA_PERFMON_PRINT_WTIME_ALL,
                                   RHEA_PERFMON_PRINT_NCALLS_ESSENTIAL,
                                   RHEA_PERFMON_PRINT_FLOPS_NONE,
-                                  RHEA_PERFMON_PRINT_YMIR_NONE);
+                                  RHEA_PERFMON_PRINT_YMIR_ALL);
   rhea_performance_monitor_finalize ();
 
   /* destroy options */
