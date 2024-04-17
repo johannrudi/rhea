@@ -1088,6 +1088,7 @@ rhea_domain_boundary_has_periodic (rhea_domain_options_t *opt)
   case RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL:
   case RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL:
   case RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL:
     return 1;
   default: /* unknown boundary condition */
     RHEA_ABORT_NOT_REACHED ();
@@ -1215,6 +1216,7 @@ rhea_domain_vel_dir_fn_box (double X, double Y, double Z,
   case RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL:
   case RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL:
   case RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL:
+  case RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL:
     /* set Dirichlet in all directions for all points */
     return YMIR_VEL_DIRICHLET_ALL;
   case RHEA_DOMAIN_VELOCITY_BC_DIRICHLET_NORM:

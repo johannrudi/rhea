@@ -667,22 +667,17 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
     break;
   case RHEA_DOMAIN_BOX:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    if (RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL ==
-        domain_options->velocity_bc_type ||
-        RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL ==
-        domain_options->velocity_bc_type ||
-        RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL ==
-        domain_options->velocity_bc_type) {
-      period_x = 1;
-    }
-    if (RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL ==
-        domain_options->velocity_bc_type) {
-      period_y = 1;
-    }
-    if (RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL ==
-        domain_options->velocity_bc_type) {
-      period_z = 1;
-    }
+    rhea_domain_velocity_bc_t bc_type = domain_options->velocity_bc_type;
+    period_x = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL
+            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL
+            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL
+            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
+    period_y = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL
+            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL
+            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
+    period_z = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL
+            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL
+            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();
