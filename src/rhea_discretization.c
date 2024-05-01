@@ -615,6 +615,7 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
   /* arguments for creating a new p4est object */
   const int           level_min = opt->level_min;
   const int           level_max = opt->level_max;
+  const rhea_domain_velocity_bc_t bc_type = domain_options->velocity_bc_type;
   const int           n_quadrants_init = 0;
   const int           fill_uniformly = 1;
   const size_t        data_size = sizeof (rhea_p4est_quadrant_data_t);
@@ -667,17 +668,16 @@ rhea_discretization_p4est_new (sc_MPI_Comm mpicomm,
     break;
   case RHEA_DOMAIN_BOX:
   case RHEA_DOMAIN_BOX_SPHERICAL:
-    rhea_domain_velocity_bc_t bc_type = domain_options->velocity_bc_type;
-    period_x = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL
-            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL
-            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL
-            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
-    period_y = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL
-            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL
-            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
-    period_z = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL
-            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL
-            || bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
+    period_x = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL ||
+                 bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL ||
+                 bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL ||
+                 bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
+    period_y = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL ||
+                 bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL ||
+                 bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
+    period_z = ( bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL ||
+                 bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL ||
+                 bc_type == RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL );
     break;
   default: /* unknown domain shape */
     RHEA_ABORT_NOT_REACHED ();

@@ -71,7 +71,6 @@ typedef enum
   RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL = 1101,
 
   /* periodic in all directions */
-
   RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL = 1111
 }
 rhea_domain_velocity_bc_t;
