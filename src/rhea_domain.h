@@ -57,7 +57,21 @@ typedef enum
   RHEA_DOMAIN_VELOCITY_BC_DIR_NORM_SIDES_B_NEU_T = 6,
 
   /* Neumann */
-  RHEA_DOMAIN_VELOCITY_BC_NEUMANN_ALL = 7
+  RHEA_DOMAIN_VELOCITY_BC_NEUMANN_ALL = 7,
+
+  /* periodic in x/y/z direction, Dirichlet all otherwise */
+  RHEA_DOMAIN_VELOCITY_BC_PERIODX_DIR_ALL = 1100,
+  RHEA_DOMAIN_VELOCITY_BC_PERIODY_DIR_ALL = 1010,
+  RHEA_DOMAIN_VELOCITY_BC_PERIODZ_DIR_ALL = 1001,
+
+  /* periodic in x & y direction, Dirichlet all otherwise */
+  RHEA_DOMAIN_VELOCITY_BC_PERIODXY_DIR_ALL = 1110,
+
+  /* periodic in x & z direction, Dirichlet all otherwise */
+  RHEA_DOMAIN_VELOCITY_BC_PERIODXZ_DIR_ALL = 1101,
+
+  /* periodic in all directions */
+  RHEA_DOMAIN_VELOCITY_BC_PERIOD_ALL = 1111
 }
 rhea_domain_velocity_bc_t;
 
@@ -276,6 +290,12 @@ void                rhea_domain_rotate_z_axis (double c[3],
  * Returns the number of boundary faces.
  */
 int                 rhea_domain_boundary_get_num (rhea_domain_options_t *opt);
+
+/**
+ * Returns if the boundary has periodic faces.
+ */
+int                 rhea_domain_boundary_has_periodic (
+                                                  rhea_domain_options_t *opt);
 
 /**
  * Creates a new boundary object.
