@@ -27,14 +27,15 @@ print_modules
 ########################################
 
 THIS_SITE="VT Chestnut, GNU compiler"
-OPENMP_FLAG="-fopenmp"
 
 # set pairs of directories (develop, performance)
-THIS_PETSC_DIR=("/home/jrudi/build/dev/petsc-rhea"
-                "/home/jrudi/build/perf/petsc-rhea")
+THIS_PETSC_DIR=("/home/jrudi/share/petsc-rhea-gnu-dev"
+                "/home/jrudi/share/petsc-rhea-gnu-perf")
 THIS_RHEAKIT_DIR=("/home/jrudi/build/dev/rhea-kit"
                   "/home/jrudi/build/perf/rhea-kit")
 
+THIS_MPI_DIR="/home/jrudi/share/mpich-4.1.2"
+OPENMP_FLAG="-fopenmp"
 THIS_VALGRIND_INC="/usr/include/valgrind"
 THIS_PYTHON_LDFLAGS=$(get_python_ldflags)
 THIS_PYTHON_LIBS=$(get_python_libs)
@@ -78,19 +79,22 @@ fet_dir="$code_dir/fet"
 petsc_dir="${THIS_PETSC_DIR[$is_opt]}"
 rheakit_dir="${THIS_RHEAKIT_DIR[$is_opt]}"
 
-print_setup "$THIS_SITE" $is_opt $OPENMP_FLAG "$code_dir" "$build_dir" \
+print_setup "$THIS_SITE" $is_opt "$code_dir" "$build_dir" \
             "$fet_dir" "$petsc_dir" "$rheakit_dir" \
-            "$THIS_VALGRIND_INC" "$THIS_PYTHON_LDFLAGS" "$THIS_PYTHON_LIBS" "$THIS_BLAS_LIBS"
+            "$THIS_MPI_DIR" "$OPENMP_FLAG" "$THIS_VALGRIND_INC" "$THIS_PYTHON_LDFLAGS" "$THIS_PYTHON_LIBS" "$THIS_BLAS_LIBS"
 print_sep_line
 
 if [ 1 -le "$is_opt" ]; then
   # configure optimized build
   $code_dir/configure \
+        FC="${THIS_MPI_DIR}/bin/mpif90" \
+        CC="${THIS_MPI_DIR}/bin/mpicc" \
+       CXX="${THIS_MPI_DIR}/bin/mpicxx" \
     FFLAGS="-g -O3 $OPENMP_FLAG" \
     CFLAGS="-g -O3 $OPENMP_FLAG -Wall -DYMIR_PETSC_CUSTOM -DFET_DISABLE_DEBUG" \
   CXXFLAGS="-g -O3 $OPENMP_FLAG -Wall" \
-  CPPFLAGS="-I${THIS_VALGRIND_INC}" \
-   LDFLAGS="${THIS_PYTHON_LDFLAGS}" \
+  CPPFLAGS="-I${THIS_MPI_DIR}/include -I${THIS_VALGRIND_INC}" \
+   LDFLAGS="-L${THIS_MPI_DIR}/lib ${THIS_PYTHON_LDFLAGS}" \
       LIBS="${THIS_PYTHON_LIBS}" \
   --enable-mpi \
   --enable-openmp="$OPENMP_FLAG" \
@@ -101,11 +105,15 @@ if [ 1 -le "$is_opt" ]; then
 else
   # configure development build
   $code_dir/configure \
+        FC="${THIS_MPI_DIR}/bin/mpif90" \
+        CC="${THIS_MPI_DIR}/bin/mpicc" \
+       CXX="${THIS_MPI_DIR}/bin/mpicxx" \
     FFLAGS="-g -O0 $OPENMP_FLAG" \
     CFLAGS="-g -O0 $OPENMP_FLAG -Wall -DYMIR_PETSC_CUSTOM" \
   CXXFLAGS="-g -O0 $OPENMP_FLAG -Wall" \
   CPPFLAGS="-I${THIS_VALGRIND_INC}" \
-   LDFLAGS="${THIS_PYTHON_LDFLAGS}" \
+  CPPFLAGS="-I${THIS_MPI_DIR}/include -I${THIS_VALGRIND_INC}" \
+   LDFLAGS="-L${THIS_MPI_DIR}/lib ${THIS_PYTHON_LDFLAGS}" \
       LIBS="${THIS_PYTHON_LIBS}" \
   --enable-debug \
   --enable-mpi \

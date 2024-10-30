@@ -27,7 +27,6 @@ print_modules
 ########################################
 
 THIS_SITE="Anvil, GNU compiler"
-OPENMP_FLAG="-fopenmp"
 
 # set pairs of directories (develop, performance)
 THIS_PETSC_DIR=("/home/x-mheldman/build/dev/petsc-rhea"
@@ -35,6 +34,8 @@ THIS_PETSC_DIR=("/home/x-mheldman/build/dev/petsc-rhea"
 THIS_RHEAKIT_DIR=("/home/x-johann/build/dev/rhea-kit"
                   "/home/x-johann/build/perf/rhea-kit")
 
+THIS_MPI_DIR=$MPI_HOME
+OPENMP_FLAG="-fopenmp"
 THIS_VALGRIND_INC="$VALGRIND_INCLUDE"
 THIS_PYTHON_LDFLAGS=$(get_python_ldflags)
 THIS_PYTHON_LIBS=$(filter -lpython3* "$(get_python_libs)")
@@ -79,9 +80,9 @@ fet_dir="$code_dir/fet"
 petsc_dir="${THIS_PETSC_DIR[$is_opt]}"
 rheakit_dir="${THIS_RHEAKIT_DIR[$is_opt]}"
 
-print_setup "$THIS_SITE" $is_opt $OPENMP_FLAG "$code_dir" "$build_dir" \
+print_setup "$THIS_SITE" $is_opt "$code_dir" "$build_dir" \
             "$fet_dir" "$petsc_dir" "$rheakit_dir" \
-            "$THIS_VALGRIND_INC" "$THIS_PYTHON_LDFLAGS" "$THIS_PYTHON_LIBS" "$THIS_BLAS_LIBS"
+            "$THIS_MPI_DIR" "$OPENMP_FLAG" "$THIS_VALGRIND_INC" "$THIS_PYTHON_LDFLAGS" "$THIS_PYTHON_LIBS" "$THIS_BLAS_LIBS"
 print_sep_line
 
 if [ 1 -le "$is_opt" ]; then
