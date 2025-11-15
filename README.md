@@ -25,3 +25,7 @@ embedded into an inexact Newton-Krylov method to deal with severely nonlinear
 rheologies. We developed a nonlinear preconditioner to avoid prohibitively
 stagnating convergence of Newton's method due to highly nonlinear physics at
 plate fault zones.
+
+## Contributors
+
+Johann Rudi, Max Heldman, Leonid Pereiaslov, Jiaqi Fang, Jiashun Hu
