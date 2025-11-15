@@ -11,9 +11,14 @@ build:
     python: "3.11"
   apt_packages:
     - doxygen
+  jobs:
+    pre_build:
+      # Run doxygen to generate XML files
+      - cd docs && doxygen
 
 sphinx:
   configuration: docs/conf.py
+  fail_on_warning: false
 
 python:
   install:
