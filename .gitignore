@@ -1,7 +1,4 @@
-# .gitignore should include files that every developer wants to ignore.  If
-# you've checked out this repository, you're probably going to bootstrap from
-# autotools: othewise you would have got a tarball.  So we can assume that you
-# want to ignore autotools generated files.
+# Autotools generated files
 Makefile.in
 aclocal.m4
 autom4te.cache/
@@ -23,8 +20,19 @@ configure
 src/pre_config.h.in
 src/pre_config.h.in~
 
+# Sphinx, Doxygen
+docs/_build/
+docs/_doxygen/
+
+# Python
+__pycache__/
+*.pyc
+
 # Mac
 .DS_Store
+
+# Windows
+Thumbs.db
 
 # ParaView
 *.vtu
@@ -41,7 +49,7 @@ src/pre_config.h.in~
 [._]s[a-rt-v][a-z]
 [._]ss[a-gi-z]
 [._]sw[a-p]
-tags # auto-generated tag files
+tags  # auto-generated tag files
 
 # Visual Studio Code
 .vscode/*
@@ -50,5 +58,5 @@ tags # auto-generated tag files
 !.vscode/launch.json
 !.vscode/extensions.json
 !.vscode/*.code-snippets
-.history/ # local history
-*.vsix    # built extensions
+.history/  # local history
+*.vsix  # built extensions
