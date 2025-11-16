@@ -17,6 +17,7 @@ release = "2.0.0"
 extensions = [
     # Sphinx's own extensions
     "sphinx.ext.autosectionlabel",  # Auto-generate section labels
+    "sphinx.ext.todo",  # Enables `admonition-todo`
     # External
     "breathe",  # Integrates Doxygen with Sphinx
     "myst_parser",  # Markdown support
@@ -51,8 +52,10 @@ breathe_default_project = "Rhea"
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
+html_title = "Rhea"
 html_theme = "furo"
 html_static_path = ["_static"]
+html_css_files = ["custom.css"]
 language = "en"
 
 # -- Furo configuration ------------------------------------------------------

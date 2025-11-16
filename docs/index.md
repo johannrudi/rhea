@@ -1,20 +1,37 @@
-# Rhea documentation
+# The Rhea Project
 
 :::{important}
 This documentation is actively evolving.
 :::
 
-Extreme-scale Simulation and Inference for Earth's Mantle Convection.
-
 ```{toctree}
-:maxdepth: 2
 :caption: Contents
+:hidden:
 
 getting_started
-api
 ```
 
-## Indices and tables
+```{toctree}
+:caption: Development
+:hidden:
 
-* {ref}`genindex`
-* {ref}`search`
+api/index
+```
+
+```{include} ../README.md
+:start-after: <!-- start include-docs-index -->
+:end-before: <!-- end include-docs-index -->
+```
+
+## Download
+
+*Rhea* is available from:
+
+- [GitHub](https://github.com/johannrudi/rhea)
+
+---
+
+## Documentation Index and Search
+
+- {ref}`genindex`
+- {ref}`search`

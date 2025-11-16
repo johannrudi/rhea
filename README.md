@@ -1,5 +1,11 @@
 # Rhea
 
+[![Documentation Status](https://readthedocs.org/projects/rhea/badge/?version=latest&style=flat)](https://rhea.readthedocs.io/en/latest/)
+
+<!-- start include-docs-index -->
+
+Extreme-scale Simulation and Inference for Earth's Mantle Convection.
+
 The adaptive nonlinear Stokes solver for mantle convection and plate tectonics.
 Forward models of Earth's mantle are solved at a global scale while resolving
 plate-boundaries. Inverse problems of finding rheological parameters of the
@@ -29,3 +35,5 @@ plate fault zones.
 ## Contributors
 
 Johann Rudi, Max Heldman, Leonid Pereiaslov, Jiaqi Fang, Jiashun Hu
+
+<!-- end include-docs-index -->
