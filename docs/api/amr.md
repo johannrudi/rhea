@@ -1,13 +1,3 @@
 # AMR: Adaptive Mesh Refinement
 
-## `rhea_amr.h` 
-
-```{doxygenfile} rhea_amr.h
-:project: Rhea
-```
-
-## `rhea_stokes_problem_amr.h` 
-
-```{doxygenfile} rhea_stokes_problem_amr.h
-:project: Rhea
-```
+{{ doxygenfile_sections_toc(["rhea_amr.h", "rhea_stokes_problem_amr.h"], project, project_url) }}

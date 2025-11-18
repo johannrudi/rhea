@@ -1,13 +1,3 @@
 # Weak Zone
 
-## `rhea_weakzone.h` 
-
-```{doxygenfile} rhea_weakzone.h
-:project: Rhea
-```
-
-## `rhea_weakzone_label.h` 
-
-```{doxygenfile} rhea_weakzone_label.h
-:project: Rhea
-```
+{{ doxygenfile_sections_toc(["rhea_weakzone.h", "rhea_weakzone_label.h"], project, project_url) }}

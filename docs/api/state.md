@@ -1,25 +1,3 @@
 # State: Temperature, Velocity, Pressure
 
-## `rhea_temperature.h` 
-
-```{doxygenfile} rhea_temperature.h
-:project: Rhea
-```
-
-## `rhea_velocity.h` 
-
-```{doxygenfile} rhea_velocity.h
-:project: Rhea
-```
-
-## `rhea_pressure.h` 
-
-```{doxygenfile} rhea_pressure.h
-:project: Rhea
-```
-
-## `rhea_velocity_pressure.h` 
-
-```{doxygenfile} rhea_velocity_pressure.h
-:project: Rhea
-```
+{{ doxygenfile_sections_toc(["rhea_temperature.h", "rhea_velocity.h", "rhea_pressure.h", "rhea_velocity_pressure.h"], project, project_url) }}

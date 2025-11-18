@@ -1,25 +1,3 @@
 # Domain
 
-## `rhea_domain.h` 
-
-```{doxygenfile} rhea_domain.h
-:project: Rhea
-```
-
-## `rhea_domain_subset.h`
-
-```{doxygenfile} rhea_domain_subset.h
-:project: Rhea
-```
-
-## `rhea_plate.h`
-
-```{doxygenfile} rhea_plate.h
-:project: Rhea
-```
-
-## `rhea_topography.h`
-
-```{doxygenfile} rhea_topography.h
-:project: Rhea
-```
+{{ doxygenfile_sections_toc(["rhea_domain.h", "rhea_domain_subset.h", "rhea_plate.h", "rhea_topography.h"], project, project_url) }}

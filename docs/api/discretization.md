@@ -1,7 +1,3 @@
 # Discretization
 
-## `rhea_discretization.h` 
-
-```{doxygenfile} rhea_discretization.h
-:project: Rhea
-```
+{{ doxygenfile_section("rhea_discretization.h", project, project_url) }}

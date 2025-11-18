@@ -3,16 +3,18 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-import os
+import pathlib
 import sys
 
-# Folder containing this file
-DOCS_FOLDER = os.path.basename(os.path.dirname(os.path.realpath(__file__)))
+# Set paths and folder names
+DOCS_DIR = pathlib.Path(__file__).parent.resolve().absolute()
+DOCS_FOLDER = DOCS_DIR.name
+REPO_DIR = DOCS_DIR.parent.absolute()
 
 # Add utilities directory to path
-sys.path.insert(0, os.path.abspath("./_utils"))
+sys.path.insert(0, str(DOCS_DIR / "_utils"))
 
-from doxygen_utils import doxygenfile_section
+from doxygen_utils import (doxygenfile_section, doxygenfile_sections_toc)
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
@@ -23,10 +25,10 @@ author = "Johann Rudi, Max Heldman, Leonid Pereiaslov, Jiaqi Fang, Jiashun Hu"
 release = "2.0.0"
 
 # Custom project information
-github_namespace = "johannrudi"
+github_user = "johannrudi"
 github_repo = "rhea"
 github_version = "main"
-project_url = f"https://github.com/{github_namespace}/{github_repo}/"
+project_url = f"https://github.com/{github_user}/{github_repo}/"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -73,11 +75,14 @@ myst_enable_extensions = [
 myst_substitutions = {
     "project": project,
     "project_url": project_url,
-    "github_namespace": github_namespace,
+    "github_user": github_user,
     "github_repo": github_repo,
     "github_version": github_version,
-    "docs_dirname": DOCS_FOLDER,
+    "docs_dir": DOCS_DIR,
+    "docs_folder": DOCS_FOLDER,
+    "repo_dir": REPO_DIR,
     "doxygenfile_section": doxygenfile_section,
+    "doxygenfile_sections_toc": doxygenfile_sections_toc,
 }
 
 # -- Breathe configuration ---------------------------------------------------
@@ -108,7 +113,7 @@ language = "en"
 html_context = {
     # GitHub context
     "display_github": True,
-    "github_user": github_namespace,
+    "github_user": github_user,
     "github_repo": github_repo,
     "github_version": github_version,
     "conf_py_path": f"/{DOCS_FOLDER}/",

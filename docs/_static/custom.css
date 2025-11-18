@@ -1,1 +1,8 @@
-// TODO
+/* style and right‑align the [source] link */
+h2 .source-link {
+  float: right;             /* push it to the right */
+  font-size: 1rem;          /* normal text size */
+  font-weight: normal;
+  margin-top: 0.75rem;
+  margin-left: 0.5rem;
+}

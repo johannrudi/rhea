@@ -1,6 +1,6 @@
 # API Reference
 
-These pages document the code of the *Rhea* library.
+These pages document the code of the Rhea library.
 
 ```{toctree}
 :hidden:
@@ -21,7 +21,7 @@ utilities
 
 - [Domain](./domain)
 - [Discretization](./discretization)
-- [AMR](./amr)
+- [AMR: Adaptive Mesh Refinement](./amr)
 - [I/O & Visualization](./io_vis)
 - Rheology:
   - [Weak Zone](./weakzone)
@@ -29,6 +29,6 @@ utilities
 - [Composition](./composition)
 - [State: Temperature, Velocity, Pressure](./state)
 - [Stokes Problem](./stokes)
-- [Newton Solver](./newton)
+- [Newton's Method](./newton)
 - [Inversion](./inversion)
 - [Utilities](./utilities)

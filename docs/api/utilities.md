@@ -1,13 +1,3 @@
 # Utilities
 
-## `rhea.h` 
-
-```{doxygenfile} rhea.h
-:project: Rhea
-```
-
-## `rhea_math.h`
-
-```{doxygenfile} rhea_math.h
-:project: Rhea
-```
+{{ doxygenfile_sections_toc(["rhea.h", "rhea_math.h"], project, project_url) }}

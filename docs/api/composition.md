@@ -1,7 +1,3 @@
 # Composition
 
-## `rhea_composition.h` 
-
-```{doxygenfile} rhea_composition.h
-:project: Rhea
-```
+{{ doxygenfile_section("rhea_composition.h", project, project_url) }}
