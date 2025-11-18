@@ -25,13 +25,13 @@ api/index
 
 ## Download
 
-*Rhea* is available from:
+Rhea is available from:
 
 - [GitHub](https://github.com/johannrudi/rhea)
 
 ---
 
-## Documentation Index and Search
+## Documentation Indices
 
 - {ref}`genindex`
 - {ref}`search`
